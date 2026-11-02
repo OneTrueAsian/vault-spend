@@ -821,6 +821,20 @@ fn a_bill_with_a_charge_near_its_due_date_is_paid() {
 }
 
 #[test]
+fn a_bill_whose_name_has_accented_letters_matches_a_statement_line_in_capitals() {
+    // SQLite's lower() folds only ASCII, so matching in SQL treated "CAFÉ ROUGE" and "Café Rouge" as different
+    // names while the suggestion filter (which folds in Rust) treated them as the same.
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    let id = store
+        .create_recurring("Café Rouge", None, dec("-12.00"), "monthly", day("2026-08-03"), None)
+        .unwrap();
+    put(&store, account, "2026-09-03", "CAFÉ ROUGE 4412", "-12.00");
+
+    assert_eq!(match_for(&store, "2026-09-05", id).state, "paid");
+}
+
+#[test]
 fn a_charge_that_posts_a_few_days_late_still_counts() {
     let store = Store::open_in_memory().unwrap();
     let account = test_account(&store);
@@ -1046,4 +1060,48 @@ fn a_zero_day_window_reminds_only_about_bills_due_today() {
     bill(&store, "Geico Auto", "-120.00", "2026-09-19");
 
     assert_eq!(reminder_names(&store, "2026-09-18", 0), vec!["Rent"]);
+}
+
+// QA-FUNC-002: short months clamp only that occurrence, never the original schedule.
+#[test]
+fn qa_recurring_calendar_keeps_original_month_and_leap_day_anchors() {
+    for (anchor, cadence, today, expected) in [
+        ("2026-01-31", "monthly", "2026-10-27", "2026-10-31"),
+        ("2026-08-31", "monthly", "2026-10-27", "2026-10-31"),
+        ("2026-01-30", "monthly", "2026-03-01", "2026-03-30"),
+        ("2026-01-29", "monthly", "2026-03-01", "2026-03-29"),
+        ("2024-02-29", "annual", "2028-02-01", "2028-02-29"),
+        ("2024-02-29", "annual", "2027-02-01", "2027-02-28"),
+        ("2026-12-31", "monthly", "2026-10-27", "2026-12-31"),
+        ("2026-01-31", "monthly", "2026-02-28", "2026-02-28"),
+    ] {
+        let store = Store::open_in_memory().unwrap();
+        store
+            .create_recurring("QA anchor", None, "-10.00".parse().unwrap(), cadence, anchor.parse().unwrap(), None)
+            .unwrap();
+        assert_eq!(
+            store.list_recurring(today.parse().unwrap()).unwrap()[0].next_date,
+            expected.parse::<NaiveDate>().unwrap(),
+            "{anchor} {cadence} on {today}"
+        );
+    }
+}
+#[test]
+fn qa_recurring_calendar_paid_history_uses_the_same_original_anchor() {
+    let store = Store::open_in_memory().unwrap();
+    store
+        .create_recurring(
+            "QA month end",
+            None,
+            "-10.00".parse().unwrap(),
+            "monthly",
+            "2026-01-31".parse().unwrap(),
+            None,
+        )
+        .unwrap();
+    let row = store.recurring_matches("2026-10-31".parse().unwrap()).unwrap().remove(0);
+    assert_eq!(row.last_due, Some("2026-10-31".parse().unwrap()));
+    let forecast = store.bill_aware_forecast("2026-10-27".parse().unwrap(), 40).unwrap();
+    let dates: Vec<_> = forecast.events.iter().map(|e| e.date.to_string()).collect();
+    assert_eq!(dates, vec!["2026-10-31", "2026-11-30"]);
 }

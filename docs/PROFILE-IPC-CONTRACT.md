@@ -38,8 +38,8 @@ automatically.
 `ProfileIpcError.code` is separate from its display message. Malformed responses
 use `invalid_response` with a fixed message; rejected payloads, passwords, recovery
 keys and tokens are not interpolated into that error. Structured native error
-objects preserve their machine code independently of wording. Existing profile
-commands still return legacy human-readable strings; they are explicitly classified
+objects preserve their machine code independently of wording. Commands not yet
+migrated to structured refusals still return human-readable strings; these are classified
 as `legacy_error`, not guessed into domain codes from prose. Migrating their native
 domain refusals to structured DTOs remains separate task N work.
 
@@ -69,8 +69,9 @@ Eight more commands use the same adapter: `create_profile`, `rename_profile`,
 `get_current_generation`, `get_profile_ui_state`, `set_profile_ui_state`,
 `mark_ui_state_migrated` and `is_ui_state_migrated` (`profileUiState.ts`). Replies
 are runtime-validated (non-empty confirmation text, non-negative integer generation,
-text-or-null state, boolean flag, unit). Their native refusals are still plain
-strings, so they surface as `legacy_error` rather than a guessed domain code.
+text-or-null state, boolean flag, unit). Profile CRUD uses the structured refusals
+listed below; the UI-state commands retain legacy string errors, which surface as
+`legacy_error` rather than a guessed domain code.
 
 Auto-lock settings (`get_auto_lock_settings`, `set_auto_lock_settings`,
 `record_trusted_activity`) use the adapter too; the settings reply must hold one of

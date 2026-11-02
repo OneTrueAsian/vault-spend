@@ -40,9 +40,9 @@ nothing is protected unless you turn it on.
 - **Dashboard** — net worth, cash, debt, and investments at a glance, then a
   To do list of what needs you, an insights feed, a layout you can customize
   from its Layout menu, and a natural-language "Ask the Vault" query box.
-- **Accounts** — checking, savings, credit card, loan, investment, and
-  other account types, plus property & valuables, each with balance
-  history and statement reconciliation.
+- **Accounts** — checking, savings, credit card, loan, and investment
+  accounts have balance history and statement reconciliation. Property and
+  valuables track a current value.
 - **Transactions** — every transaction, with categorization, tagging,
   splitting, notes and transfers from each row's ⋯ menu, bulk editing, and
   family-member attribution. Adding one by hand uses a Money out / Money in

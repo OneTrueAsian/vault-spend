@@ -45,10 +45,10 @@ try {
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
-  // On a loan account the row's ⋯ menu offers "Split principal…" (never "Apply to a debt…").
+  // On a loan account the row's ⋯ menu offers "Split principal" (never "Apply to a debt").
   const rowMenu = await app.browser.$("tr[data-payment-row] [data-row-menu]");
   await rowMenu.waitForExist({ timeout: 10000 });
-  await chooseRowAction(app.browser, "tr[data-payment-row] [data-row-menu]", "Split principal…");
+  await chooseRowAction(app.browser, "tr[data-payment-row] [data-row-menu]", "Split principal");
 
   // The amount field pre-fills with the full transaction amount (2500.00)
   // — clear it and type just the principal portion.

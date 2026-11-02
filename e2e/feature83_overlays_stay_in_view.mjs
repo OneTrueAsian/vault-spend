@@ -10,7 +10,7 @@
 //
 // Run with: node e2e/feature83_overlays_stay_in_view.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -84,6 +84,7 @@ try {
 
   for (const style of ["Default", "Futuristic"]) {
     await goTo("Settings");
+    await openSettingsGroup(browser, "display");
     await selectTheme(style);
     await browser.pause(400);
 
@@ -117,6 +118,7 @@ try {
 
     // ---- a toast, from the tall Settings page ------------------------------
     await goTo("Settings");
+    await openSettingsGroup(browser, "data");
     const backUp = await browser.$("button=Back up now");
     await backUp.scrollIntoView({ block: "center" });
     await backUp.click();

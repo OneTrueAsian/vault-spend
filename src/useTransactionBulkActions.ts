@@ -143,7 +143,7 @@ export function useTransactionBulkActions({ data, list, onStatus: setStatus, onB
       await refresh();
       if (ids.length > 0) {
         setReviewIds(new Set(ids));
-        setStatus(`Categorized ${ids.length} transaction(s) — review below and fix any mistakes.`, "success");
+        setStatus(`Categorized ${ids.length} transaction${ids.length === 1 ? "" : "s"} — review below and fix any mistakes.`, "success");
       } else {
         setReviewIds(null);
         setStatus("Nothing new to categorize.", "info");
@@ -206,7 +206,7 @@ export function useTransactionBulkActions({ data, list, onStatus: setStatus, onB
       const deletedIds = await callTransaction<number[]>("bulk_delete_transactions", { ids });
       setSelectedIds(new Set());
       await refresh();
-      setUndoToast({ text: `Deleted ${deletedIds.length} transaction(s).`, ids: deletedIds });
+      setUndoToast({ text: `Deleted ${deletedIds.length} transaction${deletedIds.length === 1 ? "" : "s"}.`, ids: deletedIds });
     } catch (e) {
       setStatus(errorMessage(e));
     }
@@ -219,7 +219,7 @@ export function useTransactionBulkActions({ data, list, onStatus: setStatus, onB
     try {
       await callTransaction("restore_transactions", { ids });
       await refresh();
-      setStatus(`Restored ${ids.length} transaction(s).`, "success");
+      setStatus(`Restored ${ids.length} transaction${ids.length === 1 ? "" : "s"}.`, "success");
     } catch (e) {
       setStatus(errorMessage(e));
     }
@@ -244,7 +244,7 @@ export function useTransactionBulkActions({ data, list, onStatus: setStatus, onB
       const created = await callTransaction<number>("bulk_create_recurring_from_transactions", { ids, cadence });
       setSelectedIds(new Set());
       await refreshRecurring();
-      setStatus(`Added ${created} transaction(s) to Recurring — adjust the cadence per item there if needed.`, "success");
+      setStatus(`Added ${created} transaction${created === 1 ? "" : "s"} to Recurring — adjust the cadence per item there if needed.`, "success");
     } catch (e) {
       setStatus(errorMessage(e));
     }

@@ -1,3 +1,4 @@
+import { useId, useState } from "react";
 import { usePopover } from "./usePopover";
 import { MenuSelect } from "./MenuSelect";
 import { DateField } from "./DateField";
@@ -26,6 +27,10 @@ export function MoreFiltersPopover({
   onSetTag: (v: string) => void;
 }) {
   const { open, setOpen, rootRef, triggerRef } = usePopover();
+  // Clear all must also drop half-typed text in a date box, which the stored value alone cannot do.
+  const [clearCount, setClearCount] = useState(0);
+  const fromId = useId();
+  const toId = useId();
 
   const activeCount = [filterFrom !== "", filterTo !== "", filterTag !== "all"].filter(Boolean).length;
   const label = activeCount === 0 ? "More filters" : `${activeCount} filter${activeCount === 1 ? "" : "s"} active`;
@@ -34,6 +39,7 @@ export function MoreFiltersPopover({
     onSetFrom("");
     onSetTo("");
     onSetTag("all");
+    setClearCount((n) => n + 1);
   }
 
   return (
@@ -58,14 +64,14 @@ export function MoreFiltersPopover({
               </button>
             </div>
           )}
-          <label className="labeled-field" style={{ marginBottom: 8 }}>
-            <span className="labeled-field-label">From date</span>
-            <DateField value={filterFrom} onChange={onSetFrom} ariaLabel="From date" placeholder="Any date" />
-          </label>
-          <label className="labeled-field" style={{ marginBottom: 8 }}>
-            <span className="labeled-field-label">To date</span>
-            <DateField value={filterTo} onChange={onSetTo} ariaLabel="To date" placeholder="Any date" />
-          </label>
+          <div className="labeled-field" style={{ marginBottom: 8 }}>
+            <label className="labeled-field-label" htmlFor={fromId}>From date</label>
+            <DateField key={`from-${clearCount}`} id={fromId} value={filterFrom} onChange={onSetFrom} ariaLabel="From date" placeholder="Any date" />
+          </div>
+          <div className="labeled-field" style={{ marginBottom: 8 }}>
+            <label className="labeled-field-label" htmlFor={toId}>To date</label>
+            <DateField key={`to-${clearCount}`} id={toId} value={filterTo} onChange={onSetTo} ariaLabel="To date" placeholder="Any date" />
+          </div>
           <label className="labeled-field">
             <span className="labeled-field-label">Tag</span>
             <MenuSelect

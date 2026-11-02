@@ -17,6 +17,7 @@ import { formatEpochDateTime } from "./format";
 import "./MobileSettings.css";
 
 import { MobileSetupWizard } from "./MobileSetupWizard";
+import { SettingStar, cardAttr } from "./SettingStar";
 
 interface Status {
   running: boolean;
@@ -63,6 +64,7 @@ export function MobileSettings() {
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [pair, setPair] = useState<{ url: string; expires: number } | null>(null),
+    [guideOpen, setGuideOpen] = useState(false),
     [now, setNow] = useState(Date.now());
 
   const [confirm, setConfirm] = useState<{
@@ -157,6 +159,7 @@ export function MobileSettings() {
   };
 
   const pairPhone = async () => {
+    setGuideOpen(true);
     const code = await invoke<string>("mobile_begin_pairing");
     setPair({ url: `${status!.origin}/mobile/#pair=${code}`, expires: Date.now() + 300000 });
   };
@@ -166,11 +169,13 @@ export function MobileSettings() {
       className="card mobile-desktop-settings"
       aria-labelledby="mobile-settings-title"
       data-mobile-settings
+      {...cardAttr("mobile-snapshots")}
     >
       <div className="card-head">
         <h2 id="mobile-settings-title" className="reports-section-title">
           Mobile snapshots
         </h2>
+        <SettingStar id="mobile-snapshots" />
       </div>
 
       <p className="modal-message-secondary">
@@ -178,12 +183,25 @@ export function MobileSettings() {
         open and the requested profile is active and unlocked. No cloud storage.
       </p>
 
-      <p role="status">
-        {status?.running ? "Local HTTPS is running" : "Mobile access is stopped"}
-        {status?.error ? `. ${status.error}` : ""}
-      </p>
+      <div className="mobile-desktop-status">
+        <p role="status">
+          {status?.running ? "Local HTTPS is running" : "Mobile access is stopped"}
+          {status?.error ? `. ${status.error}` : ""}
+        </p>
+        {status?.origin && (
+          <>
+            <p>
+              Viewer address: <strong className="mobile-desktop-code">{status.origin}/mobile/</strong>
+            </p>
+            <p>
+              Server certificate valid until {date(status.leafExpires)}. It renews automatically under
+              the same trusted root while the service runs.
+            </p>
+          </>
+        )}
+      </div>
 
-      <div className="modal-actions">
+      <div className="settings-actions">
         <button disabled={busy} onClick={() => setSetupOpen(true)}>
           Set up a phone
         </button>
@@ -227,7 +245,7 @@ export function MobileSettings() {
           address; changing its address or port creates a different saved-data location.
         </p>
 
-        <div className="modal-actions">
+        <div className="settings-actions">
           <button
             disabled={busy || !network}
             onClick={() =>
@@ -254,19 +272,7 @@ export function MobileSettings() {
         </div>
       </details>
 
-      {status?.origin && (
-        <>
-          <p>
-            Viewer address: <strong className="mobile-desktop-code">{status.origin}/mobile/</strong>
-          </p>
-          <p>
-            Server certificate valid until {date(status.leafExpires)}. It renews automatically under
-            the same trusted root while the service runs.
-          </p>
-        </>
-      )}
-
-      <details>
+      <details open={guideOpen} onToggle={(event) => setGuideOpen(event.currentTarget.open)}>
         <summary>Phone setup and certificate trust</summary>
         <ol>
           <li>
@@ -319,50 +325,50 @@ export function MobileSettings() {
         <p className="mobile-desktop-code">
           SHA-256: {status?.fingerprint ?? "Enable local HTTPS to create the certificate."}
         </p>
-      </details>
-
-      <div className="modal-actions">
-        <button
-          disabled={busy || !status?.running}
-          onClick={() =>
-            void run(async () => {
-              await pairPhone();
-            })
-          }
-        >
-          Pair a phone
-        </button>
-        {pair && (
+        <h3>Pair a phone</h3>
+        <div className="settings-actions">
           <button
-            className="modal-secondary"
-            disabled={busy}
+            disabled={busy || !status?.running}
             onClick={() =>
               void run(async () => {
-                await invoke("mobile_cancel_pairing");
-                setPair(null);
+                await pairPhone();
               })
             }
           >
-            Cancel pairing
+            Pair a phone
           </button>
-        )}
-      </div>
-
-      {pair && (
-        <div className="mobile-desktop-pair">
-          <QRCodeSVG
-            value={pair.url}
-            size={208}
-            marginSize={4}
-            title="One-time phone pairing link"
-          />
-          {/* prettier-ignore */}
-          <p>Scan after trusting the certificate. Expires in {Math.max(0,Math.ceil((pair.expires-now)/1000))} seconds.</p>
-          <p className="mobile-desktop-code">{pair.url}</p>
-          <p>For a home-screen shortcut, open that shortcut and paste just this one-time code:</p>
-          <code className="mobile-desktop-code">{pair.url.split("#pair=")[1]}</code>
+          {pair && (
+            <button
+              className="modal-secondary"
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  await invoke("mobile_cancel_pairing");
+                  setPair(null);
+                })
+              }
+            >
+              Cancel pairing
+            </button>
+          )}
         </div>
-      )}
+
+        {pair && (
+          <div className="mobile-desktop-pair">
+            <QRCodeSVG
+              value={pair.url}
+              size={208}
+              marginSize={4}
+              title="One-time phone pairing link"
+            />
+            {/* prettier-ignore */}
+            <p>Scan after trusting the certificate. Expires in {Math.max(0,Math.ceil((pair.expires-now)/1000))} seconds.</p>
+            <p className="mobile-desktop-code">{pair.url}</p>
+            <p>For a home-screen shortcut, open that shortcut and paste just this one-time code:</p>
+            <code className="mobile-desktop-code">{pair.url.split("#pair=")[1]}</code>
+          </div>
+        )}
+      </details>
 
       <h3>Approved phones</h3>
       <p>Revoke blocks future downloads. It cannot erase saved offline copies.</p>

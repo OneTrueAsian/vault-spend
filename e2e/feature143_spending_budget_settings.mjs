@@ -1,6 +1,6 @@
 // Current-month Reports, category spending drilldowns, Budget net, and the
 // per-profile Safe to spend switch in a real compiled Tauri app.
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -87,6 +87,7 @@ try {
   if ((await browser.$$(".density-toggle")).length !== 0) throw new Error("Density selector should be hidden");
 
   await nav("Settings");
+  await openSettingsGroup(browser, "features");
   const toggle = await browser.$("[data-feature-toggle='safe_to_spend_enabled'] input");
   await toggle.waitForExist({ timeout: 10000 });
   if (!(await toggle.isSelected())) throw new Error("Safe to spend should default on");
@@ -95,6 +96,7 @@ try {
   await nav("Dashboard");
   if ((await browser.$$(".safe-to-spend-card")).length !== 0) throw new Error("Safe to spend remained on Dashboard after disabling");
   await nav("Settings");
+  await openSettingsGroup(browser, "features");
   await (await browser.$("[data-feature-toggle='safe_to_spend_enabled'] input")).click();
   await nav("Dashboard");
   await browser.$(".safe-to-spend-card").waitForExist({ timeout: 15000 });

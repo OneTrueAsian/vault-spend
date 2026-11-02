@@ -83,16 +83,28 @@ export function usePopover() {
       }
     }
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setOpen(false);
-        triggerRef.current?.focus();
-      }
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      // A date or month calendar open inside the panel owns this Escape: it closes first, the panel later.
+      if (rootRef.current?.querySelector(".calendar-popover")) return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+    // The panel floats over the page, so Tab must not carry focus to a control hidden behind it: close when
+    // focus leaves (leaving focus where it went). A menu opened from inside the panel is drawn outside the
+    // panel's own box, so focus in a menu or list does not count as leaving.
+    function handleFocusIn(e: FocusEvent) {
+      const target = e.target;
+      if (!(target instanceof Element) || !rootRef.current || rootRef.current.contains(target)) return;
+      if (target.closest('[role="menu"], [role="listbox"]')) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("focusin", handleFocusIn);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("focusin", handleFocusIn);
     };
   }, [open]);
 

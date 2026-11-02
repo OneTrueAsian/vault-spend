@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { dismissFirstLaunchDialogs, launchApp } from "./harness.mjs";
+import { dismissFirstLaunchDialogs, launchApp, openSettingsGroup } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 import { enableProtectionThroughUI, killAtFailpoint, seedPopulatedProfile } from "./lib/protection.mjs";
 
@@ -17,14 +17,15 @@ async function fixture() {
   const app = await launchApp({ dbDir: testDbDir });
   await (await app.browser.$("button*=Settings")).click();
   await enableProtectionThroughUI(app.browser, PASSWORD);
-  await app.browser.$("button=Remove protection…").waitForExist({ timeout: 15000 });
+  await app.browser.$("button=Remove protection").waitForExist({ timeout: 15000 });
   return { testDbDir, app };
 }
 async function prepare(browser) {
-  await (await browser.$("button=Remove protection…")).click();
+  await openSettingsGroup(browser, "profiles");
+  await (await browser.$("button=Remove protection")).click();
   await (await browser.$("#remove-protection-current")).setValue(PASSWORD);
   await (await browser.$("button=Continue")).click();
-  await browser.$("button=Remove protection").waitForExist({ timeout: 10000 });
+  await browser.$(".remove-protection-dialog").$("button=Remove protection").waitForExist({ timeout: 10000 });
 }
 // `list_profiles`'s DTO deliberately has no db_path (the frontend never needs a filesystem path),
 // so use the dedicated command for the authoritative path and compare it with Settings' display.
@@ -39,10 +40,11 @@ async function currentDataFilePath(browser) {
     const backupDir = path.join(path.dirname(before), "backups", "protected");
     const countBefore = fs.readdirSync(backupDir).filter((name) => name.endsWith(".db")).length;
     await prepare(app.browser);
-    await (await app.browser.$("button=Remove protection")).click();
+    await (await app.browser.$(".remove-protection-dialog").$("button=Remove protection")).click();
     await app.browser.$(".remove-protection-dialog").waitForExist({ reverse: true, timeout: 15000 });
     const after = await currentDataFilePath(app.browser);
     assert.notEqual(after, before, "removal should repoint the active profile at a new plaintext file");
+    await openSettingsGroup(app.browser, "data");
     await app.browser.waitUntil(
       async () => (await app.browser.$("[data-data-file] .path-box").getText()).trim() === after,
       { timeout: 10000, timeoutMsg: "Settings should refresh the displayed data-file path after removing protection" },
@@ -68,8 +70,9 @@ async function currentDataFilePath(browser) {
   await dismissFirstLaunchDialogs(app.browser);
   await (await app.browser.$("button*=Settings")).click();
   await prepare(app.browser);
+  await openSettingsGroup(app.browser, "profiles");
   const pid = (await invoke(app.browser, "debug_process_id")).ok;
-  await killAtFailpoint(testDbDir, "removal_after_export", pid, () => app.browser.execute(() => [...document.querySelectorAll("button")].find((button) => button.textContent === "Remove protection").click()));
+  await killAtFailpoint(testDbDir, "removal_after_export", pid, () => app.browser.execute(() => [...document.querySelectorAll(".remove-protection-dialog button")].find((button) => button.textContent === "Remove protection").click()));
   await app.close();
   const relaunched = await launchApp({ dbDir: testDbDir, ready: "[data-profile-selector]" });
   try {

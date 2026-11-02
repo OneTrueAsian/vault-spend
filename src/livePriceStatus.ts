@@ -24,7 +24,7 @@ const MAX_SYMBOLS_SHOWN_PER_ERROR = 3;
  * this only controls grouping/severity, not sanitizing the text itself. */
 export function summarizeLivePriceRefresh(summary: LivePriceRefreshSummary): { text: string; kind: "success" | "error" | "info" } {
   const { updated, failed } = summary;
-  let text = `Live prices: updated ${updated.length} symbol(s)`;
+  let text = `Live prices: updated ${updated.length} symbol${updated.length === 1 ? "" : "s"}`;
 
   if (failed.length > 0) {
     const symbolsByError = new Map<string, string[]>();

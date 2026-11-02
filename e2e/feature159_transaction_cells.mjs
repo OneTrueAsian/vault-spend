@@ -2,7 +2,7 @@
 //
 // - Every date fits its cell, in Default and in Futuristic (whose wider digits used to run under the
 //   description and its icon).
-// - "Apply to a debt…" (in the row's ⋯ menu) appears only on money going out, never on income or transfers in.
+// - "Apply to a debt" (in the row's ⋯ menu) appears only on money going out, never on income or transfers in.
 // - The "Sorted by" column says how a category was set in words, not the stored code ("rule").
 //
 // Run with: node e2e/feature159_transaction_cells.mjs
@@ -44,7 +44,7 @@ try {
         };
       });
     });
-    // "Apply to a debt…" lives in each row's ⋯ menu: open it, read its items and close it again,
+    // "Apply to a debt" lives in each row's ⋯ menu: open it, read its items and close it again,
     // from inside the page. React draws the menu just after the click, so wait a moment for it, and
     // click again if another window taking focus closed it before it could be read.
     const menus = await browser.executeAsync((ids, done) => {
@@ -68,7 +68,7 @@ try {
         done(out);
       })();
     }, cells.map((c) => c.id).filter(Boolean));
-    for (const c of cells) c.hasDebtButton = (menus[c.id] ?? []).includes("Apply to a debt…");
+    for (const c of cells) c.hasDebtButton = (menus[c.id] ?? []).includes("Apply to a debt");
     const unread = cells.filter((c) => c.id && menus[c.id] === null).map((c) => c.date);
     assert.deepEqual(unread, [], `${style}: some rows' ⋯ menus never opened`);
     assert.ok(cells.length > 5, `${style}: expected ledger rows`);

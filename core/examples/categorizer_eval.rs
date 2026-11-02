@@ -129,7 +129,7 @@ fn main() {
         entry.1 += u32::from(needs_look);
         if txn.scored {
             scored_seen += 1;
-            let guess = categorize(&txn.description, &rules, &history, classifier.as_ref());
+            let guess = arrival;
             match &guess {
                 None => {
                     abstained += 1;
@@ -248,8 +248,8 @@ fn main() {
     println!("  by classifier ..... {:>4} answers, {} correct", class_t.n, class_t.pct());
     println!(
         "  learning curve: first half {} correct, second half {} correct",
-        pct_tally(&first_half),
-        pct_tally(&second_half)
+        first_half.pct(),
+        second_half.pct()
     );
     println!();
     println!(
@@ -273,8 +273,4 @@ fn main() {
 
 fn pct(part: u32, whole: u32) -> f64 {
     if whole == 0 { 0.0 } else { 100.0 * f64::from(part) / f64::from(whole) }
-}
-
-fn pct_tally(t: &Tally) -> String {
-    t.pct()
 }

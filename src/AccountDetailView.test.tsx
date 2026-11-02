@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 //
-// Account details opened from an account row's "Reconcile with a statement…" (UAT s7.1) start at the
+// Account details opened from an account row's "Reconcile with a statement" (UAT s7.1) start at the
 // reconcile card, ready to type the statement's ending balance.
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountDetailView } from "./AccountDetailView";
-import type { Account } from "./types";
+import type { Account, AccountTransaction } from "./types";
 import { sampleReview } from "./statementTestUtils";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -18,7 +18,7 @@ vi.mock("./nativeDialog", () => ({ open: vi.fn(() => Promise.resolve("C:/stateme
 vi.mock("./profileUiState", () => ({ getCurrentGeneration: () => Promise.resolve(7) }));
 vi.mock("./AccumulationSection", () => ({ AccountAccumulationSection: () => null }));
 
-const account: Account = { id: 7, name: "Everyday Checking", account_type: "checking", starting_balance: "100", current_balance: "123.45", institution: null, mask: null, interest_rate: null, excluded_from_debt_payoff: false, member_id: null, member_name: null, checkpoint_date: null, icon_key: null, import_flip_signs: null };
+const account: Account = { id: 7, name: "Everyday Checking", account_type: "checking", starting_balance: "100", current_balance: "123.45", institution: null, mask: null, interest_rate: null, excluded_from_debt_payoff: false, member_id: null, member_name: null, checkpoint_date: null, icon_key: null, import_flip_signs: null, hidden: false };
 
 let host: HTMLDivElement;
 let root: Root;
@@ -244,11 +244,12 @@ describe("AccountDetailView statement upload", () => {
     await act(async () => setInput("[data-statement-period-start]", "2026-08-01"));
     vi.mocked(invoke).mockImplementation(async (command: string) =>
       command === "read_statement"
-        ? { token: "tok", sections: [{ index: 0, name: "Savings", row_count: 0, holding_count: 0 }, { index: 1, name: "Checking", row_count: 5, holding_count: 0 }], review: null }
+        ? { token: "tok", sections: [{ index: 0, name: "Savings", row_count: 0, holding_count: 0 }, { index: 1, name: "Checking", row_count: 5, holding_count: 0 }, { index: 2, name: "Brokerage", row_count: 1, holding_count: 1 }], review: null }
         : [],
     );
     await act(async () => host.querySelector<HTMLButtonElement>("[data-upload-statement]")!.click());
     expect(document.body.querySelector("[data-statement-section='1']")?.textContent).toContain("Checking (5 transactions)");
+    expect(document.body.querySelector("[data-statement-section='2']")?.textContent).toContain("Brokerage (1 transaction, 1 holding)");
   });
 
   it("shows why reading failed under the buttons and stays on the page", async () => {
@@ -261,5 +262,248 @@ describe("AccountDetailView statement upload", () => {
     });
     await act(async () => host.querySelector<HTMLButtonElement>("[data-upload-statement]")!.click());
     expect(host.querySelector("[data-statement-error]")?.textContent).toContain("picture of the statement");
+  });
+});
+
+describe("AccountDetailView transaction display limit", () => {
+  const txn = (id: number, over: Partial<AccountTransaction> = {}): AccountTransaction => ({
+    id, date: "2026-09-01", description: `Txn ${id}`, amount: "-1.00", category: null, cleared: false,
+    payment_source_id: null, payment_source_account_id: null, payment_source_account_name: null, payment_source_date: null, ...over,
+  });
+  const many = (count: number) => Array.from({ length: count }, (_, i) => txn(i + 1));
+  const rows = () => host.querySelectorAll("[data-account-transaction-row]");
+  const shown = () => host.querySelector("[data-account-ledger-shown]")?.textContent;
+  const showMore = () => host.querySelector<HTMLButtonElement>("[data-account-show-more]");
+  const keyed = (shownAccount: Account, onOpenPayment: (id: number) => void = () => {}) => (
+    <AccountDetailView key={shownAccount.id} account={shownAccount} onBack={() => {}} onOpenTransactions={() => {}} onOpenPayment={onOpenPayment} onMessage={() => {}} />
+  );
+  const showKeyed = (shownAccount: Account, onOpenPayment?: (id: number) => void) => act(async () => root.render(keyed(shownAccount, onOpenPayment)));
+  const choose = async (step: string) => {
+    await act(async () => host.querySelector<HTMLButtonElement>(".ledger-page-size .menu-select-toggle")!.click());
+    await act(async () => document.querySelector<HTMLButtonElement>(`[role=menuitemradio][data-value='${step}']`)!.click());
+  };
+
+  it("shows the first 50 of a long history by default and says so", async () => {
+    answer({ list_account_transactions: many(120) });
+    await showKeyed(account);
+    expect(rows().length).toBe(50);
+    expect(shown()).toBe("Showing 50 of 120 transactions");
+    expect(host.querySelector(".ledger-page-size .menu-select-toggle")?.getAttribute("data-value")).toBe("50");
+    expect(showMore()?.textContent).toBe("Show 50 more");
+    expect(host.querySelector("[data-account-ledger-shown]")?.getAttribute("aria-live")).toBe("polite");
+  });
+
+  it("keeps the newest-first order the app returns", async () => {
+    answer({ list_account_transactions: many(60) });
+    await showKeyed(account);
+    expect(rows()[0].textContent).toContain("Txn 1");
+    expect(rows()[49].textContent).toContain("Txn 50");
+  });
+
+  it("shows every row, no button, for a history smaller than the limit", async () => {
+    answer({ list_account_transactions: many(7) });
+    await showKeyed(account);
+    expect(rows().length).toBe(7);
+    expect(shown()).toBe("Showing all 7 transactions");
+    expect(showMore()).toBeNull();
+  });
+
+  it("says one transaction in the singular", async () => {
+    answer({ list_account_transactions: many(1) });
+    await showKeyed(account);
+    expect(shown()).toBe("Showing 1 transaction");
+  });
+
+  it("keeps the empty message and shows no limit controls for an empty history", async () => {
+    answer({ list_account_transactions: [] });
+    await showKeyed(account);
+    expect(rows().length).toBe(0);
+    expect(host.textContent).toContain("No transactions in this account yet.");
+    expect(host.querySelector(".ledger-page-size")).toBeNull();
+    expect(shown()).toBeUndefined();
+  });
+
+  it("adds a batch at a time until the partial last batch, then offers no more", async () => {
+    answer({ list_account_transactions: many(120) });
+    await showKeyed(account);
+    await act(async () => showMore()!.click());
+    expect(rows().length).toBe(100);
+    expect(shown()).toBe("Showing 100 of 120 transactions");
+    expect(showMore()?.textContent).toBe("Show 20 more");
+    await act(async () => showMore()!.click());
+    expect(rows().length).toBe(120);
+    expect(shown()).toBe("Showing all 120 transactions");
+    expect(showMore()).toBeNull();
+    expect(rows()[119].textContent).toContain("Txn 120");
+  });
+
+  it("offers 25, 50 and 100, and a new limit starts over at that many rows", async () => {
+    answer({ list_account_transactions: many(120) });
+    await showKeyed(account);
+    await act(async () => showMore()!.click());
+    expect(rows().length).toBe(100);
+    await choose("25");
+    expect(rows().length).toBe(25);
+    expect(shown()).toBe("Showing 25 of 120 transactions");
+    expect(showMore()?.textContent).toBe("Show 25 more");
+    await act(async () => showMore()!.click());
+    expect(rows().length).toBe(50);
+    await choose("100");
+    expect(rows().length).toBe(100);
+    expect(shown()).toBe("Showing 100 of 120 transactions");
+  });
+
+  it("starts a different account back at the first batch", async () => {
+    answer({ list_account_transactions: many(120) });
+    await showKeyed(account);
+    await act(async () => showMore()!.click());
+    expect(rows().length).toBe(100);
+    await showKeyed({ ...account, id: 8, name: "Savings" });
+    expect(rows().length).toBe(50);
+    expect(shown()).toBe("Showing 50 of 120 transactions");
+  });
+
+  it("keeps how far the person opened when the transactions reload, and follows the new total", async () => {
+    answer({
+      list_account_transactions: many(120),
+      last_reconciliation: null,
+      reconcile_status: { starting_point: "0", needs_starting_balance: false, ticked_change: "0", ticked_count: 0, difference: "0.00" },
+      finish_reconciliation: true,
+    });
+    await showKeyed(account);
+    await act(async () => showMore()!.click());
+    expect(rows().length).toBe(100);
+    answer({
+      list_account_transactions: many(130),
+      last_reconciliation: null,
+      reconcile_status: { starting_point: "0", needs_starting_balance: false, ticked_change: "0", ticked_count: 0, difference: "0.00" },
+      finish_reconciliation: true,
+    });
+    await act(async () => setInput("[data-statement-balance]", "10.00"));
+    await act(async () => host.querySelector<HTMLButtonElement>("[data-reconcile-start]")!.click());
+    await act(async () => host.querySelector<HTMLButtonElement>("[data-reconcile-finish]")!.click());
+    expect(rows().length).toBe(100);
+    expect(shown()).toBe("Showing 100 of 130 transactions");
+    expect(showMore()?.textContent).toBe("Show 30 more");
+  });
+
+  it("never changes the balance shown or the reconciliation card", async () => {
+    answer({ list_account_transactions: many(120) });
+    await showKeyed(account);
+    const before = host.querySelector(".stats")?.textContent;
+    await act(async () => showMore()!.click());
+    await choose("25");
+    expect(host.querySelector(".stats")?.textContent).toBe(before);
+    expect(host.querySelector(".stats")?.textContent).toContain("$123.45");
+    expect(host.querySelector("[data-reconcile-card]")).not.toBeNull();
+  });
+
+  it("still opens the payment and shows the cleared tick on shown rows", async () => {
+    const opened: number[] = [];
+    answer({
+      list_account_transactions: [
+        txn(1, { payment_source_id: 99, payment_source_account_name: "Checking", payment_source_date: "2026-09-01", cleared: true }),
+        ...many(60).slice(1),
+      ],
+    });
+    await showKeyed(account, (id) => opened.push(id));
+    await act(async () => host.querySelector<HTMLButtonElement>(".view-payment")!.click());
+    expect(opened).toEqual([99]);
+    expect(rows()[0].querySelector(".dup-review-check")?.textContent).toBe("✓");
+  });
+});
+
+describe("AccountDetailView statement dates", () => {
+  const typeDate = (selector: string, text: string) =>
+    act(async () => {
+      const el = host.querySelector<HTMLInputElement>(selector)!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(el, text);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+  it("does not upload or start with the old date while a date box holds half-typed text", async () => {
+    answer({ last_reconciliation: null });
+    await showAccount(account);
+    await typeDate("[data-statement-period-start]", "2026-07-22");
+    const upload = () => host.querySelector<HTMLButtonElement>("[data-upload-statement]")!;
+    const download = () => host.querySelector<HTMLButtonElement>("[data-upload-download]")!;
+    expect(upload().disabled).toBe(false);
+    await typeDate("[data-statement-date]", "08/2");
+    expect(upload().disabled).toBe(true);
+    expect(download().disabled).toBe(true);
+    expect(host.querySelector<HTMLButtonElement>("[data-reconcile-start]")!.disabled).toBe(true);
+    await typeDate("[data-statement-date]", "2026-08-21");
+    expect(upload().disabled).toBe(false);
+  });
+
+  it("names both date boxes with real labels", async () => {
+    answer({ last_reconciliation: null });
+    await showAccount(account);
+    for (const [name, selector] of [["Statement start date", "[data-statement-period-start]"], ["Statement end date", "[data-statement-date]"]]) {
+      const label = [...host.querySelectorAll("label")].find((l) => l.textContent === name)!;
+      expect(label.htmlFor).toBe(host.querySelector<HTMLInputElement>(selector)!.id);
+    }
+  });
+});
+
+describe("AccountDetailView headline figures", () => {
+  const statLabels = () => [...host.querySelectorAll(".stat")].map((s) => [s.querySelector(".stat-label")?.textContent, s.querySelector(".stat-value")?.textContent]);
+  const showAccount = (over: Partial<Account>) =>
+    act(() => root.render(<AccountDetailView account={{ ...account, ...over }} onBack={() => {}} onOpenTransactions={() => {}} onOpenPayment={() => {}} onMessage={() => {}} />));
+
+  it("calls a checking account's figure its balance", () => {
+    showAccount({});
+    expect(statLabels()[0]).toEqual(["Balance", "$123.45"]);
+  });
+
+  it("shows a credit card as the amount owed and the credit still available, as the Accounts list does", () => {
+    showAccount({ account_type: "credit", starting_balance: "9000.00", current_balance: "7849.67" });
+    expect(statLabels().slice(0, 2)).toEqual([
+      ["Amount owed", "$1,150.33"],
+      ["Available credit", "$7,849.67"],
+    ]);
+    expect(host.textContent).not.toContain("Balance$");
+  });
+
+  it("shows only the amount owed on a credit card with no limit set", () => {
+    showAccount({ account_type: "credit", starting_balance: "0", current_balance: "-250.00" });
+    const labels = statLabels().map(([label]) => label);
+    expect(labels).toContain("Amount owed");
+    expect(labels).not.toContain("Available credit");
+  });
+
+  it("shows a loan's balance as the amount owed", () => {
+    showAccount({ account_type: "loan", starting_balance: "0", current_balance: "18250.00" });
+    expect(statLabels()[0]).toEqual(["Amount owed", "$18,250.00"]);
+  });
+});
+
+describe("AccountDetailView history chart title", () => {
+  const twoMonths = [
+    { date: "2026-09-01", balance: "8000.00" },
+    { date: "2026-10-01", balance: "7849.67" },
+  ];
+  const chartTitle = () => host.querySelector(".reports-section-title")?.textContent;
+  const chartCaption = () => host.querySelector("svg[role=img]")?.getAttribute("aria-label");
+
+  it("calls a checking account's history its balance", async () => {
+    answer({ account_balance_history: twoMonths, last_reconciliation: null });
+    await showAccount(account);
+    expect(chartTitle()).toBe("Balance over the last year");
+    expect(chartCaption()).toBe("Account balance over time");
+  });
+
+  it("calls a credit card's history the credit available, since that is the figure it tracks", async () => {
+    answer({ account_balance_history: twoMonths, last_reconciliation: null });
+    await showAccount({ ...account, account_type: "credit", starting_balance: "9000.00" });
+    expect(chartTitle()).toBe("Available credit over the last year");
+    expect(chartCaption()).toBe("Available credit over time");
+  });
+
+  it("calls a loan's history the amount owed", async () => {
+    answer({ account_balance_history: twoMonths, last_reconciliation: null });
+    await showAccount({ ...account, account_type: "loan", starting_balance: "0" });
+    expect(chartTitle()).toBe("Amount owed over the last year");
+    expect(chartCaption()).toBe("Amount owed over time");
   });
 });

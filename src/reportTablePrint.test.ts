@@ -12,4 +12,17 @@ describe("printing the Reports category-by-month table", () => {
     expect(print).toMatch(/table\.ledger\.report-table\s*\{[^}]*table-layout:\s*fixed/);
     expect(print).toMatch(/\.report-table th,\s*\.report-table td\s*\{[^}]*white-space:\s*normal/);
   });
+
+  // The app shell is a fixed-height window with its own scroll box (.main). Printed as-is, everything past the
+  // first sheet is cut off (UAT-124: a 6-month report came out as one page ending at "Daily spending").
+  it("lets the whole report flow onto as many pages as it needs instead of clipping at the window height", () => {
+    expect(print).toMatch(/\.app-shell\s*\{[^}]*height:\s*auto/);
+    expect(print).toMatch(/\.app-shell\s*\{[^}]*overflow:\s*visible/);
+    expect(print).toMatch(/\.main\s*\{[^}]*overflow:\s*visible/);
+    expect(print).toMatch(/html,\s*body\s*\{[^}]*height:\s*auto/);
+  });
+
+  it("gives the Category column room so its heading is not broken mid-word on paper", () => {
+    expect(print).toMatch(/\.report-table th:first-child,\s*\.report-table td:first-child\s*\{[^}]*width:\s*\d+%/);
+  });
 });

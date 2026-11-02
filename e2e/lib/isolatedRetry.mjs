@@ -1,4 +1,4 @@
-// A hosted full gate runs 255 desktop specs in one go, and a lone intermittent failure in an unrelated spec has failed a whole release run each time. With --retry-failed a
+// A hosted full gate runs every discovered desktop spec. With --retry-failed a
 // spec that fails is run once more, alone, after everything else. A spec that then passes counts as passed but is reported as flaky with its first failure kept in full;
 // a spec that fails again stays failed. Off unless asked for, so a developer's local run still shows every failure.
 

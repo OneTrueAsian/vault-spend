@@ -20,7 +20,7 @@ export interface MenuSelectOption {
  * focus trap). The trigger carries `data-value` so a test or caller can read the current value the
  * way it would a <select>'s `.value`.
  *
- * `value` that matches no option shows `placeholder` when it is "" (the "Set category to…" action
+ * `value` that matches no option shows `placeholder` when it is "" (the "Set category to" action
  * menus, which reset to "" after each pick) and otherwise the raw value. */
 export function MenuSelect({
   options,

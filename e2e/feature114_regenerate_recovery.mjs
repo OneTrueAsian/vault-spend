@@ -25,9 +25,9 @@ try {
   const { browser } = app;
   await (await browser.$("button*=Settings")).click();
   const oldRecovery = await enableProtectionThroughUI(browser, PASSWORD);
-  await browser.$("button=Regenerate recovery key…").waitForExist({ timeout: 15000 });
+  await browser.$("button=Regenerate recovery key").waitForExist({ timeout: 15000 });
 
-  await (await browser.$("button=Regenerate recovery key…")).click();
+  await (await browser.$("button=Regenerate recovery key")).click();
   await (await browser.$("#regenerate-recovery-current")).setValue(PASSWORD);
   await (await browser.$("button=Continue")).click();
   const recoveryEl = await browser.$(".regenerate-recovery-dialog .protection-setup-key");

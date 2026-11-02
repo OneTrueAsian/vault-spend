@@ -1,6 +1,6 @@
 // E2E test for Phase 2 item 17 (second backup destination):
 //   - Settings -> Backups -> "Second copy": a folder can be chosen (typed
-//     here; "Browse…" opens a native picker no WebDriver can drive);
+//     here; "Browse" opens a native picker no WebDriver can drive);
 //   - "Back up now" then writes the backup to BOTH places;
 //   - the primary backups folder is refused as the second one, and so is a
 //     folder that doesn't exist (a typo mustn't quietly create a new folder
@@ -12,7 +12,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
@@ -33,6 +33,7 @@ const { browser } = app;
 try {
   await browser.setWindowSize(1440, 1400);
   await (await browser.$("button*=Settings")).click();
+  await openSettingsGroup(browser, "data");
   const section = await browser.$("[data-backup-copy]");
   await section.waitForExist({ timeout: 10000 });
   await section.scrollIntoView();

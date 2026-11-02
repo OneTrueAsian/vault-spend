@@ -100,7 +100,7 @@ try {
   await (await browser.$('[aria-label="Search description"]')).setValue("unrelated");
   await (await browser.$("button=More filters")).click();
   await browser.execute((purchaseDate) => {
-    const input = document.querySelector('.ledger-filters input[type="date"]');
+    const input = document.querySelector('.ledger-filters input[aria-label="From date"]');
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, purchaseDate);
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));

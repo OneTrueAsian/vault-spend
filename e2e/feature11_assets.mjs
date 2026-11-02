@@ -100,7 +100,7 @@ try {
   );
 
   // Delete it from the row's ⋯ menu and confirm it's gone, with the stat back down to just cash.
-  await pickFromMenu(app.browser, `${homeRow}//button[@data-row-menu]`, "//div[contains(@class,'row-menu-panel')]//button[normalize-space()='Delete…']");
+  await pickFromMenu(app.browser, `${homeRow}//button[@data-row-menu]`, "//div[contains(@class,'row-menu-panel')]//button[normalize-space()='Delete']");
   const confirmDeleteBtn = await app.browser.$(`${homeRow}//span[contains(@class,'row-delete-confirm')]//button[text()='Delete']`);
   await confirmDeleteBtn.waitForExist({ timeout: 5000 });
   await confirmDeleteBtn.click();

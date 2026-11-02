@@ -11,7 +11,7 @@
 // Run with: node e2e/feature107_profile_ui_state.mjs
 
 import assert from "node:assert/strict";
-import { launchApp, dismissFirstLaunchDialogs } from "./harness.mjs";
+import { launchApp, dismissFirstLaunchDialogs, openSettingsGroup } from "./harness.mjs";
 import { seedProfiles } from "./lib/protection.mjs";
 
 async function invoke(browser, command, args = {}) {
@@ -48,7 +48,8 @@ try {
   // 2. A second, later-opened profile does not inherit it — migration is a one-time, device-wide
   // flag, not something that runs again for every profile that opens afterward.
   await (await browser.$("button*=Settings")).click();
-  const profilesCard = await browser.$("//div[contains(@class,'card')][.//span[text()='Profiles']]");
+  await openSettingsGroup(browser, "profiles");
+  const profilesCard = await browser.$("//div[contains(@class,'card')][.//*[contains(@class,'reports-section-title')][text()='Profiles']]");
   await profilesCard.waitForExist({ timeout: 10000 });
   await (await profilesCard.$("input")).setValue("Sam");
   await (await profilesCard.$("button*=New profile")).click();

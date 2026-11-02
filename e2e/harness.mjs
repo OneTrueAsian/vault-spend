@@ -326,6 +326,10 @@ export async function stubFilePicker(browser, files) {
         if (url.endsWith("plugin:dialog|open")) {
           return Promise.resolve(new Response(JSON.stringify(answer()), { status: 200, headers: { "Content-Type": "application/json", "Tauri-Response": "ok" } }));
         }
+        if (url.endsWith("plugin:dialog|save")) {
+          const next = window.__savePaths && window.__savePaths.length ? window.__savePaths.shift() : null;
+          return Promise.resolve(new Response(JSON.stringify(next), { status: 200, headers: { "Content-Type": "application/json", "Tauri-Response": "ok" } }));
+        }
         const args = arguments;
         const attempt = (left) => originalFetch.apply(window, args).catch((e) => (left > 0 ? pause(150).then(() => attempt(left - 1)) : Promise.reject(e)));
         return attempt(5);
@@ -341,6 +345,14 @@ export async function stubFilePicker(browser, files) {
   if (!result.throughFetch) {
     throw new Error("stubFilePicker: this window already sends Tauri commands over postMessage (an IPC fetch failed before the stub was installed), so the file picker can't be answered and would open for real");
   }
+}
+
+/** Answers the native Save dialog (`plugin:dialog|save`) with `paths`, one per save, in order (null once they run out, which is
+ * "cancelled"). Installs the same fetch wrapper as `stubFilePicker` first when it is not in place yet. The app then writes to the
+ * chosen path itself, so a spec reads the real exported file back. */
+export async function stubSaveDialog(browser, paths) {
+  if (!(await browser.execute(() => !!window.__filePickerStubbed))) await stubFilePicker(browser, []);
+  await browser.execute((list) => { window.__savePaths = list; }, paths);
 }
 
 /** Opens a row's ⋯ menu (RowMenu) and clicks the item with this exact label, through withFocusRetry
@@ -415,11 +427,64 @@ export async function waitUntilOrDiagnose(browser, condition, { timeout = 10000,
   }
 }
 
-/** Picks a visual style on Settings > Appearance the way a person does: opens Settings, waits for that
+// What the unlock screen looked like when a wait for the profile to open ran out: whether the lock screen or the profile
+// selector is still showing, how many characters the password box holds and whether Unlock is enabled.
+export async function unlockDiagnostics(browser) {
+  try {
+    return await browser.execute(() => ({
+      lockScreen: !!document.querySelector("[data-profile-lock-screen]"),
+      selector: !!document.querySelector("[data-profile-selector]"),
+      passwordLength: document.querySelector("#password-form-field")?.value.length ?? null,
+      unlockDisabled: [...document.querySelectorAll("button")].find((button) => button.textContent === "Unlock")?.disabled ?? null,
+    }));
+  } catch (e) {
+    return { unlockDiagnosticsFailed: String(e).slice(0, 200) };
+  }
+}
+
+/** Waits for the unlocked app's brand word; a timeout reports the window and the unlock screen's state. */
+export async function waitForUnlocked(browser, timeout, timeoutMsg) {
+  await waitUntilOrDiagnose(browser, async () => (await browser.$(".brand-word")).isExisting(), { timeout, timeoutMsg, extra: () => unlockDiagnostics(browser) });
+}
+
+const SETTINGS_GROUP_NAMES = { quick: "Quick settings", display: "Display", profiles: "Profiles & security", data: "Data", features: "Features", about: "About" };
+
+/** Opens Settings and shows one group the way a person does: clicks Settings, then the group in the list, and waits
+ * until that group's panel is showing. `groupId` is quick, display, profiles, data, features or about. */
+export async function openSettingsGroup(browser, groupId) {
+  const name = SETTINGS_GROUP_NAMES[groupId];
+  if (!name) throw new Error(`openSettingsGroup: unknown group "${groupId}"`);
+  await waitUntilOrDiagnose(
+    browser,
+    async () =>
+      browser.execute(() => {
+        const nav = document.querySelector('.nav-item[data-tab="settings"]');
+        if (nav) nav.click();
+        return !!nav;
+      }),
+    { timeoutMsg: "the Settings tab should be in the sidebar" },
+  );
+  await waitUntilOrDiagnose(
+    browser,
+    async () =>
+      browser.execute((groupName) => {
+        const button = [...document.querySelectorAll('[aria-label="Settings groups"] button')].find((b) => b.textContent.replace("★", "").trim() === groupName);
+        if (!button) return false;
+        if (button.getAttribute("aria-current") !== "true") button.click();
+        return true;
+      }, name),
+    { timeoutMsg: `Settings should list the "${name}" group` },
+  );
+  await waitUntilOrDiagnose(browser, async () => browser.execute((id) => document.querySelector(`[data-settings-panel="${id}"]`)?.hidden === false, groupId), {
+    timeoutMsg: `the "${name}" group should be showing`,
+  });
+}
+
+/** Picks a visual style on Settings > Display > Appearance the way a person does: opens Settings, waits for that
  * style's row (the click needs the row itself, not just its group), clicks its radio and waits until
  * the style (`palette`, the value of `<html data-palette>`) is applied. */
 export async function chooseStyle(browser, label, palette) {
-  await (await browser.$(".nav-item[data-tab=settings]")).click();
+  await openSettingsGroup(browser, "display");
   const styleRows = (text) =>
     [...document.querySelectorAll('[role="radiogroup"][aria-label="Style"] .style-preview-tile')].filter(
       (r) => r.querySelector(".style-preview-name")?.textContent === text,

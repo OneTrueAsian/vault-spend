@@ -110,12 +110,9 @@ try {
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
-  const moreActionsBtn = await app.browser.$('button[title="More actions"]');
-  await moreActionsBtn.waitForExist({ timeout: 10000 });
-  await moreActionsBtn.click();
-
+  // Manage categories is a button beside Import and Add transaction, not in the ⋯ menu.
   const manageCategoriesBtn = await app.browser.$("button*=Manage categories");
-  await manageCategoriesBtn.waitForExist({ timeout: 5000 });
+  await manageCategoriesBtn.waitForExist({ timeout: 10000 });
   await manageCategoriesBtn.click();
 
   const newCategoryInput = await app.browser.$('input[placeholder=\'New category, e.g. "Pet Care"\']');

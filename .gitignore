@@ -67,3 +67,5 @@ db-backups/
 # scheduling) — self-generated, machine-specific, and rebuilds itself.
 /e2e/.e2e-durations.json
 dependency-audit/
+# Local parallel-run approvals: machine-specific receipt paths and approvals tied to one exact build (see e2e/README.md, "Generating the approvals registry").
+/e2e/parallel-approvals.json

@@ -5,7 +5,8 @@ import { usePopover } from "./usePopover";
  * unassigned rows) — kept as a distinct sentinel rather than always
  * expanding it to a concrete set of every member id, so the filter doesn't
  * need updating every time a member is added or removed. Same shape as
- * `AccountFilterValue`. */
+ * `AccountFilterValue`. A set naming every member is NOT the same thing: it
+ * is a filter, so rows with no member stay out (only "all" includes them). */
 export type MemberFilterValue = Set<number> | "all";
 
 function isSelected(value: MemberFilterValue, memberId: number): boolean {
@@ -31,21 +32,22 @@ export function MemberFilterDropdown({
     const next = new Set(value === "all" ? members.map((m) => m.id) : value);
     if (next.has(memberId)) next.delete(memberId);
     else next.add(memberId);
-    // Collapse back to the "all" sentinel once every member ends up checked
-    // again, so the button label reads "All members" rather than a
-    // redundant "N members" where N happens to equal the total.
-    onChange(next.size === members.length ? "all" : next);
+    // Never collapse to "all" here: ticking every member is a filter that leaves unassigned rows out,
+    // while "all" (the Select all button) shows everything. With one member, choosing them must isolate them.
+    onChange(next);
   }
 
-  const selectedCount = value === "all" ? members.length : value.size;
+  const chosen = value === "all" ? members : members.filter((m) => value.has(m.id));
   const label =
-    value === "all" || selectedCount === members.length
+    value === "all"
       ? "All members"
-      : selectedCount === 0
+      : chosen.length === 0
         ? "No members"
-        : selectedCount === 1
-          ? (members.find((m) => isSelected(value, m.id))?.name ?? "1 member")
-          : `${selectedCount} members`;
+        : chosen.length === 1
+          ? chosen[0].name
+          : chosen.length === members.length
+            ? "All named members"
+            : `${chosen.length} members`;
 
   if (members.length === 0) return null;
 

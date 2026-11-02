@@ -28,17 +28,22 @@ pub const TWELVE_DATA_DAILY_LIMIT: i64 = 800;
 /// same "nothing to update" contract as the other two providers'
 /// `fetch_quote`.
 pub async fn fetch_quote(client: &reqwest::Client, api_key: &str, symbol: &str) -> Result<Option<Decimal>, String> {
+    fetch_quote_from(client, api_key, symbol, BASE_URL).await
+}
+
+// Private transport seam: production always uses BASE_URL; tests use a loopback fixture.
+async fn fetch_quote_from(client: &reqwest::Client, api_key: &str, symbol: &str, base_url: &str) -> Result<Option<Decimal>, String> {
     let response = client
-        .get(BASE_URL)
+        .get(base_url)
         .query(&[("symbol", symbol), ("apikey", api_key)])
         .send()
         .await
-        .map_err(|e| format!("network error fetching a quote for {symbol}: {e}"))?;
+        .map_err(|e| format!("network error fetching a quote for {symbol}: {}", e.without_url()))?;
     let status = response.status().as_u16();
     let body = response
         .text()
         .await
-        .map_err(|e| format!("failed to read the response for {symbol}: {e}"))?;
+        .map_err(|e| format!("failed to read the response for {symbol}: {}", e.without_url()))?;
     parse_quote_response(status, &body)
 }
 
@@ -93,6 +98,53 @@ pub fn parse_quote_response(status: u16, body: &str) -> Result<Option<Decimal>, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn native_quote_http_body_errors_never_expose_api_key() {
+        let server = crate::quote_http_fixture::QuoteServer::truncated(200, "truncated");
+        let error = fetch_quote_from(&crate::quote_http_fixture::client(), "QA_SECRET_KEY_DO_NOT_SHOW", "MSFT", &server.url)
+            .await
+            .unwrap_err();
+        assert!(error.contains("failed to read the response for MSFT"));
+        assert!(!error.contains("QA_SECRET_KEY_DO_NOT_SHOW"));
+        server.finish(&[("symbol", "MSFT"), ("apikey", "QA_SECRET_KEY_DO_NOT_SHOW")]);
+    }
+
+    #[tokio::test]
+    async fn native_quote_http_connection_errors_never_expose_api_key() {
+        let client = crate::quote_http_fixture::client();
+        let error = fetch_quote_from(&client, "QA_SECRET_KEY_DO_NOT_SHOW", "MSFT", "http://127.0.0.1:0/quote")
+            .await
+            .unwrap_err();
+        assert!(error.contains("network error fetching a quote for MSFT"));
+        assert!(
+            !error.contains("QA_SECRET_KEY_DO_NOT_SHOW"),
+            "request credentials must not reach the user-visible error"
+        );
+        assert!(!error.contains("apikey=") && !error.contains("token="));
+    }
+
+    #[tokio::test]
+    async fn native_quote_http_twelve_errors_and_success_preserve_request() {
+        let client = crate::quote_http_fixture::client();
+        for (status, body, expected_error) in [
+            (401, "fixture rejected key", Some("rejected the API key")),
+            (403, r#"{"message":"private provider wording"}"#, Some("plan doesn't include this symbol")),
+            (429, "fixture rate limit", Some("rate limit was hit")),
+            (500, "fixture unavailable", Some("HTTP 500")),
+            (200, "not json", Some("unexpected response from Twelve Data")),
+            (200, r#"{"price":"123.45"}"#, None),
+        ] {
+            let server = crate::quote_http_fixture::QuoteServer::new(status, body);
+            let result = fetch_quote_from(&client, "qa key&?", "MS FT&?", &server.url).await;
+            if let Some(message) = expected_error {
+                assert!(result.unwrap_err().contains(message));
+            } else {
+                assert_eq!(result.unwrap(), Some(Decimal::from_str("123.45").unwrap()));
+            }
+            server.finish(&[("symbol", "MS FT&?"), ("apikey", "qa key&?")]);
+        }
+    }
 
     #[test]
     fn parse_quote_response_returns_price_from_a_successful_response() {

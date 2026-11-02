@@ -11,7 +11,12 @@ it("exports every matching transfer leg with decimal strings, tags and notes int
   await createTransactionExporter({ rows,isProtected:false,confirmPlaintext,call,onStatus:status })();
   const content=call.mock.calls[0][1].content;
   expect(content).toContain("9007199254740992.01"); expect(content).toContain("-9007199254740992.01"); expect(content).toContain("Fixture note"); expect(content).toContain("work");
-  expect(status).toHaveBeenCalledWith("Exported 2 transaction(s) to fixture.csv.","success");
+  expect(status).toHaveBeenCalledWith("Exported 2 transactions to fixture.csv.","success");
+});
+it.each([0,1,2])("export uses a readable count (%i)",async count=>{
+ const rows=Array.from({length:count},(_,id)=>({...fixture,id:id+1}));
+ await createTransactionExporter({rows,isProtected:false,confirmPlaintext,call,onStatus:status})();
+ expect(status).toHaveBeenLastCalledWith(`Exported ${count} transaction${count===1?"":"s"} to fixture.csv.`,"success");
 });
 it("cancelling the protected-profile disclosure never opens a picker or writes a file", async () => {
   confirmPlaintext.mockResolvedValue(false);

@@ -7,7 +7,8 @@ export type UiStateKey =
   | "category_order"
   | "show_bill_names_in_reminders"
   | "dashboard_layout"
-  | "dashboard_custom_layouts";
+  | "dashboard_custom_layouts"
+  | "quick_settings";
 
 /** `set_profile_ui_state`'s staleness guard needs the backend's current generation number — the
  * frontend had no reason to track its own copy of it before this. Fetched once per mount; `App`

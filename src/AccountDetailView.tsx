@@ -1,6 +1,7 @@
-import { accountTypeLabel } from "./accountGroups";
+import { accountTypeLabel, groupOf, owedAmount } from "./accountGroups";
 import "./AccountsCards.css";
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import "./Transactions.css";
+import { Suspense, lazy, useCallback, useEffect, useId, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Account, AccountTransaction } from "./types";
 import { LineChart } from "./charts";
@@ -11,7 +12,11 @@ import { StatementReviewDialog } from "./StatementReviewDialog";
 import { StatementTeachDialog } from "./StatementTeachDialog";
 import { useStatementReconcile } from "./useStatementReconcile";
 import { DateField } from "./DateField";
+import { useFieldValidity } from "./calendar/useFieldValidity";
 import { errorMessage } from "./errorMessage";
+import { holdingCount } from "./holdingImport";
+import { MenuSelect } from "./MenuSelect";
+import { LEDGER_STEPS, transactionsShownLabel, showMoreLabel } from "./transactionPaging";
 // Loaded on demand like the app's other views, so the chart and projection code stay out of the main chunk.
 const AccountAccumulationSection = lazy(() => import("./AccumulationSection").then((m) => ({ default: m.AccountAccumulationSection })));
 
@@ -52,12 +57,16 @@ export function AccountDetailView({
   /** Called after a statement was finished: it can add transactions and change holdings, so the rest of the
    * app reloads its shared data. */
   onDataChanged?: () => Promise<void>;
-  /** "reconcile": opened from an account row's "Reconcile with a statement…", so the page starts at
+  /** "reconcile": opened from an account row's "Reconcile with a statement", so the page starts at
    * the reconcile card with its first field ready to type in. */
   focus?: "reconcile" | null;
 }) {
   const [history, setHistory] = useState<BalancePoint[]>([]);
   const [transactions, setTransactions] = useState<AccountTransaction[]>([]);
+  // Like the Transactions tab: a step of rows at a time (25, 50 or 100), starting at 50. A different
+  // account remounts this page (keyed in App), so it starts over at the first step.
+  const [pageSize, setPageSize] = useState(50);
+  const [shownCount, setShownCount] = useState(50);
   const [lastRec, setLastRec] = useState<LastReconciliation | null>(null);
 
   const [periodStart, setPeriodStart] = useState("");
@@ -71,6 +80,10 @@ export function AccountDetailView({
   const [preview, setPreview] = useState<ReconcileStatus | null>(null);
   const statementDateRef = useRef(statementDate);
   statementDateRef.current = statementDate;
+  // Half-typed text in either date box leaves the last good date in place; nothing that reads these dates may run on it.
+  const dates = useFieldValidity();
+  const startDateId = useId();
+  const endDateId = useId();
 
   const reconcileCardRef = useRef<HTMLDivElement>(null);
   const statement = useStatementReconcile(account.id, (done) => {
@@ -150,7 +163,8 @@ export function AccountDetailView({
   const balanceValid =
     statementBalance.trim() !== "" &&
     isValidDecimalString(statementBalance) &&
-    (!needsStart || (statementStart.trim() !== "" && isValidDecimalString(statementStart)));
+    (!needsStart || (statementStart.trim() !== "" && isValidDecimalString(statementStart))) &&
+    dates.valid;
 
   async function startReconciling() {
     if (!balanceValid) return;
@@ -212,6 +226,12 @@ export function AccountDetailView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finished]);
 
+  const group = groupOf(account.account_type);
+  const isCredit = group === "credit";
+  const isLoan = group === "loan";
+  // The history is of the stored figure, which is the credit still available on a card and what is owed on a loan.
+  const historyName = isCredit ? "Available credit" : isLoan ? "Amount owed" : "Balance";
+
   return (
     <div className="account-detail" data-account-detail={account.id}>
       <div className="page-top">
@@ -231,10 +251,25 @@ export function AccountDetailView({
       </div>
 
       <div className="stats">
-        <div className="stat tint-accent">
-          <span className="stat-value">{formatAmount(account.current_balance)}</span>
-          <span className="stat-label">Balance</span>
-        </div>
+        {/* A card's stored balance is the credit still available and a loan's is what is owed, so
+            these are labelled as the Accounts list shows them instead of all being called "Balance". */}
+        {isCredit || isLoan ? (
+          <div className="stat tint-accent">
+            <span className="stat-value">{formatAmount(owedAmount(account))}</span>
+            <span className="stat-label">Amount owed</span>
+          </div>
+        ) : (
+          <div className="stat tint-accent">
+            <span className="stat-value">{formatAmount(account.current_balance)}</span>
+            <span className="stat-label">Balance</span>
+          </div>
+        )}
+        {isCredit && parseFloat(account.starting_balance) > 0 && (
+          <div className="stat tint-teal">
+            <span className="stat-value">{formatAmount(account.current_balance)}</span>
+            <span className="stat-label">Available credit</span>
+          </div>
+        )}
         <div className="stat tint-blue" data-last-reconciled={lastRec ? lastRec.statement_date : ""}>
           <span className={lastRec ? "stat-value" : "stat-value stat-value-muted"}>{lastRec ? formatDisplayDate(lastRec.statement_date) : "Never"}</span>
           <span className="stat-label">Last reconciled</span>
@@ -249,10 +284,10 @@ export function AccountDetailView({
 
       <div className="card">
         <div className="card-head">
-          <span className="reports-section-title">Balance over the last year</span>
+          <span className="reports-section-title">{`${historyName} over the last year`}</span>
         </div>
         {balances.length >= 2 ? (
-          <LineChart points={history.map((p) => ({ label: shortMonthDay(p.date), value: parseFloat(p.balance) }))} height={160} maxLabels={6} />
+          <LineChart points={history.map((p) => ({ label: shortMonthDay(p.date), value: parseFloat(p.balance) }))} height={160} maxLabels={6} caption={isCredit || isLoan ? `${historyName} over time` : "Account balance over time"} />
         ) : (
           <p className="modal-message-secondary">Not enough history to draw a chart yet.</p>
         )}
@@ -285,14 +320,14 @@ export function AccountDetailView({
                 void startReconciling();
               }}
             >
-              <label className="labeled-field">
-                <span className="labeled-field-label">Statement start date</span>
-                <DateField value={periodStart} onChange={setPeriodStart} ariaLabel="Statement start date" data-statement-period-start />
-              </label>
-              <label className="labeled-field">
-                <span className="labeled-field-label">Statement end date</span>
-                <DateField value={statementDate} onChange={setStatementDate} ariaLabel="Statement end date" data-statement-date />
-              </label>
+              <div className="labeled-field">
+                <label className="labeled-field-label" htmlFor={startDateId}>Statement start date</label>
+                <DateField id={startDateId} value={periodStart} onChange={setPeriodStart} ariaLabel="Statement start date" onValidityChange={dates.track("start")} data-statement-period-start />
+              </div>
+              <div className="labeled-field">
+                <label className="labeled-field-label" htmlFor={endDateId}>Statement end date</label>
+                <DateField id={endDateId} value={statementDate} onChange={setStatementDate} ariaLabel="Statement end date" required onValidityChange={dates.track("end")} data-statement-date />
+              </div>
               {!needsStart ? (
                 preview?.starting_point != null && (
                   <p className="modal-message-secondary" data-reconcile-picks-up>
@@ -330,7 +365,7 @@ export function AccountDetailView({
               </p>
               <button
                 type="button"
-                disabled={!periodStart || statement.busy}
+                disabled={!periodStart || !dates.valid || statement.busy}
                 onClick={() => void statement.start(periodStart, statementDate)}
                 data-upload-statement
               >
@@ -339,7 +374,7 @@ export function AccountDetailView({
               <button
                 type="button"
                 className="modal-secondary"
-                disabled={!periodStart || statement.busy}
+                disabled={!periodStart || !dates.valid || statement.busy}
                 onClick={() => void statement.start(periodStart, statementDate, "download")}
                 data-upload-download
               >
@@ -434,7 +469,7 @@ export function AccountDetailView({
               onClick={() => void statement.chooseSection(section.index)}
               data-statement-section={section.index}
             >
-              {section.name} ({section.row_count} transactions{section.holding_count ? `, ${section.holding_count} holdings` : ""})
+              {section.name} ({section.row_count} transaction{section.row_count === 1 ? "" : "s"}{section.holding_count ? `, ${holdingCount(section.holding_count)}` : ""})
             </button>
           ))}
         </ModalShell>
@@ -492,8 +527,8 @@ export function AccountDetailView({
             </tr>
           </thead>
           <tbody>
-            {transactions.map((t) => (
-              <tr key={t.id}>
+            {transactions.slice(0, shownCount).map((t) => (
+              <tr key={t.id} data-account-transaction-row>
                 <td className="date-cell">{formatDisplayDate(t.date)}</td>
                 <td>
                   {t.description}
@@ -521,6 +556,31 @@ export function AccountDetailView({
             )}
           </tbody>
         </table>
+        {transactions.length > 0 && (
+          <div className="ledger-pagination">
+            <label className="ledger-page-size">
+              Show
+              <MenuSelect
+                ariaLabel="Rows at a time"
+                value={String(pageSize)}
+                onChange={(v) => {
+                  setPageSize(Number(v));
+                  setShownCount(Number(v));
+                }}
+                options={LEDGER_STEPS.map((step) => ({ value: String(step), label: String(step) }))}
+              />
+              at a time
+            </label>
+            <span className="ledger-page-count" aria-live="polite" data-account-ledger-shown>
+              {transactionsShownLabel(Math.min(shownCount, transactions.length), transactions.length)}
+            </span>
+            {showMoreLabel(shownCount, transactions.length, pageSize) && (
+              <button type="button" className="modal-secondary" onClick={() => setShownCount((count) => count + pageSize)} data-account-show-more>
+                {showMoreLabel(shownCount, transactions.length, pageSize)}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

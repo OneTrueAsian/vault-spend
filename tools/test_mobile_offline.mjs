@@ -1,7 +1,7 @@
 // Native IndexedDB/WebCrypto/service-worker tests against compiled assets. Synthetic data only.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { readFile,mkdtemp,mkdir } from "node:fs/promises";
+import { readFile,mkdir } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import os from "node:os";

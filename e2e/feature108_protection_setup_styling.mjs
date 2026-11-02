@@ -2,13 +2,14 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
-import { launchApp, reclaimWindowFocus } from "./harness.mjs";
+import { launchApp, reclaimWindowFocus, openSettingsGroup } from "./harness.mjs";
 
 const app = await launchApp();
 try {
   const { browser } = app;
   await (await browser.$("button*=Settings")).click();
-  await (await browser.$("button=Turn on password protection…")).click();
+  await openSettingsGroup(browser, "profiles");
+  await (await browser.$("button=Turn on password protection")).click();
   await browser.$("#protection-setup-password").waitForExist({ timeout: 5000 });
 
   async function checkFields() {

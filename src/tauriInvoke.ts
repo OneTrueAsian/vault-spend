@@ -3,7 +3,7 @@
 // at once. Tauri's own bridge object is read-only, so this is the one place every call passes through.
 import { invoke as nativeInvoke } from "../node_modules/@tauri-apps/api/core.js";
 import type { InvokeArgs, InvokeOptions } from "../node_modules/@tauri-apps/api/core.js";
-import { RELEVANT_WRITE_COMMANDS, notifyDataWrite } from "./askVault/dataWriteEvents";
+import { RELEVANT_WRITE_COMMANDS, notifyDataWrite, writeApplied } from "./askVault/dataWriteEvents";
 import { beginStageSample, finishStageSample, stageProblems, traceInvoke, traceValidate, type NativeStageSnapshot } from "./askVault/retirementStageTrace";
 
 export * from "../node_modules/@tauri-apps/api/core.js";
@@ -12,7 +12,7 @@ export async function invoke<T>(cmd: string, args?: InvokeArgs, options?: Invoke
   const result = import.meta.env.TAURI_ENV_DEBUG === "true" || import.meta.env.TAURI_ENV_DEBUG === true
     ? await traceInvoke(cmd, () => nativeInvoke<T>(cmd, args, options))
     : await nativeInvoke<T>(cmd, args, options);
-  if (RELEVANT_WRITE_COMMANDS.has(cmd)) notifyDataWrite(cmd);
+  if (RELEVANT_WRITE_COMMANDS.has(cmd) && writeApplied(cmd, result)) notifyDataWrite(cmd);
   return result;
 }
 

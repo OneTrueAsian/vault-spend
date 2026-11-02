@@ -89,8 +89,8 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I change which cards the Dashboard shows?",
         steps: [
-          <>Open the <strong>Layout</strong> menu (it reads "Layout: Default") and choose <strong>Customize…</strong> from it.</>,
-          <>Pin or unpin cards, drag them to reorder, or use <strong>+ Add widget…</strong> to pin one specific account, goal or investment account.</>,
+          <>Open the <strong>Layout</strong> menu (it reads "Layout: Default") and choose <strong>Customize</strong> from it.</>,
+          <>Pin or unpin cards, drag them to reorder, or use <strong>+ Add widget</strong> to pin one specific account, goal or investment account.</>,
           <>Choose <strong>Done customizing</strong> from the same menu when you're finished.</>,
         ],
       },
@@ -98,7 +98,7 @@ export const TAB_HELP: TabHelp[] = [
         question: "How do I save my own layout?",
         steps: [
           <>After customizing, the Layout menu shows "Custom (unsaved)".</>,
-          <>Click <strong>+ Save as…</strong> and give it a name.</>,
+          <>Click <strong>+ Save as</strong> and give it a name.</>,
           <>Pick it from the Layout menu any time, next to the built-in Default, Bills Focus and Investor Focus, or select it and click <strong>Delete</strong> to remove it.</>,
         ],
       },
@@ -149,7 +149,8 @@ export const TAB_HELP: TabHelp[] = [
         question: "How do I add or change an account?",
         steps: [
           <>Click <strong>+ Add account</strong> beside the page title. Checking, savings, credit card, loan, investment and other are all supported.</>,
-          <>To change one, open the <strong>⋯</strong> menu on its row and choose <strong>Edit…</strong>: its type, institution, last-4 digits and which family member it belongs to. <strong>Delete…</strong> in the same menu removes it, after asking.</>,
+          <>To change one, open the <strong>⋯</strong> menu on its row and choose <strong>Edit</strong>: its type, institution, last-4 digits and which family member it belongs to. <strong>Delete</strong> in the same menu removes it, after asking.</>,
+          <>Not using an account any more? Choose <strong>Hide</strong> in the same menu. It moves to <strong>Hidden accounts</strong> at the bottom of the page and out of the lists where you pick an account. Its history stays, and its balance still counts in your totals. Choose <strong>Unhide</strong> to bring it back.</>,
         ],
       },
       {
@@ -163,13 +164,13 @@ export const TAB_HELP: TabHelp[] = [
         question: "How do I open an account's own page?",
         steps: [
           <>Click anywhere on the account's row, or choose <strong>Details</strong> in its <strong>⋯</strong> menu.</>,
-          <>Its page shows a balance-history chart and its transactions.</>,
+          <>Its page shows a <strong>Balance over the last year</strong> chart and its transactions. For a credit card the chart is titled <strong>Available credit over the last year</strong> and for a loan <strong>Amount owed over the last year</strong>, and the amount owed on a card shows at the top of its page.</>,
         ],
       },
       {
         question: "How do I reconcile an account against a statement?",
         steps: [
-          <>Open the <strong>⋯</strong> menu on an account's row and choose <strong>Reconcile with a statement…</strong>.</>,
+          <>Open the <strong>⋯</strong> menu on an account's row and choose <strong>Reconcile with a statement</strong>.</>,
           <>Enter the statement's ending balance and tick each transaction that appears on it.</>,
           <>Finish once the difference reaches $0.00 (see FAQ).</>,
         ],
@@ -192,7 +193,7 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I add a home or a vehicle?",
         steps: [
-          <>Scroll to <strong>Property and valuables</strong>, the last group on this tab, and click <strong>Add property or valuable…</strong>.</>,
+          <>Scroll to <strong>Property and valuables</strong>, the last group on this tab, and click <strong>Add property or valuable</strong>.</>,
           <>Add it with its value. It counts in your net worth. Click its value to update it; its <strong>⋯</strong> menu says who it belongs to or deletes it.</>,
         ],
       },
@@ -212,7 +213,7 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I add a transaction by hand?",
         steps: [
-          <>Click <strong>Add transaction…</strong> beside the page title. The <strong>Add to</strong> menu next to it picks the account it starts on.</>,
+          <>Click <strong>Add transaction</strong> beside the page title. It starts on the account you added to last, and you can change it there.</>,
           <>Fill in the date, the description and the amount, without a minus sign.</>,
           <>Choose <strong>Money out</strong> or <strong>Money in</strong>. On a credit card or loan the choice reads <strong>Charge</strong> or <strong>Payment</strong>.</>,
           <>Leave Category on Auto-categorize, or pick one, and click <strong>Add transaction</strong>.</>,
@@ -230,7 +231,7 @@ export const TAB_HELP: TabHelp[] = [
         question: "How do I split, tag, note or delete a transaction?",
         steps: [
           <>Open the <strong>⋯</strong> menu at the end of its row.</>,
-          <>Choose <strong>Split…</strong> (or Edit splits…), <strong>Add tag…</strong>, <strong>Add note…</strong> (or Edit note…), <strong>Apply to a debt…</strong> or <strong>Delete…</strong> from the list.</>,
+          <>Choose <strong>Split</strong> (or Edit splits), <strong>Add tag</strong>, <strong>Add note</strong> (or Edit note), <strong>Apply to a debt</strong> or <strong>Delete</strong> from the list.</>,
           <>A split divides it into as many category and amount lines as you need, each with an optional note.</>,
         ],
       },
@@ -239,6 +240,16 @@ export const TAB_HELP: TabHelp[] = [
         steps: [
           <>Tick the rows, or the box at the top of the table for every matching row.</>,
           <>Use the bar above the table to set the category or tags for all of them at once (see FAQ for the limit of 250).</>,
+        ],
+      },
+      {
+        question: "How do I move transactions to another account?",
+        steps: [
+          <>Tick the rows that were filed under the wrong account, then choose <strong>Move to account</strong> in the bar above the table and pick where they belong. You can also change the account on a single row from its Account column.</>,
+          <>A window shows what will move and what each account's balance becomes. Nothing changes until you choose <strong>Move</strong>. Amounts, dates, categories, tags, notes, splits and who each transaction is for stay exactly as they were.</>,
+          <>Older transactions can move too. When the saved balances for those months recorded what they counted, Vault Spend corrects them for you and the window says how many. When an older saved balance can't tell which transactions it counted (balances saved by earlier versions, or ones you typed yourself), the window asks you for the correct balance of each account after the move. Enter it, or choose <strong>Keep this balance</strong> if the one shown is already right, then choose <strong>Review the move</strong>. Your transactions move, and the balances you confirm apply from today. This doesn't rebuild old months: older saved balances keep their values, so a past month's chart can still show a gap where the move was made.</>,
+          <>It is all or nothing. Vault Spend says why nothing will move if any selected transaction was already counted when you reconcile an account, is part of a linked transfer or an applied debt payment, has a loan principal amount that doesn't fit the new account, would look like a duplicate of a transaction already in the new account, or sits in an account that has a saved balance dated in the future. Fix that first, for example by unlinking the transfer, then try again. If the saved balances look damaged, the window says so and nothing moves; confirming a balance can't fix that.</>,
+          <>A move can't be undone with one click. To put transactions back, move them again, as long as they still qualify. A transaction you had ticked for reconciling is unticked, so tick it again. To look back at moves you have already made, choose <strong>Account move history</strong> above the table. It shows the latest moves with each account's balance before and after.</>,
         ],
       },
       {
@@ -252,22 +263,22 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I review new or unusual transactions?",
         steps: [
-          <>After an import, or any time from <strong>Review inbox</strong>, a dialog lists transactions worth a second look: uncategorized, a low-confidence guess, a possible duplicate, or an unusually large charge.</>,
+          <>After an import, or any time from <strong>Review transactions</strong>, a dialog lists transactions worth a second look: uncategorized, a low-confidence guess, a possible duplicate, or an unusually large charge.</>,
           <>Accept, change or skip the suggested category for each.</>,
         ],
       },
       {
         question: "How do I record who a transaction belongs to?",
         steps: [
-          <>Open the <strong>⋯</strong> More actions menu beside the page title and choose <strong>Manage family members…</strong> to add people.</>,
+          <>Open the <strong>⋯</strong> More actions menu beside the page title and choose <strong>Manage family members</strong> to add people.</>,
           <>Pick the person on any account, transaction, goal, asset or recurring item. The member column appears once there are two people.</>,
         ],
       },
     ],
     more: [
       <>Filter by account, category, tag or family member. The table shows rows a few at a time; use <strong>Show 50 more</strong> under it.</>,
-      <>Prefer not to review transfers one by one? Turn on <strong>Link matching transfers automatically</strong> in Settings; the pairs it links are listed under "N auto-linked — review". A linked transfer's ⋯ menu has <strong>Unlink transfer…</strong> and one note action per leg, since each side is still its own transaction.</>,
-      <>On a loan account, <strong>Split principal…</strong> takes the place of Apply to a debt…, and a payment applied to a debt shows under its description, with Undo.</>,
+      <>Prefer not to review transfers one by one? Turn on <strong>Link matching transfers automatically</strong> in Settings → Features; the pairs it links are listed under "N auto-linked — review". A linked transfer's ⋯ menu has <strong>Unlink transfer…</strong> and one note action per leg, since each side is still its own transaction.</>,
+      <>On a loan account, <strong>Split principal</strong> takes the place of Apply to a debt, and a payment applied to a debt shows under its description, with Undo.</>,
       <>Rows are <strong>compact</strong> by default; switch to Comfortable with the toggle above the table.</>,
       <>The line under the title counts your transactions and how many were sorted automatically or by you.</>,
     ],
@@ -276,7 +287,7 @@ export const TAB_HELP: TabHelp[] = [
       "density", "compact", "comfortable", "transfer", "link", "unlink", "possible transfers", "dismiss", "auto-link",
       "auto-linked", "review inbox", "inbox", "note", "notes", "annotate", "add transaction", "money out", "money in",
       "charge", "payment", "needs a category", "uncategorized", "apply to a debt", "split principal", "delete transaction",
-      "row menu",
+      "row menu", "account move", "account move history", "move history", "move transactions", "move to account",
     ],
   },
   {
@@ -287,7 +298,7 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I add a recurring bill or income?",
         steps: [
-          <>Click <strong>Add recurring…</strong> under the list.</>,
+          <>Click <strong>Add recurring</strong> under the list.</>,
           <>Name it the way it appears on your statement, then give its amount, how often it comes (Weekly, Every 2 weeks, Monthly or Yearly) and its next date.</>,
         ],
       },
@@ -338,7 +349,7 @@ export const TAB_HELP: TabHelp[] = [
         question: "How do I change a category's settings?",
         steps: [
           <>Open the <strong>⋯</strong> menu at the end of its row.</>,
-          <>Tick <strong>Roll over unspent</strong> (see FAQ) or <strong>Warn at 90%</strong>, choose <strong>Move to</strong> another group, <strong>Move up</strong> or <strong>Move down</strong>, or <strong>Delete…</strong> to remove it.</>,
+          <>Tick <strong>Roll over unspent</strong> (see FAQ) or <strong>Warn at 90%</strong>, choose <strong>Move to</strong> another group, <strong>Move up</strong> or <strong>Move down</strong>, or <strong>Delete</strong> to remove it.</>,
           <>The row then says "Rolls over" or "Warns at 90%" so you can see it at a glance. You can also drag a row by its ⠿ handle.</>,
         ],
       },
@@ -384,7 +395,7 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I create a goal?",
         steps: [
-          <>On an empty Goals page click <strong>Create a goal</strong>, or one of the examples (Emergency fund, Holiday, New car) to start with that name. Once you have goals, use the <strong>+ New goal…</strong> tile.</>,
+          <>On an empty Goals page click <strong>Create a goal</strong>, or one of the examples (Emergency fund, Holiday, New car) to start with that name. Once you have goals, use the <strong>+ New goal</strong> tile.</>,
           <>Add an optional target amount and date, link an account or a family member, and pick an <strong>icon</strong> and <strong>color</strong>.</>,
           <>Click <strong>Create</strong>.</>,
         ],
@@ -461,17 +472,17 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I add a holding?",
         steps: [
-          <>Click <strong>Add holding…</strong> and enter its shares, price and cost basis.</>,
-          <>Prices are yours to keep up to date, unless you turn on live prices in Settings: then a new holding fills in its price by symbol and existing ones stay current by themselves (see FAQ).</>,
+          <>Click <strong>Add holding</strong> and enter its shares, price and cost basis.</>,
+          <>Prices are yours to keep up to date, unless you turn on live prices in Settings → Features: then a new holding fills in its price by symbol and existing ones stay current by themselves (see FAQ).</>,
         ],
       },
       {
         question: "How do I add several current holdings at once?",
         steps: [
-          <>On Investments, click <strong>Import holdings…</strong> and choose an investment account. Browse for a CSV in the app, drop a CSV onto the file area, or paste spreadsheet rows including their headings.</>,
+          <>On Investments, click <strong>Import holdings</strong> and choose an investment account. Browse for a CSV in the app, drop a CSV onto the file area, or paste spreadsheet rows including their headings.</>,
           <>Match the symbol, shares, current price per share, and what you paid in total. Name and asset class are optional. Use a decimal point for numbers; unknown costs must be filled in rather than treated as zero. Excel workbooks must first be saved as CSV or copied as rows.</>,
           <>Review the rows and untick anything you do not want. Existing symbols in this account are excluded; choose at most one row for each repeated symbol. Prices come from your file, though enabled live prices may update them later.</>,
-          <>Check the resulting account value, then click <strong>Add holdings</strong>. Once an account has holdings, their combined value supplies its balance, so include every current position if you want it to match your statement. The import adds current holdings, not past trades or tax lots.</>,
+          <>Check the resulting account value, then click the button at the bottom that starts with <strong>Add</strong> and shows the count, such as <strong>Add 3 holdings</strong> (<strong>Add 1 holding</strong> for one). Once an account has holdings, their combined value supplies its balance, so include every current position if you want it to match your statement. The import adds current holdings, not past trades or tax lots.</>,
           <>Import up to 5,000 rows and 5 MB at a time. Nothing is saved until you confirm. Closing the dialog or changing or locking the profile discards the preview; idle previews expire after 15 minutes.</>,
         ],
       },
@@ -493,7 +504,7 @@ export const TAB_HELP: TabHelp[] = [
         question: "How do I project a future balance?",
         steps: [
           <>In the <strong>goal projection</strong> calculator, enter a starting amount, a monthly contribution and an assumed yearly return.</>,
-          <>Click <strong>Save as goal…</strong> to turn the projection into a real goal.</>,
+          <>Click <strong>Save as goal</strong> to turn the projection into a real goal.</>,
         ],
       },
       {
@@ -506,7 +517,7 @@ export const TAB_HELP: TabHelp[] = [
     ],
     more: [
       <>Each holding shows its computed value and gain or loss.</>,
-      <>Vault Spend records your portfolio's value each day you open it or refresh prices, so a <strong>history chart</strong> builds up over time.</>,
+      <>Vault Spend records your portfolio's value each day you open it or refresh prices, so the <strong>Portfolio value over time</strong> chart builds up.</>,
     ],
     tags: [
       "investments", "holdings", "shares", "cost basis", "gain loss", "what changed", "goal projection", "live prices",
@@ -522,7 +533,7 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I start splitting things by person?",
         steps: [
-          <>On Transactions, open the <strong>⋯</strong> More actions menu and choose <strong>Manage family members…</strong> to add people.</>,
+          <>On Transactions, open the <strong>⋯</strong> More actions menu and choose <strong>Manage family members</strong> to add people.</>,
           <>Assign accounts, transactions and more to them. Anything not assigned to anyone shows under "Unassigned".</>,
         ],
       },
@@ -554,7 +565,7 @@ export const TAB_HELP: TabHelp[] = [
         steps: [
           <>Follow the Sankey diagram from your income to your biggest spending categories, with a "Left over" or "Shortfall" flow depending on which side won.</>,
           <>Use the table of spending by category and month below it.</>,
-          <>In the daily-spending heatmap, darker days are bigger spending days. Point at a day, or move to it with Tab, for its total. One big bill like rent doesn't wash the rest out.</>,
+          <>In the daily-spending heatmap, darker days are bigger spending days. Point at a day for its total, or press Tab once to enter the grid and use the arrow keys to move between days. Home and End move to the first and last day. The focused day's total appears below the grid. One big bill like rent doesn't wash the rest out.</>,
         ],
       },
       {
@@ -574,7 +585,7 @@ export const TAB_HELP: TabHelp[] = [
     ],
     more: [
       <>Also here: spending by family member and by tag, a year-by-year comparison, a savings-rate trend, and net worth by family member.</>,
-      <>Property and valuables are on the Accounts tab, and the setup-data import and export is in Settings.</>,
+      <>Property and valuables are on the Accounts tab, and the setup-data import and export is in Settings → Data.</>,
     ],
     tags: [
       "reports", "net worth", "csv", "pdf", "savings rate", "date range", "year to date", "last 12 months", "last month",
@@ -590,14 +601,14 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I switch between light and dark?",
         steps: [
-          <>Choose <strong>Light, Dark or System</strong> in <strong>Settings → Appearance</strong>, or at the bottom of the sidebar. Both do the same thing.</>,
+          <>Choose <strong>Light, Dark or System</strong> in <strong>Settings → Display → Appearance</strong>, or at the bottom of the sidebar. Both do the same thing.</>,
           <>System follows your computer's own setting.</>,
         ],
       },
       {
         question: "How do I change the style?",
         steps: [
-          <>In <strong>Settings → Appearance</strong>, click the picture of <strong>Default</strong>, <strong>Futuristic</strong> or <strong>Retro</strong>.</>,
+          <>In <strong>Settings → Display → Appearance</strong>, click the picture of <strong>Default</strong>, <strong>Futuristic</strong> or <strong>Retro</strong>.</>,
           <>With Futuristic you can also pick its glow color and how strongly it glows. <strong>Reduce motion</strong> turns off sliding and fading in every style (see FAQ).</>,
         ],
       },
@@ -613,7 +624,7 @@ export const TAB_HELP: TabHelp[] = [
         steps: [
           <>In the <strong>Data</strong> section, see your backup history, click <strong>Back up now</strong>, or restore any backup.</>,
           <>Choose a <strong>second copy</strong> folder to keep every backup in another place too.</>,
-          <>Use <strong>Move data file…</strong> to keep your data file in another folder, and the <strong>setup data</strong> template to fill in a lot at once (see FAQ).</>,
+          <>Use <strong>Move data file</strong> to keep your data file in another folder, and the <strong>setup data</strong> template to fill in a lot at once (see FAQ).</>,
         ],
       },
       {
@@ -626,7 +637,7 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I see my money on my phone?",
         steps: [
-          <>Open <strong>Settings → Mobile snapshots</strong> and click <strong>Set up a phone</strong>. The guide walks you through it for iPhone or Android.</>,
+          <>Open <strong>Settings → Data → Mobile snapshots</strong> and click <strong>Set up a phone</strong>. The guide walks you through it for iPhone or Android.</>,
           <>Your phone keeps a saved copy you can look at anywhere. It updates when your phone and computer are on the same home Wi-Fi with Vault Spend open (see FAQ).</>,
         ],
       },
@@ -656,7 +667,7 @@ const IMPORTING_ENTRY: HelpEntry = {
     <>
       <p>
         From the <strong>Transactions</strong> tab, click <strong>"Import
-        transactions…"</strong>:
+        transactions"</strong>:
       </p>
       <ol>
         <li>
@@ -679,7 +690,7 @@ const IMPORTING_ENTRY: HelpEntry = {
           it again on its next import, and for a credit card whose file is
           mostly positive amounts, "Flip the signs" is suggested. Imported
           them the wrong way already? Select those rows on the Transactions
-          tab and choose "Flip signs…" (choosing it again undoes it).
+          tab and choose "Flip signs" (choosing it again undoes it).
         </li>
         <li>
           A review of every row opens in a window over the page before
@@ -706,9 +717,24 @@ const IMPORTING_ENTRY: HelpEntry = {
           worth a look — uncategorized, a low-confidence guess, a possible
           duplicate, or an unusually large charge — with a suggested category
           to accept, change, or skip. Close it any time; it's one click away
-          under <strong>Review inbox</strong> on the Transactions tab.
+          under <strong>Review transactions</strong> on the Transactions tab.
         </li>
       </ol>
+      <h3>Importing a file with unfamiliar headers</h3>
+      <p>
+        If a CSV's column names aren't ones Vault Spend knows, a{" "}
+        <strong>Match your columns</strong> window opens before anything
+        else. Pick which column is the date, which is the description and
+        which is the amount (or tick the box if money in and money out are
+        in separate columns). The first rows of your file are shown so you
+        can check. <strong>Continue</strong> stays off until each is chosen.
+        Vault Spend remembers your choice for that account, so the next
+        file with the same headers skips the window. If a header changes,
+        the window opens again with your earlier picks filled in. Cancel
+        and nothing is imported. If the review shows the wrong amounts, use{" "}
+        <strong>Change columns</strong> at the top of it to pick again before
+        you import.
+      </p>
     </>
   ),
 };
@@ -736,9 +762,9 @@ const BULK_SETUP_ENTRY: HelpEntry = {
       </p>
       <ul>
         <li>
-          <strong>"Download setup template…"</strong> saves one CSV file
+          <strong>"Download setup template"</strong> saves one CSV file
           with a section for each of Accounts / Categories / Budgets /
-          Goals / Holdings, with one example row in each section to show
+          Buckets (your goals) / Holdings, with one example row in each section to show
           the expected columns. Opens and saves fine in Excel.
         </li>
         <li>
@@ -746,7 +772,7 @@ const BULK_SETUP_ENTRY: HelpEntry = {
           section titles and column headers as they are), and save.
         </li>
         <li>
-          <strong>"Import setup data…"</strong> reads the file back in and
+          <strong>"Import setup data"</strong> reads the file back in and
           shows you a review screen — anything that already exists is
           flagged, and you choose what to actually apply before anything is
           written.
@@ -767,7 +793,7 @@ const EXPORT_ENTRIES: HelpEntry[] = [
     tags: ["export", "csv", "reports"],
     node: (
       <li>
-        <strong>"Export CSV…"</strong> on Transactions exports all matching rows,
+        <strong>"Export CSV"</strong> on Transactions exports all matching rows,
         including rows beyond Show more. Reports exports account balances and the current budget.
         CSV files are plain text. To reduce spreadsheet formula interpretation, risky text gets
         a leading apostrophe; that character may be visible and remains when reimported.
@@ -779,9 +805,12 @@ const EXPORT_ENTRIES: HelpEntry[] = [
     tags: ["export", "pdf", "print"],
     node: (
       <li>
-        <strong>"Print / Save as PDF…"</strong> opens your system print
-        dialog against the current Reports view — choose "Save as PDF" as
-        the destination if you want a file instead of a physical printout.
+        <strong>"Save as PDF"</strong> asks where to save a PDF of the
+        current Reports view, and Windows asks before it replaces a file that
+        already exists. <strong>"Print"</strong> opens your system print
+        window for a paper copy. On a computer without "Save as PDF", the
+        single <strong>"Print / Save as PDF"</strong> button opens the print
+        window — choose "Save as PDF" there to get a file.
       </li>
     ),
   },
@@ -798,7 +827,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
     question: "How do I set up mobile snapshots on my phone?",
     tags: ["mobile snapshots", "phone", "pairing", "qr", "wifi", "wi-fi", "certificate", "trust", "local address"],
     answer: <>
-      <p>Start on your computer: open <strong>Settings → Mobile snapshots → Set up a phone</strong>. Choose iPhone or Android and follow the guide. Keep Vault Spend open and your phone on the same private home network; the computer can use Ethernet.</p>
+      <p>Start on your computer: open <strong>Settings → Data → Mobile snapshots → Set up a phone</strong>. Choose iPhone or Android and follow the guide. Keep Vault Spend open and your phone on the same private home network; the computer can use Ethernet.</p>
       <p>Scan the setup QR with your phone Camera to open the certificate instructions. Download the public certificate, then verify the actual file against the full fingerprint shown on your computer before installing it. A matching name or text on the download page is not proof. If your phone cannot show the fingerprint, use <strong>Export certificate for direct transfer</strong> in the guide and a transfer method you control instead.</p>
       <p>Install the verified certificate in phone Settings. iPhone also needs its trust switch enabled under General → About → Certificate Trust Settings. The guide gives the phone-specific steps. Trusting this certificate lets your browser trust certificates signed by this Vault Spend installation; remove it from phone Settings when you stop using it.</p>
       <p>Open the secure viewer without a certificate warning. If using a home-screen shortcut, add and open it before pairing; it may have separate saved data. On the computer, create the pairing QR. Request access from your phone, then approve that phone and choose its profiles on the computer. Wait for the first saved snapshot and <strong>Ready offline</strong>.</p>
@@ -853,7 +882,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         <p>
           Password protection encrypts a profile&apos;s data on disk and asks for its password whenever you open it.
           Each profile is protected on its own, so you can protect some and leave others as they are. Turn it on under{" "}
-          <strong>Settings → Password protection</strong> (<strong>Turn on password protection…</strong>), or tick the
+          <strong>Settings → Profiles &amp; security → Password protection</strong> (<strong>Turn on password protection</strong>), or tick the
           protection box when you add a new profile. Setup shows a one-time recovery key and only finishes once you
           have typed two of its groups back, so you know it was saved. Profile names and icons stay visible so you can
           choose which profile to unlock.
@@ -861,7 +890,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         <p>
           Lock a profile any time with <strong>Lock profile</strong> in the profile switcher (or the command palette);
           it can also lock itself, see &quot;When does a protected profile lock automatically?&quot; below. Under
-          Settings → Password protection you can change the password (which issues a new recovery key), regenerate the
+          Settings → Profiles &amp; security → Password protection you can change the password (which issues a new recovery key), regenerate the
           recovery key, or remove protection.
         </p>
         <p>
@@ -887,7 +916,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         </p>
         <p>
           If you have lost the recovery key but can still unlock the profile, regenerate it under{" "}
-          <strong>Settings → Password protection</strong>. If you have neither the password nor the recovery key, the
+          <strong>Settings → Profiles &amp; security → Password protection</strong>. If you have neither the password nor the recovery key, the
           profile&apos;s data can&apos;t be read, and the profile can only be removed from the profile list. That
           removes the list entry only; its files stay on disk untouched, so deleting them is up to you.
         </p>
@@ -951,7 +980,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
       <>
         <p>
           Automatic locking is set for each protected profile under{" "}
-          <strong>Settings → Password protection → Automatic locking</strong>. By default a profile locks after 15
+          <strong>Settings → Profiles &amp; security → Password protection → Automatic locking</strong>. By default a profile locks after 15
           minutes without activity (choose Off, 1, 5, 15, 30 or 60 minutes). A 10-second warning appears first with a{" "}
           <strong>Stay unlocked</strong> button; when the lock happens, anything you were typing but hadn&apos;t saved
           is discarded.
@@ -974,7 +1003,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         <p>
           Vault Spend encrypts protected profiles with SQLCipher, which is built on SQLite and uses OpenSSL. Their
           license and copyright notices are included here in full, so you can read them offline. Icon credits are in
-          Settings.
+          Settings → About.
         </p>
         <details className="third-party-notices">
           <summary>Read third-party notices</summary>
@@ -1002,7 +1031,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         </p>
         <p>
           When a profile is open, an unprotected one names the bill; a protected one does so only if you turn on{" "}
-          <strong>Show bill names in reminders</strong> in Settings. Routine housekeeping, such as rolling a month
+          <strong>Show bill names in reminders</strong> in Settings → Features. Routine housekeeping, such as rolling a month
           forward, a goal's automatic monthly contribution and the daily portfolio snapshot, also waits until you unlock
           and then runs.
         </p>
@@ -1055,11 +1084,32 @@ const FAQ_ENTRIES: FaqEntry[] = [
       <p>
         Yes. Each profile&apos;s data is stored in files on your own computer, created fresh the first time you
         launch the app. No financial data is uploaded to an online service, so a fresh install on someone else&apos;s computer
-        starts completely empty. There is no online service account. If you enable mobile snapshots, approved phones receive read-only copies directly over your private local network. The phone viewer uses local files and makes no cloud or CDN requests. Separately, desktop internet requests do not carry your transactions, balances or account names: it loads its typefaces from
-        Google Fonts when it opens, it checks GitHub for a newer version when it opens, and it fetches live
+        starts completely empty. Statements are read on your computer: an uploaded statement is never sent anywhere. There is no online service account. If you enable mobile snapshots, approved phones receive read-only copies directly over your private local network. The phone viewer uses local files and makes no cloud or CDN requests. Text uses local fonts. Separately, desktop internet requests do not carry your transactions, balances or account names: it checks GitHub for a newer version when it opens, and it fetches live
         investment prices only if you set up a price provider. The legal notice lists them in full. You can also
         password-protect any profile (see above).
       </p>
+    ),
+  },
+  {
+    question: "How do I update Vault Spend?",
+    tags: ["update", "upgrade", "new version", "newer version", "download", "installer", "banner", "signed", "release", "cancel update"],
+    answer: (
+      <>
+        <p>
+          When you open Vault Spend it checks GitHub for a newer version. If there is one, a banner appears across the top of the
+          window. Click <strong>Check signed update</strong>: Vault Spend then checks that the installer really comes from Vault Spend
+          before you can use it. If that check passes, click <strong>Download update</strong>. You will see the progress, and{" "}
+          <strong>Cancel update</strong> stops it at any point.
+        </p>
+        <p>
+          When the download has finished and been checked, click <strong>Open verified installer</strong>. It asks you to confirm, then
+          opens the installer, so close Vault Spend when the installer asks you to. On a Mac, finish the installation from the disk image.
+        </p>
+        <p>
+          If Vault Spend cannot check the update, you can still click <strong>View release</strong> to open the official download page
+          and install it yourself. <strong>Dismiss</strong> hides the banner for that version.
+        </p>
+      </>
     ),
   },
   {
@@ -1082,7 +1132,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         If a recurring bill (Recurring tab) is due within 3 days, Vault
         Spend shows a native Windows notification when you open the app.
         To get them while the window is closed, turn on{" "}
-        <strong>Settings → Background reminders → "Keep Vault Spend running
+        <strong>Settings → Features → Background reminders → "Keep Vault Spend running
         in the tray"</strong>: closing the window then hides it to the
         system tray instead of quitting (the tray icon's menu opens it again
         or quits for real), and you can also have it start hidden when you
@@ -1115,8 +1165,8 @@ const FAQ_ENTRIES: FaqEntry[] = [
         lightweight classifier also kicks in for transactions the rules
         don't cover. Anything neither can confidently place is left
         Uncategorized rather than guessing — setting it yourself teaches the
-        app for next time. Rules compare merchant names, ignoring store numbers, punctuation and card-processor prefixes such as "SQ *", so a rule learned from one Speedway also covers the others. If a merchant has been filed under more than one category, its rule still suggests your most recent choice but marks it Unsure, so it lands in the review inbox instead of being applied silently. Every rule, built-in and learned, is listed in{" "}
-        <strong>Settings → Categorization rules</strong>, where you can add,
+        app for next time. Rules compare merchant names, ignoring store numbers, punctuation and card-processor prefixes such as "SQ *", so a rule learned from one Speedway also covers the others. If a merchant has been filed under more than one category, its rule still suggests your most recent choice but marks it Unsure, so it lands in the Review transactions list instead of being applied silently. Every rule, built-in and learned, is listed in{" "}
+        <strong>Settings → Features → Categorization rules</strong>, where you can add,
         edit, or delete them; before a new rule is saved you'll see how many
         existing transactions it would change and can apply it to them right
         there. The list scrolls inside its own box and can be sorted by any
@@ -1168,7 +1218,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["transfer", "link", "auto-link", "automatic", "auto-linked", "review", "unlink", "looks right"],
     answer: (
       <p>
-        Yes, if you turn it on: Settings → Feature toggles → "Link matching
+        Yes, if you turn it on: Settings → Features → Feature toggles → "Link matching
         transfers automatically" (off by default). It only links a pair that
         is clear-cut — equal amounts, opposite directions, different accounts,
         within 3 days, and no other possible match for either side. Anything
@@ -1276,7 +1326,10 @@ const FAQ_ENTRIES: FaqEntry[] = [
         yet. A change can apply to at most 250 transactions at a time, so with more than that it
         selects the first 250 and says so: make your change, then tick the box again for the next
         250. The table shows rows a few at a time; use <strong>Show 50 more</strong> under it (or
-        pick 25, 50 or 100 at a time) to see further down.
+        pick 25, 50 or 100 at a time) to see further down. To move a lot of transactions to another
+        account in one go, press <strong>Select all … to move</strong> next to that note: it selects
+        every match (up to 10,000), and with more than 250 selected the only thing you can do is
+        <strong> Move to account</strong>.
       </p>
     ),
   },
@@ -1307,7 +1360,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         easier to save for a little at a time than all at once. The next time you open the app
         after a new calendar month starts, Vault Spend logs that amount as a
         contribution automatically (you'll see a one-time notice naming
-        which goal(s) it applied to) — at most once per goal per month, and
+        which goals received it) — at most once per goal per month, and
         independently of any manual contribution you also log that month,
         so the two never skip or double up on each other.
       </p>
@@ -1330,7 +1383,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         amount as part of the budget.
       </p>
       <p>
-        Settings → Feature toggles has a master <strong>Rollover
+        Settings → Features → Feature toggles has a master <strong>Rollover
         unspent</strong> switch, on by default. Turn it off and nothing
         carries into a later month — the per-category setting and
         "rolled in" notes disappear from Budget, and every budget and earlier
@@ -1361,7 +1414,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
   },
   {
     question: "How do I reconcile an account against a statement?",
-    tags: ["reconcile", "reconciliation", "statement", "ticked", "cleared", "balance", "checking", "savings", "credit card", "loan", "account details", "ending balance"],
+    tags: ["reconcile", "reconciliation", "statement", "ticked", "cleared", "balance", "checking", "savings", "credit card", "loan", "account details", "ending balance", "statement layout", "statement layouts", "saved layouts", "remembered layout"],
     answer: (
       <p>
         On Accounts, click an account's row (or choose Details in its ⋯
@@ -1375,7 +1428,14 @@ const FAQ_ENTRIES: FaqEntry[] = [
         marked on the account's page, and a difference that won't close
         usually means a missing, mistyped, or wrongly dated transaction.
         You can also upload the statement itself: choose Upload a statement
-        instead of ticking, and Vault Spend checks each line for you.
+        instead of ticking, and Vault Spend checks each line for you. This
+        works for bank, card, loan and investment accounts, including share
+        counts. The first time you upload a statement from a bank Vault Spend
+        has not seen before, it may ask you to click a few examples; it then
+        remembers that bank for this profile. You can see those banks under
+        Settings → Features → Statements the app knows how to read, and use the Rename
+        and Remove buttons there. If you remove one, Vault Spend asks for help
+        again with that bank's next statement.
       </p>
     ),
   },
@@ -1387,7 +1447,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         The button at the bottom of the sidebar covers every dollar figure in the app with ••••
         until you press it again, so you can open Vault Spend with someone
         next to you. It hides the numbers, not the shapes of charts or what
-        a hover tooltip says. In Settings → Privacy you can also have the
+        a hover tooltip says. In Settings → Display → Privacy you can also have the
         amounts hidden automatically whenever the window isn't in front.
         Hide amounts changes only what is shown on screen. Use password
         protection to encrypt a profile's stored data.
@@ -1413,9 +1473,9 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["split", "transaction", "categories"],
     answer: (
       <p>
-        Yes — on the Transactions tab, choose <strong>Split…</strong> in a transaction's ⋯ menu
+        Yes — on the Transactions tab, choose <strong>Split</strong> in a transaction's ⋯ menu
         to divide it into as many category/amount lines as you need, each with an optional
-        note. <strong>Edit splits…</strong> in the same menu changes them later.
+        note. <strong>Edit splits</strong> in the same menu changes them later.
       </p>
     ),
   },
@@ -1470,10 +1530,9 @@ const FAQ_ENTRIES: FaqEntry[] = [
       <p>
         Yes — whatever you've entered under Property and valuables (Accounts
         tab) is included in the current net worth figure everywhere it's
-        shown. One caveat on the Dashboard's net worth <em>trend</em>{" "}
-        chart specifically: since a manual asset only carries a value as of
-        today, past points on that chart apply today's value throughout
-        rather than tracking what it was actually worth back then.
+        shown. Property and valuables track a current value. The Dashboard's
+        net worth trend does not include property and valuables. Editing a
+        current value does not change past points on that chart.
       </p>
     ),
   },
@@ -1482,11 +1541,11 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["dashboard", "layout", "save layout", "custom layout", "named layout", "preset", "customize", "delete layout"],
     answer: (
       <p>
-        Yes — choose <strong>Customize…</strong> from the Layout menu
+        Yes — choose <strong>Customize</strong> from the Layout menu
         and change the layout (pin/unpin widgets, drag to reorder, or
-        "+ Add widget…" to pin a specific account/goal/investment
+        "+ Add widget" to pin a specific account/goal/investment
         account) until the Layout menu shows "Custom (unsaved)," then
-        click <strong>"+ Save as…"</strong> and give it a name. It's saved
+        click <strong>"+ Save as"</strong> and give it a name. It's saved
         right alongside the built-in Default/Bills Focus/Investor Focus
         presets — pick it from the same menu any time to switch back,
         or select it and click <strong>"Delete"</strong> to remove it.
@@ -1501,10 +1560,10 @@ const FAQ_ENTRIES: FaqEntry[] = [
     answer: (
       <p>
         Vault Spend backs up your data file automatically once a day when
-        you open it, keeping the most recent 15 (Settings tab — also has a
+        you open it, keeping the most recent 15 (Settings → Data — also has a
         manual "Back up now"). Restoring one first backs up your current
         data (so restoring is itself reversible), then loads the restored
-        data immediately — no restart needed. Under Settings → Data → Backups you can also
+        data immediately — no restart needed. Under Settings → Data → Second copy you can also
         choose a <strong>second folder</strong> — one that syncs to OneDrive
         or Dropbox, or a USB drive, and that already exists (Vault Spend won't
         create one from a typed path) — and every backup is copied there too,
@@ -1519,7 +1578,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["appearance", "theme", "dark mode", "light mode", "default", "futuristic", "transparent", "glass", "retro", "style", "color", "accent", "glow", "neon", "motion", "animation"],
     answer: (
       <p>
-        Yes — the Settings tab has an Appearance section with a Light, Dark or
+        Yes — Settings → Display → Appearance has a Light, Dark or
         System switch (also at the bottom of the sidebar) plus three visual styles, each shown
         as a picture you click:{" "}
         <strong>Default</strong> (a frosted-glass look with a translucent,
@@ -1541,7 +1600,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["move", "relocate", "data file", "folder", "location"],
     answer: (
       <p>
-        Yes — "Move data file…" on the Settings tab copies your live
+        Yes — "Move data file" under Settings → Data copies your live
         database to a new folder you pick and starts using it right away.
         The old file is left behind untouched, in case you want it back.
       </p>
@@ -1560,13 +1619,13 @@ const FAQ_ENTRIES: FaqEntry[] = [
             filter down to just one person wherever a member filter appears.
             Everyone still shares the same file and sees the same data;
             it's attribution, not separation. Manage them with "Manage family
-            members…" in the ⋯ More actions menu on the Transactions tab.
+            members" in the ⋯ More actions menu on the Transactions tab.
           </li>
           <li>
             <strong>Profiles</strong> — completely separate, independent
             data files, one per person, with nothing shared between them.
             Switch profiles from the indicator in the sidebar, or manage
-            them fully (create, rename, delete) from the Settings tab.
+            them fully (create, rename, delete) from Settings → Profiles & security.
           </li>
         </ul>
         <p>
@@ -1609,7 +1668,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
   },
   {
     question: "Can I ask questions about my spending in plain English?",
-    tags: ["ask the vault", "question", "search", "natural language", "query", "dashboard"],
+    tags: ["ask the vault", "question", "search", "natural language", "query", "dashboard", "re-check", "recheck", "double-check", "double check", "ask again", "still up to date"],
     answer: (
       <p>
         Yes — the "Ask the Vault" box at the top of the Dashboard answers
@@ -1632,7 +1691,12 @@ const FAQ_ENTRIES: FaqEntry[] = [
         understanding free-form English, so it works best one question at a
         time, using the category, account or store names you see elsewhere in
         the app. I can correct small typing mistakes and show how I read them.
-        If a name is unclear, I’ll ask you to choose. Click "Tips &amp; examples" on the box
+        If a name is unclear, I’ll ask you to choose. Before it shows an answer
+        it double-checks it, and you may briefly see &quot;Checking that this
+        is still up to date…&quot;. If your transactions or details change in
+        the meantime, the old answer is removed and you see &quot;Your details
+        changed&quot; with an Ask again button, so an old number is never
+        shown as current. Click "Tips &amp; examples" on the box
         itself for phrasing guidance and the full list of what it
         understands.
       </p>

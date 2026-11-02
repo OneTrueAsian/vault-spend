@@ -47,7 +47,7 @@ button:disabled {
 .btn-danger {
   background-color: var(--negative);
   border-color: var(--negative);
-  color: #2a0f06;
+  color: var(--on-negative, #2a0f06);
 }
 
 .btn-danger:hover {

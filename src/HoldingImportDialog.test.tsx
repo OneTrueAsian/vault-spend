@@ -43,7 +43,7 @@ describe("holding import review", () => {
   }
   it("uses app controls without any native file or dropdown picker", () => {
     expect(document.querySelector("select, input[type=file], datalist")).toBeNull();
-    expect(button("Browse files…")).toBeTruthy();
+    expect(button("Browse files")).toBeTruthy();
     expect(document.querySelector('[aria-label^="Import account"]')?.textContent).toContain("Brokerage");
   });
   it("excludes existing and invalid rows and makes repeated rows an explicit choice", async () => {
@@ -56,18 +56,19 @@ describe("holding import review", () => {
     expect(document.body.textContent).toContain("Include all current positions");
   });
   it("saves only reviewed row IDs and the profile generation, never client prices", async () => {
-    await reviewRows(); await click("Add 1 holdings");
+    await reviewRows(); await click("Add 1 holding");
     expect(invoke).toHaveBeenCalledWith("commit_holding_import", { id: "preview-1", selectedRows: [2], generation: 7 });
     expect(onSaved).toHaveBeenCalledWith(1, "Brokerage");
+    expect(document.body.textContent).toContain("Added 1 holding to Brokerage.");
     expect(document.body.textContent).toContain("Your holdings are saved");
     expect(document.querySelector("[data-add-imported-holdings]")).toBeNull();
   });
   it("keeps a rejected save in review with its failure message", async () => {
     await reviewRows();
     vi.mocked(invoke).mockRejectedValueOnce("This account changed. Review again.");
-    await click("Add 1 holdings");
+    await click("Add 1 holding");
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("This account changed");
-    expect(onSaved).not.toHaveBeenCalled(); expect(button("Add 1 holdings").disabled).toBe(false);
+    expect(onSaved).not.toHaveBeenCalled(); expect(button("Add 1 holding").disabled).toBe(false);
   });
   it("clears the preview on unmount and closes on a profile change", async () => {
     await reviewRows();

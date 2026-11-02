@@ -27,6 +27,23 @@ describe("M5 write notification: the app's invoke", () => {
     const seen = listen(); vi.mocked(nativeInvoke).mockResolvedValue(null);
     await invoke("get_inflation_pct"); await invoke("set_profile_ui_state", {}); expect(seen).toEqual([]);
   });
+  it("notifies for a move only when it moved rows, never for a no-op, a stale preview or a refusal", async () => {
+    const seen = listen();
+    const result = (status: string, movedCount: number) => ({ status, movedCount });
+    vi.mocked(nativeInvoke).mockResolvedValueOnce(result("nothing_to_move", 0));
+    await invoke("move_transactions_to_account", {});
+    vi.mocked(nativeInvoke).mockResolvedValueOnce(result("stale_preview", 0));
+    await invoke("move_transactions_to_account", {});
+    vi.mocked(nativeInvoke).mockResolvedValueOnce(result("blocked", 0));
+    await invoke("move_transactions_to_account", {});
+    vi.mocked(nativeInvoke).mockResolvedValueOnce(null);
+    await invoke("move_transactions_to_account", {});
+    await invoke("preview_transaction_account_move", {});
+    expect(seen).toEqual([]);
+    vi.mocked(nativeInvoke).mockResolvedValueOnce(result("moved", 2));
+    await invoke("move_transactions_to_account", {});
+    expect(seen).toEqual(["move_transactions_to_account"]);
+  });
   it("does not notify when the command fails, and passes the failure on unchanged", async () => {
     const seen = listen(); const failure = new Error("nope"); vi.mocked(nativeInvoke).mockRejectedValueOnce(failure);
     await expect(invoke("set_investment_plan", {})).rejects.toBe(failure); expect(seen).toEqual([]);

@@ -155,3 +155,33 @@ describe("NewTransactionDialog direction switch", () => {
     expect(props.onSubmit).not.toHaveBeenCalled();
   });
 });
+
+describe("NewTransactionDialog date box", () => {
+  const dateBox = () => document.querySelector<HTMLInputElement>('input[aria-label="Date"]')!;
+
+  it("names the date box with a real label", () => {
+    render();
+    const label = [...document.querySelectorAll("label")].find((l) => l.textContent === "Date")!;
+    expect(label.htmlFor).toBe(dateBox().id);
+    expect(label.querySelector("input, button")).toBeNull();
+  });
+
+  it("does not save with the date that was there before when the box holds half-typed text", () => {
+    const props = render();
+    fill("12.00");
+    type(dateBox(), "10/2");
+    submit();
+    expect(props.onSubmit).not.toHaveBeenCalled();
+    expect(dateBox().validationMessage).toMatch(/^Enter the date as /);
+  });
+
+  it("saves the date that was typed once the box holds a real date", () => {
+    const props = render();
+    fill("12.00");
+    type(dateBox(), "10/02");
+    type(dateBox(), "10/02/2026");
+    submit();
+    expect(props.onSubmit).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(props.onSubmit).mock.calls[0][1]).toBe("2026-10-02");
+  });
+});

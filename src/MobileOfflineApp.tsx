@@ -357,8 +357,8 @@ export function MobileOfflineApp({
           >
             <h2>Pair with your desktop</h2>
             <p>
-              On the same Wi-Fi, keep Vault Spend open. Create a code in Settings → Mobile
-              snapshots, then approve this phone and choose its profiles there. Pair in your
+              On the same Wi-Fi, keep Vault Spend open. Create a code in Settings → Data →
+              Mobile snapshots, then approve this phone and choose its profiles there. Pair in your
               home-screen shortcut if you will use it.
             </p>
             <label>

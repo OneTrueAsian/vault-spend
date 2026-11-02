@@ -19,8 +19,8 @@ machine has both):
 cargo install tauri-driver
 ```
 
-Microsoft Edge WebDriver matching the installed WebView2 Runtime's major
-version (check `C:\Program Files (x86)\Microsoft\EdgeWebView\Application`),
+Microsoft Edge WebDriver matching the installed WebView2 Runtime's first three
+version components (check `C:\Program Files (x86)\Microsoft\EdgeWebView\Application`),
 downloaded from `https://msedgedriver.microsoft.com/<version>/edgedriver_win64.zip`
 and dropped in as `msedgedriver.exe` next to `tauri-driver.exe` in
 `~/.cargo/bin`. Node deps (`webdriverio` etc.) are already in `package.json`.
@@ -37,7 +37,7 @@ The binary **must** go through the Tauri CLI, not a bare `cargo build` — see
 Gotchas. This is also the build the driver launches:
 
 ```bash
-npx tauri build --debug --no-bundle
+npm run build:app
 ```
 
 Produces `target/debug/vaultspend.exe` with the frontend embedded. Re-run
@@ -72,23 +72,29 @@ Commands are given as sequential argv tokens, each consuming the args it needs:
 Chain as many as you like in one call, e.g.
 `node .claude/skills/run-vault-spend/explore.mjs nav Ledger eval "document.querySelectorAll('tbody tr').length" screenshot ledger.png`.
 
-To look at a populated app instead of an empty one, seed a DB first (see
-`e2e/lib/seed.mjs` — `seedFixture(pySnippet)` for a custom fixture, or an
-existing named one like `seedDebtPaymentFixture()`), then pass its dir via
-`--db`:
+To look at a populated app, seed and drive it in the same process. The fixture
+helper's temporary directory is deleted when that process exits, so printing
+its path from one process and reusing it from another does not preserve the fixture:
 
 ```js
-// scratch.mjs
 import { seedDebtPaymentFixture } from "./e2e/lib/seed.mjs";
-console.log(await seedDebtPaymentFixture());
-```
-```bash
-node scratch.mjs   # prints a dbDir
-node .claude/skills/run-vault-spend/explore.mjs --db <dbDir> nav Ledger screenshot out.png
+import { launchApp } from "./e2e/harness.mjs";
+const dbDir = await seedDebtPaymentFixture();
+const app = await launchApp({ dbDir });
+try {
+  console.log(await app.browser.$(".brand-word").getText());
+} finally {
+  await app.close();
+}
 ```
 
+Use `--db` only for a known disposable fixture directory that still exists.
+Never pass a real profile directory. Filled values are not echoed by the
+exploration tool; `text`, `html` and `eval` can still print selected page data,
+so use synthetic data for exploration.
+
 For anything beyond quick exploration (assertions, multi-step flows), write
-a spec the same way the 30+ files under `e2e/` do: `import { launchApp }
+a spec the same way the existing files under `e2e/` do: `import { launchApp }
 from "./harness.mjs"`, then use `app.browser` (a `webdriverio` remote
 client) directly. Read any `e2e/feature*.mjs` for the pattern.
 
@@ -101,14 +107,19 @@ npm run tauri dev   # opens a real window against the Vite dev server; Ctrl-C to
 ## Test
 
 ```bash
-cargo test --workspace   # 314 (core) + 1 + 66 (src-tauri) passed, last verified run
-npx tsc --noEmit         # clean, no errors
-node e2e/smoke.mjs       # launches the app, checks brand + nav render
-node e2e/feature2_budget_alerts.mjs   # one representative feature spec
+npm test
+npm run lint
+npx tsc --noEmit
+npm run access -- cargo-test -- cargo test --workspace -- --test-threads=1
+npm run build:app
+npm run e2e:smoke
+npm run e2e -- --spec=2   # example affected feature selection
 ```
 
-Run any/all of `e2e/feature*.mjs` the same way for full UI regression
-coverage; each is a standalone script, no test runner config needed.
+Follow `AGENTS.md` and `e2e/README.md` for validation scope. Use `npm run e2e`
+for the full desktop suite; a selected feature run is focused coverage only.
+Build and desktop commands use exclusive access, and the runner checks the
+compiled artifact's identity before starting. Never bypass that guard for acceptance.
 
 ---
 
@@ -124,7 +135,7 @@ coverage; each is a standalone script, no test runner config needed.
   running it *after* a working `tauri build` silently clobbers the binary
   for driving purposes — the tests themselves still pass, and you won't
   notice until the next e2e run or manual drive fails to launch. Always
-  rebuild via `npx tauri build --debug --no-bundle` as the last step before
+  rebuild via `npm run build:app` as the last step before
   driving the app, even if you only ran `cargo test` since the last build.
 - **WebdriverIO's `tag*=text` / `tag=text` shorthand only matches a *bare*
   `"tag*=text"` pattern.** Combine it with a descendant combinator like
@@ -140,9 +151,9 @@ coverage; each is a standalone script, no test runner config needed.
   `npm run tauri dev` session or a manually launched debug build) before
   rebuilding. A separately-installed copy (Program Files) or a
   `target/release` build won't conflict.
-- **`e2e/harness.mjs`'s `CARGO_BIN` constant is hardcoded to
-  `C:\Users\joeyf\.cargo\bin`.** Update it if driving this app from a
-  different machine/user account.
+- **Driver paths use `CARGO_HOME/bin`, or `~/.cargo/bin` when unset.**
+  Keep the Tauri driver matched to WebView2. Standalone browser tests can
+  require a separate Edge-browser-matched driver via `MSEDGEDRIVER`.
 - **Every fresh (unseeded) launch hits two blocking dialogs** — "Welcome"
   then "What's new" — before the app is interactive. `launchApp()` in
   `e2e/harness.mjs` (and therefore `explore.mjs`) already dismisses both;

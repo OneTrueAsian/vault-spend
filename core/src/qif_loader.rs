@@ -59,7 +59,7 @@ fn parse_qif(content: &str, invert_amounts: bool) -> LoadResult {
         }
 
         has_any_field = true;
-        let (code, value) = line.split_at(1);
+        let (code, value) = line.split_at(line.chars().next().unwrap().len_utf8());
         let value = value.trim().to_string();
         match code {
             "D" => date = Some(value),
@@ -217,5 +217,19 @@ PPayroll Deposit
 
         assert_eq!(result.transactions.len(), 1);
         assert_eq!(result.transactions[0].description, "No Trailing Caret");
+    }
+
+    #[test]
+    fn non_ascii_unknown_field_codes_do_not_panic_or_discard_valid_records() {
+        let qif = "D08/05/2026\néUnknown field\nT-10.00\nPFirst\n^\n日本語\n^\nD08/06/2026\nT-20.00\nPSecond\n^\n";
+
+        let result = parse_qif(qif, false);
+
+        assert_eq!(result.transactions.len(), 2);
+        assert_eq!(result.transactions[0].description, "First");
+        assert_eq!(result.transactions[1].description, "Second");
+        assert_eq!(result.errors.len(), 1);
+        assert_eq!(result.errors[0].row_number, 6);
+        assert_eq!(result.errors[0].message, "missing date (D) line");
     }
 }

@@ -1,5 +1,5 @@
 //! Resolves where the live database file lives, and persists a relocation
-//! chosen from the Reports tab's Settings section. Kept separate from
+//! chosen in Settings. Kept separate from
 //! `lib.rs`'s `setup()` so the precedence logic is unit-testable without a
 //! real Tauri app context.
 use serde::{Deserialize, Serialize};
@@ -70,8 +70,8 @@ pub fn read_location_strict(config_path: &Path) -> Result<Option<PathBuf>, Strin
 }
 
 /// Persists a chosen data-file location to `config_path` — read back by
-/// `read_location_strict` on the *next* launch (relocating doesn't hot-swap the
-/// currently-open connection; the frontend tells the user to restart).
+/// `read_location_strict` on the next launch. Updating the running profile's
+/// connection and `AppPaths` is the caller's responsibility.
 pub fn write_db_location_config(config_path: &Path, db_path: &Path) -> std::io::Result<()> {
     let config = DbLocationConfig {
         db_path: db_path.to_string_lossy().to_string(),

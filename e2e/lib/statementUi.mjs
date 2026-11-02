@@ -30,8 +30,8 @@ export async function openAccountPage(browser, name) {
   await browser.$("[data-account-detail]").waitForExist({ timeout: 10000, timeoutMsg: "Details should open the account's page" });
 }
 
-/** Sets a date field the way a person's pick does: the input's value, then the event React listens to
- * (typing into a native date input under WebDriver doesn't round-trip reliably). */
+/** Sets a date field to a canonical ISO date the way a paste does: the box's text, then the event React
+ * listens to. Every region's field accepts pasted ISO text; use `typeDate` (lib/dateFields.mjs) to type. */
 export async function setDateInput(browser, selector, iso) {
   const input = await browser.$(selector);
   await input.waitForExist({ timeout: 10000 });

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { errorMessage } from "./errorMessage";
 import { getCurrentGeneration } from "./profileUiState";
+import { SettingStar, cardAttr } from "./SettingStar";
 import { validateStatementLayouts, type StatementLayoutSummary } from "./statementContracts";
 
 /** Settings: the banks whose statements the app has learned to read on this profile. */
@@ -32,9 +33,10 @@ export function StatementLayoutsSection({ onMessage }: { onMessage: (text: strin
   }
 
   return (
-    <div className="card" data-statement-layouts>
+    <div className="card" data-statement-layouts {...cardAttr("statement-layouts")}>
       <div className="card-head">
-        <span className="reports-section-title">Statements the app knows how to read</span>
+        <h2 className="reports-section-title">Statements the app knows how to read</h2>
+        <SettingStar id="statement-layouts" />
       </div>
       {layouts.length === 0 ? (
         <p className="modal-message-secondary">

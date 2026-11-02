@@ -75,9 +75,6 @@ pub struct CategoryCounts {
 }
 
 impl Store {
-    /// Read-only counterpart to `get_or_create_account` — looks an account
-    /// up by name without ever creating one, for callers (import preview)
-    /// that must have zero side effects.
     /// The stat-card counts in one pass over the table, without loading every row: "needs a
     /// category" means no category at all; one set by the person counts as theirs; anything else
     /// with a category (rule, classifier, or a file's own) counts as automatic. Same rows as

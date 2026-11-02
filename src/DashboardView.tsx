@@ -1,3 +1,4 @@
+import { hiddenAccountCount } from "./hiddenAccounts";
 import "./DashboardCards.css";
 import "./FirstRunChecklist.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -121,6 +122,7 @@ export function DashboardView({
   budgetAlerts,
   insights,
   avgMonthlySpend,
+  enoughHistory = true,
   assetsTotal,
   assets,
   holdings,
@@ -170,6 +172,8 @@ export function DashboardView({
    * as a decimal string straight from the backend — powers the runway
    * stat below ("liquid savings ÷ average monthly spend"). */
   avgMonthlySpend: string;
+  /** At least 14 days of transactions exist. Under that the average above is 0 and the runway card says so. */
+  enoughHistory?: boolean;
   /** Total value of manually-tracked assets (Property & Valuables, see the
    * Reports tab) — folded into the *current* Net Worth figure shown here,
    * but deliberately not part of `netWorthHistory`'s trend line (an asset
@@ -226,7 +230,7 @@ export function DashboardView({
   safeToSpendForecast: BillAwareForecast | null;
   safeToSpendEnabled: boolean;
   /** The title row's page actions — same triggers the Transactions toolbar's "Add
-   * transaction…" button and Accounts' "Add account…" button already use. */
+   * transaction" button and Accounts' "Add account" button already use. */
   onAddTransaction: () => void;
   onAddAccount: () => void;
   /** Opens Help at this page's section (the ? beside the title). */
@@ -356,6 +360,7 @@ export function DashboardView({
     [accounts],
   );
 
+  const hiddenCount = hiddenAccountCount(accounts);
   const cash = cashAccounts.reduce((s, a) => s + netWorthContribution(a), 0);
   const debt = debtAccounts.reduce((s, a) => s + netWorthContribution(a), 0);
   const investments = investmentAccounts.reduce((s, a) => s + netWorthContribution(a), 0);
@@ -635,7 +640,12 @@ export function DashboardView({
       </button>
     ),
 
-    runway: monthsOfRunway !== null && (
+    runway: !enoughHistory ? (
+      <div className="card runway-card" data-runway-waiting>
+        <p className="modal-message-secondary">Not enough history yet. Cash runway shows once you have 2 weeks of transactions.</p>
+      </div>
+    ) : (
+      monthsOfRunway !== null && (
       <div className="card runway-card">
         <div className="runway-ring">
           <ProgressRing pct={runwayPct} size={64} stroke={7} ariaLabel={`${monthsOfRunway.toFixed(1)} months of a 6-month goal`} />
@@ -651,6 +661,7 @@ export function DashboardView({
           </p>
         </div>
       </div>
+      )
     ),
 
     safe_to_spend: safeToSpendEnabled && safeToSpendForecast && <SafeToSpendCard forecast={safeToSpendForecast} onOpenRecurring={onOpenRecurring} />,
@@ -734,16 +745,16 @@ export function DashboardView({
             <span className="reports-section-title">Net worth trend</span>
           </div>
           <LineChart
-            points={netWorthHistory.map((p) => ({ label: p.month_label, value: parseFloat(p.value) + assetsTotal }))}
+            points={netWorthHistory.map((p) => ({ label: p.month_label, value: parseFloat(p.value) }))}
             height={210}
+            caption="Net worth by month"
           />
           <p className="account-col" style={{ marginTop: 8 }}>
             {netWorthDelta >= 0 ? "▲" : "▼"} {fmtMoneyShort(Math.abs(netWorthDelta))} over this period
           </p>
           {assetsTotal !== 0 && (
             <p className="modal-message-secondary" style={{ marginTop: 4 }}>
-              Includes property and valuables at their current value throughout — since they only carry a value as
-              of today, past points assume that same value applied back then too.
+              This trend does not include property and valuables. Their current value is included in the net worth above.
             </p>
           )}
         </div>
@@ -1002,7 +1013,7 @@ export function DashboardView({
             <tbody>
               {netWorthByMemberRows.map((row) => (
                 <tr key={row.name}>
-                  <td>{row.name}</td>
+                  <td className="member-name-cell">{row.name}</td>
                   <td className="amount-col">{formatAmount(row.amount)}</td>
                 </tr>
               ))}
@@ -1232,7 +1243,7 @@ export function DashboardView({
             ...(Object.keys(LAYOUT_PRESETS) as LayoutPresetKey[]).map((key) => ({ value: key, label: LAYOUT_PRESET_LABELS[key] })),
             ...customPresets.map((p) => ({ value: `custom:${p.name}`, label: p.name })),
             ...(presetKey === "custom" ? [{ value: "custom", label: "Custom (unsaved)", disabled: true }] : []),
-            { value: CUSTOMIZE_OPTION, label: customizeMode ? "Done customizing" : "Customize…" },
+            { value: CUSTOMIZE_OPTION, label: customizeMode ? "Done customizing" : "Customize" },
           ]}
           onChange={(value) => {
             // Customize is an action, not a layout: it never changes the arrangement.
@@ -1277,7 +1288,7 @@ export function DashboardView({
             </form>
           ) : (
             <button type="button" className="modal-secondary btn-sm" onClick={() => setSavingLayout(true)}>
-              + Save as…
+              + Save as
             </button>
           ))}
         {presetKey.startsWith("custom:") && (
@@ -1293,7 +1304,7 @@ export function DashboardView({
         {customizeMode && (
           <>
             <button type="button" className="modal-secondary btn-sm" onClick={onOpenAddWidget}>
-              + Add widget…
+              + Add widget
             </button>
             {/* Only while customizing: a visible way out (the Layout menu's "Done customizing" too). */}
             <button type="button" className="btn-sm" data-customize-done onClick={() => setCustomizeMode(false)}>
@@ -1374,6 +1385,11 @@ export function DashboardView({
                 );
               })}
             </div>
+            {hiddenCount > 0 && (
+              <p className="field-hint hidden-accounts-note">
+                Includes {hiddenCount} hidden account{hiddenCount === 1 ? "" : "s"}.
+              </p>
+            )}
             <StatDetailPanel
               isOpen={expandedStat !== null && row.ids.some((id) => STAT_KEY_BY_WIDGET[id] === expandedStat)}
               title={expandedStat ? STAT_LABELS[expandedStat] : null}

@@ -19,7 +19,7 @@
 // Run with: node e2e/feature119_csv_export_warning.mjs
 
 import assert from "node:assert/strict";
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { enableProtectionThroughUI, seedPopulatedProfile, waitForProtectionSetupCompletion } from "./lib/protection.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 
@@ -240,6 +240,7 @@ try {
   // The setup template is static instructions and example rows — no profile data — so even a
   // protected profile downloads it with no warning.
   await (await browser.$("button*=Settings")).click();
+  await openSettingsGroup(browser, "data");
   const templateButton = await browser.$("button*=Download setup template");
   await templateButton.waitForExist({ timeout: 10000 });
   before = (await saveCalls()).length;

@@ -2,7 +2,8 @@
 
 use super::transactions::{NotesError, normalize_notes};
 use super::{CategorySource, Store};
-use crate::models::{AccountType, Transaction};
+use crate::csv_loader::ColumnNames;
+use crate::models::Transaction;
 use rusqlite::params;
 
 /// Which account an imported row goes into.
@@ -10,7 +11,7 @@ use rusqlite::params;
 pub enum ImportAccount {
     /// An account the person already has, by id.
     Existing(i64),
-    /// The row's own Account column: that account, any casing, created if it doesn't exist.
+    /// An existing account named by the file, matched without regard to case. Never creates one.
     Named(String),
 }
 
@@ -53,6 +54,8 @@ pub struct ImportBatch {
     pub forget: Vec<String>,
     /// The account the import was started from and its "Flip the signs" answer, offered again next time.
     pub sign_preference: Option<(i64, bool)>,
+    /// The account the import was started from and the CSV columns the person matched, offered again next time.
+    pub column_names: Option<(i64, ColumnNames)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -67,6 +70,7 @@ pub struct ImportBatchOutcome {
 #[derive(Debug)]
 pub enum ImportBatchError {
     UnknownAccount(i64),
+    UnknownNamedAccount(String),
     UnknownCategory(String),
     Notes(NotesError),
     Db(rusqlite::Error),
@@ -76,6 +80,12 @@ impl std::fmt::Display for ImportBatchError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ImportBatchError::UnknownAccount(_) => write!(f, "One of the accounts chosen for this import no longer exists. Nothing was imported."),
+            ImportBatchError::UnknownNamedAccount(name) => {
+                write!(
+                    f,
+                    "There's no account called \"{name}\". Choose an existing account before importing. Nothing was imported."
+                )
+            }
             ImportBatchError::UnknownCategory(name) => {
                 write!(f, "There's no category called \"{name}\" to file those rows under. Nothing was imported.")
             }
@@ -103,11 +113,12 @@ impl From<NotesError> for ImportBatchError {
 }
 
 impl Store {
-    /// Writes a reviewed import in one transaction: the categories it adds, any new accounts, every
+    /// Writes a reviewed import in one transaction: the categories it adds, every
     /// row (in file order) with its tags, notes and settled category, the rules taught by the
     /// person's own choices, the remembered file categories, and the sign answer. Any failure
     /// leaves the database exactly as it was. A category a row is filed under must already be one
-    /// of the person's or be in `create_categories`; a guess never adds one.
+    /// of the person's or be in `create_categories`; a guess never adds one. Every destination
+    /// account must already exist; transaction imports never create accounts.
     pub fn commit_import_batch(&self, batch: &ImportBatch) -> Result<ImportBatchOutcome, ImportBatchError> {
         let sql_tx = self.conn.unchecked_transaction()?;
         let outcome = self.write_import_batch(batch)?;
@@ -131,7 +142,9 @@ impl Store {
                     }
                     *id
                 }
-                ImportAccount::Named(name) => self.get_or_create_account(name, AccountType::Checking)?,
+                ImportAccount::Named(name) => self
+                    .find_account_by_name(name)?
+                    .ok_or_else(|| ImportBatchError::UnknownNamedAccount(name.clone()))?,
             };
             let notes = normalize_notes(row.notes.as_deref())?;
             let mut tx = row.transaction.clone();
@@ -182,6 +195,9 @@ impl Store {
         }
         if let Some((account_id, flip)) = batch.sign_preference {
             self.set_account_import_flip_signs(account_id, flip)?;
+        }
+        if let Some((account_id, names)) = &batch.column_names {
+            self.set_account_import_columns(*account_id, names)?;
         }
         Ok(outcome)
     }

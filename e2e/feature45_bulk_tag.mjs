@@ -1,4 +1,4 @@
-// E2E test for the Ledger's new bulk "+ Add tag…" control (U-4 from the
+// E2E test for the Ledger's new bulk "+ Add tag" control (U-4 from the
 // performance/UI review): selects two transactions' row checkboxes,
 // applies a tag via the bulk-actions bar, and confirms both rows picked up
 // the tag through the real `add_tag` command (not just a UI-only change).

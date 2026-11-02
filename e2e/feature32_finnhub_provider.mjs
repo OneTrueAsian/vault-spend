@@ -14,7 +14,7 @@
 //
 // Run with: node e2e/feature32_finnhub_provider.mjs
 
-import { launchApp, chooseMenuOption, menuSelectValue } from "./harness.mjs";
+import { launchApp, chooseMenuOption, menuSelectValue, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture("");
@@ -23,8 +23,9 @@ const app = await launchApp({ dbDir });
 try {
   const settingsNav = await app.browser.$("button*=Settings");
   await settingsNav.click();
+  await openSettingsGroup(app.browser, "features");
 
-  const livePricesCard = await app.browser.$("//div[contains(@class,'card')][.//span[text()='Live stock prices']]");
+  const livePricesCard = await app.browser.$("//div[contains(@class,'card')][.//*[contains(@class,'reports-section-title')][text()='Live stock prices']]");
   await livePricesCard.waitForExist({ timeout: 10000 });
 
   const providerSelect = await livePricesCard.$(".menu-select-toggle");

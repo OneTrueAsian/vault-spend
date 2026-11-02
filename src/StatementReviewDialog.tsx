@@ -532,7 +532,7 @@ export function StatementReviewDialog(props: {
                         {r.description}
                         {part !== null && (
                           <span className="field-hint statement-row-note" data-pays-down>
-                            {formatAmount(part)} of this is the part that pays down what you owe.
+                            {formatAmount(part.replace(/^-/, ""))} of this is the part that pays down what you owe.
                           </span>
                         )}
                       </td>

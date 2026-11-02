@@ -119,10 +119,28 @@ style's row, chooses it and waits until it applies.
 
 Dates on screen are written out ("Oct 4", or "Oct 4, 2025" for another year), the way
 `formatDisplayDate` in `src/format.ts` shows them; `displayDate` in `lib/dates.mjs` gives the text to
-expect. Every date field is `DateField`: a real `<input type="date">` that keeps the stored
-`YYYY-MM-DD` value (so `setValue`, typing and `getValue` work as before), with the date written out
-over it while it isn't being edited. Read that text with `lib/dateFields.mjs`. Exported files keep
+expect. Every date field is `DateField` and every month field `MonthField`: a text box in the
+region's own order ("10/04/2026", "04/10/2026", "2026/10/04") with a calendar the app draws beside it;
+there is no native date or month control, so nothing in a spec may select `input[type="date"]` or
+`input[type="month"]`. The box's own text is regional, so never read the stored value from `input.value`:
+the wrapper carries it as `data-value` (`YYYY-MM-DD` or `YYYY-MM`). `lib/dateFields.mjs` reads a field
+(`readDateField`, `readDateValue`, `waitForDateFieldText`, `waitForDateValue`); `lib/dateFieldInput.mjs`
+fills one through its visible controls (`typeDate`, `openCalendar`, `pickCalendarDay`) and is separate
+because typing uses the shared keyboard. A field accepts a pasted canonical `YYYY-MM-DD` in every region,
+so a spec types ISO text; set the box's text with the native setter plus an `input` event, or use
+`typeDate` (WebDriver `setValue` appends to a React-controlled box instead of replacing it). The field
+reports a date only once the text is a complete, valid date in range. Calendar behaviour is covered by
+`feature370`/`feature372` (workflows) and `feature371_calendar_visual_*` (one spec per style: six theme
+combinations at 1280x800 and 720x520, with Axe and screenshots in `VS_SCREENS_DIR`). Axe's `target-size` rule is
+the one rule not run on the calendar as a whole: it runs alone, and only its "obscured by something outside the
+calendar" finding (the dialog beneath the top-layer popup) is accepted and counted; the matrix replaces it with
+browser hit-testing of every fully visible control, a negative control, real coordinate clicks and a scrolled-popup
+pass (`lib/calendarHits.mjs`). `feature373_calendar_contrast_*` measures text contrast numerically from the real
+composited background in each hover and focus state and Futuristic accent (`lib/calendarContrast.mjs`); it is a
+sample, not a proof for every backdrop. Exported files keep
 `YYYY-MM-DD`.
+
+Moving transactions to another account: use the selection bar's **Move to account** action or a row's Account menu. Specs `feature374`–`feature382` cover recent moves, historical correction from recorded checkpoints, explicit current-balance confirmation for unknown history, genuine blockers, bulk selection, idempotent retry, profile protection, six-theme contrast/keyboard/layout checks, restart persistence, credit balances and focus restoration. Ordinary bulk actions keep their 250-row limit; **Select all … to move** selects up to 10,000 for moving only. `lib/moveTransactions.mjs` prepares isolated fixtures; `lib/moveVisualMatrix.mjs` uses the shared composited-background sampler in `lib/calendarContrast.mjs`. Older transactions are not blanket-blocked: recorded history is corrected automatically, and opaque history requests explicit balances. Screenshot evidence is written to temporary output folders or the explicit evidence directory.
 
 ## Building and running without stepping on each other
 
@@ -188,6 +206,14 @@ The runner defaults to `--schedule=classified`. It additionally requires `e2e/pa
 
 The registry schema is `{ "approvals": { "spec.mjs": { "binding": { "buildKey": "...", "exeSha256": "...", "sourceKey": "..." }, "receipts": ["run-1", "run-2"] } }, "receipts": { "run-1": { "path": "path/to/runner.json", "sha256": "..." } } }`. Missing, malformed, changed, duplicated, serial, failed or incomplete receipts cannot grant approval. The selected concurrent cohort must have been present together in those proof groups; independently proved pools cannot silently be combined. Keep the associated static resource/isolation review with the external evidence; two passing fixtures alone do not prove arbitrary hardware reliability. The current 109-spec pool was approved only after two complete source-bound proof groups passed. Changed bindings or inaccessible external receipts demote it to serial; the recorded 23m49s does not promise that runtime after future changes. Refreshing proof itself has a cost and requires an approved measurement window.
 
+**Generating the approvals registry.** `e2e/parallel-approvals.json` is local to one machine and is not committed (it is in `.gitignore`): it holds machine-specific receipt paths and approvals tied to one exact build. Without it, or with one that is out of date, the runner runs every spec one at a time, so a fresh checkout is always safe. To create it:
+
+1. Build the app (`npm run build:app`) and confirm the specs you want to pool are listed in `parallelSafe` in `e2e/spec-classification.json` (`node e2e/classify-specs.mjs --check`).
+2. Get two complete passing proof runs of that pool from the same build and source: run `node e2e/run-all.mjs --schedule=pool --concurrency=N` twice (an authorized measurement window; it exits 3 and reports `unapproved-parallel-pool` when assertions pass, which is expected). After each run, copy `target\e2e-last-run.json` to the external evidence folder (outside the repo, for example `E:\misc\Programming\Agents\Implementations\...`) under a name such as `P1-runner.json` and `P2-runner.json`, and compute each file's SHA-256 (`Get-FileHash -Algorithm SHA256`).
+3. Write `e2e/parallel-approvals.json` using the schema above: one `receipts` entry per proof run (`path` to the copy in the evidence folder, `sha256` of that exact file), and for each pooled spec an `approvals` entry whose `binding` (`buildKey`, `exeSha256`, `sourceKey`) is copied from the receipts' `approvalBinding` and whose `receipts` lists both receipt ids.
+4. Check it: `node e2e/run-all.mjs --list` starts nothing; then a normal `npm run e2e` prints `classified: N parallel-safe` only if every receipt verifies. Any later change to a reached input, the executable, or a missing or altered receipt file drops the affected specs back to one at a time (no error, just slower).
+
+Keep the receipt files, and a copy of the registry, in the external evidence folder: the registry only points at them, and the registry itself is not in git.
 Explicit `--schedule=pool --concurrency=N` remains available for authorized diagnostics. With N greater than one it bypasses exclusive classifications, reports `unapproved-parallel-pool`, and exits 3 when assertions otherwise pass. Such a source-valid, all-passing diagnostic group can support a separately reviewed approval; it is never a full-regression acceptance pass itself. A serial pool remains valid. `--list` starts nothing; explicit classified preview is conservative before runtime identity and approvals are checked.
 
 *Profiling*: `VAULTSPEND_E2E_PHASES=1` prints launch phases and session close, plus `[efficiency-stage]` JSON for the M5 matrix's fixture, startup, navigation, screen entry, inspection and cleanup. These are awaited wall times including any nested IPC; inspection includes settling, Axe, geometry/semantic checks and screenshots, not pure JavaScript assertion CPU. Nested/root timings must not be added as independent costs. `returned`/`threw` records operation completion, not a test verdict: queued accessibility failures still fail the spec's original final assertion. Other specs do not gain complete stage attribution from this targeted instrumentation.

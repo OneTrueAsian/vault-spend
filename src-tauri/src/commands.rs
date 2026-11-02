@@ -40,6 +40,8 @@ mod budgets;
 pub use self::budgets::*;
 mod reports;
 pub use self::reports::*;
+mod report_pdf;
+pub use self::report_pdf::*;
 mod recurring;
 pub use self::recurring::*;
 mod investments;

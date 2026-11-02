@@ -1,6 +1,6 @@
 // E2E smoke test for turning a selected Ledger transaction directly into a
 // recurring item: selects a transaction's row checkbox, picks a cadence
-// from the bulk-actions bar's "Add to Recurring…" picker, and confirms a
+// from the bulk-actions bar's "Add to Recurring" picker, and confirms a
 // matching item (merchant, amount, cadence, linked account) appears on the
 // Recurring tab — through the real `bulk_create_recurring_from_transactions`
 // command, not just a frontend-only change.
@@ -36,10 +36,10 @@ try {
   const barText = await bulkBar.getText();
   console.log("bulk actions bar:", barText);
   if (!barText.includes("Add to Recurring")) {
-    throw new Error(`expected an "Add to Recurring…" control, got:\n${barText}`);
+    throw new Error(`expected an "Add to Recurring" control, got:\n${barText}`);
   }
 
-  const recurringSelect = await app.browser.$(".bulk-actions-bar button[aria-label='Add to Recurring…']");
+  const recurringSelect = await app.browser.$(".bulk-actions-bar button[aria-label='Add to Recurring']");
   await chooseMenuOption(recurringSelect, { value: "annual" });
 
   await app.browser.waitUntil(

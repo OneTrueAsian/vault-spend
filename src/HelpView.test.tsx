@@ -25,6 +25,117 @@ describe("HelpView", () => {
     container.remove();
   });
 
+  it("tells people where to see completed account moves", () => {
+    const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "move transactions to another account");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("Account move history");
+  });
+
+  it("describes current property values without promising historical valuations", () => {
+    const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "property and valuables");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("track a current value");
+    expect(text).toContain("does not include property and valuables");
+    expect(text).not.toContain("past points on that chart apply today's value");
+  });
+
+  it("explains the heatmap's single Tab stop and day-navigation keys", () => {
+    const reports = container.querySelector("#help-reports")!.textContent ?? "";
+    expect(reports).toContain("Tab once");
+    expect(reports).toContain("arrow keys");
+    expect(reports).toContain("Home and End");
+    expect(reports).not.toContain("move to it with Tab");
+  });
+
+  it("names the Add button of the holdings import the way it reads on screen (it carries the count)", () => {
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("Add 3 holdings");
+    expect(text).not.toContain("click Add holdings");
+  });
+
+  it("names the portfolio value chart the way its card is titled on Investments", () => {
+    const investments = (container.querySelector("#help-investments")!.textContent ?? "").replace(/\s+/g, " ");
+    expect(investments).toContain("Portfolio value over time");
+    expect(investments).not.toContain("history chart");
+  });
+
+  it("names the account page chart the way its card is titled", () => {
+    const accounts = (container.querySelector("#help-accounts")!.textContent ?? "").replace(/\s+/g, " ");
+    expect(accounts).toContain("Balance over the last year");
+    expect(accounts).toContain("Available credit over the last year");
+    expect(accounts).toContain("Amount owed over the last year");
+    expect(accounts).not.toContain("balance-history chart");
+  });
+
+  const helpText = () => (container.textContent ?? "").replace(/\s+/g, " ");
+
+  it("explains how to update Vault Spend using the buttons the update banner shows", () => {
+    const text = helpText();
+    expect(text).toContain("How do I update Vault Spend?");
+    for (const button of ["Check signed update", "Download update", "Open verified installer", "Cancel update", "View release"]) expect(text).toContain(button);
+    expect(text).toContain("checks that the installer really comes from Vault Spend");
+  });
+
+  it("says reconciling works for investment accounts and where the saved statement layouts are managed", () => {
+    const text = helpText();
+    expect(text).toContain("investment accounts, including share counts");
+    expect(text).toContain("Statements the app knows how to read");
+    expect(text).toContain("Rename");
+  });
+
+  it("says statements are read on your computer", () => {
+    expect(helpText()).toContain("Statements are read on your computer");
+  });
+
+  it("says what Ask the Vault does while it double-checks an answer and when your details change", () => {
+    const text = helpText();
+    expect(text).toContain("Checking that this is still up to date");
+    expect(text).toContain("Your details changed");
+    expect(text).toContain("Ask again");
+  });
+
+  it("names the Settings group in every Settings path (the card may follow), so each one leads somewhere real", () => {
+    const text = helpText();
+    const groups = ["Display", "Profiles & security", "Data", "Features", "About"];
+    const paths = [...text.matchAll(/Settings → [^.;)]{0,60}/g)].map((m) => m[0]);
+    expect(paths.length).toBeGreaterThan(8);
+    const bad = paths.filter((path) => !groups.some((g) => path.startsWith(`Settings → ${g}`)));
+    expect(bad).toEqual([]);
+  });
+
+  it("uses the actual setup-template section name for goals", () => {
+    const topics = Array.from(container.querySelectorAll("details.help-topic"));
+    const setup = topics.find(el => el.querySelector("summary")?.textContent === "Bulk setup-data import/export")!;
+    expect((setup.textContent ?? "").replace(/\s+/g, " ")).toContain("Buckets (your goals)");
+  });
+
+  it("describes the current local fonts without claiming a Google Fonts request at startup", () => {
+    const answer = Array.from(container.querySelectorAll("details.help-faq-entry")).find(el =>
+      el.querySelector("summary")?.textContent === "Is my data private?")!;
+    expect((answer.textContent ?? "").replace(/\s+/g, " ")).toContain("Text uses local fonts.");
+    expect(answer.textContent).not.toContain("loads its typefaces from Google Fonts");
+    expect(answer.textContent).toContain("checks GitHub");
+  });
+
+  it("explains automatic goal contributions without placeholder plurals", () => {
+    const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Auto-contribute monthly");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("which goals received it");
+    expect(text).not.toContain("goal(s)");
+  });
+
   it("finds savings-target preview guidance, explicit constraints, history choices and no-write limitations", () => {
     const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
     act(() => {
@@ -84,8 +195,8 @@ describe("HelpView", () => {
     const text = container.textContent ?? "";
 
     expect(text).not.toContain("Profile protection");
-    expect(text).toContain("Settings → Password protection");
-    expect(text).toContain("Settings → Password protection → Automatic locking");
+    expect(text).toContain("Settings → Profiles & security → Password protection");
+    expect(text).toContain("Settings → Profiles & security → Password protection → Automatic locking");
   });
 
   it("lists every network request the app makes in the privacy answer, including Google Fonts", () => {
@@ -102,6 +213,14 @@ describe("HelpView", () => {
     expect(text).toContain("Reduce motion");
   });
 
+  it("explains the Match your columns window for files with unfamiliar headers", () => {
+    const text = container.textContent ?? "";
+    expect(text).toContain("Importing a file with unfamiliar headers");
+    expect(text).toContain("Match your columns");
+    expect(text).toContain("remembers your choice for that account");
+    expect(text).toContain("Change columns");
+  });
+
   it("explains that unsure import rows wait for a choice and that file category choices are remembered", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("Pick a category");
@@ -115,6 +234,13 @@ describe("HelpView", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("at most 250 transactions at a time");
     expect(text).toContain("Show 50 more");
+  });
+
+  it("explains that a big selection can be moved to another account, and only moved", () => {
+    const text = container.textContent ?? "";
+    expect(text).toContain("Select all … to move");
+    expect(text).toContain("up to 10,000");
+    expect(text).toContain("the only thing you can do is Move to account");
   });
 
   it("explains that rules ignore store numbers", () => {
@@ -325,7 +451,7 @@ describe("HelpView sections per tab (s12)", () => {
     const text = container.textContent ?? "";
     for (const words of [
       ["Hide amounts", "bottom of the sidebar"],
-      ["Light, Dark or System", "Settings → Appearance"],
+      ["Light, Dark or System", "Settings → Display → Appearance"],
       ["⋯", "Split"],
       ["Money out", "Money in"],
       ["Layout", "Customize"],
@@ -346,3 +472,59 @@ describe("HelpView sections per tab (s12)", () => {
   });
 });
 
+
+describe("HelpView names the review button as it reads", () => {
+  it("calls the Transactions button Review transactions, not an inbox", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    act(() => root.render(<HelpView />));
+    const text = host.textContent ?? "";
+    expect(text).toContain("Review transactions");
+    expect(text).not.toContain("Review inbox");
+    act(() => root.unmount());
+    host.remove();
+  });
+});
+
+describe("HelpView search finds the 1.3.2 features by the words people use", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn();
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    act(() => root.render(<HelpView />));
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  function search(text: string) {
+    const input = container.querySelector<HTMLInputElement>("input[type=search]")!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, text);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+
+  it.each([
+    ["statement layouts", "How do I reconcile an account against a statement?"],
+    ["statement layout", "How do I reconcile an account against a statement?"],
+    ["saved layouts", "How do I reconcile an account against a statement?"],
+    ["re-check", "Can I ask questions about my spending in plain English?"],
+    ["double-check", "Can I ask questions about my spending in plain English?"],
+    ["account move", "How do I move transactions to another account?"],
+    ["move history", "How do I move transactions to another account?"],
+    ["update", "How do I update Vault Spend?"],
+  ])("finds the right help for %s", (query, heading) => {
+    search(query);
+    expect(container.textContent).toContain(heading);
+    // Search narrows the page: an entry that has nothing to do with the words is gone.
+    expect(container.textContent).not.toContain("Can I save my own Dashboard layout?");
+  });
+});

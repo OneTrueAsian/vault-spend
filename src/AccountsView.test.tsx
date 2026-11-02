@@ -6,7 +6,7 @@ import { AccountsView } from "./AccountsView";
 import type { Account } from "./types";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(() => Promise.resolve([])) }));
-const account: Account = { id: 7, name: "Everyday Checking", account_type: "checking", starting_balance: "100", current_balance: "123.45", institution: "Local bank", mask: "1234", interest_rate: null, excluded_from_debt_payoff: false, member_id: null, member_name: null, checkpoint_date: null, icon_key: null, import_flip_signs: null };
+const account: Account = { id: 7, name: "Everyday Checking", account_type: "checking", starting_balance: "100", current_balance: "123.45", institution: "Local bank", mask: "1234", interest_rate: null, excluded_from_debt_payoff: false, member_id: null, member_name: null, checkpoint_date: null, icon_key: null, import_flip_signs: null, hidden: false };
 let host: HTMLDivElement;
 let root: Root;
 let open = vi.fn<(id: number) => void>();
@@ -14,7 +14,7 @@ let props: ComponentProps<typeof AccountsView>;
 beforeEach(() => {
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
   open = vi.fn<(id: number) => void>(); const noop = () => {};
-  props = { accounts: [account], manualAssetsTotal: 0, netWorthHistory: [], accountContributionDeltas: [], onSetStartingBalance: noop, onSetBalanceOverride: noop, onUpdateAccountType: noop, onDeleteAccount: noop, onSetAccountDetails: noop, familyMembers: [], onSetAccountMember: noop, onSetAccountIcon: noop, onAddAccount: noop, onOpenAccountDetail: open, assets: [], onCreateAsset: noop, onUpdateAssetValue: noop, onSetAssetMember: noop, onDeleteAsset: noop };
+  props = { accounts: [account], manualAssetsTotal: 0, netWorthHistory: [], accountContributionDeltas: [], onSetStartingBalance: noop, onSetBalanceOverride: noop, onUpdateAccountType: noop, onDeleteAccount: noop, onSetAccountDetails: noop, familyMembers: [], onSetAccountMember: noop, onSetAccountIcon: noop, onSetAccountHidden: noop, onAddAccount: noop, onOpenAccountDetail: open, assets: [], onCreateAsset: noop, onUpdateAssetValue: noop, onSetAssetMember: noop, onDeleteAsset: noop };
   act(() => root.render(<AccountsView {...props} />));
 });
 afterEach(() => { act(() => root.unmount()); host.remove(); });
@@ -32,12 +32,12 @@ describe("account rows", () => {
     const menu = card().querySelector<HTMLButtonElement>("[data-row-menu]")!;
     expect(menu).not.toBeNull(); act(() => menu.click());
     const items = [...document.querySelectorAll<HTMLButtonElement>(".row-menu-panel [role=menuitem]")];
-    expect(items.map(i => i.textContent)).toEqual(["Details", "Edit…", "Reconcile with a statement…", "Delete…"]);
+    expect(items.map(i => i.textContent)).toEqual(["Details", "Edit", "Reconcile with a statement", "Hide", "Delete"]);
     act(() => items[0].click()); expect(open).toHaveBeenCalledWith(7);
   });
   it("Reconcile opens the account's details at its reconcile card", () => {
     act(() => card().querySelector<HTMLButtonElement>("[data-row-menu]")!.click());
-    const item = [...document.querySelectorAll<HTMLButtonElement>(".row-menu-panel [role=menuitem]")].find(b => b.textContent === "Reconcile with a statement…")!;
+    const item = [...document.querySelectorAll<HTMLButtonElement>(".row-menu-panel [role=menuitem]")].find(b => b.textContent === "Reconcile with a statement")!;
     act(() => item.click());
     expect(open).toHaveBeenCalledWith(7, "reconcile");
   });
@@ -45,13 +45,13 @@ describe("account rows", () => {
     act(() => root.render(<AccountsView {...props} accounts={[{ ...account, account_type: "credit" }]} />));
     act(() => card().querySelector<HTMLButtonElement>("[data-row-menu]")!.click());
     const labels = [...document.querySelectorAll(".row-menu-panel [role=menuitem]")].map(i => i.textContent);
-    expect(labels).toEqual(["Details", "Edit…", "Delete…"]);
+    expect(labels).toEqual(["Details", "Edit", "Hide", "Delete"]);
   });
   it("Delete asks first, in the account dialog, before deleting", () => {
     const onDeleteAccount = vi.fn();
     act(() => root.render(<AccountsView {...props} onDeleteAccount={onDeleteAccount} />));
     act(() => card().querySelector<HTMLButtonElement>("[data-row-menu]")!.click());
-    act(() => [...document.querySelectorAll<HTMLButtonElement>(".row-menu-panel [role=menuitem]")].find(b => b.textContent === "Delete…")!.click());
+    act(() => [...document.querySelectorAll<HTMLButtonElement>(".row-menu-panel [role=menuitem]")].find(b => b.textContent === "Delete")!.click());
     expect(onDeleteAccount).not.toHaveBeenCalled();
     const confirm = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(b => b.textContent === "Delete account")!;
     expect(confirm).toBeDefined();
@@ -60,7 +60,7 @@ describe("account rows", () => {
   });
   it("Edit opens the account dialog without navigating to Details", () => {
     act(() => card().querySelector<HTMLButtonElement>("[data-row-menu]")!.click());
-    const edit = [...document.querySelectorAll<HTMLButtonElement>(".row-menu-panel [role=menuitem]")].find(button => button.textContent === "Edit…")!;
+    const edit = [...document.querySelectorAll<HTMLButtonElement>(".row-menu-panel [role=menuitem]")].find(button => button.textContent === "Edit")!;
     act(() => edit.click());
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Edit Everyday Checking");
     expect(open).not.toHaveBeenCalled();
@@ -77,6 +77,15 @@ describe("account rows", () => {
     act(() => card().querySelector<HTMLButtonElement>(".type-badge")!.click());
     expect(card().querySelector(".icon-picker-popover")).not.toBeNull();
     expect(open).not.toHaveBeenCalled();
+  });
+  it("closes the account icon picker with Escape and returns focus to the badge that opened it", () => {
+    const badge = card().querySelector<HTMLButtonElement>(".type-badge")!;
+    badge.focus();
+    act(() => badge.click());
+    expect(card().querySelector(".icon-picker-popover")).not.toBeNull();
+    act(() => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+    expect(card().querySelector(".icon-picker-popover")).toBeNull();
+    expect(document.activeElement).toBe(badge);
   });
 });
 const card2: Account = { ...account, id: 8, name: "Rainy Day", account_type: "savings", current_balance: "900.00", institution: "Ally", mask: "1177" };
@@ -136,17 +145,98 @@ describe("the Accounts page, as in the UI mockup (UAT s7.1)", () => {
     expect(row.querySelector(".bal")?.textContent).toBe("$415,000.00");
     act(() => row.querySelector<HTMLButtonElement>("[data-row-menu]")!.click());
     const items = [...document.querySelectorAll<HTMLButtonElement>(".row-menu-panel [role^=menuitem]")];
-    expect(items.map(i => i.textContent)).toEqual(["Update value…", "Belongs to Jordan", "Delete…"]);
+    expect(items.map(i => i.textContent)).toEqual(["Update value", "Belongs to Jordan", "Delete"]);
     act(() => items[1].click());
     expect(onSetAssetMember).toHaveBeenCalledWith(1, 3);
     act(() => row.querySelector<HTMLButtonElement>("[data-row-menu]")!.click());
-    act(() => [...document.querySelectorAll<HTMLButtonElement>(".row-menu-panel [role=menuitem]")].find(b => b.textContent === "Delete…")!.click());
+    act(() => [...document.querySelectorAll<HTMLButtonElement>(".row-menu-panel [role=menuitem]")].find(b => b.textContent === "Delete")!.click());
     expect(onDeleteAsset).not.toHaveBeenCalled();
     act(() => [...row.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === "Delete")!.click());
     expect(onDeleteAsset).toHaveBeenCalledWith(1);
   });
   it("still offers to add property when there is none yet", () => {
     show({ accounts: [account], assets: [] });
-    expect([...host.querySelectorAll("button")].some(b => b.textContent === "Add property or valuable…")).toBe(true);
+    expect([...host.querySelectorAll("button")].some(b => b.textContent === "Add property or valuable")).toBe(true);
+  });
+});
+
+// QA-GAP-001 (owner-approved 27 Oct 2026): Hide / Unhide. Hidden accounts leave the main list for a collapsed
+// section, but every total still counts them.
+describe("hiding accounts", () => {
+  const show = (over: Partial<ComponentProps<typeof AccountsView>>) => act(() => root.render(<AccountsView {...props} {...over} />));
+  const old: Account = { ...account, id: 20, name: "Old Savings", account_type: "savings", starting_balance: "0", current_balance: "12.00", hidden: true };
+  const menuItems = (cardEl: Element) => {
+    act(() => cardEl.querySelector<HTMLButtonElement>("[data-row-menu]")!.click());
+    return [...document.querySelectorAll<HTMLButtonElement>(".row-menu-panel [role=menuitem]")];
+  };
+  const hiddenToggle = () => [...host.querySelectorAll<HTMLButtonElement>("button")].find((b) => /^Hidden accounts \(\d+\)/.test(b.textContent ?? ""));
+  const mainCards = () => [...host.querySelectorAll(".account-group:not(.account-group-hidden) .account-card-open")].map((b) => b.textContent);
+  const tiles = () => [...host.querySelectorAll(".stats .stat")].map((t) => [...t.children].map((c) => c.textContent));
+
+  it("Hide in a visible account's menu asks to hide that account, with no confirmation", () => {
+    const onSetAccountHidden = vi.fn();
+    show({ onSetAccountHidden });
+    const hide = menuItems(card()).find((i) => i.textContent === "Hide")!;
+    act(() => hide.click());
+    expect(onSetAccountHidden).toHaveBeenCalledWith(7, true);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("keeps a hidden account out of the main list and puts it in a collapsed Hidden accounts section", () => {
+    show({ accounts: [account, old] });
+    expect(mainCards()).toEqual(["Everyday Checking"]);
+    const toggle = hiddenToggle()!;
+    expect(toggle.textContent).toContain("Hidden accounts (1)");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(host.textContent).not.toContain("Old Savings");
+  });
+
+  it("opens the section to list the hidden account with Unhide in its menu, and Unhide shows it again", () => {
+    const onSetAccountHidden = vi.fn();
+    show({ accounts: [account, old], onSetAccountHidden });
+    act(() => hiddenToggle()!.click());
+    expect(hiddenToggle()!.getAttribute("aria-expanded")).toBe("true");
+    const hiddenCard = host.querySelector(".account-group-hidden .account-card")!;
+    expect(hiddenCard.textContent).toContain("Old Savings");
+    const labels = menuItems(hiddenCard).map((i) => i.textContent);
+    expect(labels).toContain("Unhide");
+    expect(labels).not.toContain("Hide");
+    expect(labels).toContain("Details");
+    expect(labels).toContain("Delete");
+    act(() => menuItems(hiddenCard).find((i) => i.textContent === "Unhide")!.click());
+    expect(onSetAccountHidden).toHaveBeenCalledWith(20, false);
+  });
+
+  it("counts hidden accounts in every total and says so", () => {
+    show({ accounts: [account, old] });
+    const t = tiles();
+    expect(t[0][1]).toBe("$135.45");
+    expect(t[2][1]).toBe("$135.45");
+    expect(host.textContent).toContain("Includes 1 hidden account");
+    show({ accounts: [account, { ...old, id: 21, name: "Older" }, old] });
+    expect(host.textContent).toContain("Includes 2 hidden accounts");
+  });
+
+  it("includes hidden balances in the group total, though their rows are in the section", () => {
+    show({ accounts: [account, old] });
+    const heads = [...host.querySelectorAll(".account-group-head")].map((h) => [...h.children].map((c) => c.textContent));
+    expect(heads[0]).toEqual(["Cash", "$135.45"]);
+  });
+
+  it("says nothing about hidden accounts when none are hidden", () => {
+    show({ accounts: [account] });
+    expect(hiddenToggle()).toBeUndefined();
+    expect(host.textContent).not.toContain("hidden account");
+  });
+
+  it("counts them in the subtitle", () => {
+    show({ accounts: [account, old] });
+    expect(host.querySelector(".view-sub")?.textContent).toBe("2 accounts (1 hidden)");
+  });
+
+  it("an account with every account hidden still shows the section, not 'No accounts yet'", () => {
+    show({ accounts: [old] });
+    expect(host.textContent).not.toContain("No accounts yet.");
+    expect(hiddenToggle()).toBeDefined();
   });
 });

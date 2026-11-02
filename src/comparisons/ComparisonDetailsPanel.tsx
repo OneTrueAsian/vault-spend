@@ -5,6 +5,7 @@ import { formatDisplayDate, toLocalIsoDate } from "../format";
 import type { Account, Asset, FamilyMember } from "../types";
 import { AgeField } from "./AgeField";
 import { AmountEditor } from "./AmountEditor";
+import { useFieldValidity } from "../calendar/useFieldValidity";
 import { FIELD_TIPS } from "./fieldTips";
 import { getComparisonSetup, saveComparisonSetup, useGeneration } from "./api";
 import { metricTitle, personLabel } from "./format";
@@ -111,6 +112,8 @@ export function ComparisonDetailsPanel({
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [reloadCount, setReloadCount] = useState(0);
+  // A date box holding unfinished text keeps the last good date in the draft, so saving waits until it is fixed.
+  const dates = useFieldValidity();
   const today = toLocalIsoDate();
 
   useEffect(() => {
@@ -323,6 +326,7 @@ export function ComparisonDetailsPanel({
             label="Household income per year"
             value={draft.income.householdTotal}
             onChange={(a) => edit((s) => setHouseholdTotal(s, a))}
+            onDateValidityChange={dates.track("household-total")}
             hint="What you enter for each person is kept if you switch methods."
             tip={FIELD_TIPS.income}
           />
@@ -334,6 +338,7 @@ export function ComparisonDetailsPanel({
               tip={FIELD_TIPS.income}
               value={draft.income.perPerson.find((e) => personKey(e.person) === personKey(p.person))?.grossAnnual ?? null}
               onChange={(a) => edit((s) => setPersonIncome(s, p.person, a))}
+              onDateValidityChange={dates.track(`income-${personKey(p.person)}`)}
             />
           ))
         )}
@@ -376,6 +381,7 @@ export function ComparisonDetailsPanel({
           label="Annual spending"
           value={draft.spending.manualAnnual}
           onChange={(a) => edit((s) => setManualAnnualSpending(s, a))}
+          onDateValidityChange={dates.track("annual-spending")}
           hint="Use this when there are fewer than 12 completed months of history. Short history is never scaled up automatically."
           tip={FIELD_TIPS.annualSpending}
         />
@@ -526,6 +532,7 @@ export function ComparisonDetailsPanel({
               label={`${metricTitle(m)}: your own total`}
               value={draft.manualOverrides.find((o) => o.metric === m)?.amount ?? null}
               onChange={(a) => edit((s) => setManualOverride(s, m, a))}
+              onDateValidityChange={dates.track(`override-${m}`)}
               hint={MANUAL_HINT[m]}
               tip={FIELD_TIPS.manualTotal[m]}
             />
@@ -549,8 +556,13 @@ export function ComparisonDetailsPanel({
           {message}
         </p>
       )}
+      {!dates.valid && (
+        <p className="modal-message-secondary" role="alert" data-cmp-date-problem>
+          A date measured isn't a complete date yet, so these can't be saved. Finish or correct it first.
+        </p>
+      )}
       <div className="cmp-settings-actions">
-        <button type="button" onClick={save} disabled={!dirty || saving} data-cmp-settings-save>
+        <button type="button" onClick={save} disabled={!dirty || saving || !dates.valid} data-cmp-settings-save>
           Save
         </button>
         <button

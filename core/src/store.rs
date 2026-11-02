@@ -8,10 +8,25 @@ use std::str::FromStr;
 
 mod encryption;
 pub use self::encryption::{DatabaseKey, StoreOpenError, file_looks_encrypted};
+mod checkpoints;
 mod comparison_setup;
 mod comparison_snapshot;
+mod historical_move;
+mod import_columns;
 mod sign_flip;
+#[cfg(test)]
+pub(crate) mod checkpoints_test_support {
+    /// Makes the next migration fail after the given stage (None clears it). This thread only.
+    pub fn fail_migration_at(stage: Option<usize>) {
+        super::checkpoints::MIGRATION_FAULT.with(|f| f.set(stage));
+    }
+}
+mod transaction_account_move;
 pub use self::sign_flip::{FlipSignsError, FlipSignsSummary};
+pub use self::transaction_account_move::{
+    AccountEffect, AccountMoveRecord, BalanceInput, BlockedItem, CheckpointEffects, ConfirmationAccount, MAX_BULK_MOVE_IDS, MoveBlocker, MoveError,
+    MoveFailpoint, MoveOutcome, MovePreview, MoveRequest, MoveRow, MoveSummary, MoveWarning, SourceSummary, normalize_move_ids,
+};
 mod profile_ui_state;
 pub use self::comparison_setup::{ComparisonSetupError, StoredComparisonSetup};
 pub use self::profile_ui_state::UiStateKey;
@@ -130,6 +145,9 @@ pub struct StoredAccount {
     pub excluded_from_debt_payoff: bool,
     pub member_id: Option<i64>,
     pub member_name: Option<String>,
+    /// Hidden from the Accounts list and the pickers that choose where something new goes. Hiding
+    /// changes no balance, total, report or forecast and removes no history; it is a display choice.
+    pub hidden: bool,
     /// The most recent `balance_resets` checkpoint at or before "today"
     /// (see `latest_checkpoint`), if any — a transaction dated on or
     /// before this can't move `current_balance`, since a checkpoint's own
@@ -351,8 +369,11 @@ impl Store {
         } else {
             None
         };
+        let conn = Connection::open(path)?;
+        // A verified copy first: once the schema changes, the old format cannot be recovered from the file.
+        checkpoints::ensure_pre_migration_backup(&conn, path, None)?;
         let store = Store {
-            conn: Connection::open(path)?,
+            conn,
             activity_log_path,
             db_key: None,
             anomaly_cache: Box::new(std::cell::RefCell::new(None)),
@@ -513,31 +534,28 @@ fn next_occurrence(anchor: NaiveDate, cadence: &str, today: NaiveDate) -> NaiveD
     if anchor >= today {
         return anchor;
     }
+    let mut period = 0;
     let mut next = anchor;
-    match cadence {
-        "weekly" => {
-            while next < today {
-                next += chrono::Duration::days(7);
-            }
-        }
-        "biweekly" => {
-            while next < today {
-                next += chrono::Duration::days(14);
-            }
-        }
-        "annual" => {
-            while next < today {
-                next = add_one_year(next);
-            }
-        }
-        _ => {
-            // "monthly", and the fallback for anything unrecognized
-            while next < today {
-                next = add_one_month(next);
-            }
-        }
+    while next < today {
+        period += 1;
+        next = recurring_occurrence_at(anchor, cadence, period);
     }
     next
+}
+
+/// Compute each occurrence from the original anchor. February clamps this occurrence only;
+/// later months and leap years recover the original day instead of drifting forever.
+fn recurring_occurrence_at(anchor: NaiveDate, cadence: &str, period: u32) -> NaiveDate {
+    match cadence {
+        "weekly" => anchor + chrono::Duration::days(i64::from(period) * 7),
+        "biweekly" => anchor + chrono::Duration::days(i64::from(period) * 14),
+        "annual" => anchor
+            .checked_add_months(chrono::Months::new(period.checked_mul(12).expect("annual period in calendar range")))
+            .expect("annual occurrence in calendar range"),
+        _ => anchor
+            .checked_add_months(chrono::Months::new(period))
+            .expect("monthly occurrence in calendar range"),
+    }
 }
 
 /// The first day of `year`/`month` and the first day of the month after
@@ -568,14 +586,6 @@ fn add_one_month(d: NaiveDate) -> NaiveDate {
     (0u32..4)
         .find_map(|back| NaiveDate::from_ymd_opt(y, m, day - back))
         .expect("some valid day exists within 4 days of any day-of-month")
-}
-
-/// Adds one year, clamping Feb 29 -> Feb 28 in a non-leap target year.
-fn add_one_year(d: NaiveDate) -> NaiveDate {
-    let y = d.year() + 1;
-    NaiveDate::from_ymd_opt(y, d.month(), d.day())
-        .or_else(|| NaiveDate::from_ymd_opt(y, d.month(), d.day() - 1))
-        .expect("Feb 29 -> Feb 28 fallback must exist")
 }
 
 #[cfg(test)]

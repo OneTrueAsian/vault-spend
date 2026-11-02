@@ -340,7 +340,7 @@ pub fn load_statement_file(path: &str) -> Result<LoadedStatement, String> {
         Ok(LoadedStatement::Pdf(read_pdf_lines(bytes).map_err(|e| e.to_string())?))
     } else {
         Ok(LoadedStatement::Download(
-            budget_core::importer::load_transactions(file, false).map_err(|_| CANNOT_OPEN)?,
+            budget_core::importer::load_transactions(file, false, None).map_err(|_| CANNOT_OPEN)?,
         ))
     }
 }

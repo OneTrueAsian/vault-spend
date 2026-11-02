@@ -1,5 +1,6 @@
 /** Small hand-rolled inline-SVG chart components — no charting library,
  * same technique as the Monarch-styled mockup this was adapted from. */
+import { formatAmount } from "./format";
 import { useEffect, useId, useRef, useState, type RefObject, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
 
 /** Draw in the container's pixel coordinate space so labels keep their font size. */
@@ -36,10 +37,18 @@ export function fmtMoneyShort(n: number): string {
   const abs = Math.abs(n);
   let s: string;
   // The thresholds sit where rounding reaches the next unit, so 999,960 reads "$1M", not "$1000k".
-  if (abs >= 999_950) s = (abs / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (abs >= 999_950_000_000) s = (abs / 1000000000000).toFixed(1).replace(/\.0$/, "") + "T";
+  else if (abs >= 999_950_000) s = (abs / 1000000000).toFixed(1).replace(/\.0$/, "") + "B";
+  else if (abs >= 999_950) s = (abs / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
   else if (abs >= 999.5) s = (abs / 1000).toFixed(1).replace(/\.0$/, "") + "k";
   else s = abs.toFixed(0);
   return (n < 0 ? "-" : "") + "$" + s;
+}
+
+/** Value-axis labels top to bottom, leaving off one that would read the same as the label above it
+ * (a flat or tiny series rounds every gridline to "$125"). The gridlines stay; exact figures are in the tooltip and table. */
+function distinctAxisLabels(labels: string[]): (string | null)[] {
+  return labels.map((l, i) => (i > 0 && l === labels[i - 1] ? null : l));
 }
 
 /** The left gutter a chart needs for its value-axis labels, which are drawn right-aligned 8 units
@@ -138,7 +147,7 @@ export function DonutChart({
               transform={`rotate(${rotate} ${cx} ${cy})`}
               role={onSelect ? "button" : undefined}
               tabIndex={onSelect ? 0 : undefined}
-              aria-label={onSelect ? `Show ${d.label} spending, ${d.value.toFixed(2)}` : undefined}
+              aria-label={onSelect ? `Show ${d.label} spending, ${formatAmount(d.value.toFixed(2))}` : undefined}
               onClick={onSelect ? () => onSelect(d.label) : undefined}
               onKeyDown={onSelect ? (event) => {
                 if (event.key === "Enter" || event.key === " ") {
@@ -227,6 +236,7 @@ export function BarChart({
   width: initialWidth = 560,
   height = 220,
   onBarClick,
+  caption = "Chart values",
 }: {
   data: { label: string; values: { value: number; color: string; name?: string }[] }[];
   width?: number;
@@ -234,6 +244,8 @@ export function BarChart({
   /** Called with a group's index when it's clicked — omit for a purely
    * informational chart (no click affordance shown). */
   onBarClick?: (index: number) => void;
+  /** Names the chart and its hidden table of figures for screen readers. */
+  caption?: string;
 }) {
   const [wrapRef, width] = useMeasuredWidth(initialWidth);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -248,7 +260,8 @@ export function BarChart({
   data.forEach((d) => d.values.forEach((v) => { max = Math.max(max, Math.abs(v.value)); }));
   max = max === 0 ? 1 : max * 1.15;
   const gridCount = 4;
-  const padL = axisGutter(Array.from({ length: gridCount + 1 }, (_, i) => fmtMoneyShort(max - (max * i) / gridCount)));
+  const axisLabels = distinctAxisLabels(Array.from({ length: gridCount + 1 }, (_, i) => fmtMoneyShort(max - (max * i) / gridCount)));
+  const padL = axisGutter(axisLabels.map((l) => l ?? ""));
   const innerW = width - padL - padR;
   const groupW = innerW / (data.length || 1);
 
@@ -272,7 +285,7 @@ export function BarChart({
 
   return (
     <div ref={wrapRef} className="chart-fit">
-      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} role="img" aria-label={caption}>
         {/* A bright-top-to-dim-base gradient per bar. Only the Futuristic style paints with it (fill: var(--bar-fill));
             the other styles keep the bar's flat fill attribute. */}
         <defs>
@@ -287,13 +300,15 @@ export function BarChart({
         </defs>
         {Array.from({ length: gridCount + 1 }).map((_, i) => {
           const gy = padT + (innerH * i) / gridCount;
-          const val = max - (max * i) / gridCount;
+          const label = axisLabels[i];
           return (
             <g key={i}>
               <line x1={padL} y1={gy} x2={width - padR} y2={gy} stroke="var(--border)" strokeWidth={1} />
-              <text x={padL - 8} y={gy + 3} textAnchor="end" className="axis-label">
-                {fmtMoneyShort(val)}
-              </text>
+              {label !== null && (
+                <text x={padL - 8} y={gy + 3} textAnchor="end" className="axis-label">
+                  {label}
+                </text>
+              )}
             </g>
           );
         })}
@@ -378,6 +393,18 @@ export function BarChart({
           </g>
         )}
       </svg>
+      {/* The tooltip above appears on mouse hover only; the same figures, exact, for keyboard and screen-reader users. */}
+      <div className="sr-only">
+        <table>
+          <caption>{caption}</caption>
+          <thead><tr><th>Period</th><th>Series</th><th>Amount</th></tr></thead>
+          <tbody>
+            {data.flatMap((d, gi) => d.values.map((v, vi) => (
+              <tr key={`${gi}-${vi}`}><td>{d.label}</td><td>{v.name ?? ""}</td><td>{formatAmount(v.value)}</td></tr>
+            )))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -389,6 +416,7 @@ export function LineChart({
   color = "var(--accent)",
   formatValue = fmtMoneyShort,
   maxLabels,
+  caption = "Chart values",
 }: {
   points: { label: string; value: number }[];
   width?: number;
@@ -401,6 +429,8 @@ export function LineChart({
    * this chart has been a dollar amount so far, but a non-currency trend
    * (e.g. a percentage) needs its own. */
   formatValue?: (v: number) => string;
+  /** Names the chart and its hidden table of figures for screen readers. */
+  caption?: string;
 }) {
   const [wrapRef, width] = useMeasuredWidth(initialWidth);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -421,7 +451,8 @@ export function LineChart({
   const maxPad = max + span * 0.12;
   const spanPad = maxPad - minPad || 1;
   const gridCount = 4;
-  const padL = axisGutter(Array.from({ length: gridCount + 1 }, (_, i) => formatValue(maxPad - (spanPad * i) / gridCount)));
+  const axisLabels = distinctAxisLabels(Array.from({ length: gridCount + 1 }, (_, i) => formatValue(maxPad - (spanPad * i) / gridCount)));
+  const padL = axisGutter(axisLabels.map((l) => l ?? ""));
   const innerW = width - padL - padR;
   const x = (i: number) => padL + (points.length === 1 ? innerW / 2 : (innerW * i) / (points.length - 1));
   const y = (v: number) => padT + innerH - ((v - minPad) / spanPad) * innerH;
@@ -452,7 +483,7 @@ export function LineChart({
 
   return (
     <div ref={wrapRef} className="chart-fit">
-      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} role="img" aria-label={caption}>
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={color} stopOpacity={0.32} />
@@ -461,13 +492,15 @@ export function LineChart({
         </defs>
         {Array.from({ length: gridCount + 1 }).map((_, i) => {
           const gy = padT + (innerH * i) / gridCount;
-          const val = maxPad - (spanPad * i) / gridCount;
+          const label = axisLabels[i];
           return (
             <g key={i}>
               <line x1={padL} y1={gy} x2={width - padR} y2={gy} stroke="var(--border)" strokeWidth={1} />
-              <text x={padL - 8} y={gy + 3} textAnchor="end" className="axis-label">
-                {formatValue(val)}
-              </text>
+              {label !== null && (
+                <text x={padL - 8} y={gy + 3} textAnchor="end" className="axis-label">
+                  {label}
+                </text>
+              )}
             </g>
           );
         })}
@@ -547,6 +580,18 @@ export function LineChart({
           </g>
         )}
       </svg>
+      {/* Hover-only tooltip above; the same figures for keyboard and screen-reader users. The default money format is the short axis one, so the table spells the exact amount. */}
+      <div className="sr-only">
+        <table>
+          <caption>{caption}</caption>
+          <thead><tr><th>Point</th><th>Value</th></tr></thead>
+          <tbody>
+            {points.map((p, i) => (
+              <tr key={i}><td>{p.label}</td><td>{formatValue === fmtMoneyShort ? formatAmount(p.value) : formatValue(p.value)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

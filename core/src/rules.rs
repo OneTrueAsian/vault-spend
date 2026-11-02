@@ -42,8 +42,8 @@ impl Rule {
 const PROCESSOR_PREFIXES: [&str; 5] = ["paypal", "tst", "sq", "sp", "pp"];
 
 /// A description reduced to its merchant name for matching: lowercased, a leading card-processor
-/// prefix removed, and everything but letters turned into single spaces. "SQ *Blue-Bottle #12" and
-/// "BLUE BOTTLE 7" both become "blue bottle".
+/// prefix removed, accented letters written plainly, and everything but letters turned into single
+/// spaces. "SQ *Blue-Bottle #12" and "BLUE BOTTLE 7" both become "blue bottle"; "CAFÉ" becomes "cafe".
 pub fn merchant_key(text: &str) -> String {
     let lower = text.to_lowercase();
     let mut rest = lower.trim_start();
@@ -56,11 +56,27 @@ pub fn merchant_key(text: &str) -> String {
         }
     }
     rest.chars()
-        .map(|c| if c.is_alphabetic() { c } else { ' ' })
+        .map(|c| if c.is_alphabetic() { plain_letter(c) } else { ' ' })
         .collect::<String>()
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// An accented form of a Latin letter as its plain letter ("é" becomes "e"), so a bank that prints
+/// "CAFÉ" and a rule written as "cafe" name the same merchant. Other letters are left as they are.
+fn plain_letter(c: char) -> char {
+    match c {
+        'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' => 'a',
+        'ç' => 'c',
+        'è' | 'é' | 'ê' | 'ë' => 'e',
+        'ì' | 'í' | 'î' | 'ï' => 'i',
+        'ñ' => 'n',
+        'ò' | 'ó' | 'ô' | 'õ' | 'ö' => 'o',
+        'ù' | 'ú' | 'û' | 'ü' => 'u',
+        'ý' | 'ÿ' => 'y',
+        _ => c,
+    }
 }
 
 /// An ordered collection of rules. When more than one rule matches the same
@@ -224,5 +240,22 @@ mod tests {
         let rule = Rule::new("SPEEDWAY 44289", "Gas");
         assert!(rule.matches("speedway 1"));
         assert!(!rule.matches("shell 1"));
+    }
+
+    #[test]
+    fn matching_ignores_accents_on_both_sides() {
+        let rules = RuleSet::new(vec![Rule::new("cafe", "Dining Out"), Rule::new("pâtisserie", "Groceries")]);
+        assert_eq!(rules.categorize("CAFÉ"), Some("Dining Out".to_string()));
+        assert_eq!(rules.categorize("Café Crème 12"), Some("Dining Out".to_string()));
+        assert_eq!(rules.categorize("PATISSERIE LAURENT"), Some("Groceries".to_string()));
+        assert_eq!(rules.categorize("Pâtisserie Laurent"), Some("Groceries".to_string()));
+        assert!(Rule::new("café", "Dining Out").matches("CAFE 9"));
+    }
+
+    #[test]
+    fn a_letter_that_is_not_an_accented_form_is_left_alone() {
+        // Only accented forms of the Latin letters are folded; other letters keep their identity.
+        assert_eq!(merchant_key("Straße Ø"), "straße ø");
+        assert_eq!(merchant_key("ÀÉÎÕÜ Çñ"), "aeiou cn");
     }
 }

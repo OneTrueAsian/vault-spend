@@ -28,3 +28,10 @@ it("retains machine-readable refusals when user-facing wording changes", async (
   vi.mocked(invoke).mockRejectedValue("PROFILE_LOCKED: Unlock to continue.");
   await expect(transactionReads.list()).rejects.toMatchObject({ code: "profile_locked", message: "Unlock to continue." });
 });
+
+it("tells a move the store refused and rolled back apart from a reply that never came", async () => {
+  vi.mocked(invoke).mockRejectedValue("MOVE_NOT_APPLIED: Nothing was moved. That account is hidden.");
+  await expect(transactionReads.list()).rejects.toMatchObject({ code: "not_applied", message: "Nothing was moved. That account is hidden." });
+  vi.mocked(invoke).mockRejectedValue("the connection closed");
+  await expect(transactionReads.list()).rejects.toMatchObject({ code: "legacy_failure", message: "the connection closed" });
+});

@@ -46,7 +46,7 @@ try {
 
   const rowMenu = await app.browser.$("tr[data-payment-row] [data-row-menu]");
   await rowMenu.waitForExist({ timeout: 10000 });
-  await chooseRowAction(app.browser, "tr[data-payment-row] [data-row-menu]", "Split…");
+  await chooseRowAction(app.browser, "tr[data-payment-row] [data-row-menu]", "Split");
 
   // One line is pre-seeded with the full $100 under "Groceries" — change
   // its amount to 60, then add a second line for Household $40.

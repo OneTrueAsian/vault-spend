@@ -11,7 +11,7 @@ vi.mock("./ProtectionSetupDialog", () => ({
   ),
 }));
 
-import { AppearanceSection, BackupsBlock, ProfilesSection } from "./SettingsView";
+import { AppearanceSection, BackupsBlock, CardFeedbackProvider, DataFileBlock, IconCreditsSection, ProfilesSection } from "./SettingsView";
 import { DEFAULT_APPEARANCE_PREFS, type AppearancePrefs } from "./themeBootstrap";
 import type { Theme } from "./appTypes";
 
@@ -82,6 +82,18 @@ describe("Settings ProfilesSection", () => {
     const rows = [...container.querySelectorAll("tbody tr")];
     expect(rows[0].querySelector('[aria-label="Password protected"]')).toBeNull();
     expect(rows[1].querySelector('[aria-label="Password protected"]')).not.toBeNull();
+  });
+
+  // The icon picker floats over the page; a keyboard user must be able to dismiss it without choosing an icon, and land back on the swatch that opened it.
+  it("closes the profile icon picker with Escape, keeping the icon and returning focus to its swatch", () => {
+    show([{ id: "a", name: "Alex", is_active: true, icon_key: null, is_password_protected: false }]);
+    const swatch = container.querySelector<HTMLButtonElement>("tbody tr .icon-picker-swatch")!;
+    swatch.focus();
+    act(() => swatch.click());
+    expect(document.body.querySelector(".icon-picker")).not.toBeNull();
+    act(() => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+    expect(document.body.querySelector(".icon-picker")).toBeNull();
+    expect(document.activeElement).toBe(swatch);
   });
 });
 
@@ -367,3 +379,228 @@ describe("Settings AppearanceSection", () => {
   });
 });
 
+
+describe("QA restore confirmation identifies the selected copy",()=>{
+ let host:HTMLDivElement,root:Root;
+ beforeEach(()=>{host=document.createElement("div");document.body.append(host);root=createRoot(host);});
+ afterEach(()=>{act(()=>root.unmount());host.remove();});
+ const backups=[{filename:"vaultspend-20261001-101501.db",created_at:"2026-10-01 10:15:01",size_bytes:1024},{filename:"vaultspend-20261001-101559.db",created_at:"2026-10-01 10:15:59",size_bytes:2048}];
+ function show(protectedProfile=false){const restore=vi.fn();act(()=>root.render(<BackupsBlock backups={backups} onCreateBackupNow={vi.fn()} onRestoreBackup={restore} isProtected={protectedProfile} copyDir={null} onSetCopyDir={vi.fn()} onBrowseCopyDir={vi.fn()}/>));return restore;}
+ it("distinguishes same-minute backups and explains replacement before confirmation",()=>{
+  const restore=show();expect(host.textContent).toContain(backups[0].filename);expect(host.textContent).toContain(backups[1].filename);
+  const rows=host.querySelectorAll("tbody tr");act(()=>rows[1].querySelector<HTMLButtonElement>("button")!.click());
+  expect(rows[1].textContent).toContain("Replace your current data");expect(rows[1].textContent).toContain("backed up first");expect(rows[1].textContent).toContain(backups[1].filename);expect(restore).not.toHaveBeenCalled();
+  act(()=>[...rows[1].querySelectorAll("button")].find(b=>b.textContent==="Cancel")!.click());expect(restore).not.toHaveBeenCalled();
+ });
+ // Continuation 12 (T04): the confirm sat in the narrow actions cell, so at 720 px it wrapped to 1-5 characters a line and made a very tall row. It now takes the whole row.
+ it("gives the restore confirmation the whole row, not the narrow actions cell",()=>{
+  show();const row=host.querySelectorAll("tbody tr")[1];act(()=>row.querySelector<HTMLButtonElement>("button")!.click());
+  const cells=[...row.querySelectorAll("td")];
+  expect(cells.length).toBe(1);expect(cells[0].getAttribute("colspan")).toBe("3");
+  expect(cells[0].querySelector(".backup-restore-warning")!.textContent).toContain("Replace your current data");
+  expect([...cells[0].querySelectorAll("button")].map(b=>b.textContent)).toEqual(["Cancel","Restore"]);
+  expect(document.activeElement).toBe(cells[0].querySelector("button"));
+  act(()=>[...cells[0].querySelectorAll("button")].find(b=>b.textContent==="Cancel")!.click());
+  expect(host.querySelectorAll("tbody tr")[1].querySelectorAll("td").length).toBe(3);
+
+ });
+ it("confirmation restores the chosen plain copy only",()=>{
+  const restore=show();const row=host.querySelectorAll("tbody tr")[1];act(()=>row.querySelector<HTMLButtonElement>("button")!.click());act(()=>[...row.querySelectorAll("button")].find(b=>b.textContent==="Restore")!.click());expect(restore).toHaveBeenCalledExactlyOnceWith(backups[1].filename);
+ });
+ it("cancelling the protected backup password prompt never restores the selected copy",()=>{
+  const restore=show(true),row=host.querySelectorAll("tbody tr")[1];
+  act(()=>row.querySelector<HTMLButtonElement>("button")!.click());
+  act(()=>[...row.querySelectorAll("button")].find(b=>b.textContent==="Restore")!.click());
+  expect(document.body.querySelector('input[type="password"]')).not.toBeNull();
+  expect(restore).not.toHaveBeenCalled();
+  act(()=>document.body.querySelector<HTMLButtonElement>('[data-password-form-cancel]')!.click());
+  expect(document.body.querySelector('input[type="password"]')).toBeNull();
+  expect(restore).not.toHaveBeenCalled();
+ });
+});
+
+// Continuation 12 matrix (C03): the opened icon-credits list scrolls (max-height 60vh) but holds nothing focusable, so a keyboard user could not scroll it.
+describe("Settings icon credits list", () => {
+  it("is a keyboard-focusable, named scroll region", () => {
+    const container = document.createElement("div"); document.body.append(container);
+    const root = createRoot(container);
+    act(() => root.render(<IconCreditsSection />));
+    const list = container.querySelector<HTMLElement>(".icon-credits-disclosure ul")!;
+    expect(list.getAttribute("tabindex")).toBe("0");
+    expect(list.getAttribute("aria-label")).toBeTruthy();
+    act(() => root.unmount()); container.remove();
+  });
+});
+
+describe("Settings Data group: one clearly named card per task", () => {
+  let host: HTMLDivElement;
+  let root: Root;
+  beforeEach(() => {
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+  const titles = () => [...host.querySelectorAll(".card > .card-head .reports-section-title")].map((t) => t.textContent);
+  function showBackups(copyDir: string | null = null) {
+    act(() =>
+      root.render(
+        <BackupsBlock backups={[]} onCreateBackupNow={vi.fn()} onRestoreBackup={vi.fn()} isProtected={false} copyDir={copyDir} onSetCopyDir={vi.fn()} onBrowseCopyDir={vi.fn()} />,
+      ),
+    );
+  }
+
+  it("splits backups into Automatic backups, Second copy and Backup history cards, with no repeated 'Backups' sub-heading", () => {
+    showBackups();
+    expect(titles()).toEqual(["Automatic backups", "Second copy", "Backup history"]);
+    expect(host.querySelector(".data-subhead")).toBeNull();
+    expect(host.querySelector("[data-backups] table")).not.toBeNull();
+    expect(host.querySelector("[data-backup-copy] input[aria-label='Second backup folder']")).not.toBeNull();
+    expect(host.querySelector('[data-setting-card="backups"]')?.textContent).toContain("Back up now");
+  });
+
+  it("shows the second-copy folder wrapped inside its own card", () => {
+    showBackups("D:/OneDrive/VaultSpend");
+    expect(host.querySelector("[data-backup-copy] [data-backup-copy-dir]")?.textContent).toBe("D:/OneDrive/VaultSpend");
+  });
+
+  it("names the data file card, lets the long path wrap and copies it beside the button", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    const path = "C:/Users/someone/AppData/Roaming/VaultSpend/profiles/a-very-long-folder-name/vaultspend.db";
+    act(() => root.render(<DataFileBlock dataFileLocation={path} onRelocateDataFile={vi.fn()} onExportDatabase={vi.fn()} onUseExistingDataFile={vi.fn()} />));
+    expect(titles()).toEqual(["Data file"]);
+    expect(host.querySelector("[data-data-file] .path-box")?.textContent).toBe(path);
+    const copy = [...host.querySelectorAll("button")].find((b) => b.textContent === "Copy path")!;
+    expect(copy).toBeDefined();
+    await act(async () => copy.click());
+    expect(writeText).toHaveBeenCalledWith(path);
+    const status = host.querySelector("[data-data-file] [role='status']");
+    expect(status?.textContent).toBe("Path copied");
+    expect(copy.parentElement?.contains(status!)).toBe(true);
+  });
+
+  it("says plainly when the path could not be copied", async () => {
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: vi.fn().mockRejectedValue(new Error("no")) }, configurable: true });
+    act(() => root.render(<DataFileBlock dataFileLocation="C:/data.db" onRelocateDataFile={vi.fn()} onExportDatabase={vi.fn()} onUseExistingDataFile={vi.fn()} />));
+    await act(async () => [...host.querySelectorAll("button")].find((b) => b.textContent === "Copy path")!.click());
+    expect(host.querySelector("[role='status']")?.textContent).toBe("Couldn't copy. Select the path and copy it yourself.");
+  });
+
+  it("keeps each action's consequence visible and tucks the long explanation behind a labelled link", () => {
+    act(() => root.render(<DataFileBlock dataFileLocation="C:/data.db" onRelocateDataFile={vi.fn()} onExportDatabase={vi.fn()} onUseExistingDataFile={vi.fn()} />));
+    expect(host.textContent).toContain("Doesn't change what Vault Spend is using now.");
+    expect(host.textContent).toContain("Opens as a new profile next to your current one.");
+    const more = [...host.querySelectorAll("button")].filter((b) => b.textContent === "More about this");
+    expect(more.length).toBeGreaterThan(0);
+    expect(more[0].getAttribute("aria-expanded")).toBe("false");
+    expect(host.textContent).not.toContain("upgrading from an older version");
+    act(() => more[0].click());
+    expect(more[0].getAttribute("aria-expanded")).toBe("true");
+    expect(more[0].textContent).toBe("Less");
+  });
+});
+
+describe("Settings: the result of an action appears beside its button", () => {
+  let host: HTMLDivElement;
+  let root: Root;
+  beforeEach(() => {
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+  const render = (status: { text: string; kind: string } | null, onCreateBackupNow = vi.fn()) =>
+    act(() =>
+      root.render(
+        <CardFeedbackProvider status={status}>
+          <BackupsBlock backups={[]} onCreateBackupNow={onCreateBackupNow} onRestoreBackup={vi.fn()} isProtected={false} copyDir={null} onSetCopyDir={vi.fn()} onBrowseCopyDir={vi.fn()} />
+        </CardFeedbackProvider>,
+      ),
+    );
+  const backUpNow = () => [...host.querySelectorAll("button")].find((b) => b.textContent === "Back up now")!;
+
+  it("shows the app's message next to Back up now once the action has run, and announces it", () => {
+    const run = vi.fn();
+    render(null, run);
+    act(() => backUpNow().click());
+    expect(run).toHaveBeenCalled();
+    render({ text: "Backup created.", kind: "success" }, run);
+    const status = backUpNow().parentElement!.querySelector("[role='status']");
+    expect(status?.textContent).toBe("Backup created.");
+  });
+
+  it("marks a failure as an error and keeps Back up now the one primary button in its card", () => {
+    render(null);
+    act(() => backUpNow().click());
+    render({ text: "Backup failed.", kind: "error" });
+    expect(backUpNow().parentElement!.querySelector(".settings-feedback-error")?.textContent).toBe("Backup failed.");
+    expect(backUpNow().classList.contains("modal-secondary")).toBe(false);
+  });
+
+  it("does not show a message that no action in this card caused", () => {
+    render(null);
+    render({ text: "Something else happened.", kind: "success" });
+    expect(host.querySelector("[role='status']")?.textContent ?? "").toBe("");
+  });
+
+  it("clears the earlier result when the action is run again", () => {
+    render(null);
+    act(() => backUpNow().click());
+    render({ text: "Backup created.", kind: "success" });
+    act(() => backUpNow().click());
+    expect(backUpNow().parentElement!.querySelector("[role='status']")?.textContent).toBe("");
+  });
+
+  it("puts Automatic backups and Second copy in one pair that the wide layout can place side by side", () => {
+    render(null);
+    const pair = host.querySelector(".settings-pair")!;
+    expect([...pair.children].map((c) => c.querySelector(".reports-section-title")?.textContent)).toEqual(["Automatic backups", "Second copy"]);
+  });
+});
+
+describe("Settings Second copy: a refused folder keeps what was typed", () => {
+  let host: HTMLDivElement;
+  let root: Root;
+  beforeEach(() => {
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+  const show = (copyDir: string | null, onSetCopyDir = vi.fn()) =>
+    act(() =>
+      root.render(
+        <BackupsBlock backups={[]} onCreateBackupNow={vi.fn()} onRestoreBackup={vi.fn()} isProtected={false} copyDir={copyDir} onSetCopyDir={onSetCopyDir} onBrowseCopyDir={vi.fn()} />,
+      ),
+    );
+  const field = () => host.querySelector<HTMLInputElement>("input[aria-label='Second backup folder']")!;
+
+  it("does not clear the typed folder when the folder is refused (the folder setting stays empty)", () => {
+    const onSetCopyDir = vi.fn();
+    show(null, onSetCopyDir);
+    typeInto(field(), "Z:/not/there");
+    act(() => [...host.querySelectorAll("button")].find((b) => b.textContent === "Start copying")!.click());
+    expect(onSetCopyDir).toHaveBeenCalledWith("Z:/not/there");
+    expect(field().value).toBe("Z:/not/there");
+  });
+
+  it("clears the field once the folder has been accepted", () => {
+    const onSetCopyDir = vi.fn();
+    show(null, onSetCopyDir);
+    typeInto(field(), "D:/OneDrive/VaultSpend");
+    act(() => [...host.querySelectorAll("button")].find((b) => b.textContent === "Start copying")!.click());
+    show("D:/OneDrive/VaultSpend", onSetCopyDir);
+    show(null, onSetCopyDir); // stopped copying later: the field starts empty again
+    expect(field().value).toBe("");
+  });
+});

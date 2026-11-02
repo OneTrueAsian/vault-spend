@@ -160,12 +160,12 @@ try {
 
   // Issue 2 — no way to add notes to a transaction: real functional check
   // (not just presence) once Task 4 lands — add one through the real
-  // "Add note…" row action and confirm it actually saved, not just that a
+  // "Add note" row action and confirm it actually saved, not just that a
   // button with the word "note" exists somewhere on the page.
   await check("a transaction row offers a notes action", async () => {
     const row = await browser.$("//tr[td[contains(.,'Green Leaf Grocers')]]");
-    // Throws (naming the item) if the row's ⋯ menu has no "Add note…".
-    await chooseRowAction(browser, async () => row.$("[data-row-menu]"), "Add note…");
+    // Throws (naming the item) if the row's ⋯ menu has no "Add note".
+    await chooseRowAction(browser, async () => row.$("[data-row-menu]"), "Add note");
     const dialogHeading = await browser.$("//h2[contains(@class,'modal-title')][contains(text(),'Note for')]");
     await dialogHeading.waitForExist({ timeout: 5000, timeoutMsg: "expected the note dialog to open" });
     const panel = await browser.$(".modal-panel");

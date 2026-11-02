@@ -67,7 +67,7 @@ export function HouseholdView({
             Add a family member to see spending and budgets broken down by person.
           </p>
           <button type="button" onClick={onManageMembers}>
-            Add family member…
+            Add family member
           </button>
         </div>
       </div>
@@ -76,7 +76,7 @@ export function HouseholdView({
 
   const monthKey = `${year}-${String(month).padStart(2, "0")}`;
   const transactionsThisMonth = transactions.filter((t) => t.date.startsWith(monthKey));
-  const spending = spendingByMember(transactionsThisMonth);
+  const spending = spendingByMember(transactionsThisMonth, { includeUnassigned: true });
   const income = incomeByMember(transactionsThisMonth, accounts);
   const netWorth = netWorthByMember(accounts, assets);
 
@@ -117,11 +117,11 @@ export function HouseholdView({
       <div className="card">
         <h2 className="reports-section-title">Spending by person ({monthLabel})</h2>
         {spending.length === 0 ? (
-          <p className="modal-message-secondary">No spending attributed to a specific person this month.</p>
+          <p className="modal-message-secondary">No spending this month.</p>
         ) : (
           <ul className="breakdown-list">
             {spending.map((row) => (
-              <li key={row.name}>
+              <li key={row.unassigned ? "unassigned-row" : `person:${row.name}`}>
                 <span>{row.name}</span>
                 <span>{formatAmount(row.amount.toFixed(2))}</span>
               </li>

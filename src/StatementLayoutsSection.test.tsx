@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import { StatementLayoutsSection } from "./StatementLayoutsSection";
+import { QuickSettingsContext } from "./SettingStar";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -72,5 +73,27 @@ describe("StatementLayoutsSection", () => {
     vi.mocked(invoke).mockResolvedValue([]);
     await act(async () => root.render(<StatementLayoutsSection onMessage={() => {}} />));
     expect(container.textContent).toContain("When you upload a statement from a new bank");
+  });
+});
+
+describe("StatementLayoutsSection anchors", () => {
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    vi.mocked(invoke).mockReset();
+  });
+
+  it("titles the card with an h2, anchors it as statement-layouts and offers a star", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd) => (cmd === "list_statement_layouts" ? [layout] : null));
+    await act(async () => root.render(<QuickSettingsContext.Provider value={{ has: () => false, toggle: () => undefined }}><StatementLayoutsSection onMessage={() => undefined} /></QuickSettingsContext.Provider>));
+    const card = container.querySelector<HTMLElement>('[data-setting-card="statement-layouts"]')!;
+    expect(card.hasAttribute("data-statement-layouts")).toBe(true);
+    expect(card.querySelector("h2.reports-section-title")?.textContent).toBe("Statements the app knows how to read");
+    expect(card.querySelector('[aria-label="Add Statements the app knows how to read to Quick settings"]')).not.toBeNull();
   });
 });

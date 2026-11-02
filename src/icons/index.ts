@@ -44,4 +44,4 @@ export { BudgetGroupIcon, iconForBudgetGroup } from "./budgetGroupIcons";
 export { ICON_CREDITS, type IconCredit } from "./credits";
 export { NOUN_ICONS, type NounIconId, type NounIcon } from "./nounIcons";
 export { FLAT_ICONS, type FlatIconId, type FlatIcon } from "./flatIcons";
-export { IconEntryGlyph, IconPicker, nounIconEntry, flatIconEntry, type IconEntry } from "./iconEntry";
+export { IconEntryGlyph, IconPicker, nounIconEntry, flatIconEntry, useDismissOnEscape, type IconEntry } from "./iconEntry";

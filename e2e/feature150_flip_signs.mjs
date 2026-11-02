@@ -1,7 +1,7 @@
 // A credit card whose export shows charges as positive (Amex Blue does): fixing rows already imported
 // the wrong way round, and the import's sign question remembering and suggesting the right answer.
 //
-//   1. "Flip signs…" on the Transactions tab negates the selected rows (after naming what it will do)
+//   1. "Flip signs" on the Transactions tab negates the selected rows (after naming what it will do)
 //      and the card's balance follows.
 //   2. Importing a mostly-positive file into a credit card suggests "Flip the signs" and says why; the
 //      answer is remembered, so the next import into that account preselects it and says so.
@@ -18,6 +18,7 @@ import os from "node:os";
 import path from "node:path";
 import { launchApp, waitUntilOrDiagnose, stubFilePicker } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { startImportInto } from "./lib/importAccount.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
 
@@ -65,7 +66,7 @@ try {
     await checkbox.waitForExist({ timeout: 10000 });
     await checkbox.click();
   }
-  await (await browser.$("button=Flip signs…")).click();
+  await (await browser.$("button=Flip signs")).click();
   const confirm = await browser.$("[data-flip-signs-confirm]");
   await confirm.waitForDisplayed({ timeout: 5000 });
   assert.match(await confirm.getText(), /Flip the sign of 2 transactions in Amex Blue\?/);
@@ -83,7 +84,7 @@ try {
   assert.equal((await amex()).import_flip_signs, null, "nothing has been imported into Amex Blue yet");
 
   const askSigns = async () => {
-    await (await browser.$("button=Import transactions…")).click();
+    await startImportInto(browser, "Amex Blue");
     const hint = await browser.$("[data-import-sign-hint]");
     await hint.waitForDisplayed({ timeout: 10000 });
     return {

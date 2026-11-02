@@ -28,6 +28,8 @@ pub struct AccountDto {
     /// The "Flip the signs" answer from the last import into this account
     /// (see `StoredAccount::import_flip_signs`) — `None` before the first.
     pub import_flip_signs: Option<bool>,
+    /// Hidden from the Accounts list and the "where does this go" pickers (see `StoredAccount::hidden`).
+    pub hidden: bool,
 }
 
 #[derive(Serialize)]
@@ -100,6 +102,7 @@ pub(super) fn account_dto(a: budget_core::store::StoredAccount) -> AccountDto {
         checkpoint_date: a.checkpoint_date.map(|d| d.to_string()),
         icon_key: a.icon_key,
         import_flip_signs: a.import_flip_signs,
+        hidden: a.hidden,
     }
 }
 
@@ -108,6 +111,13 @@ pub fn set_account_interest_rate(id: i64, rate: Option<String>, state: tauri::St
     let state = state.lock()?;
     let rate = rate.map(|r| parse_amount(&r)).transpose()?;
     state.store.set_account_interest_rate(id, rate).map_err(|e| e.to_string())
+}
+
+/// Hides or shows an account — see `Store::set_account_hidden`. Nothing about its money changes.
+#[tauri::command]
+pub fn set_account_hidden(id: i64, hidden: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock()?;
+    state.store.set_account_hidden(id, hidden).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

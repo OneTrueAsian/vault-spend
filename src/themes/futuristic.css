@@ -73,6 +73,7 @@
   --positive: #16683f;
   --positive-soft: color-mix(in srgb, var(--positive) 12%, var(--surface));
   --negative: #ad1f62;
+  --on-negative: #ffffff;
   --negative-soft: color-mix(in srgb, var(--negative) 12%, var(--surface));
   --warning: #785300;
   --warning-soft: color-mix(in srgb, var(--warning) 12%, var(--surface));
@@ -160,6 +161,7 @@
     --positive: #8cf5a8;
     --positive-soft: color-mix(in srgb, var(--positive) 14%, var(--surface));
     --negative: #ff4bac;
+    --on-negative: #2a0f06;
     --negative-soft: color-mix(in srgb, var(--negative) 14%, var(--surface));
     --warning: #ffc470;
     --warning-soft: color-mix(in srgb, var(--warning) 14%, var(--surface));
@@ -215,6 +217,7 @@
   --positive: #8cf5a8;
   --positive-soft: color-mix(in srgb, var(--positive) 14%, var(--surface));
   --negative: #ff4bac;
+  --on-negative: #2a0f06;
   --negative-soft: color-mix(in srgb, var(--negative) 14%, var(--surface));
   --warning: #ffc470;
   --warning-soft: color-mix(in srgb, var(--warning) 14%, var(--surface));
@@ -328,6 +331,10 @@
   border-color: #263549;
   background: #101927;
   color: var(--sidebar-text-active);
+}
+
+:where([data-palette="futuristic"]) .profile-switcher-toggle .account-filter-caret {
+  color: var(--sidebar-text-dim);
 }
 
 :where([data-palette="futuristic"]) .profile-switcher-toggle:hover,

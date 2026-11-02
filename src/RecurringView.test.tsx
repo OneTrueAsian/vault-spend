@@ -9,7 +9,7 @@ import { createRoot, type Root } from "react-dom/client";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async () => null) }));
 
-import { RecurringView } from "./RecurringView";
+import { RecurringView, projectOccurrencesInMonth } from "./RecurringView";
 import type { Recurring } from "./types";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -116,5 +116,72 @@ describe("RecurringView cadence labels", () => {
       candidates: [{ merchant: "Hulu", category: null, amount: "-17.99", cadence: "biweekly", anchor_date: "2026-09-01", occurrence_count: 4 }],
     });
     expect(text(container.querySelector(".suggested-row"))).toContain("Every 2 weeks · seen 4 times");
+  });
+});
+
+describe("RecurringView edit row date", () => {
+  const editRow = () => {
+    act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Edit")!.click());
+    return container.querySelector<HTMLElement>("tr:has(.row-edit-input)")!;
+  };
+  const typeInto = (input: HTMLInputElement, text: string) =>
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, text);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  const save = (row: HTMLElement) => [...row.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Save")!;
+
+  it("will not save while the next due date is half typed, instead of saving the old date", () => {
+    const props = render({ recurring: [item({ anchor_date: "2026-10-01" })] });
+    const row = editRow();
+    const box = row.querySelector<HTMLInputElement>("input.date-field-input")!;
+    expect(box.value).toBe("10/01/2026");
+    typeInto(box, "10/1");
+    expect(save(row).disabled).toBe(true);
+    act(() => save(row).click());
+    expect(props.onUpdate).not.toHaveBeenCalled();
+  });
+
+  it("saves the new date once it is complete", () => {
+    const props = render({ recurring: [item({ anchor_date: "2026-10-01" })] });
+    const row = editRow();
+    const box = row.querySelector<HTMLInputElement>("input.date-field-input")!;
+    typeInto(box, "10/1");
+    typeInto(box, "10/15/2026");
+    expect(save(row).disabled).toBe(false);
+    act(() => save(row).click());
+    expect(props.onUpdate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(props.onUpdate).mock.calls[0][5]).toBe("2026-10-15");
+  });
+});
+
+describe("RecurringView calendar projection", () => {
+  it("keeps a monthly item on its original day after a short month", () => {
+    const item = { anchor_date: "2026-01-31", cadence: "monthly" };
+    expect(projectOccurrencesInMonth(item, 2026, 2)).toEqual(["2026-02-28"]);
+    expect(projectOccurrencesInMonth(item, 2026, 3)).toEqual(["2026-03-31"]);
+    expect(projectOccurrencesInMonth(item, 2026, 4)).toEqual(["2026-04-30"]);
+    expect(projectOccurrencesInMonth(item, 2026, 5)).toEqual(["2026-05-31"]);
+    expect(projectOccurrencesInMonth(item, 2028, 2)).toEqual(["2028-02-29"]);
+    expect(projectOccurrencesInMonth(item, 2028, 3)).toEqual(["2028-03-31"]);
+  });
+
+  it("returns a yearly 29 February item to the 29th in the next leap year", () => {
+    const item = { anchor_date: "2024-02-29", cadence: "annual" };
+    expect(projectOccurrencesInMonth(item, 2025, 2)).toEqual(["2025-02-28"]);
+    expect(projectOccurrencesInMonth(item, 2027, 2)).toEqual(["2027-02-28"]);
+    expect(projectOccurrencesInMonth(item, 2028, 2)).toEqual(["2028-02-29"]);
+    expect(projectOccurrencesInMonth(item, 2028, 3)).toEqual([]);
+  });
+
+  it("still lands weekly and every-2-weeks items on their usual dates", () => {
+    expect(projectOccurrencesInMonth({ anchor_date: "2026-11-02", cadence: "weekly" }, 2026, 11)).toEqual([
+      "2026-11-02", "2026-11-09", "2026-11-16", "2026-11-23", "2026-11-30",
+    ]);
+    expect(projectOccurrencesInMonth({ anchor_date: "2026-11-02", cadence: "biweekly" }, 2026, 12)).toEqual(["2026-12-14", "2026-12-28"]);
+  });
+
+  it("shows nothing before the first due date", () => {
+    expect(projectOccurrencesInMonth({ anchor_date: "2026-11-15", cadence: "monthly" }, 2026, 10)).toEqual([]);
   });
 });

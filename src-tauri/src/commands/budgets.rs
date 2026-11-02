@@ -81,6 +81,17 @@ pub fn list_buckets(state: tauri::State<AppStateHandle>) -> Result<Vec<BucketDto
         .collect())
 }
 
+/// Renames a goal in place — see `Store::rename_bucket`. A blank or already-used name comes back
+/// as a message for the person.
+#[tauri::command]
+pub fn rename_bucket(id: i64, new_name: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock()?;
+    state.store.rename_bucket(id, &new_name).map_err(|e| match e {
+        budget_core::store::StoreError::InvalidParameterName(message) => message,
+        other => other.to_string(),
+    })
+}
+
 /// Turns "progress follows the linked account's balance" on or off for a
 /// goal — see `Store::set_bucket_tracks_account`.
 #[tauri::command]

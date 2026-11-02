@@ -79,6 +79,9 @@
      that — an 8-figure net worth should still read correctly, just on two
      lines, never as truncated or overlapping digits. */
   overflow-wrap: anywhere;
+  white-space: normal;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .stat-value-muted {
@@ -105,6 +108,11 @@
   letter-spacing: 0.05em;
   color: var(--text-muted);
   font-weight: 600;
+}
+
+.stat-top > .stat-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .stat-label-row {
@@ -408,6 +416,7 @@
 .status-text {
   flex: 1;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .status-action {

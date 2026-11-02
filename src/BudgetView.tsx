@@ -139,7 +139,7 @@ function NewBudgetLineForm({
   }
 
   if (!open) {
-    return <button onClick={() => setOpen(true)}>Add budget line…</button>;
+    return <button onClick={() => setOpen(true)}>Add budget line</button>;
   }
 
   return (
@@ -325,7 +325,7 @@ function BudgetRow({
     });
   }
 
-  // Delete… swaps the ⋯ menu for Cancel / Delete. When that confirm goes away without deleting
+  // Delete swaps the ⋯ menu for Cancel / Delete. When that confirm goes away without deleting
   // (Cancel, or it timing out) and focus has nowhere to be, it goes back to this row's ⋯.
   const rowRef = useRef<HTMLDivElement>(null);
   const confirming = confirmingDelete === line.category;
@@ -361,7 +361,7 @@ function BudgetRow({
     { label: "Move up", onSelect: onMoveUp, disabled: !canMoveUp },
     { label: "Move down", onSelect: onMoveDown, disabled: !canMoveDown },
     { kind: "divider" },
-    { label: "Delete…", danger: true, onSelect: () => setConfirmingDelete(line.category) },
+    { label: "Delete", danger: true, onSelect: () => setConfirmingDelete(line.category) },
   ];
 
   // Flexible Spending only — this is the group most likely to actually

@@ -4,6 +4,7 @@ import { ChangePasswordDialog } from "./ChangePasswordDialog";
 import { RegenerateRecoveryDialog } from "./RegenerateRecoveryDialog";
 import { RemoveProtectionDialog } from "./RemoveProtectionDialog";
 import { AutoLockSettings } from "./AutoLockSettings";
+import { SettingStar, cardAttr } from "./SettingStar";
 import { getCurrentGeneration } from "./profileUiState";
 import type { Profile } from "./types";
 
@@ -32,35 +33,38 @@ export function ProfileProtectionSection({
   }
 
   return (
-    <div className="card">
+    <div className="card" {...cardAttr("password-protection")}>
       <div className="card-head">
-        <span className="reports-section-title">
+        <h2 className="reports-section-title">
           Password protection <span className="protection-new-badge">New</span>
-        </span>
+        </h2>
+        <SettingStar id="password-protection" />
       </div>
       <p className="modal-message-secondary">
         Password protection: {active.is_password_protected ? "On" : "Off"}
       </p>
-      {active.is_password_protected && <p className="modal-message-secondary">Your active data is encrypted. Previous originals, exports and external copies may still be readable. Check known plaintext copies below; cleanup cannot detect every external copy or guarantee secure erasure.</p>}
-      <AutoLockSettings enabled={active.is_password_protected} />
+      {active.is_password_protected && <p className="modal-message-secondary">Your active data is encrypted, but the original file and older backups made before protection are still unencrypted until you delete them below. Exports and external copies may also be readable. Cleanup cannot detect every external copy or guarantee secure erasure.</p>}
       {!active.is_password_protected && (
-        <button type="button" className="modal-secondary" onClick={() => void openSetup()}>
-          Turn on password protection…
-        </button>
-      )}
-      {active.is_password_protected && (
-        <div className="button-row">
-          <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setChangeGeneration)}>
-            Change password…
-          </button>
-          <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setRegenerateGeneration)}>
-            Regenerate recovery key…
-          </button>
-          <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setRemoveGeneration)}>
-            Remove protection…
+        <div className="settings-actions">
+          <button type="button" className="modal-secondary" onClick={() => void openSetup()}>
+            Turn on password protection
           </button>
         </div>
       )}
+      {active.is_password_protected && (
+        <div className="settings-actions">
+          <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setChangeGeneration)}>
+            Change password
+          </button>
+          <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setRegenerateGeneration)}>
+            Regenerate recovery key
+          </button>
+          <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setRemoveGeneration)}>
+            Remove protection
+          </button>
+        </div>
+      )}
+      <AutoLockSettings enabled={active.is_password_protected} />
       {dialogGeneration !== null && (
         <ProtectionSetupDialog
           targetProfileId={active.id}

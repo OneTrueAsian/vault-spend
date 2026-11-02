@@ -37,6 +37,8 @@ export type BillAwareForecast = {
   events: ForecastEvent[];
   /** Net everyday cash flow per day outside recurring items and transfers. */
   daily_baseline: string;
+  /** `false` under 14 days of transaction history: the everyday baseline was left at 0. */
+  enough_history: boolean;
 };
 
 export type Backup = {
@@ -153,6 +155,9 @@ export type Account = {
   /** The "Flip the signs" answer from the last import into this account,
    * offered again next time — `null` before the first import. */
   import_flip_signs: boolean | null;
+  /** Hidden from the Accounts list and the pickers that choose where something new goes; still counted
+   * in every total, report and forecast. */
+  hidden: boolean;
 };
 
 /** A registered category name plus its explicit icon override, if any —

@@ -129,7 +129,8 @@ describe("the choices screen", () => {
     expect(button("Review the details").disabled).toBe(true);
     type(dateInput("Schedule start"), "2026-10-01");
     type(dateInput("Schedule end"), "2026-12-31");
-    expect(document.querySelector("[role='alert']")!.textContent).toContain("can't start before today");
+    // A date before today is refused by its own box, in words, and never reaches the dialog.
+    expect(document.querySelector(".date-field-problem")!.textContent).toBe("Choose a date on or after Oct 15, 2026.");
     expect(button("Review the details").disabled).toBe(true);
     type(dateInput("Schedule start"), "2027-02-01");
     type(dateInput("Schedule end"), "2027-01-31");
@@ -151,7 +152,7 @@ describe("the choices screen", () => {
     expect(text()).not.toContain("Which dates should I use?");
     expect(button("Review the details").disabled).toBe(true);
     type(dateInput("Date of the one-time cut"), "2026-10-14");
-    expect(document.querySelector("[role='alert']")!.textContent).toContain("can't be before today");
+    expect(document.querySelector(".date-field-problem")!.textContent).toBe("Choose a date on or after Oct 15, 2026.");
     expect(button("Review the details").disabled).toBe(true);
     type(dateInput("Date of the one-time cut"), "2026-10-20");
     expect(document.querySelector("[role='alert']")).toBeNull();
@@ -177,10 +178,10 @@ describe("the choices screen", () => {
     expect(text()).toContain("Which date?");
     expect(button("Review the details").disabled).toBe(true);
     type(dateInput("Date of the one-time cut"), "2027-01-05");
-    expect(document.querySelector("[role='alert']")!.textContent).toContain("inside your dates");
+    expect(document.querySelector(".date-field-problem")!.textContent).toBe("Choose a date from Nov 1, 2026 to Dec 31, 2026.");
     expect(button("Review the details").disabled).toBe(true);
     type(dateInput("Date of the one-time cut"), "2026-10-20");
-    expect(document.querySelector("[role='alert']")!.textContent).toContain("inside your dates");
+    expect(document.querySelector(".date-field-problem")!.textContent).toBe("Choose a date from Nov 1, 2026 to Dec 31, 2026.");
     type(dateInput("Date of the one-time cut"), "2026-11-20");
     expect(document.querySelector("[role='alert']")).toBeNull();
     review();
@@ -598,6 +599,8 @@ describe('M4 cut preview screen conformance',()=>{
  it.each(['-1','1e3','01','1.001','79228162514264337593543950336'])('UI2 invalid floor %s prevents a read',value=>{const h=mount4(choices(completeDraft()));type(field('Dining monthly floor'),value);expect(button('Review the details').disabled).toBe(true);expect(h.onChoices).not.toHaveBeenCalled();});
  it('UI2 target zero is valid while missing basis remains unresolved',()=>{const d=completeDraft();d.target={kind:null,amount:'0'};d.missing=['target-basis'];const h=mount4(choices(d));expect(button('Review the details').disabled).toBe(true);click(radio('A total over these dates'));click(button('Review the details'));expect(h.onChoices).toHaveBeenCalledWith({...scenario().intent,target:{kind:'total',amount:'0'}});});
  it('UI2 current-year hint keeps both choices explicit with no dates or proration default',()=>{const d=completeDraft();d.horizon=null;d.partialMonth=null;d.missing=['horizon','partial-month'];d.scheduleHints=[{kind:'year-choice',year:2026,choices:['remaining-year','full-year-hypothetical'],text:'this year',start:0,end:9}];const h=mount4(choices(d));expect(button('Review the details').disabled).toBe(true);click(radio('From now until December 31, 2026'));expect(button('Review the details').disabled).toBe(true);click(radio('Count the part month by the day'));click(button('Review the details'));expect(h.onChoices).toHaveBeenCalledWith({...scenario().intent,horizon:{kind:'prospective',from:'2026-10-16',to:'2026-12-31'},partialMonth:'prorate'});});
+ it('UI2 in December no whole month is left: the whole-months choice is unavailable and says why, the by-the-day choice still works',()=>{const d=completeDraft();d.horizon=null;d.partialMonth=null;d.missing=['horizon','partial-month'];const h=mount4({stage:'choices',draft:d,today:'2026-12-15',categories:['Dining','Travel','Rent']});click(radio('From now until December 31, 2026'));expect(radio('Count only whole months').disabled).toBe(true);expect(text()).toContain('There is no whole month in this range.');click(radio('Count the part month by the day'));click(button('Review the details'));expect(h.onChoices).toHaveBeenCalledWith({...scenario().intent,horizon:{kind:'prospective',from:'2026-12-15',to:'2026-12-31'},partialMonth:'prorate'});});
+ it('UI2 on the first of the month there is no part-month question: this month counts whole, from the 1st',()=>{const d=completeDraft();d.horizon=null;d.partialMonth=null;d.missing=['horizon','partial-month'];const h=mount4({stage:'choices',draft:d,today:'2026-11-01',categories:['Dining','Travel','Rent']});click(radio('From now until December 31, 2026'));expect(text()).not.toContain('How should I count part months?');expect(text()).toContain('November 1, 2026 to December 31, 2026 (2 months)');click(button('Review the details'));expect(h.onChoices).toHaveBeenCalledWith({...scenario().intent,horizon:{kind:'prospective',from:'2026-11-01',to:'2026-12-31'},partialMonth:'exclude'});});
  it('UI2 remaining-year-only hint does not offer a full-year hypothetical',()=>{const d=completeDraft();d.horizon=null;d.partialMonth=null;d.scheduleHints=[{kind:'year-choice',year:2026,choices:['remaining-year'],text:'rest of this year',start:0,end:17}];mount4(choices(d));expect(text()).not.toContain('The whole of 2026 as a what-if');});
  it('UI2 hypothetical dates are explicit and labelled, with no retrospective claim',()=>{const d=completeDraft();d.horizon=null;d.partialMonth=null;const h=mount4(choices(d));click(radio('The whole of 2026 as a what-if'));click(button('Review the details'));expect(h.onChoices).toHaveBeenCalledWith({...scenario().intent,horizon:{kind:'full-year-hypothetical',from:'2026-01-01',to:'2026-12-31'},partialMonth:'exclude'});expect(text()).toContain('includes months that have already passed');});
  it('UI2 custom dates enforce order, supported years and12months without shifting silently',()=>{const d=completeDraft();d.horizon=null;d.partialMonth=null;const h=mount4(choices(d));click(radio('Dates I choose'));type(field('Schedule start'),'2026-11-01');type(field('Schedule end'),'2027-11-30');expect(button('Review the details').disabled).toBe(true);expect(text()).toContain('12');type(field('Schedule end'),'2026-12-31');click(button('Review the details'));expect(h.onChoices).toHaveBeenCalledWith(scenario().intent);});

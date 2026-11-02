@@ -100,7 +100,7 @@ export function isBeforeAccountCheckpoint(account: Pick<Account, "checkpoint_dat
   return account.checkpoint_date !== null && date !== "" && date <= account.checkpoint_date;
 }
 
-/** Which account the Transactions tab's "Add to" control starts on: the one
+/** Which account Add transaction starts on: the one
  * last used, if it still exists; otherwise the household's first everyday
  * account — checking, then a credit card, then savings — rather than
  * whichever happens to sort first alphabetically (a loan or a brokerage

@@ -16,7 +16,7 @@
 // Run with: node e2e/run-all.mjs --spec=133
 
 import assert from "node:assert/strict";
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { enableProtectionThroughUI, seedPopulatedProfile } from "./lib/protection.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 
@@ -66,7 +66,7 @@ try {
   const { browser } = app;
   await (await browser.$("button*=Settings")).click();
   await enableProtectionThroughUI(browser, PASSWORD);
-  await browser.$("button=Change password…").waitForExist({ timeout: 15000 });
+  await browser.$("button=Change password").waitForExist({ timeout: 15000 });
 
   const defaults = await invokeOk(browser, "get_auto_lock_settings");
   assert.equal(defaults.lock_when_hidden, true, "fixture assumption: tray-hide locking is on by default");
@@ -85,6 +85,7 @@ try {
   // Unlocking returns to whichever tab was active before the lock screen appeared, which is not
   // guaranteed to still be Settings once the app remounts fresh.
   await (await browser.$("button*=Settings")).click();
+  await openSettingsGroup(browser, "data");
   await browser.$("button=Back up now").waitForExist({ timeout: 10000 });
   const beforeBackups = await invokeOk(browser, "list_backups");
   await (await browser.$("button=Back up now")).click();

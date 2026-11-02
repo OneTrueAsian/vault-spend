@@ -29,6 +29,9 @@ export function mappingFromDraft(draft: Record<keyof HoldingMapping, string>): H
 }
 
 /** Preview totals use exact decimal strings; no binary floating point or per-row rounding. */
+/** "1 holding" / "2 holdings": the count with the right singular or plural, for messages and buttons. */
+export const holdingCount = (n: number) => `${n} holding${n === 1 ? "" : "s"}`;
+
 export function addHoldingValues(values: string[]): string {
   const scale = Math.max(0, ...values.map(value => (value.split(".")[1] ?? "").length));
   const factor = 10n ** BigInt(scale);

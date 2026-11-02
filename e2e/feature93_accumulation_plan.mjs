@@ -19,6 +19,7 @@
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { futureValue, money, monthFromNow, nav, openDetails, saveAndSettle, setField, text, value, waitForAccumulation } from "./lib/accumulation.mjs";
+import { readDateValue } from "./lib/dateFields.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -68,7 +69,7 @@ const snapshot = async (browser) => ({ invested: await text(browser, "[data-acc-
 const formValues = async (browser) => ({
   monthly: await value(browser, "[data-acc-monthly]"),
   returnPct: await value(browser, "[data-acc-return]"),
-  month: await value(browser, "[data-acc-withdraw-month]"),
+  month: await readDateValue(browser, "[data-acc-withdraw-month]"),
   years: await value(browser, "[data-acc-withdraw-years]"),
   inflation: await value(browser, "[data-acc-inflation]"),
 });
@@ -95,7 +96,8 @@ await withApp(async (browser) => {
     ["a negative return", { returnPct: "-2" }, /between 0 and 100/],
     ["a monthly amount that isn't a number", { monthly: "abc" }, /monthly amount/i],
     ["a negative monthly amount", { monthly: "-5" }, /monthly amount/i],
-    ["a withdraw month in the past", { month: monthFromNow(-1) }, /in the past/i],
+    // A month before this one is refused by the month box itself (it says "Choose ... or a later month."), and saving says why it didn't.
+    ["a withdraw month in the past", { month: monthFromNow(-1) }, /withdraw month/i],
     ["zero years", { years: "0" }, /1 to 50/],
     ["fifty-one years", { years: "51" }, /1 to 50/],
     ["an inflation over 100", { inflation: "150" }, /inflation/i],
@@ -113,6 +115,10 @@ await withApp(async (browser) => {
     await fillAndSave(browser, fields);
     const message = await text(browser, "[data-acc-error]").catch(() => fail(`${label}: no error message appeared`));
     if (!pattern.test(message)) fail(`${label}: expected a message matching ${pattern}, got "${message}"`);
+    if (label === "a withdraw month in the past") {
+      const boxSays = await browser.execute(() => document.querySelector("[data-acc-settings] .date-field-problem")?.textContent ?? null);
+      if (!/later month/.test(boxSays ?? "")) fail(`${label}: the month box should explain the limit, it says "${boxSays}"`);
+    }
     if ((await projected(browser)) !== "—") fail(`${label}: nothing should have been saved, but a projection appeared`);
   }
   // Reopen the page: the form must come back exactly as it was.
@@ -232,7 +238,7 @@ await withApp(async (browser) => {
   if ((await value(browser, "[data-acc-monthly]")) !== "400.00") fail("the reset should survive a restart");
   if (await browser.$("[data-acc-reset-average]").isExisting()) fail("no saved amount after a restart either");
   // ...and the rest of the plan is still there.
-  if ((await value(browser, "[data-acc-withdraw-month]")) !== monthFromNow(MONTHS_AHEAD)) fail("the withdraw month should still be saved");
+  if ((await readDateValue(browser, "[data-acc-withdraw-month]")) !== monthFromNow(MONTHS_AHEAD)) fail("the withdraw month should still be saved");
 });
 
 console.log("FEATURE 93 E2E TEST PASSED");

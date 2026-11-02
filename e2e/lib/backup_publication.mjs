@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { dismissFirstLaunchDialogs, launchApp } from "../harness.mjs";
+import { dismissFirstLaunchDialogs, launchApp, waitForUnlocked } from "../harness.mjs";
 import { killAtFailpoint } from "./protection.mjs";
 
 export const PASSWORD = "correct horse battery staple";
@@ -79,7 +79,7 @@ export async function unlockOnlyProfile(browser, password = PASSWORD) {
   await (await browser.$("[data-profile-option]")).click();
   await (await browser.$("#password-form-field")).setValue(password);
   await (await browser.$("button=Unlock")).click();
-  await browser.$(".brand-word").waitForExist({ timeout: 15000, timeoutMsg: "the profile should unlock" });
+  await waitForUnlocked(browser, 15000, "the profile should unlock");
   await dismissFirstLaunchDialogs(browser);
 }
 

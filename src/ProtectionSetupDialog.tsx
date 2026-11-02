@@ -79,7 +79,7 @@ export function ProtectionSetupDialog({
         {step === "password" && (
           <>
             <p className="modal-message modal-message-secondary">Choose a password to unlock this profile.</p>
-            {targetProfileId && <p className="modal-message-secondary">Your active data will be encrypted. Previous originals, backups and exports may remain readable until you explicitly delete them. Protection cannot erase external copies or cloud history.</p>}
+            {targetProfileId && <p className="modal-message-secondary">Protection encrypts your active data only. The original unencrypted file and older backups stay on this computer, readable by anyone who can open it, until you delete them from Settings. Protection cannot erase external copies or cloud history.</p>}
             <div className="password-form-field">
               <label htmlFor="protection-setup-password">Password</label>
               <input
@@ -152,7 +152,7 @@ export function ProtectionSetupDialog({
               Type the characters from groups {challenge.challenge_group_indices[0] + 1} and{" "}
               {challenge.challenge_group_indices[1] + 1} of the recovery key you just saved.
             </p>
-            {targetProfileId && <p className="modal-message-secondary">After conversion, check Settings for known plaintext copies. External copies and exports may still be readable.</p>}
+            {targetProfileId && <p className="modal-message-secondary">After conversion the original file and older backups are still unencrypted. In Settings, use Delete plaintext copies now to remove them. External copies and exports may still be readable.</p>}
             <div className="password-form-field">
               <label htmlFor="protection-setup-answer-0">{`Group ${challenge.challenge_group_indices[0] + 1}`}</label>
               <input

@@ -80,3 +80,19 @@ export function heatmapBucket(amount: number, max: number, bucketCount = 5): num
   const frac = Math.min(amount / max, 1);
   return Math.max(1, Math.min(bucketCount - 1, Math.ceil(frac * (bucketCount - 1))));
 }
+
+/** Where an arrow, Home or End key moves keyboard focus from `date`, or null when it stays put. The grid is drawn
+ * a week per column with Sunday at the top, so Up/Down step through one week and Left/Right jump a whole week;
+ * Home and End go to the first and last day of the range. Padding days outside the range are never a target. */
+export function heatmapNeighbor(weeks: HeatmapWeek[], date: string, key: string): string | null {
+  const inRange = weeks.flat().filter((d) => d.inRange);
+  if (key === "Home") return inRange[0]?.date ?? null;
+  if (key === "End") return inRange[inRange.length - 1]?.date ?? null;
+  const wi = weeks.findIndex((w) => w.some((d) => d.date === date));
+  if (wi < 0) return null;
+  const di = weeks[wi].findIndex((d) => d.date === date);
+  const target =
+    key === "ArrowUp" ? weeks[wi][di - 1] : key === "ArrowDown" ? weeks[wi][di + 1] : key === "ArrowLeft" ? weeks[wi - 1]?.[di] : key === "ArrowRight" ? weeks[wi + 1]?.[di] : undefined;
+  if (!target?.inRange) return null;
+  return target.date;
+}

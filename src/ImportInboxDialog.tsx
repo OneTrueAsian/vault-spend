@@ -167,7 +167,7 @@ export function ImportInboxDialog({
           Select all remaining
         </label>
         <span role="status">{selectedItems.length} selected</span>
-        <InboxCategoryDropdown categories={categories} value="" placeholder="Set category for selected…"
+        <InboxCategoryDropdown categories={categories} value="" placeholder="Set category for selected"
           label="Category for selected transactions" disabled={working || !selectedItems.length}
           onChange={(category) => {
             setChoices((prev) => { const next = new Map(prev); for (const item of selectedItems) next.set(item.transaction.id, category); return next; });
@@ -175,7 +175,7 @@ export function ImportInboxDialog({
         <button type="button" data-inbox-review-selected disabled={!selectedItems.length || missingCategories > 0}
           onClick={() => void run(reviewSelected)}>{working ? "Reviewing…" : `Review selected (${selectedItems.length})`}</button>
         <p className="inbox-bulk-help">Accepts the shown categories and keeps flagged transactions, clearing their review flags.
-          {missingCategories > 0 && ` Choose a category for ${missingCategories} selected transaction(s) first.`}</p>
+          {missingCategories > 0 && ` Choose a category for ${missingCategories} selected transaction${missingCategories === 1 ? "" : "s"} first.`}</p>
       </div>}
       <div className="inbox-list" tabIndex={0} onKeyDown={handleKeyDown} data-inbox-list>
         {items.map((item, index) => {

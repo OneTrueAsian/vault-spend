@@ -2,6 +2,7 @@
 
 import type { ImportPreview } from "./importResolution";
 import type { ImportSignSuggestion } from "./importSigns";
+import type { ColumnInspection, ColumnMap, ColumnMapSource } from "./columnMapping";
 
 export type ImportSummary = {
   inserted: number;
@@ -15,6 +16,11 @@ export type PendingImport = {
   path: string;
   invertAmounts: boolean;
   defaultAccountId: number;
+  /** The person's column choices for a CSV whose headers weren't recognised; null for everything else. */
+  columnMap: ColumnMap | null;
+  /** The file's look-ahead the choice was made from (its header row goes back with every call, so a changed file is refused),
+   * and whether the choice is the account's remembered one or was made in this import. Null when there is no column choice. */
+  columns: { inspection: ColumnInspection; source: ColumnMapSource } | null;
   preview: ImportPreview;
 };
 
@@ -41,7 +47,9 @@ export type PendingDialog =
     resolve: (result: NewAccountResult | null) => void;
   }
   | { kind: "newCategory"; resolve: (name: string | null) => void }
+  | { kind: "importAccount"; resolve: (choice: number | "new" | null) => void }
   | { kind: "confirmInvert"; resolve: (invert: boolean) => void; accountName?: string; suggestion?: ImportSignSuggestion }
+  | { kind: "columnMapping"; resolve: (map: ColumnMap | null) => void; inspection: ColumnInspection; accountName?: string; changing?: boolean }
   | { kind: "csvExportWarning"; resolve: (proceed: boolean) => void };
 
 /** How a transaction got its category, in words (the backend stores rule / user / classifier). */
@@ -109,7 +117,7 @@ export const PINNED_NAV_ITEMS: { id: Tab; label: string; icon: string }[] = [
 
 /** Sentinel `filterCategory` value meaning "no category assigned" — kept
  * distinct from any real category name the same way the per-row category
- * `<select>`s already use `"__new__"` for "+ New category…". */
+ * `<select>`s already use `"__new__"` for "+ New category". */
 export const UNCATEGORIZED_FILTER = "__uncategorized__";
 
 /** A named snapshot of the Transactions tab's filter bar — a per-viewer shortcut,

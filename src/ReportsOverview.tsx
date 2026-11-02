@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useFinancialRead } from "./useFinancialRead";
 import { FinancialReadState } from "./FinancialReadState";
 import type { ReportSnapshot } from "./financialContracts";
@@ -7,6 +7,7 @@ import { LineChart } from "./charts";
 import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
 import { groupOf, isIncomeTransaction, owedAmount } from "./accountGroups";
 import { PinToDashboardButton } from "./PinToDashboardButton";
+import { ReportPrintActions } from "./ReportPrintActions";
 import type { WidgetId } from "./dashboardLayout";
 import { netWorthByMember, spendingByMember } from "./memberBreakdowns";
 import {
@@ -22,8 +23,9 @@ import {
   type RangePreset,
 } from "./reportRange";
 import { buildSankeyData, layoutSankey, sankeyRibbonPath, spreadLabelPositions, type SankeyNode } from "./sankey";
-import { buildHeatmapWeeks, heatmapBucket, heatmapScaleMax, type DailyAmount } from "./heatmap";
+import { buildHeatmapWeeks, heatmapBucket, heatmapNeighbor, heatmapScaleMax, type DailyAmount } from "./heatmap";
 import { MenuSelect } from "./MenuSelect";
+import { ScrollRegion } from "./ScrollRegion";
 import { CATEGORY_COLORS } from "./categoryPalette";
 
 /** Savings rate — (income − expenses) ÷ income — trended over every month
@@ -64,7 +66,7 @@ function SavingsRateTrendSection({ transactions, accounts }: { transactions: Tra
       <p className="modal-message-secondary">
         (Income − expenses) ÷ income, by month — a rate can go negative in a month spending outpaced income.
       </p>
-      <LineChart points={points} height={180} formatValue={(v) => `${v.toFixed(0)}%`} />
+      <LineChart points={points} height={180} formatValue={(v) => `${v.toFixed(0)}%`} caption="Savings rate by month" />
     </div>
   );
 }
@@ -377,7 +379,7 @@ function SankeySection({ income, categoryTotals, loading }: { income: number; ca
         <p className="empty-state">No income or spending in this range.</p>
       ) : (
         <>
-          <div className="table-scroll">
+          <ScrollRegion className="table-scroll" label="Income to spending diagram">
             <svg
               className="sankey-svg"
               viewBox={`0 0 ${viewWidth} ${viewHeight}`}
@@ -420,7 +422,7 @@ function SankeySection({ income, categoryTotals, loading }: { income: number; ca
                 })}
               </g>
             </svg>
-          </div>
+          </ScrollRegion>
           <div className="sr-only">
             <table>
               <caption>Income and spending flow, in full dollar figures</caption>
@@ -453,8 +455,9 @@ const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
  * day, color intensity scaled to that day's spending against the biggest
  * single day in the range. Grid layout comes from `heatmap.ts`.
  *
- * Accessibility/privacy: each day is a focusable/hoverable `<button>`
- * without a dollar amount in its `aria-label` (just the date, so nothing
+ * Accessibility/privacy: the grid is one Tab stop (the newest day, or the
+ * last day moved to) and the arrow keys, Home and End move between days; each
+ * day is a hoverable `<button>` without a dollar amount in its `aria-label` (just the date, so nothing
  * leaks through the accessibility tree under Privacy mode); the actual
  * total for the focused/hovered day is announced through a real, masked
  * text node in an `aria-live` status line, and every day's figure is also
@@ -462,11 +465,23 @@ const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
  * scan than tab through ~180 buttons one at a time. */
 function DailySpendHeatmapSection({ daily, from, to, loading }: { daily: DailyAmount[]; from: string; to: string; loading: boolean }) {
   const [focused, setFocused] = useState<{ date: string; amount: number } | null>(null);
+  const [stop, setStop] = useState<string | null>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const weeks = buildHeatmapWeeks(daily, from, to);
   const inRangeDays = weeks.flat().filter((d) => d.inRange);
   const max = heatmapScaleMax(inRangeDays.map((d) => d.amount));
   const hasSpending = inRangeDays.some((d) => d.amount > 0);
+  // The one day in the grid that Tab reaches: the day last moved to, else the newest.
+  const tabStop = inRangeDays.some((d) => d.date === stop) ? stop : (inRangeDays[inRangeDays.length - 1]?.date ?? null);
+
+  const onDayKeyDown = (e: KeyboardEvent, date: string) => {
+    const next = heatmapNeighbor(weeks, date, e.key);
+    if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    e.preventDefault();
+    if (next === null) return;
+    setStop(next);
+    frameRef.current?.querySelector<HTMLButtonElement>(`[data-heatmap-day="${next}"]`)?.focus();
+  };
 
   // A long range is wider than the card and scrolls inside it; the newest weeks
   // matter most, so it opens scrolled to them (like a contribution graph).
@@ -487,7 +502,7 @@ function DailySpendHeatmapSection({ daily, from, to, loading }: { daily: DailyAm
       ) : (
         <>
           <div className="table-scroll" ref={frameRef}>
-            <div className="heatmap-grid" role="presentation">
+            <div className="heatmap-grid" role="group" aria-label="Daily spending, one square per day. Use the arrow keys to move between days.">
               <div className="heatmap-weekday-col">
                 {WEEKDAY_LABELS.map((w) => (
                   <div key={w} className="heatmap-weekday-label" aria-hidden="true">
@@ -506,11 +521,17 @@ function DailySpendHeatmapSection({ daily, from, to, loading }: { daily: DailyAm
                         key={day.date}
                         className="heatmap-cell"
                         disabled={!day.inRange}
+                        tabIndex={day.date === tabStop ? 0 : -1}
+                        onKeyDown={(e) => day.inRange && onDayKeyDown(e, day.date)}
                         data-heatmap-day={day.inRange ? day.date : undefined}
                         style={{ background: bucket >= 0 ? HEATMAP_BUCKET_COLORS[bucket] : "transparent" }}
                         aria-label={day.inRange ? label : undefined}
                         onMouseEnter={() => day.inRange && setFocused({ date: day.date, amount: day.amount })}
-                        onFocus={() => day.inRange && setFocused({ date: day.date, amount: day.amount })}
+                        onFocus={() => {
+                          if (!day.inRange) return;
+                          setStop(day.date);
+                          setFocused({ date: day.date, amount: day.amount });
+                        }}
                         onMouseLeave={() => setFocused(null)}
                         onBlur={() => setFocused(null)}
                       />
@@ -523,7 +544,7 @@ function DailySpendHeatmapSection({ daily, from, to, loading }: { daily: DailyAm
           <p className="heatmap-status" aria-live="polite" data-heatmap-status>
             {focused
               ? `${formatDisplayDate(focused.date)}: ${formatAmount(focused.amount.toFixed(2))}`
-              : "Hover or focus a day to see its total."}
+              : "Hover over a day, or press Tab and use the arrow keys, to see its total."}
           </p>
           <div className="heatmap-legend" aria-hidden="true">
             <span>Less</span>
@@ -569,6 +590,7 @@ export function ReportsOverview({
   onExportCsv,
   dataRevision = "",
   onPrint,
+  onSavePdf,
   onOpenBudget,
   layoutWidgets,
   onPinWidget,
@@ -580,6 +602,8 @@ export function ReportsOverview({
   onExportCsv: () => void;
   dataRevision?: string;
   onPrint: () => void;
+  /** Present where the app can write the PDF itself (Windows); see ReportPrintActions. */
+  onSavePdf?: () => void;
   onOpenBudget: () => void;
   layoutWidgets: WidgetId[];
   onPinWidget: (id: WidgetId) => void;
@@ -638,14 +662,7 @@ export function ReportsOverview({
             {PRESET_LABELS[preset]}: {monthHeading(months[0], true)} – {monthHeading(months[months.length - 1], true)}.
           </p>
         </div>
-        <div className="page-actions no-print">
-          <button type="button" className="modal-secondary" onClick={onExportCsv}>
-            Export CSV…
-          </button>
-          <button type="button" className="modal-secondary" onClick={onPrint}>
-            Print / Save as PDF…
-          </button>
-        </div>
+        <ReportPrintActions onExportCsv={onExportCsv} onPrint={onPrint} onSavePdf={onSavePdf} />
       </div>
 
       <div className="view-toggle no-print" role="group" aria-label="Report range">
@@ -697,7 +714,7 @@ export function ReportsOverview({
         <div className="card-head">
           <span className="reports-section-title">Where the money went, by category and month</span>
         </div>
-        <div className="report-table-scroll">
+        <ScrollRegion className="report-table-scroll" label="Spending by category and month table">
           <table className="ledger report-table">
             <thead>
               <tr>
@@ -748,7 +765,7 @@ export function ReportsOverview({
               </tfoot>
             )}
           </table>
-        </div>
+        </ScrollRegion>
       </div>
 
       <DailySpendHeatmapSection daily={daily} from={heatmapFrom} to={heatmapTo} loading={loading} />
@@ -821,7 +838,7 @@ export function ReportsOverview({
             <tbody>
               {netWorthByMemberRows.map((row) => (
                 <tr key={row.name}>
-                  <td>{row.name}</td>
+                  <td className="member-name-cell">{row.name}</td>
                   <td className="amount-col">{formatAmount(row.amount)}</td>
                 </tr>
               ))}

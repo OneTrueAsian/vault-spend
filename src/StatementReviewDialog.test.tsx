@@ -640,6 +640,12 @@ describe("StatementReviewDialog", () => {
     expect(finishButton().disabled).toBe(false);
   });
 
+  it("names the part that pays down what you owe as a plain amount, whatever sign the statement printed it with", async () => {
+    // A loan statement printed with brackets reads its payment as -500.00 with -400.00 paying down the loan (QA, e2e feature341).
+    await render(loan({ rows: [{ ...loan().rows[0], amount: "-500.00", principal: "-400.00" }], app_transactions: [{ id: 11, date: "2026-07-24", description: "Loan payment", amount: "-500.00", change: "-500.00" }] }));
+    expect(q("[data-pays-down]")?.textContent).toBe("$400.00 of this is the part that pays down what you owe.");
+  });
+
   it("uses no jargon", async () => {
     await render(sampleReview({ unread: [{ line: 1, text: "x" }], not_on_statement: [11], suggest_flip: true }));
     expect(text()).not.toMatch(/\b(cleared|layout|parse|unmatched|tracked|published|recognise)\b/i);

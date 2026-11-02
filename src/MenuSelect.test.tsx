@@ -163,12 +163,12 @@ describe("MenuSelect", () => {
 
   it("shows the placeholder, and names the control by its own label, while the value is empty", () => {
     act(() => {
-      root.render(<MenuSelect ariaLabel="Set category to…" placeholder="Set category to…" options={OPTIONS} value="" onChange={onChange} triggerClassName="t" />);
+      root.render(<MenuSelect ariaLabel="Set category to" placeholder="Set category to" options={OPTIONS} value="" onChange={onChange} triggerClassName="t" />);
     });
     const t = container.querySelector<HTMLButtonElement>(".t")!;
 
-    expect(t.textContent).toContain("Set category to…");
-    expect(t.getAttribute("aria-label")).toBe("Set category to…");
+    expect(t.textContent).toContain("Set category to");
+    expect(t.getAttribute("aria-label")).toBe("Set category to");
     expect(t.classList.contains("menu-select-placeholder")).toBe(true);
   });
 

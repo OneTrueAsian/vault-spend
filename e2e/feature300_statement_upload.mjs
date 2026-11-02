@@ -8,7 +8,7 @@
 //
 // Run with: node e2e/feature300_statement_upload.mjs
 
-import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth, displayDate } from "./lib/dates.mjs";
 import { checkingStatement } from "./lib/statementPdf.mjs";
@@ -114,6 +114,7 @@ try {
 
   // --- Settings lists what was learned ---------------------------------------------------------------------
   await goTo(browser, "Settings");
+  await openSettingsGroup(browser, "features");
   const section = await browser.$("[data-statement-layouts]");
   await section.waitForExist({ timeout: 10000, timeoutMsg: "Settings should list the statements the app knows how to read" });
   await waitUntilOrDiagnose(browser, async () => (await browser.$$("[data-statement-layouts] [data-layout]")).length === 1, {

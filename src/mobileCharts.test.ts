@@ -26,6 +26,21 @@ describe("donutSlices", () => {
     expect(donutSlices(rows).map((s) => s.label)).toEqual(["A", "B", "C", "D", "E", "F"]);
   });
 
+  it("sorts exact decimals before grouping and preserves the caller's rows", () => {
+    const rows: [string, string][] = [
+      ["B", "9007199254740992.000000000001"],
+      ["A", "9007199254740992.000000000002"],
+      ["D", "1.000000000001"],
+      ["C", "1.000000000001"],
+    ];
+    const original = rows.map(row => [...row]);
+    expect(donutSlices(rows, 3).map(({ label, amount }) => [label, amount])).toEqual([
+      ["A", rows[1][1]], ["B", rows[0][1]], ["Other", "2.000000000002"],
+    ]);
+    expect(rows).toEqual(original);
+    expect(donutSlices(rows).map(slice => slice.label)).toEqual(["A", "B", "C", "D"]);
+  });
+
   it("leaves out categories with nothing spent, and returns nothing when nothing was spent", () => {
     expect(donutSlices([["Housing", "100.00"], ["Refund", "-20.00"], ["Zero", "0.00"]]).map((s) => s.label)).toEqual(["Housing"]);
     expect(donutSlices([["Zero", "0.00"]])).toEqual([]);

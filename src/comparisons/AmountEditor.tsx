@@ -15,6 +15,7 @@ export function AmountEditor({
   onChange,
   hint,
   tip,
+  onDateValidityChange,
 }: {
   label: string;
   value: ManualAmount | null;
@@ -22,6 +23,8 @@ export function AmountEditor({
   hint?: string;
   /** What to enter, shown in an InfoTip beside the label (the date and note have their own). */
   tip?: string;
+  /** Told when the date box holds text that is not a usable date (the amount keeps the last good date until it is fixed). */
+  onDateValidityChange?: (valid: boolean) => void;
 }) {
   const [text, setText] = useState(value?.value ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +33,7 @@ export function AmountEditor({
   const tipId = useId();
   const dateTipId = useId();
   const noteTipId = useId();
+  const dateId = useId();
   const date = value?.measuredOn ?? toLocalIsoDate();
   const note = value?.explanation ?? "";
 
@@ -72,17 +76,20 @@ export function AmountEditor({
           />
         </span>
         <span className="cmp-tip-field">
-          <label>
-            <span className="cmp-sr-label">{label}: date measured</span>
+          <span>
+            <label htmlFor={dateId} className="cmp-sr-label">{label}: date measured</label>
             <DateField
+              id={dateId}
               className="cmp-date-input"
               ariaLabel={`${label}: date measured`}
               value={date}
               disabled={value === null}
+              required
               ariaDescribedBy={dateTipId}
               onChange={(iso) => commit(text, iso, note)}
+              onValidityChange={onDateValidityChange}
             />
-          </label>
+          </span>
           <InfoTip label={`${label}: date measured`} text={FIELD_TIPS.measuredOn} id={dateTipId} />
         </span>
         <span className="cmp-tip-field cmp-note-input">

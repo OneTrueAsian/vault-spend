@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { CHANGELOG, changelogNotes, changelogSections } from "./changelog";
+import { CHANGELOG, changelogNotes, changelogSections, versionsNewestFirst } from "./changelog";
 import { WhatsNewDialog } from "./Modal";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -26,6 +26,28 @@ describe("grouped release notes", () => {
     const entry = CHANGELOG["1.3.1"];
     expect(Array.isArray(entry)).toBe(false);
     expect(changelogSections(entry).map((s) => s.heading)).toEqual(["New features", "Enhancements", "Bug fixes"]);
+  });
+
+  it("includes the import account-routing fix in the grouped 1.3.2 release notes", () => {
+    const entry = CHANGELOG["1.3.2"];
+    expect(changelogSections(entry).map((s) => s.heading)).toEqual(["New features", "Enhancements", "Bug fixes"]);
+    const text = changelogNotes(entry).join("\n");
+    expect(text).toMatch(/Transaction imports use existing accounts only/);
+    expect(text).toMatch(/no longer creates a new account/);
+    expect(text).toMatch(/each row keeps the account you choose/);
+  });
+
+  it("lists the Quick settings save fix among the 1.3.2 bug fixes", () => {
+    const fixes = changelogSections(CHANGELOG["1.3.2"]).find((s) => s.heading === "Bug fixes")!.notes.join("\n");
+    expect(fixes).toMatch(/Quick settings shortcuts/);
+  });
+
+  it("lists the credit card and loan account page wording and the accented store name fix among the 1.3.2 bug fixes", () => {
+    const fixes = changelogSections(CHANGELOG["1.3.2"]).find((s) => s.heading === "Bug fixes")!.notes.join("\n");
+    expect(fixes).toMatch(/amount owed and the credit still available/);
+    expect(fixes).toMatch(/Store names with accents, such as CAFÉ/);
+    expect(fixes).toMatch(/no clue about, such as a store name it has never seen/);
+    expect(fixes).toMatch(/Available credit over the last year/);
   });
 
   it("covers the delivered 1.3.1 scope in plain words", () => {
@@ -55,5 +77,19 @@ describe("What's New dialog", () => {
     act(() => root!.render(<WhatsNewDialog version="1.0.0" notes={["only"]} onClose={() => {}} />));
     expect(document.querySelectorAll(".modal-changelog-heading").length).toBe(0);
     expect(document.querySelectorAll(".modal-changelog-list li").length).toBe(1);
+  });
+});
+
+describe("release notes order", () => {
+  it("lists the newest version first however the entries are written in the file", () => {
+    const versions = versionsNewestFirst();
+    expect(versions.slice(0, 3)).toEqual(["1.3.2", "1.3.1", "1.3.0"]);
+    expect([...versions].sort()).toEqual([...Object.keys(CHANGELOG)].sort());
+    const parts = (v: string) => v.split(".").map(Number);
+    for (let i = 1; i < versions.length; i++) {
+      const [a, b] = [parts(versions[i - 1]), parts(versions[i])];
+      const newer = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+      expect(newer, `${versions[i - 1]} before ${versions[i]}`).toBeGreaterThan(0);
+    }
   });
 });

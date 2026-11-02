@@ -1,0 +1,232 @@
+/* Move to account review. Built on the shared dialog shell; every colour is an app token, so every style and theme works. */
+
+/* Percentages follow the fixed overlay's available size even with enlarged text/CSS zoom.
+   Viewport units would be scaled again and push the pinned actions below the window. */
+.modal-panel[data-move-dialog] {
+  width: min(760px, calc(100% - 40px));
+  max-width: calc(100% - 40px);
+  max-height: calc(100% - 40px);
+}
+
+.move-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.move-dialog-body h3 {
+  margin: 4px 0 4px;
+  font-size: 14px;
+}
+
+.move-dialog-body p,
+.move-dialog-body ul {
+  margin: 0;
+}
+
+.move-dialog-body ul {
+  padding-left: 20px;
+}
+
+.move-notice {
+  padding: 8px 11px;
+  border-radius: 8px;
+  border-left: 3px solid var(--warning);
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+
+.move-notice-error {
+  border-left-color: var(--negative);
+}
+
+.move-blockers {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border-left: 3px solid var(--negative);
+  background: var(--negative-soft, var(--surface-2));
+}
+
+.move-blocker {
+  margin-top: 8px;
+}
+
+.move-blocker-summary {
+  font-weight: 600;
+}
+
+.move-blocker li {
+  overflow-wrap: anywhere;
+}
+
+.move-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-2);
+}
+
+.move-confirm-account {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 0;
+}
+
+.move-confirm-account legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+
+.move-confirm-reasons {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.move-confirm-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.move-confirm-row label {
+  flex: 1 1 100%;
+  font-weight: 600;
+}
+
+.move-confirm-row input {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+/* Always as tall as one line, so an error appearing never pushes the buttons below it. */
+.move-confirm-error {
+  min-height: 1.5em;
+  color: var(--negative);
+  overflow-wrap: anywhere;
+}
+
+.move-notes {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.move-more-item {
+  list-style: none;
+}
+
+.move-more {
+  margin-top: 6px;
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+}
+
+.move-balances {
+  list-style: none;
+  padding-left: 0 !important;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.move-balances li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+
+.move-role {
+  color: var(--text-muted);
+}
+
+.move-effect-line {
+  font-variant-numeric: tabular-nums;
+}
+
+.move-effect-secondary {
+  color: var(--text-muted);
+}
+
+.move-warnings li {
+  overflow-wrap: anywhere;
+}
+
+.move-keeps,
+.move-filter-note {
+  color: var(--text-muted);
+}
+
+.move-table-wrap {
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.move-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.move-table th,
+.move-table td {
+  padding: 5px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.move-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.move-table .move-amount {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.move-table .move-description {
+  overflow-wrap: anywhere;
+  min-width: 120px;
+}
+
+.move-table tr[data-status="blocked"] td:last-child {
+  color: var(--negative);
+  font-weight: 600;
+}
+
+.move-table tr[data-status="already_there"] td {
+  color: var(--text-muted);
+}
+
+/* Spoken, not shown: the review's loaded or changed state. */
+.move-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

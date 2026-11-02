@@ -1,7 +1,7 @@
 // E2E test: three fields that used to render as unstyled browser inputs now
 // carry the app's standard entry-field styling, in light and dark:
 //   - Dashboard -> Safe to spend -> "Keep a buffer of $"
-//   - Investments -> Goal projection -> Save as goal… -> the goal name
+//   - Investments -> Goal projection -> Save as goal -> the goal name
 //   - Settings -> Data -> Backups -> the second backup folder
 // The yardstick is the Transactions search box (`.ledger-filters input`): same
 // font, size, padding, border, radius, background and text colour — read from
@@ -9,7 +9,7 @@
 //
 // Run with: node e2e/feature88_text_inputs_match.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -118,6 +118,7 @@ try {
     await (await browser.$("//button[normalize-space()='Cancel']")).click();
 
     await goTo("Settings");
+    await openSettingsGroup(browser, "data");
     const copyInput = await browser.$("[data-backup-copy] input[aria-label='Second backup folder']");
     await copyInput.waitForExist({ timeout: 10000 });
     await copyInput.scrollIntoView({ block: "center" });

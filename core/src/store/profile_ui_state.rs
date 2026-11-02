@@ -23,6 +23,9 @@ pub enum UiStateKey {
     /// The Dashboard's named custom layout presets — same reasoning and same migration as
     /// `DashboardLayout` (a saved preset's `widgets` can contain the same investment widget ids).
     DashboardCustomLayouts,
+    /// The ids of the settings a person chose for the Settings page's Quick settings tab, a JSON
+    /// list in the order added. Per profile, so each profile keeps its own shortcuts.
+    QuickSettings,
 }
 
 impl UiStateKey {
@@ -35,6 +38,7 @@ impl UiStateKey {
             UiStateKey::ShowBillNamesInReminders => "show_bill_names_in_reminders",
             UiStateKey::DashboardLayout => "dashboard_layout",
             UiStateKey::DashboardCustomLayouts => "dashboard_custom_layouts",
+            UiStateKey::QuickSettings => "quick_settings",
         }
     }
 
@@ -47,6 +51,7 @@ impl UiStateKey {
             "show_bill_names_in_reminders" => Some(UiStateKey::ShowBillNamesInReminders),
             "dashboard_layout" => Some(UiStateKey::DashboardLayout),
             "dashboard_custom_layouts" => Some(UiStateKey::DashboardCustomLayouts),
+            "quick_settings" => Some(UiStateKey::QuickSettings),
             _ => None,
         }
     }
@@ -129,7 +134,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_accepts_exactly_the_seven_known_keys() {
+    fn parse_accepts_exactly_the_eight_known_keys() {
         assert_eq!(UiStateKey::parse("saved_filters"), Some(UiStateKey::SavedFilters));
         assert_eq!(UiStateKey::parse("safe_to_spend_buffer"), Some(UiStateKey::SafeToSpendBuffer));
         assert_eq!(UiStateKey::parse("notified_bills"), Some(UiStateKey::NotifiedBills));
@@ -140,7 +145,17 @@ mod tests {
         );
         assert_eq!(UiStateKey::parse("dashboard_layout"), Some(UiStateKey::DashboardLayout));
         assert_eq!(UiStateKey::parse("dashboard_custom_layouts"), Some(UiStateKey::DashboardCustomLayouts));
+        assert_eq!(UiStateKey::parse("quick_settings"), Some(UiStateKey::QuickSettings));
         assert_eq!(UiStateKey::parse("anything_else"), None, "not an arbitrary-key store");
+    }
+
+    #[test]
+    fn quick_settings_round_trips_and_is_independent() {
+        let store = temp_store("quick-settings");
+        store.set_ui_state(UiStateKey::QuickSettings, r#"["backups"]"#).unwrap();
+
+        assert_eq!(store.get_ui_state(UiStateKey::QuickSettings).unwrap(), Some(r#"["backups"]"#.to_string()));
+        assert_eq!(store.get_ui_state(UiStateKey::SavedFilters).unwrap(), None);
     }
 
     #[test]

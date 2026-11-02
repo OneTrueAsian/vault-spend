@@ -1,12 +1,7 @@
 import type * as React from "react";
 import type { ImportReview } from "./useImportReview";
-import { AccountDestinationDropdown } from "./AccountDestinationDropdown";
-import type { Account } from "./types";
 
 interface TransactionsPageActionsProps {
-  accounts: Account[];
-  selectedAccountId: number | null;
-  handleAccountSelectChange: (value: string) => void;
   busy: boolean;
   importReview: ImportReview;
   dataLoaded: boolean;
@@ -23,11 +18,9 @@ interface TransactionsPageActionsProps {
   handleExportTransactionsCsv: () => Promise<void>;
 }
 
-/** The Transactions page's own buttons, beside its title: "Add to", Import, Add, and the ⋯ menu. */
+/** The Transactions page's own buttons, beside its title: Import, Add, Manage categories, and the ⋯ menu. Import and Add each ask
+ * which account they are for, so nothing here stands for an account. */
 export function TransactionsPageActions({
-  accounts,
-  selectedAccountId,
-  handleAccountSelectChange,
   busy,
   importReview,
   dataLoaded,
@@ -45,29 +38,22 @@ export function TransactionsPageActions({
 }: TransactionsPageActionsProps) {
   return (
     <div className="import-controls">
-      <label
-        className="import-controls-label"
-        htmlFor="ledger-account-select"
-        title="The account that Import transactions… and Add transaction… start on"
-      >
-        Add to
-      </label>
-      <AccountDestinationDropdown
-        accounts={accounts}
-        value={selectedAccountId}
-        onChange={handleAccountSelectChange}
-        disabled={busy || importReview.pendingImport !== null || !dataLoaded}
-        emptyLabel={dataLoaded ? undefined : "Loading…"}
-      />
       <button onClick={handleImport} disabled={busy || importReview.pendingImport !== null || !dataLoaded}>
-        {busy ? "Importing…" : "Import transactions…"}
+        {busy ? "Importing…" : "Import transactions"}
       </button>
       <button
         className="modal-secondary"
         onClick={() => setNewTransactionOpen(true)}
         disabled={busy || importReview.pendingImport !== null || !dataLoaded}
       >
-        Add transaction…
+        Add transaction
+      </button>
+      <button
+        className="modal-secondary"
+        onClick={openManageCategories}
+        disabled={busy || importReview.pendingImport !== null || !dataLoaded}
+      >
+        Manage categories
       </button>
       <div className="more-menu" ref={moreMenuRef}>
         <button
@@ -89,20 +75,10 @@ export function TransactionsPageActions({
               className="more-menu-item"
               onClick={() => {
                 setMoreMenuOpen(false);
-                openManageCategories();
-              }}
-            >
-              Manage categories…
-            </button>
-            <button
-              type="button"
-              className="more-menu-item"
-              onClick={() => {
-                setMoreMenuOpen(false);
                 openManageFamilyMembers();
               }}
             >
-              Manage family members…
+              Manage family members
             </button>
             <div className="more-menu-divider"></div>
             <button
@@ -125,7 +101,7 @@ export function TransactionsPageActions({
                 handleExportTransactionsCsv();
               }}
             >
-              Export CSV…
+              Export CSV
             </button>
           </div>
         )}

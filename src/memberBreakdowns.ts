@@ -3,24 +3,33 @@ import { isTransferTransaction } from "./transfers";
 import { isIncomeTransaction, netWorthContribution } from "./accountGroups";
 
 /** A name→amount row for a "by family member" breakdown table. */
-export type MemberAmount = { name: string; amount: number };
+export type MemberAmount = { name: string; amount: number; /** The catch-all row for spending nobody was named for; never a real person. */ unassigned?: true };
 
 /** All-time spending grouped by family member, outflows only. Unlike a
  * tag, a transaction carries at most one member, so there's no
- * double-counting; an unattributed transaction is left out entirely
- * rather than lumped into a catch-all "Unassigned" bucket — this answers
- * "how much did each named person spend," not "how complete is our
- * attribution." Transactions categorized "Transfer" are excluded — moving
- * money between the household's own accounts isn't spending, matching the
- * same exclusion `Store::monthly_totals` applies on the backend. */
-export function spendingByMember(transactions: Transaction[]): MemberAmount[] {
+ * double-counting. Unless `includeUnassigned` is set, an unattributed
+ * transaction is left out entirely — this answers "how much did each named
+ * person spend," not "how complete is our attribution," which is what Reports
+ * wants. Household passes `includeUnassigned` so its list adds up to what
+ * the household spent: one catch-all "Unassigned" row, last, whenever
+ * there is any. Transactions categorized "Transfer" are excluded either way —
+ * moving money between the household's own accounts isn't spending, matching
+ * the same exclusion `Store::monthly_totals` applies on the backend. */
+export function spendingByMember(transactions: Transaction[], options: { includeUnassigned?: boolean } = {}): MemberAmount[] {
   const totals = new Map<string, number>();
+  let unassigned = 0;
   for (const t of transactions) {
     const amount = parseFloat(t.amount);
-    if (amount >= 0 || !t.member_name || isTransferTransaction(t)) continue;
+    if (amount >= 0 || isTransferTransaction(t)) continue;
+    if (!t.member_name) {
+      unassigned += Math.abs(amount);
+      continue;
+    }
     totals.set(t.member_name, (totals.get(t.member_name) ?? 0) + Math.abs(amount));
   }
-  return Array.from(totals, ([name, amount]) => ({ name, amount }));
+  const rows: MemberAmount[] = Array.from(totals, ([name, amount]) => ({ name, amount }));
+  if (options.includeUnassigned && unassigned > 0) rows.push({ name: "Unassigned", amount: unassigned, unassigned: true });
+  return rows;
 }
 
 /** All-time income grouped by family member — the symmetric counterpart

@@ -398,13 +398,13 @@ describe("BudgetRow settings menu", () => {
       "Move to Non-Monthly",
       "Move up",
       "Move down",
-      "Delete…",
+      "Delete",
     ]);
     expect(menuItem(panel, "Roll over unspent").getAttribute("role")).toBe("menuitemcheckbox");
     expect(menuItem(panel, "Warn at 90%").getAttribute("role")).toBe("menuitemcheckbox");
     expect(menuItem(panel, "Move up").getAttribute("aria-disabled")).toBe("true");
     expect(menuItem(panel, "Move down").getAttribute("aria-disabled")).toBeNull();
-    expect(menuItem(panel, "Delete…").classList.contains("row-menu-item-danger")).toBe(true);
+    expect(menuItem(panel, "Delete").classList.contains("row-menu-item-danger")).toBe(true);
     expect(container.querySelector(".cat-row-move-buttons")).toBeNull();
     expect(container.querySelector(".budget-cap-toggle")).toBeNull();
     expect(container.querySelector('[aria-label^="Budget group for"]')).toBeNull();
@@ -413,7 +413,7 @@ describe("BudgetRow settings menu", () => {
   it("leaves the spending settings off an income row and off when the features are switched off", async () => {
     await render(props());
     const incomePanel = openMenu(rowFor("Paycheck"));
-    expect(menuLabels(incomePanel)).toEqual(["Move to Fixed", "Move to Flexible", "Move to Non-Monthly", "Move up", "Move down", "Delete…"]);
+    expect(menuLabels(incomePanel)).toEqual(["Move to Fixed", "Move to Flexible", "Move to Non-Monthly", "Move up", "Move down", "Delete"]);
     // No stray divider at the top where the (absent) settings would be.
     expect(incomePanel.firstElementChild?.getAttribute("role")).not.toBe("separator");
     act(() => document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
@@ -472,10 +472,10 @@ describe("BudgetRow settings menu", () => {
     expect(names).toEqual(["Insurance", "Mortgage"]);
   });
 
-  it("Delete… swaps the menu for an inline confirm, and Cancel puts the menu back with focus", async () => {
+  it("Delete swaps the menu for an inline confirm, and Cancel puts the menu back with focus", async () => {
     const p = props();
     await render(p);
-    choose(rowFor("Mortgage"), "Delete…");
+    choose(rowFor("Mortgage"), "Delete");
     const row = rowFor("Mortgage");
     expect(row.querySelector("[data-row-menu]")).toBeNull();
     const cancel = [...row.querySelectorAll<HTMLButtonElement>(".row-delete-confirm button")].find((b) => b.textContent === "Cancel")!;
@@ -483,7 +483,7 @@ describe("BudgetRow settings menu", () => {
     act(() => cancel.click());
     expect(document.activeElement).toBe(rowFor("Mortgage").querySelector("[data-row-menu]"));
 
-    choose(rowFor("Mortgage"), "Delete…");
+    choose(rowFor("Mortgage"), "Delete");
     const del = [...rowFor("Mortgage").querySelectorAll<HTMLButtonElement>(".row-delete-confirm button")].find((b) => b.textContent === "Delete")!;
     act(() => del.click());
     expect(p.onDeleteBudget).toHaveBeenCalledWith("Mortgage");

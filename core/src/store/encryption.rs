@@ -2,6 +2,7 @@
 //! encrypted files in the next task. It lives beside `store.rs` so it can reach `Store`'s private
 //! fields (plan v2 sections 4.2 and 4.6).
 use super::Store;
+use super::checkpoints::ensure_pre_migration_backup as checkpoints_backup;
 use std::fmt;
 use std::path::Path;
 use zeroize::Zeroizing;
@@ -86,6 +87,8 @@ impl Store {
                 }
                 other => StoreOpenError::Sqlite(other),
             })?;
+        // The safety copy is made while the file is still in its old format, and stays encrypted under the same key.
+        checkpoints_backup(&conn, path, db_key.as_deref()).map_err(StoreOpenError::Sqlite)?;
         // The debug-only activity log holds account names and balances in plain text, so an
         // encrypted profile never gets one.
         let activity_log_path = if cfg!(debug_assertions) && db_key.is_none() {

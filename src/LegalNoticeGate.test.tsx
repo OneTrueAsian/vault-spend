@@ -87,6 +87,7 @@ describe("LegalNoticeGate", () => {
     expect(container.querySelector("[data-app]")).toBeNull();
     expect(container.textContent).toContain("The short version.");
     expect(container.textContent).toContain("The long version.");
+    expect(container.querySelector(".legal-notice-version")?.textContent).toBe("Version Jan 2, 2030");
   });
 
   it("does not show a what-changed line to someone who has never seen a notice", async () => {

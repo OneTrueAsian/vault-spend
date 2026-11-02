@@ -73,6 +73,17 @@ input[type="checkbox"], input[type="radio"] {
   accent-color: var(--accent);
 }
 
+/* Checkboxes are 20% larger than the browser's 13px box so they are easier to hit; the browser scales the
+   check and the indeterminate dash with the box, and keeps its own checked, disabled, hover and focus looks. */
+:root {
+  --checkbox-size: 15.6px;
+}
+
+input[type="checkbox"] {
+  width: var(--checkbox-size);
+  height: var(--checkbox-size);
+}
+
 .grid-2 > *, .card-head > * {
   min-width: 0;
 }

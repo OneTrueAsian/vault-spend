@@ -33,10 +33,10 @@ try {
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
-  // "Apply to a debt…" lives in the row's ⋯ menu; the form opens under the description.
+  // "Apply to a debt" lives in the row's ⋯ menu; the form opens under the description.
   const rowMenu = await app.browser.$("tr[data-payment-row] [data-row-menu]");
   await rowMenu.waitForExist({ timeout: 10000 });
-  await chooseRowAction(app.browser, "tr[data-payment-row] [data-row-menu]", "Apply to a debt…");
+  await chooseRowAction(app.browser, "tr[data-payment-row] [data-row-menu]", "Apply to a debt");
 
   // The amount field should already be pre-filled with the transaction's
   // own amount (500.00) — leave it as-is and just confirm.

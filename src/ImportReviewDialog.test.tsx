@@ -72,9 +72,11 @@ describe("ImportReviewDialog", () => {
     container.remove();
   });
 
-  function show(r: ImportReview, busy = false) {
+  function show(r: ImportReview, busy = false, onChangeColumns?: () => void) {
     act(() => {
-      root.render(<ImportReviewDialog review={r} accounts={accounts} categoryOptions={["Groceries", "Shopping"]} busy={busy} />);
+      root.render(
+        <ImportReviewDialog review={r} accounts={accounts} categoryOptions={["Groceries", "Shopping"]} busy={busy} onChangeColumns={onChangeColumns} />,
+      );
     });
   }
   const dialog = () => document.querySelector<HTMLElement>("[role='dialog']");
@@ -90,6 +92,46 @@ describe("ImportReviewDialog", () => {
     expect(dialog()).not.toBeNull();
     expect(dialog()!.querySelector(".modal-title")?.textContent).toBe("Import 3 transactions into Joint Checking");
     expect(dialog()!.textContent).toContain("Untick anything you don't want. You can change the account on any row.");
+  });
+
+  describe("Change columns", () => {
+    const inspection = {
+      status: "needs_mapping" as const,
+      headers: ["Posted", "Memo", "Amt"],
+      sample_rows: [],
+      missing: [],
+      guess: { date: 0, description: 1, amount: 2, debit: null, credit: null },
+      map: null,
+    };
+    const map = { date: 0, description: 1, amount: { kind: "single" as const, column: 2 } };
+    const withColumns = (source: "saved" | "chosen") => {
+      const r = review([row(0)]);
+      Object.assign(r.pendingImport!, { columnMap: map, columns: { inspection, source } });
+      return r;
+    };
+    const change = () => document.querySelector<HTMLButtonElement>("button[data-change-columns]");
+
+    it("says the remembered columns are in use and lets the person change them", () => {
+      const onChange = vi.fn();
+      show(withColumns("saved"), false, onChange);
+      expect(dialog()!.textContent).toContain("Using the columns you picked last time.");
+      act(() => change()!.click());
+      expect(onChange).toHaveBeenCalledTimes(1);
+    });
+
+    it("offers the same for columns chosen in this import, without the 'last time' wording", () => {
+      show(withColumns("chosen"), false, vi.fn());
+      expect(dialog()!.textContent).toContain("Using the columns you picked.");
+      expect(dialog()!.textContent).not.toContain("last time");
+      expect(change()).not.toBeNull();
+    });
+
+    it("is off while busy, and absent when no columns were chosen", () => {
+      show(withColumns("saved"), true, vi.fn());
+      expect(change()!.disabled).toBe(true);
+      show(review([row(0)]), false, vi.fn());
+      expect(change()).toBeNull();
+    });
   });
 
   it("uses the singular for one row, and says how many rows couldn't be read", () => {
@@ -145,9 +187,75 @@ describe("ImportReviewDialog", () => {
     expect(dialog()!.querySelector("[role='alert']")).toBeNull();
   });
 
+  it("shows an unfamiliar CSV account as metadata without promising to create it", () => {
+    show(review([row(0, { account_name: "Blue Cash Everyday" })]));
+    expect(dialog()!.textContent).toContain("CSV: Blue Cash Everyday");
+    expect(dialog()!.textContent).not.toContain("(new)");
+    expect(dialog()!.querySelector('[title*="created on import"]')).toBeNull();
+    expect(dialog()!.querySelector('[aria-label^="Account for"]')?.textContent).toContain("Joint Checking");
+  });
+
   it("draws no card of its own inside the dialog", () => {
     show(review([row(0)]));
     expect(dialog()!.querySelector(".dup-review")).toBeNull();
+  });
+
+  describe("a file with nothing to import (QA-UX-004)", () => {
+    const summary = () => dialog()!.querySelector(".dup-review-summary")!.textContent!;
+
+    it("says no transactions were found and what to check, instead of an empty table", () => {
+      show(review([]));
+      expect(summary()).toContain("No transactions were found in this file.");
+      expect(summary()).toContain("CSV, OFX, QFX or QIF");
+      expect(summary()).not.toContain("Untick anything");
+      expect(dialog()!.querySelector("table")).toBeNull();
+      expect(importButton().disabled).toBe(true);
+    });
+
+    it("says how many rows could not be read when the file had some, rather than blaming the file type", () => {
+      const r = review([]);
+      r.pendingImport!.preview.row_errors = 2;
+      show(r);
+      expect(summary()).toContain("No transactions could be read from this file.");
+      expect(summary()).toContain("2 rows couldn't be read");
+      expect(summary()).not.toContain("Untick anything");
+    });
+
+    it("keeps the normal instructions and table when there are rows", () => {
+      show(review([row(0)]));
+      expect(summary()).toContain("Untick anything you don't want.");
+      expect(dialog()!.querySelector("table")).not.toBeNull();
+    });
+  });
+
+  describe("row checkbox names (QA-A11Y-004)", () => {
+    const rowBoxes = () => Array.from(document.querySelectorAll<HTMLInputElement>("tbody input[type='checkbox']"));
+
+    it("names each row's checkbox after its own transaction, so a screen reader can tell them apart", () => {
+      show(review([row(0, { description: "CORNER SHOP", date: "2026-09-03", amount: "-4.50" }), row(1, { description: "CAFE", date: "2026-09-04", amount: "-3.25" })]));
+      const names = rowBoxes().map((b) => b.getAttribute("aria-label"));
+      expect(names).toHaveLength(2);
+      expect(names[0]).toContain("CORNER SHOP");
+      expect(names[0]).toContain("4.50");
+      expect(names[1]).toContain("CAFE");
+      expect(new Set(names).size).toBe(2);
+    });
+
+    it("keeps names distinct when two rows share a description, date and amount", () => {
+      show(review([row(0, { description: "COFFEE", amount: "-3.00" }), row(1, { description: "COFFEE", amount: "-3.00" })]));
+      const names = rowBoxes().map((b) => b.getAttribute("aria-label"));
+      expect(names.every((n) => n && n.length > 0)).toBe(true);
+      expect(new Set(names).size).toBe(2);
+    });
+
+    it("leaves a row's name tied to its row when other rows are unticked, and toggling goes to that row", () => {
+      const r = review([row(0, { description: "ONE" }), row(1, { description: "TWO" })], { includedIndices: new Set([1]) });
+      show(r);
+      const two = rowBoxes().find((b) => b.getAttribute("aria-label")!.includes("TWO"))!;
+      expect(two.checked).toBe(true);
+      act(() => two.click());
+      expect(r.toggleIncluded).toHaveBeenCalledWith(1);
+    });
   });
 
   it("does not cancel while the import is being saved", () => {

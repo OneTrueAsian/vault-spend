@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { dismissFirstLaunchDialogs, launchApp } from "./harness.mjs";
+import { dismissFirstLaunchDialogs, launchApp, openSettingsGroup } from "./harness.mjs";
 import { killAtFailpoint } from "./lib/protection.mjs";
 import { NEW_PASSWORD, OLD_PASSWORD, createProtectedFixture, invoke, prepareChange } from "./lib/change-password.mjs";
 
@@ -51,6 +51,7 @@ import { NEW_PASSWORD, OLD_PASSWORD, createProtectedFixture, invoke, prepareChan
   await browser.$(".brand-word").waitForExist({ timeout: 10000 });
   await dismissFirstLaunchDialogs(browser);
   await (await browser.$("button*=Settings")).click();
+  await openSettingsGroup(browser, "profiles");
   await prepareChange(browser, OLD_PASSWORD, NEW_PASSWORD);
   const pid = (await invoke(browser, "debug_process_id")).ok;
   await killAtFailpoint(testDbDir, "rotation_after_staging", pid, () =>

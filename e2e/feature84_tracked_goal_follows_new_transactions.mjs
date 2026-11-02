@@ -2,7 +2,7 @@
 // transaction is added to that account — no restart, no revisiting the goal.
 //
 // Found in Phase 2 UAT: with "Progress follows this account's balance" on, the
-// account's own balance updated after "Add transaction…" but the goal card on
+// account's own balance updated after "Add transaction" but the goal card on
 // Goals kept showing the old figure, because the goals list was only read at
 // launch and after goal edits.
 //

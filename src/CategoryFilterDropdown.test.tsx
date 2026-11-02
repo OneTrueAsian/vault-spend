@@ -3,7 +3,7 @@
 // CategoryFilterDropdown: replaces the Transactions toolbar's native
 // category <select> with the same popover-menu pattern its account/member
 // filter siblings already use (AccountFilterDropdown, MemberFilterDropdown,
-// AccountDestinationDropdown) — a single-select menu, not the inbox
+// MenuSelect) — a single-select menu, not the inbox
 // dialog's top-layer popover (App.tsx's own toolbar isn't clipped by any
 // scrolling container, so it doesn't need that heavier mechanism).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

@@ -67,3 +67,8 @@ describe("BarChart bars", () => {
     second.remove();
   });
 });
+
+it("formats billion/trillion chart values without an unreadable number of millions",async()=>{
+ const {fmtMoneyShort}=await import("./charts");
+ expect(fmtMoneyShort(-9_999_999_002.99)).toBe("-$10B");expect(fmtMoneyShort(999_950_000)).toBe("$1B");expect(fmtMoneyShort(999_949_999)).toBe("$999.9M");expect(fmtMoneyShort(999_950_000_000)).toBe("$1T");expect(fmtMoneyShort(1250)).toBe("$1.3k");
+});

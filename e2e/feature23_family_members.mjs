@@ -117,7 +117,7 @@ try {
 
   // Member assignment lives in the account's Edit dialog now (it used to be
   // an always-visible dropdown on every card).
-  await chooseRowAction(app.browser, ".account-card [data-row-menu]", "Edit…");
+  await chooseRowAction(app.browser, ".account-card [data-row-menu]", "Edit");
   const editDialog = await app.browser.$("[role='dialog']");
   await editDialog.waitForExist({ timeout: 10000 });
   const accountMemberSelect = await editDialog.$("//label[contains(.,'Family member')]//button[contains(@class,'menu-select-toggle')]");

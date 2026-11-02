@@ -18,7 +18,7 @@ export function createTransactionExporter({ rows, isProtected, confirmPlaintext,
       if (!path) return;
       const content = toCsv(["Date", "Description", "Amount", "Account", "Category", "Tags", "Notes"], rows.map(t => [t.date, t.description, t.amount, t.account_name, t.category ?? "", t.tags.join("; "), t.notes ?? ""]), ["text", "text", "decimal", "text", "text", "text", "text"]);
       await call("write_text_file", { path, content });
-      onStatus(`Exported ${rows.length} transaction(s) to ${path}.`, "success");
+      onStatus(`Exported ${rows.length} transaction${rows.length === 1 ? "" : "s"} to ${path}.`, "success");
     } catch (error) { onStatus(errorMessage(error)); }
   };
 }

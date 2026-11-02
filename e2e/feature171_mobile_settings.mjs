@@ -4,7 +4,7 @@ import { readFile,mkdir } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { createRequire } from "node:module";
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { ipc,client,pair } from "./mobileHttpsHarness.mjs";
 const app=await launchApp();
 try{
@@ -16,13 +16,13 @@ try{
   await app.browser.waitUntil(async()=>app.browser.execute(()=>[...document.querySelectorAll("[role=dialog] button")].some(b=>b.textContent==="Confirm"&&!b.disabled)),{timeout:5000});
   await app.browser.execute(()=>[...document.querySelectorAll("[role=dialog] button")].find(b=>b.textContent==="Confirm").click());
  };
- await (await app.browser.$("button*=Settings")).click();await app.browser.$("[data-mobile-settings]").waitForExist({timeout:5000});
+ await (await app.browser.$("button*=Settings")).click(); await openSettingsGroup(app.browser, "data");await app.browser.$("[data-mobile-settings]").waitForExist({timeout:5000});
  assert.equal(await ipc(app,"mobile_saved_config"),null,"Opening settings must not enable networking");
  assert.ok((await app.browser.$("[data-mobile-settings]").getText()).includes("Mobile access is stopped"));
  assert.equal(await app.browser.execute(()=>document.querySelector("[data-mobile-settings] select")===null),true);
  const [server,certificate]=await ipc(app,"debug_start_mobile_asset_server");const request=client(server.origin,certificate.pem);
  // Re-enter settings to query fixture status without waiting for its management timer.
- await (await app.browser.$("button*=Dashboard")).click();await (await app.browser.$("button*=Settings")).click();
+ await (await app.browser.$("button*=Dashboard")).click();await (await app.browser.$("button*=Settings")).click(); await openSettingsGroup(app.browser, "data");
  await app.browser.waitUntil(async()=>(await app.browser.$("[data-mobile-settings]").getText()).includes(server.origin),{timeout:6000});
  await clickSetting("Pair a phone");
  await app.browser.waitUntil(async()=>app.browser.execute(()=>!!document.querySelector("[data-mobile-settings] svg")),{timeout:5000});

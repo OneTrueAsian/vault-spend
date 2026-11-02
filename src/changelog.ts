@@ -6,6 +6,15 @@ export function changelogSections(entry: ChangelogEntry): { heading: string | nu
   return Object.entries(entry).filter(([, notes]) => notes.length > 0).map(([heading, notes]) => ({ heading, notes }));
 }
 
+/** Every version in `CHANGELOG`, newest first, whatever order the entries are written in the file. */
+export function versionsNewestFirst(): string[] {
+  const parts = (version: string) => version.split(".").map(Number);
+  return Object.keys(CHANGELOG).sort((a, b) => {
+    const [x, y] = [parts(a), parts(b)];
+    return y[0] - x[0] || y[1] - x[1] || y[2] - x[2];
+  });
+}
+
 export const changelogNotes = (entry: ChangelogEntry): string[] => changelogSections(entry).flatMap((section) => section.notes);
 
 /** One entry per released version — shown once via `WhatsNewDialog` when
@@ -15,6 +24,47 @@ export const changelogNotes = (entry: ChangelogEntry): string[] => changelogSect
  * here as part of cutting each release, condensed from that release's
  * GitHub notes — a version with no entry here just shows nothing. */
 export const CHANGELOG: Record<string, ChangelogEntry> = {
+  "1.3.2": {
+    "New features": [
+      "Move transactions to another account without deleting and importing them again. Select the rows, choose Move to account, review the balance changes and confirm. Dates, amounts, categories, tags, notes and splits stay with the transactions. Reconciled rows, linked transfers, applied debt payments and duplicates keep their safeguards.",
+      "Older transactions can move too. Saved balances are corrected automatically when their records show what they counted; otherwise, you confirm each account's current balance after the move. Confirmed balances apply from today. Older saved balances keep their values, so past charts can still show gaps. Account move history shows completed moves and their before-and-after balances.",
+      "Match your CSV columns when a file's headings aren't recognized. Choose the date, description and amount columns, or separate money-out and money-in columns, with an optional category. Vault Spend can remember the choice for that account, and you can change it before importing.",
+      "Hide accounts you no longer use, and show them again when needed. Hidden accounts stay in balances, totals, reports and forecasts while staying out of choices for new transactions. Hiding never deletes their history.",
+      "Save Reports directly as a PDF on Windows using the app's Save window, including replacing an existing file. Print opens the system print window; other platforms keep Print / Save as PDF where direct saving is unavailable.",
+    ],
+    Enhancements: [
+      "Settings is reorganized into five groups, with search and a Quick settings area for your own shortcuts. Click a shortcut to open and highlight its setting. The extra Go to setting label is gone, and the layout keeps navigation and search in place while the settings scroll.",
+      "Date and month calendars now match Default, Futuristic and Retro in light and dark modes. You can type dates in your regional order or choose them with the calendar, including keyboard navigation and clearer validation.",
+      "Account pages now show transactions a few at a time, like the Transactions screen. Choose 25, 50 or 100, see how many are showing out of the total, and use Show more for the next batch.",
+      "Checkboxes are 20% larger, making them easier to see and click on smaller screens.",
+      "Move up to 10,000 matching transactions with Select all to move. Other bulk changes keep their 250-row limit. After a successful move, keyboard focus returns to the transaction list.",
+      "Rename a savings goal without losing its contributions, target, linked account or other details.",
+      "Help now explains updating the app, remembered statement layouts, statements being read on your computer, re-checking an Ask the Vault answer and reviewing completed account moves.",
+      "Password setup and Settings explain that the original unencrypted file and older backups remain readable until you use the plaintext-copy cleanup. Exports and other external copies may also remain readable.",
+      "Clearer button labels, counts and error messages throughout the app, including Review transactions in place of Review inbox and a readable date for the legal notice revision.",
+    ],
+    "Bug fixes": [
+      "Transaction imports use existing accounts only. A bank account name in a CSV no longer creates a new account. Unrecognized account names use the account selected for the import, and each row keeps the account you choose for it.",
+      "Budget category transaction dialogs keep selection checkboxes clearly separated from dates.",
+      "Forecasts and the Dashboard runway now explain when there is not enough history. Everyday spending estimates wait until there are two weeks of transactions; scheduled bills and paychecks can still appear.",
+      "Monthly and yearly recurring items keep their original scheduled day across short months and leap years. Editing a recurring item no longer shows a false out-of-date warning.",
+      "The member filter can show just the person you choose. Household spending also includes an Unassigned line for transactions that have no member.",
+      "The Dashboard's net worth trend no longer adds today's property and valuables values to every past month. Their current value remains included in today's net worth total.",
+      "Printed Reports include all pages, and category headings no longer break in the middle of a word.",
+      "Fixed imports from compact OFX and QFX files, with clearer messages for CSV files that cannot be read.",
+      "Improved keyboard access to scrolling report tables and the daily-spending heatmap. Icon pickers close with Escape, popovers close when focus leaves, and profile and import-selection controls have clearer accessible names.",
+      "Fixed clipped text, uneven alignment and repeated chart labels. Text and controls are easier to read in account and transaction dialogs, the command palette and the update banner.",
+      "Live-price provider error messages no longer expose request links that could contain your API key.",
+      "Deleting an account now also deletes its saved statement checks, so its statement dates and balances aren't left behind.",
+      "Dismissing suggested transfers skips any pair where one side has since been deleted, instead of recording it as dismissed.",
+      "Bills with accented letters in their name, such as Café, are now matched to their charges even when the bank prints the name in capitals, so they no longer show as unpaid.",
+      "If the app cannot make a safety copy before upgrading your data, it explains the backup problem and leaves the data unchanged instead of suggesting that the file is damaged.",
+      "Changing your Quick settings shortcuts several times in a row no longer leaves the list showing a change that was not saved when one of the saves fails.",
+      "A credit card's account page now shows the amount owed and the credit still available, and a loan's page shows the amount owed, matching the Accounts list. Before, the card's credit available was labelled as its balance. Its chart is now titled Available credit over the last year, and a loan's Amount owed over the last year.",
+      "Store names with accents, such as CAFÉ, now match your category rules and learned categories written without accents, so they are no longer left to a guess.",
+      "A transaction the app has no clue about, such as a store name it has never seen, is now left for you to categorize instead of being guessed, often as Transfer, which kept it out of your spending.",
+    ],
+  },
   "1.3.1": {
     "New features": [
       "Ask the Vault answers more spending questions: several categories or stores at once, family members, your biggest purchases, averages, and one period against another. If a name could mean more than one thing, it asks you to choose instead of guessing.",
@@ -39,89 +89,6 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
       "The \"over budget\" label is easier to read.",
     ],
   },
-  "1.1.2": [
-    "Ledger columns are now sortable — click a header to sort by it, click again to flip direction.",
-    "The Ledger's account filter is now a dropdown grouped by account type, with a checkbox per account so you can filter to several at once.",
-    "\"Add to Recurring\" — select transactions in the Ledger and turn them directly into recurring items.",
-    "Fixed the Dashboard's budget-alerts breakdown showing the wrong categories as over budget.",
-  ],
-  "1.1.3": [
-    "A banner now lets you know when a newer version is available to download, checked once each time you open the app.",
-    "The current version now shows in the sidebar, above the theme toggle.",
-    "A \"What's new\" summary now appears once per version, whether you just installed for the first time or just updated.",
-  ],
-  "1.1.4": [
-    "Family members — tag any account, transaction, bucket, asset, or recurring item with who it belongs to, then filter the Ledger down to just one person. Manage them from the Ledger tab.",
-    "Profiles — add completely separate, independent profiles (their own accounts, transactions, everything) for genuinely separate finances, switchable anytime from the sidebar indicator.",
-    "Optional live stock prices for Investments — add a free Alpha Vantage API key in Settings to auto-fill a new holding's price by symbol and keep existing ones current automatically, with a usage tracker that warns you before you hit Alpha Vantage's daily request limit.",
-    "The Help page now has a search box that filters the whole page at once as it keeps growing.",
-  ],
-  "1.1.5": [
-    "\"Update now\" downloads the right installer for your system and opens it directly, instead of just linking to GitHub.",
-    "Add a transaction to the Ledger by hand — no file import required.",
-    "The Ledger's filters are decluttered — Search/Category/Account/Member stay visible, date range and tags now collapse into a \"More filters\" button.",
-    "The Dashboard's recent transactions, upcoming bills, and budget summary now click through to the relevant tab.",
-    "Cash Flow is now split into Overview / Forecast / Debt Payoff tabs instead of one long scrolling page.",
-    "Smaller polish: a \"Due soon\" badge on upcoming recurring bills, labeled fields on the Investments \"Add holding\" form, and a clearer note distinguishing family members from profiles.",
-  ],
-  "1.1.6": [
-    "Bulk-import investment holdings — \"Holdings\" is now a 5th section on the setup-data template (Reports tab), so you can add many stocks at once instead of one at a time.",
-    "Two more live-price providers alongside Alpha Vantage: Finnhub (60 requests/minute, no daily cap) and Twelve Data (800 requests/day) — pick whichever fits your portfolio in Settings.",
-    "Fixed an account's balance sometimes not reflecting a transaction added the same day its monthly balance rolled forward, until the next day.",
-    "Fixed a payment applied to a credit card, loan, or mortgage counting twice — once as the real payment and again as an extra expense in Budget, Cash Flow, and category totals.",
-  ],
-  "1.1.7": [
-    "The sidebar is now organized into groups — Overview, Money, Planning, Insights — with Settings and Help pinned below.",
-    "Accounts is now its own page, split out of Reports, with its own Assets/Liabilities/Net Worth stats.",
-    "The Ledger's toolbar is decluttered — Manage categories, Manage family members, Categorize uncategorized, and Export CSV now live behind a \"⋯\" menu.",
-    "Budget now shows group-summary cards up top, and each budget line has its own progress bar alongside its budgeted/actual/remaining amounts.",
-    "The Dashboard's Net Worth/Cash/Debt/Investments cards now show a trend sparkline and a 6-month change; its spending-by-category donut (and Cash Flow's matching one) now shows the total spent in the center.",
-    "Recurring now has an Account column, and Suggested items are shown as cards instead of a table.",
-    "Settings → Profiles: \"Use existing file…\" points Vault Spend at a vaultspend.db copied over from another computer, instead of only ever starting a new profile empty.",
-    "Exporting the Ledger to CSV and re-importing that same file now actually preserves category, tags, and account — including creating any account that doesn't exist yet — instead of losing that data.",
-    "Fixed \"Update now\" silently failing to open the downloaded installer.",
-    "Fixed a debt payment applied to a credit card, loan, or mortgage still inflating Budget, Cash Flow, and category totals in a few more places the 1.1.6 fix missed.",
-    "Smaller fixes: splitting a transaction now shows the split editor under the row you clicked instead of at the bottom of the table, the Dashboard's Upcoming Bills rows line up in two proper columns, and Budget's category dropdowns line up in a straight column.",
-  ],
-  "1.1.8": [
-    "Success, error, and in-progress messages now look different from each other — color, icon, and a dismiss button — instead of one identical line for everything; errors stay up longer since they're more worth actually reading.",
-    "Delete confirmations across the app (accounts, transactions, budget lines, recurring items, holdings, buckets, categories, family members, and profiles) now auto-cancel if left alone for a few seconds, and use a clearly different-colored button instead of a same-looking relabeled one.",
-    "Dashboard's budget alerts now show the most-over-budget category first, instead of in whatever order categories happen to be listed.",
-    "Every dialog can now be closed with Escape, and the sidebar's drag-to-reorder now also works from the keyboard — focus a tab and press Alt+↑/↓.",
-    "Fixed the sidebar's group labels (\"OVERVIEW\", \"MONEY\", …) getting clipped instead of hiding when the window is narrow.",
-  ],
-  "1.1.9": [
-    "A first-run checklist on the Dashboard walks new setups through adding an account, a transaction, and a budget, then gets out of the way.",
-    "The Dashboard now shows a runway stat — how many months your liquid savings would cover at your recent average spend.",
-    "Add Transaction now shows a live \"$X of $Y used\" line for the selected category's budget, and actually flags a non-numeric amount before you can save it.",
-    "Flexible Spending categories on the Budget page now show a small trend sparkline of the last few months' actual spend.",
-    "Recurring has a new Calendar view alongside the list, laying bills out on an actual month grid.",
-    "Buckets' \"+ New bucket\" is now an in-grid tile instead of a separate button below the grid.",
-    "The Ledger can save named filter combinations as chips for one-click reuse, and bulk-deleting transactions now shows an \"Undo\" toast instead of deleting immediately.",
-    "Modals, the \"More\" menu, and expandable stat panels now animate open and closed; respects your OS's reduced-motion setting.",
-    "StockData.org is now available as a live stock-price provider in Settings (100 requests/day, batches of up to 3 symbols per request).",
-  ],
-  "1.1.10": [
-    "Investments now shows a \"Today's gain/loss\" figure, portfolio-wide and per-holding, based on the last price update of the day.",
-    "Settings now has a permanent Release Notes section so you can look back at what changed in any past version, not just the one you just updated to.",
-    "Fixed bill due-date checks and CSV export filenames occasionally landing on the wrong day depending on your timezone.",
-    "Fixed switching or creating a profile occasionally losing track of which database file it was pointed at.",
-    "Add Transaction, new holdings, and new assets now reject invalid or negative amounts instead of silently accepting them and corrupting totals.",
-    "Contrast, keyboard, and screen-reader polish across the app: darker text and accent colors for readability, in-app messages that no longer shift the page when they appear, sparklines and filter checkboxes that expose their meaning to screen readers, and the Recurring calendar now shows each bill's amount directly instead of hiding it behind a tooltip.",
-  ],
-  "1.2.0": [
-    "Accounts: click the balance (or amount owed) to correct it directly — it becomes the exact number you type immediately, already accounting for anything on the ledger that day, and new transactions still adjust it normally from there.",
-    "Credit cards: the limit is now edited separately from the amount owed — click \"Available\" to change the limit, click \"Owed\" to correct what's owed directly.",
-    "Deleting a transaction now shows exactly how much — and which direction — it'll change the account's balance before you confirm.",
-    "The Ledger's date and description can now be corrected after the fact, alongside the amount, account, member, and category.",
-  ],
-  "1.2.1": [
-    "Sinking funds: a bucket can now auto-contribute a fixed amount every month for irregular annual costs like insurance or gifts — set it when creating a bucket, or add it later by editing one.",
-    "Recurring now has an Audit view, sorted by true monthly cost across every cadence, with a Keep / Reviewing / Canceled status you can set per item — canceling is just a label and still counts until you actually delete it.",
-    "A new Household tab shows spending, income, and net worth broken down by family member, plus a per-person cut of this month's budget (budgets themselves are still shared per category, not per-person).",
-    "Budget categories can now opt into a stricter 90% warning threshold instead of the default 80%, via a \"Cap\" checkbox on each row.",
-    "Settings has a new \"Feature toggles\" section — turn Apply to Debt, Split purchases, or Envelope Caps off to hide them everywhere they appear; nothing already stored is lost, and turning a feature back on picks up right where it left off.",
-  ],
   "1.2.2": [
     "Buckets can now be color-coded — pick a color when creating or editing one, and it carries through to that bucket's card and the new \"Buckets overview\" report.",
     "The Dashboard is now customizable: reorder or remove widgets, add report sections pinned from Cash Flow, Investments, and Reports, and switch between Default, Bills Focus, and Investor Focus layouts — or build your own.",
@@ -219,7 +186,7 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
     "A legal notice is shown once per version; you can read it again any time from Help.",
   ],
   "1.3.0": [
-    "See your money on your phone: open Settings → Mobile snapshots → Set up a phone. A guide walks you through connecting a phone on your home Wi-Fi, and you approve the phone and choose its profiles on your computer. Nothing goes through the internet or a cloud service.",
+    "See your money on your phone: open Settings → Data → Mobile snapshots → Set up a phone. A guide walks you through connecting a phone on your home Wi-Fi, and you approve the phone and choose its profiles on your computer. Nothing goes through the internet or a cloud service.",
     "The phone keeps a read-only snapshot (Overview, Accounts, Budget, Reports and Calculators) that opens anywhere, even offline. It refreshes when the phone is on your home Wi-Fi with Vault Spend open on that profile.",
     "Importing is clearer: the import review opens as a pop-up, lists the rows that need a category from you, and waits until every row has one. When you match one of your bank's categories to one of yours, Vault Spend remembers it next time.",
     "Transactions: a calmer table with a ⋯ menu on each row for Split, notes, tags, Apply to a debt and Delete. \"Show more\" replaces pages, and Select all works through every matching transaction, up to 250 at a time.",
@@ -229,7 +196,7 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
     "Dashboard: your money comes first, then To do, Safe to spend and Runway. Customize is now in the Layout menu.",
     "Accounts are grouped in cards with totals, one row per account: select a row to open its Details, and use ⋯ to Edit, Reconcile or Delete. Goals has a clear empty page with Create a goal and examples to start from.",
     "Recurring shows two totals, Bills and Income, each with its yearly figure, and says how often in everyday words (Every 2 weeks, Yearly).",
-    "Settings → Appearance shows a picture of each style and has the Light, Dark and System choice.",
+    "Settings → Display → Appearance shows a picture of each style and has the Light, Dark and System choice.",
     "Colors mean one thing: red only marks what needs you (over budget, a bill past due, a negative balance, a transaction without a category). Debts, and income that is still arriving, are no longer red.",
     "One date format everywhere: Oct 4, or Oct 4, 2025 for another year. Date fields only accept dates between 1900 and 2100, and exported files keep YYYY-MM-DD.",
     "Charts use the full width of their card, and labels like $267.9k are no longer cut off.",

@@ -87,7 +87,7 @@ let editedLayout;
     });
 
     await openFirstProfile(browser);
-    await chooseMenuOption(await browser.$(".layout-select-toggle"), { label: "Customize…" });
+    await chooseMenuOption(await browser.$(".layout-select-toggle"), { label: "Customize" });
     await browser.waitUntil(async () => (await browser.$$(".dashboard-widget-controls")).length > 4, {
       timeout: 5000,
       timeoutMsg: "expected the default layout's widgets in Customize mode",
@@ -131,7 +131,7 @@ console.log("[feature132] the late layout read left the edit in place");
     assert.deepEqual(await persistedLayout(browser), editedLayout, "and nothing should have rewritten it");
     console.log("[feature132] second start: saved layout read back");
     await dismissFirstLaunchDialogs(browser);
-    await chooseMenuOption(await browser.$(".layout-select-toggle"), { label: "Customize…" });
+    await chooseMenuOption(await browser.$(".layout-select-toggle"), { label: "Customize" });
     let shown;
     await browser.waitUntil(async () => (shown = (await browser.$$(".dashboard-widget-controls")).length) === widgetCountBefore - 1, {
       timeout: 5000,

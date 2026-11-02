@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getCurrentGeneration } from "./profileUiState";
 import { MenuSelect } from "./MenuSelect";
+import { SettingStar, settingAttr } from "./SettingStar";
 import {
   getAutoLockSettings,
   setAutoLockSettings,
@@ -68,8 +69,11 @@ export function AutoLockSettings({ enabled }: { enabled: boolean }) {
   const controlsDisabled = !enabled || !loaded || saving;
 
   return (
-    <div data-auto-lock-settings>
-      <h2 className="data-subhead">Automatic locking</h2>
+    <div data-auto-lock-settings {...settingAttr("automatic-locking")}>
+      <div className="setting-title">
+        <h2 className="data-subhead">Automatic locking</h2>
+        <SettingStar id="automatic-locking" />
+      </div>
       <p className="modal-message-secondary">
         Automatic locking closes this profile's data connection and returns to the password screen.
       </p>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { pickableAccounts } from "./hiddenAccounts";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { errorMessage } from "./errorMessage";
 import type { Transaction, TransactionSplit, Account } from "./types";
@@ -11,7 +12,7 @@ export function useTransactionRowActions({ data, accounts, categories: categoryO
   accounts: Account[]; categories: string[]; onStatus: (message: string, kind?: StatusKind) => void;
 }) {
   const { refresh, refreshRows } = data;
-  const debtAccounts = accounts.filter(a => a.account_type === "loan" || a.account_type === "credit");
+  const debtAccounts = pickableAccounts(accounts.filter(a => a.account_type === "loan" || a.account_type === "credit"));
   const [newTagText, setNewTagText] = useState<Record<number, string>>({});
 
   const [taggingId, setTaggingId] = useState<number | null>(null);
@@ -69,15 +70,6 @@ export function useTransactionRowActions({ data, accounts, categories: categoryO
     setEditingDescription(null);
     try {
       await data.call("update_transaction_description", { id, description: value.trim() });
-      await refreshRows([id]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleAccountChangeForTransaction(id: number, accountId: string) {
-    try {
-      await data.call("update_transaction_account", { id, accountId: Number(accountId) });
       await refreshRows([id]);
     } catch (e) {
       setStatus(errorMessage(e));
@@ -289,7 +281,6 @@ useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
     commitAmountEdit,
     commitDateEdit,
     commitDescriptionEdit,
-    handleAccountChangeForTransaction,
     handleMemberChangeForTransaction,
     handleDeleteTransaction,
     startApplyingDebtPayment,

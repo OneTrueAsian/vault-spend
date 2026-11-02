@@ -138,7 +138,7 @@ try {
   });
   const want = money(futureValue(X.totalWorth, 0, 7, 240));
   if (goal !== want) fail(`the Goal projection card should still read ${want} for the whole portfolio at 7% over 20 years, got ${goal}`);
-  if (!(await browser.$("[data-projection-save-as-goal]").isExisting())) fail("the Goal projection card should still offer Save as goal…");
+  if (!(await browser.$("[data-projection-save-as-goal]").isExisting())) fail("the Goal projection card should still offer Save as goal");
 
   console.log("FEATURE 94 E2E TEST PASSED");
 } finally {

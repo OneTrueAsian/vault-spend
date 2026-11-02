@@ -1,6 +1,6 @@
 // The real WebView must paint text, select and date controls with the same theme.
 import assert from "node:assert/strict";
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 import { seedDemoDatabase } from "./lib/demo-seed.mjs";
 
@@ -63,11 +63,11 @@ try {
       }, palette, theme);
       await nav("Transactions");
       await (await b.$("button*=More filters")).click();
-      await check(".account-filter-panel input[type='date'], .account-filter-panel .menu-select-toggle, .ledger-filters input[type='search']", theme, palette);
+      await check(".account-filter-panel .date-field-input, .account-filter-panel .menu-select-toggle, .ledger-filters input[type='search']", theme, palette);
       await b.keys("Escape");
       assert.equal(await b.$(".account-filter-panel").isExisting(), false);
       await (await b.$("button*=Add transaction")).click();
-      await b.$(".modal-panel input[type='date']").waitForExist({ timeout: 5000 });
+      await b.$(".modal-panel .date-field-input").waitForExist({ timeout: 5000 });
       await check(".modal-field input:not([type='checkbox']), .modal-field .menu-select-toggle", theme, palette);
       await b.keys("Escape");
       await nav("Goals");
@@ -75,6 +75,7 @@ try {
       await check(".bucket-contribute-panel input", theme, palette);
       await b.keys("Escape");
       await nav("Settings");
+      await openSettingsGroup(b, "profiles");
       await check("[data-rules-category-filter]", theme, palette);
     }
   }

@@ -308,6 +308,8 @@ impl Store {
         self.migrate_add_bucket_icon_key_if_missing()?;
         self.migrate_add_account_icon_key_if_missing()?;
         self.migrate_add_account_import_flip_signs_if_missing()?;
+        self.migrate_add_account_hidden_if_missing()?;
+        self.migrate_add_account_import_columns_if_missing()?;
         self.migrate_add_category_icon_key_if_missing()?;
         self.migrate_add_member_id_to_accounts_if_missing()?;
         self.migrate_add_member_id_to_transactions_if_missing()?;
@@ -360,7 +362,8 @@ impl Store {
              CREATE INDEX IF NOT EXISTS idx_transaction_tags_transaction_id ON transaction_tags(transaction_id);",
         )?;
         self.seed_default_categories_if_missing()?;
-        self.backfill_categories_from_usage()
+        self.backfill_categories_from_usage()?;
+        self.migrate_historical_accounting()
     }
 
     /// `live_price_settings` originally shipped with just `api_key`/

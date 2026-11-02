@@ -77,12 +77,14 @@ const option = (label: string) => {
   return found.querySelector("input") as HTMLInputElement;
 };
 const hasOption = (label: string) => [...dialog().querySelectorAll("label.scenario-option")].some(l => l.textContent?.startsWith(label));
+// A field is a `.modal-field` holding its caption (a span, or a real label for a month box) and its input.
+const fieldCaption = (l: Element) => l.querySelector("span, label")?.textContent;
 const field = (label: string) => {
-  const found = [...dialog().querySelectorAll("label.modal-field")].find(l => l.querySelector("span")?.textContent === label);
-  if (!found) throw new Error(`No field ${label}. Fields: ${[...dialog().querySelectorAll("label.modal-field")].map(l => l.querySelector("span")?.textContent).join(" | ")}`);
+  const found = [...dialog().querySelectorAll(".modal-field")].find(l => fieldCaption(l) === label);
+  if (!found) throw new Error(`No field ${label}. Fields: ${[...dialog().querySelectorAll(".modal-field")].map(fieldCaption).join(" | ")}`);
   return found.querySelector("input") as HTMLInputElement;
 };
-const hasField = (label: string) => [...dialog().querySelectorAll("label.modal-field")].some(l => l.querySelector("span")?.textContent === label);
+const hasField = (label: string) => [...dialog().querySelectorAll(".modal-field")].some(l => fieldCaption(l) === label);
 function type(input: HTMLInputElement, value: string) {
   act(() => { const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!; set.call(input, value); input.dispatchEvent(new Event("input", { bubbles: true })); input.dispatchEvent(new Event("change", { bubbles: true })); });
 }
@@ -188,15 +190,16 @@ describe("D3 the choices card", () => {
   });
   it("refuses a month in the past or beyond 100 years in words", () => {
     mount(choicesScreen(draftOf({ accountId: 7 })));
-    for (const bad of ["2026-09", "2101-01"]) { type(field(RETIREMENT_FIELDS.retirementMonth), bad); expect(primary().disabled, bad).toBe(true); expect(problems(), bad).toEqual([RETIREMENT_PROBLEMS.month]); }
+    // A month outside the box's limits is refused by the box itself, in words, and never reaches the card.
+    for (const bad of ["2026-09", "2101-01"]) { type(field(RETIREMENT_FIELDS.retirementMonth), bad); expect(primary().disabled, bad).toBe(true); expect(dialog().querySelector(".date-field-problem")?.textContent, bad).toBe("Choose a month from Oct 2026 to Dec 2100."); }
     for (const good of ["2026-10", "2100-12"]) { type(field(RETIREMENT_FIELDS.retirementMonth), good); expect(primary().disabled, good).toBe(false); }
   });
   it("explains a saved month beyond the supported range, offers no candidate for it, and still asks for a month inside the range", () => {
     mount(choicesScreen(draftOf({ accountId: 7 }), live.investmentAccounts, null, "2101-01"));
     expect(text()).toContain("January 2101"); expect(text()).toContain("December 2100");
     expect(allButtons().some(b => /from your plan/.test(b.textContent ?? ""))).toBe(false);
-    const month = field(RETIREMENT_FIELDS.retirementMonth); expect(month.getAttribute("max")).toBe("2100-12");
-    type(month, "2101-01"); expect(primary().disabled).toBe(true);
+    const month = field(RETIREMENT_FIELDS.retirementMonth);
+    type(month, "2101-01"); expect(primary().disabled).toBe(true); expect(dialog().querySelector(".date-field-problem")?.textContent).toMatch(/Dec 2100/);
   });
   it("says nothing about a limit when the saved month is usable or absent", () => {
     mount(choicesScreen(draftOf({ accountId: 7 }), live.investmentAccounts, "2050-06", null)); expect(text()).not.toContain("December 2100");
@@ -319,7 +322,7 @@ describe("D5 the review card and the consent it builds", () => {
     });
     it("refuses a past month in words, and does not confirm", () => {
       const h = mount({ stage: "review", review: fromPlan() }); click(button(RETIREMENT_COPY.pickAnotherMonth)); type(field(RETIREMENT_FIELDS.retirementMonth), "2026-09");
-      expect(primary().disabled).toBe(true); expect(problems()).toEqual([RETIREMENT_PROBLEMS.month]); click(primary()); expect(h.onConfirm).not.toHaveBeenCalled();
+      expect(primary().disabled).toBe(true); expect(dialog().querySelector(".date-field-problem")?.textContent).toMatch(/Oct 2026/); click(primary()); expect(h.onConfirm).not.toHaveBeenCalled();
     });
     it("is not offered when the month came from the question or was typed", () => { for (const source of ["question", "typed"] as const) { act(() => root.unmount()); root = createRoot(container); mount({ stage: "review", review: reviewOf(r => { r.monthSource = source; }) }); expect(hasButton(RETIREMENT_COPY.pickAnotherMonth), source).toBe(false); } });
     it("shows the plan's own month when the question named another", () => { mount({ stage: "review", review: reviewOf(r => { r.context.retirementMonth = "2030-01"; }) }); expect(text()).toContain("Month in your plan"); expect(text()).toContain("January 2030"); });
@@ -510,7 +513,7 @@ describe("D11 accessibility semantics", () => {
     }
   });
   it("uses one primary action in every state and no unnamed button", () => {
-    for (const screen of stages()) { act(() => root.unmount()); root = createRoot(container); mount(screen); expect(dialog().querySelectorAll(".modal-actions button:not(.modal-secondary)").length, screen.stage).toBe(1); for (const b of allButtons()) expect((b.textContent ?? b.getAttribute("aria-label") ?? "").trim().length, screen.stage).toBeGreaterThan(0); }
+    for (const screen of stages()) { act(() => root.unmount()); root = createRoot(container); mount(screen); expect(dialog().querySelectorAll(".modal-actions button:not(.modal-secondary)").length, screen.stage).toBe(1); for (const b of allButtons()) expect((b.textContent?.trim() || b.getAttribute("aria-label") || "").trim().length, screen.stage).toBeGreaterThan(0); }
   });
   it("follows the announcement table: alerts for needs attention, changed and error; polite status for reading, result and exact deposits", () => {
     const live_ = (screen: RetirementScreen) => { act(() => root.unmount()); root = createRoot(container); mount(screen); return { alert: dialog().querySelector('[role="alert"]') !== null, status: dialog().querySelector('[role="status"]') !== null }; };

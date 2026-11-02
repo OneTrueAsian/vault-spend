@@ -193,7 +193,7 @@ impl Store {
                 basis: "holdings",
             }
         } else {
-            let recorded:bool=self.conn.query_row("SELECT EXISTS(SELECT 1 FROM transactions WHERE account_id=?1 AND date<=?2 AND deleted_at IS NULL) OR EXISTS(SELECT 1 FROM balance_resets WHERE account_id=?1 AND reset_date<=?2)",params![account_id,as_of.to_string()],|r|r.get(0))?;
+            let recorded:bool=self.conn.query_row("SELECT EXISTS(SELECT 1 FROM transactions WHERE account_id=?1 AND date<=?2 AND deleted_at IS NULL) OR EXISTS(SELECT 1 FROM balance_resets WHERE account_id=?1 AND reset_date<=?2 AND COALESCE(effective_from,reset_date)<=?2)",params![account_id,as_of.to_string()],|r|r.get(0))?;
             if !recorded && start.is_zero() {
                 RetirementWorth { amount: None, basis: "none" }
             } else {

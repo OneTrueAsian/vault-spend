@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { launchApp, dismissFirstLaunchDialogs } from './harness.mjs';
+import { launchApp, dismissFirstLaunchDialogs, openSettingsGroup } from './harness.mjs';
 import { enableProtectionThroughUI, seedPopulatedProfile, waitForProtectionSetupCompletion } from './lib/protection.mjs';
 import { freshTestDbDir } from './lib/seed.mjs';
 import { makeTempDir } from './lib/tempDir.mjs';
@@ -33,7 +33,7 @@ async function inspectThemes(b,state){
  if(shots)fs.writeFileSync(path.join(shots,'geometry.json'),JSON.stringify(geometry,null,2));
 }
 async function call(b,command,args={}){const r=await b.executeAsync((c,a,done)=>window.__TAURI_INTERNALS__.invoke(c,a).then(value=>done({value}),error=>done({error:String(error)})),command,args);assert.equal(r.error,undefined,`${command}: ${r.error}`);return r.value;}
-async function settings(b){await b.$('button[aria-label="Settings"]').click();await b.$('[data-data-file]').waitForExist({timeout:10000});}
+async function settings(b){await b.$('button[aria-label="Settings"]').click();await openSettingsGroup(b,"profiles");await b.$('[data-data-file]').waitForExist({timeout:10000});}
 let app=await launchApp({dbDir});let live;
 try {
  const b=app.browser;await call(b,'set_backup_copy_dir',{dir:mirror});

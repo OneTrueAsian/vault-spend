@@ -1,3 +1,4 @@
+import { pickableAccounts } from "./hiddenAccounts";
 import { EditableCombobox } from "./EditableCombobox";
 import { FinancialReadState } from "./FinancialReadState";
 import "./Modal.css";
@@ -27,6 +28,25 @@ import {
 import { errorMessage } from "./errorMessage";
 import { amountProblem, directionLabels, signedAmount, type Direction } from "./transactionDirection";
 
+/** The dialogs that are modal. A date or month calendar is a non-modal dialog inside its field; it must not
+ * count as "the uppermost dialog", or the dialog around it would stop trapping Tab and handling Escape. */
+const MODAL_DIALOG = '[role="dialog"][aria-modal="true"]';
+
+/** What Tab can actually reach in a dialog: enabled controls that are in the tab order and not hidden. */
+function tabbableWithin(panel: HTMLElement): HTMLElement[] {
+  return [
+    ...panel.querySelectorAll<HTMLElement>(
+      'button, input, select, textarea, a[href], [tabindex]',
+    ),
+  ].filter((el) => {
+    if (el.tabIndex < 0 || (el as HTMLButtonElement).disabled) return false;
+    if (el instanceof HTMLInputElement && el.type === "hidden") return false;
+    if (el.closest("[hidden], [inert]")) return false;
+    const style = getComputedStyle(el);
+    return style.display !== "none" && style.visibility !== "hidden";
+  });
+}
+
 /** Shared shell: a dimmed overlay behind a centered panel. Clicking the
  * overlay (not the panel) cancels, matching how a native dialog behaves —
  * Escape does too, and focus moves onto the panel on open, since every
@@ -44,6 +64,7 @@ export function ModalShell({
   headerAction,
   footer,
   dismissOnOverlayClick = true,
+  panelAttrs,
 }: {
   title: string;
   onCancel: () => void;
@@ -59,6 +80,8 @@ export function ModalShell({
   /** A click outside the panel cancels it. Pass `false` for a dialog holding work a stray click
    * shouldn't throw away (an import review); Escape still cancels. */
   dismissOnOverlayClick?: boolean;
+  /** Extra attributes for the dialog panel, e.g. a `data-*` hook that tests rely on. */
+  panelAttrs?: Record<string, string | number | boolean | undefined>;
 }) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -91,6 +114,15 @@ export function ModalShell({
   // makes the sequence below a no-op instead of stealing focus.
   const pendingRestoreRef = useRef<number | null>(null);
 
+  // When the focused control disappears or is disabled on a step change (a wizard's Continue becoming the next step's button), the browser drops focus
+  // to <body>, behind the overlay, until the next Tab. After any render, bring focus back to the panel if that happened and this is the uppermost dialog.
+  useEffect(() => {
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    const dialogs = document.querySelectorAll(MODAL_DIALOG);
+    if (dialogs[dialogs.length - 1] === panelRef.current) panelRef.current?.focus();
+  });
+
   useEffect(() => {
     // Captured once when the dialog opened (the ref is never reassigned); read here so the deferred
     // restore below focuses that element.
@@ -109,9 +141,11 @@ export function ModalShell({
     function onKeyDown(e: KeyboardEvent) {
       // A manual-lock confirmation can cover another dialog containing unsaved work. Only the
       // uppermost dialog handles Escape and traps Tab; cancelling it must preserve the draft below.
-      const dialogs = document.querySelectorAll('[role="dialog"]');
+      const dialogs = document.querySelectorAll(MODAL_DIALOG);
       if (dialogs[dialogs.length - 1] !== panelRef.current) return;
       if (e.key === "Escape") {
+        // A date or month calendar open inside the dialog consumes its own Escape (it prevents the default).
+        if (e.defaultPrevented) return;
         onCancelRef.current();
         return;
       }
@@ -120,9 +154,7 @@ export function ModalShell({
       // focusable elements instead of leaking into the page behind the
       // overlay — queried fresh on every press since a dialog's own
       // contents can change while it's open (a field appearing/disabling).
-      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
-      );
+      const focusable = tabbableWithin(panelRef.current);
       if (focusable.length === 0) {
         e.preventDefault();
         return;
@@ -172,6 +204,7 @@ export function ModalShell({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
+        {...panelAttrs}
       >
         {headerAction ? (
           <div className="modal-header">
@@ -437,11 +470,11 @@ export function NewCategoryDialog({
   );
 }
 
-/** The Transactions tab's "Add transaction…" — the one way to get a single
+/** The Transactions tab's "Add transaction" — the one way to get a single
  * transaction in without a file import (see `App.tsx`'s
  * `handleCreateManualTransaction`). Leaving Category on "Auto-categorize"
  * runs it through the same categorization pass an import row gets; picking
- * one explicitly skips that. There's no inline "+ New category…" here
+ * one explicitly skips that. There's no inline "+ New category" here
  * (unlike the Transactions tab's own row-level category dropdown) — every other
  * `askX()` dialog in this app is top-level, never nested inside another
  * modal, and leaving Category blank plus correcting it afterward via that
@@ -482,10 +515,18 @@ export function NewTransactionDialog({
     notes: string | null,
   ) => void;
 }) {
+  // A hidden account is never the starting choice; the last-used account only is if it is showing.
+  const startingAccounts = pickableAccounts(accounts);
   const [accountId, setAccountId] = useState(
-    defaultAccountId !== null ? String(defaultAccountId) : accounts[0] ? String(accounts[0].id) : "",
+    defaultAccountId !== null && startingAccounts.some((a) => a.id === defaultAccountId)
+      ? String(defaultAccountId)
+      : startingAccounts[0]
+        ? String(startingAccounts[0].id)
+        : "",
   );
   const [date, setDate] = useState(() => toLocalIsoDate());
+  const [dateUsable, setDateUsable] = useState(true);
+  const dateId = useId();
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   // The switch, not a typed minus sign, decides whether the amount is money out or in.
@@ -505,7 +546,7 @@ export function NewTransactionDialog({
         : problem === "not_a_number"
           ? "That doesn't look like a number."
           : null;
-  const valid = accountId !== "" && description.trim() !== "" && signed !== null && date !== "";
+  const valid = accountId !== "" && description.trim() !== "" && signed !== null && date !== "" && dateUsable;
 
   const budgetImpact = budgetReadReady ? budgetActuals.find((b) => b.category === category) : undefined;
   const selectedAccount = accounts.find((a) => String(a.id) === accountId);
@@ -541,14 +582,14 @@ export function NewTransactionDialog({
             onChange={setAccountId}
             options={[
               ...(accounts.length === 0 ? [{ value: "", label: "No accounts yet" }] : []),
-              ...accounts.map((a) => ({ value: String(a.id), label: a.name })),
+              ...pickableAccounts(accounts, accountId).map((a) => ({ value: String(a.id), label: a.name })),
             ]}
             fill
           />
         </label>
-        <label className="modal-field">
-          <span>Date</span>
-          <DateField value={date} onChange={setDate} ariaLabel="Date" />
+        <div className="modal-field">
+          <label htmlFor={dateId}>Date</label>
+          <DateField id={dateId} value={date} onChange={setDate} ariaLabel="Date" required onValidityChange={setDateUsable} />
           {backdated && selectedAccount && (
             <span className="field-hint field-warning">
               {selectedAccount.name}'s balance was last locked in as of {formatDisplayDate(selectedAccount.checkpoint_date ?? "")} — this
@@ -556,7 +597,7 @@ export function NewTransactionDialog({
               history).
             </span>
           )}
-        </label>
+        </div>
         <label className="modal-field">
           <span>Description</span>
           <input
@@ -1028,7 +1069,7 @@ export function CategoryTransactionsDialog({
    * split row, edited via the Transactions tab's "Edit splits" flow instead. */
   onCorrectCategory: (transactionId: number, category: string) => void;
   /** Resolves once the change has actually been applied (or `false` if
-   * the user backed out of an in-flight "+ New category…" prompt, or the
+   * the user backed out of an in-flight "+ New category" prompt, or the
    * call failed) — the selection only clears on a real success, same as
    * the Transactions tab's own bulk bar. */
   onBulkCorrectCategory: (transactionIds: number[], category: string) => Promise<boolean>;
@@ -1076,13 +1117,13 @@ export function CategoryTransactionsDialog({
             <div className="bulk-actions-bar">
               <span className="bulk-actions-count">{selectedIds.size} selected</span>
               <MenuSelect
-                ariaLabel="Set category to…"
-                placeholder="Set category to…"
+                ariaLabel="Set category to"
+                placeholder="Set category to"
                 value={""}
                 onChange={handleBulkChange}
                 options={[
                   ...categoryOptions.map((c) => ({ value: c, label: c })),
-                  { value: "__new__", label: "+ New category…" },
+                  { value: "__new__", label: "+ New category" },
                 ]}
               />
               <button type="button" className="modal-secondary" onClick={() => setSelectedIds(new Set())}>
@@ -1091,7 +1132,7 @@ export function CategoryTransactionsDialog({
             </div>
           )}
           <div className="modal-table-scroll">
-            <table className="ledger">
+            <table className="ledger category-transactions-table">
               <thead>
                 <tr>
                   <th className="select-col">
@@ -1148,7 +1189,7 @@ export function CategoryTransactionsDialog({
                           options={[
                             ...(!categoryOptions.includes(category) ? [{ value: category, label: category }] : []),
                             ...categoryOptions.map((c) => ({ value: c, label: c })),
-                            { value: "__new__", label: "+ New category…" },
+                            { value: "__new__", label: "+ New category" },
                           ]}
                         />
                       )}
@@ -1169,11 +1210,11 @@ export function CategoryTransactionsDialog({
   );
 }
 
-/** The last step of "Use existing file…" in Settings → Profiles: the native
+/** The last step of "Use existing file" in Settings → Profiles: the native
  * file picker (driven by `App.tsx`, same as every other file-open in this
  * app) has already returned `path`; this just asks what to call the new
  * profile before registering it. Mirrors `NewAccountDialog`'s shape more
- * than `ProfilesSection`'s own inline "New profile…" form, since a picked
+ * than `ProfilesSection`'s own inline "New profile" form, since a picked
  * file (unlike a brand-new empty profile) needs its path shown so the user
  * can confirm it's the right one before it becomes live. */
 export function UseExistingDataFileDialog({
@@ -1284,6 +1325,51 @@ export function ChooseExistingDataSourceDialog({
       </div>
       <div className="modal-actions">
         <button type="button" className="modal-secondary" onClick={onCancel}>Cancel</button>
+      </div>
+    </ModalShell>
+  );
+}
+
+const NEW_ACCOUNT_CHOICE = "__new__";
+
+/** The first step of "Import transactions": the account is always chosen here, never carried over from
+ * whatever the page happens to be showing, so a file can't land in the wrong account by default. */
+export function ChooseImportAccountDialog({
+  accounts,
+  onCancel,
+  onChoose,
+  onNewAccount,
+}: {
+  accounts: Account[];
+  onCancel: () => void;
+  onChoose: (accountId: number) => void;
+  onNewAccount: () => void;
+}) {
+  const [chosen, setChosen] = useState("");
+  return (
+    <ModalShell title="Which account are these transactions from?" onCancel={onCancel}>
+      <p className="modal-message">
+        Pick the account this file belongs to. Everything in it will be added to that account.
+      </p>
+      <MenuSelect
+        ariaLabel="Account to import into"
+        value={chosen}
+        placeholder="Choose an account…"
+        options={[
+          ...pickableAccounts(accounts, chosen).map((a) => ({ value: String(a.id), label: a.name })),
+          { value: NEW_ACCOUNT_CHOICE, label: "+ New account" },
+        ]}
+        onChange={(next) => (next === NEW_ACCOUNT_CHOICE ? onNewAccount() : setChosen(next))}
+        triggerAttrs={{ "data-import-account": true }}
+        fill
+      />
+      <div className="modal-actions">
+        <button type="button" className="modal-secondary" onClick={onCancel}>
+          Cancel
+        </button>
+        <button type="button" disabled={chosen === ""} onClick={() => chosen !== "" && onChoose(Number(chosen))}>
+          Continue
+        </button>
       </div>
     </ModalShell>
   );
@@ -1666,7 +1752,7 @@ export function AccountEditDialog({
   onSave: (changes: { accountType?: string; memberId?: number | null; institution?: string | null; mask?: string | null }) => void;
   onDelete: () => void;
   onCancel: () => void;
-  /** Opened from a row's Delete…: already asking whether to delete. */
+  /** Opened from a row's Delete: already asking whether to delete. */
   startWithDeleteConfirm?: boolean;
 }) {
   const [accountType, setAccountType] = useState(account.account_type);
@@ -1739,7 +1825,7 @@ export function AccountEditDialog({
             </span>
           ) : (
             <button type="button" className="modal-secondary" onClick={() => setConfirmingDelete(true)}>
-              Delete account…
+              Delete account
             </button>
           )}
           <span className="modal-actions-end">

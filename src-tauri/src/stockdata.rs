@@ -43,18 +43,28 @@ pub async fn fetch_quote(client: &reqwest::Client, api_key: &str, symbol: &str) 
 /// for), so a caller never has to distinguish "absent from the response"
 /// from "no data" itself.
 pub async fn fetch_quotes_batch(client: &reqwest::Client, api_key: &str, symbols: &[String]) -> Result<HashMap<String, Option<Decimal>>, String> {
+    fetch_quotes_batch_from(client, api_key, symbols, BASE_URL).await
+}
+
+// Private transport seam: production always uses BASE_URL; tests use a loopback fixture.
+async fn fetch_quotes_batch_from(
+    client: &reqwest::Client,
+    api_key: &str,
+    symbols: &[String],
+    base_url: &str,
+) -> Result<HashMap<String, Option<Decimal>>, String> {
     let joined = symbols.join(",");
     let response = client
-        .get(BASE_URL)
+        .get(base_url)
         .query(&[("symbols", joined.as_str()), ("api_token", api_key)])
         .send()
         .await
-        .map_err(|e| format!("network error fetching a quote for {joined}: {e}"))?;
+        .map_err(|e| format!("network error fetching a quote for {joined}: {}", e.without_url()))?;
     let status = response.status().as_u16();
     let body = response
         .text()
         .await
-        .map_err(|e| format!("failed to read the response for {joined}: {e}"))?;
+        .map_err(|e| format!("failed to read the response for {joined}: {}", e.without_url()))?;
     parse_quotes_response(status, &body, symbols)
 }
 
@@ -120,6 +130,65 @@ pub fn parse_quotes_response(status: u16, body: &str, requested: &[String]) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn native_quote_http_body_errors_never_expose_api_key() {
+        let server = crate::quote_http_fixture::QuoteServer::truncated(200, "truncated");
+        let error = fetch_quotes_batch_from(
+            &crate::quote_http_fixture::client(),
+            "QA_SECRET_KEY_DO_NOT_SHOW",
+            &["MSFT".to_string()],
+            &server.url,
+        )
+        .await
+        .unwrap_err();
+        assert!(error.contains("failed to read the response for MSFT"));
+        assert!(!error.contains("QA_SECRET_KEY_DO_NOT_SHOW"));
+        server.finish(&[("symbols", "MSFT"), ("api_token", "QA_SECRET_KEY_DO_NOT_SHOW")]);
+    }
+
+    #[tokio::test]
+    async fn native_quote_http_connection_errors_never_expose_api_key() {
+        let client = crate::quote_http_fixture::client();
+        let error = fetch_quotes_batch_from(&client, "QA_SECRET_KEY_DO_NOT_SHOW", &["MSFT".to_string()], "http://127.0.0.1:0/quote")
+            .await
+            .unwrap_err();
+        assert!(error.contains("network error fetching a quote for MSFT"));
+        assert!(
+            !error.contains("QA_SECRET_KEY_DO_NOT_SHOW"),
+            "request credentials must not reach the user-visible error"
+        );
+        assert!(!error.contains("api_token="));
+    }
+
+    #[tokio::test]
+    async fn native_quote_http_stockdata_errors_and_batch_preserve_request() {
+        let client = crate::quote_http_fixture::client();
+        let requested = vec!["MS FT&?".to_owned(), "QA2".to_owned()];
+        for (status, body, expected_error) in [
+            (401, "fixture rejected key", Some("rejected the API key")),
+            (
+                403,
+                r#"{"error":{"message":"private wording"}}"#,
+                Some("plan doesn't include one or more"),
+            ),
+            (429, "fixture rate limit", Some("rate limit was hit")),
+            (500, "fixture unavailable", Some("HTTP 500")),
+            (200, "not json", Some("unexpected response from StockData.org")),
+            (200, r#"{"data":[{"ticker":"MS FT&?","price":123.45}]}"#, None),
+        ] {
+            let server = crate::quote_http_fixture::QuoteServer::new(status, body);
+            let result = fetch_quotes_batch_from(&client, "qa key&?", &requested, &server.url).await;
+            if let Some(message) = expected_error {
+                assert!(result.unwrap_err().contains(message));
+            } else {
+                let quotes = result.unwrap();
+                assert_eq!(quotes["MS FT&?"], Some(Decimal::from_str("123.45").unwrap()));
+                assert_eq!(quotes["QA2"], None);
+            }
+            server.finish(&[("symbols", "MS FT&?,QA2"), ("api_token", "qa key&?")]);
+        }
+    }
 
     fn symbols(names: &[&str]) -> Vec<String> {
         names.iter().map(|s| s.to_string()).collect()

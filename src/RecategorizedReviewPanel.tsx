@@ -24,7 +24,7 @@ export function RecategorizedReviewPanel({
   return (
     <div className="dup-review">
       <p className="dup-review-summary">
-        Just categorized {reviewIds.size} transaction(s). Review and fix any that are wrong.
+        Just categorized {reviewIds.size} transaction{reviewIds.size === 1 ? "" : "s"}. Review and fix any that are wrong.
       </p>
       <table className="dup-review-table">
         <thead>
@@ -53,7 +53,7 @@ export function RecategorizedReviewPanel({
                       { value: "", label: "Uncategorized", disabled: true },
                       ...(t.category && !categoryOptions.includes(t.category) ? [{ value: t.category, label: t.category }] : []),
                       ...categoryOptions.map((c) => ({ value: c, label: c })),
-                      { value: "__new__", label: "+ New category…" },
+                      { value: "__new__", label: "+ New category" },
                     ]}
                   />
                 </td>

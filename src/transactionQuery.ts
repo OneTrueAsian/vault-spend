@@ -20,10 +20,6 @@ export type QaContext = {
 
 export type DateRange = { from: Date; to: Date };
 
-export function inRange(dateStr: string, range: DateRange): boolean {
-  return dateStr >= toLocalIsoDate(range.from) && dateStr <= toLocalIsoDate(range.to);
-}
-
 // ---------------------------------------------------------------------------
 // Fuzzy matching — typo-tolerant lookups against the app's own real,
 // user-curated names (categories, accounts, bucket names, merchants, family
@@ -157,22 +153,24 @@ function magnitude(t: Transaction, sign: Sign): number {
 
 function aggregate(matches: Transaction[], metric: Metric, sign: Sign): number {
   if (metric === "count") return matches.length;
-  const magnitudes = matches.map((t) => magnitude(t, sign));
-  if (magnitudes.length === 0) return 0;
+  if (matches.length === 0) return 0;
   switch (metric) {
     case "sum":
-      return magnitudes.reduce((s, n) => s + n, 0);
-    case "avg":
-      return magnitudes.reduce((s, n) => s + n, 0) / magnitudes.length;
+    case "avg": {
+      const total = matches.reduce((sum, t) => sum + magnitude(t, sign), 0);
+      return metric === "avg" ? total / matches.length : total;
+    }
     case "max":
-      return Math.max(...magnitudes);
+      return matches.reduce((largest, t) => Math.max(largest, magnitude(t, sign)), -Infinity);
     case "min":
-      return Math.min(...magnitudes);
+      return matches.reduce((smallest, t) => Math.min(smallest, magnitude(t, sign)), Infinity);
   }
 }
 
 export function runQuery(query: Query, ctx: QaContext): QueryResult {
   const askedAboutTransferDirectly = query.subject?.type === "category" && query.subject.value === "Transfer";
+  const from = query.period && toLocalIsoDate(query.period.from);
+  const to = query.period && toLocalIsoDate(query.period.to);
   const matches = ctx.transactions.filter((t) => {
     if (query.sign === "expense") {
       if (parseFloat(t.amount) >= 0) return false;
@@ -184,7 +182,7 @@ export function runQuery(query: Query, ctx: QaContext): QueryResult {
     }
     if (query.sign === "income" && !isIncomeTransaction(t, ctx.accounts)) return false;
     if (query.subject && !matchesSubject(t, query.subject)) return false;
-    if (query.period && !inRange(t.date, query.period)) return false;
+    if (from !== undefined && to !== undefined && !(t.date >= from && t.date <= to)) return false;
     return true;
   });
 

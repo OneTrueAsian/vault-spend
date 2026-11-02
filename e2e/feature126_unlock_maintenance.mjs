@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { enableProtectionThroughUI } from "./lib/protection.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
 
@@ -104,7 +104,8 @@ try {
 
   // Turning live prices on starts the app's refresh timer and refreshes once (no holdings, so no
   // network request goes anywhere).
-  const card = await browser.$("//div[contains(@class,'card')][.//span[text()='Live stock prices']]");
+  await openSettingsGroup(browser, "features");
+  const card = await browser.$("//div[contains(@class,'card')][.//*[contains(@class,'reports-section-title')][text()='Live stock prices']]");
   await card.waitForExist({ timeout: 10000 });
   await (await card.$("input[type='password']")).setValue("demo-test-key");
   await (await card.$("button*=Save")).click();
@@ -141,7 +142,7 @@ try {
   assert.ok(!(await probe()).calls.includes("refresh_live_prices"), "no live-price refresh may be sent while locked");
 
   await unlockThroughTheApp();
-  await browser.waitUntil(async () => (await probe()).notes.some((n) => n.includes("automatic contribution for 1 bucket(s): Roof")), {
+  await browser.waitUntil(async () => (await probe()).notes.some((n) => n.includes("automatic contribution for 1 bucket: Roof")), {
     timeout: 10000,
     timeoutMsg: `expected the one-time contribution note after unlocking, saw ${JSON.stringify(await probe())}`,
   });

@@ -87,7 +87,7 @@ try {
         await browser.keys('Escape');
         await waitUntilOrDiagnose(browser, async () => !(await browser.$(`${row} .amount-edit-input`).isExisting()), { timeoutMsg: 'Escape closes only the balance editor' });
       });
-      await chooseRowAction(browser, `${row} [data-row-menu]`, 'Edit…');
+      await chooseRowAction(browser, `${row} [data-row-menu]`, 'Edit');
       await browser.$('.modal-panel').waitForDisplayed({ timeout: 5000 });
       await browser.$("//div[contains(@class,'modal-panel')]//button[normalize-space()='Cancel']").click();
       await browser.setWindowSize(1440,1000);

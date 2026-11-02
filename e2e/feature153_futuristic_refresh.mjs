@@ -15,6 +15,8 @@
 // Run with: node e2e/feature153_futuristic_refresh.mjs
 
 import { launchApp, waitUntilOrDiagnose, withFocusRetry } from "./harness.mjs";
+import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
@@ -95,7 +97,14 @@ async function barsLook(browser) {
 
 const shot = (browser, name) => browser.saveScreenshot(path.join(os.tmpdir(), `vault-futuristic-${name}.png`));
 
-const app = await launchApp();
+// Cash Flow draws bars only when there is income or spending to draw (an empty profile says so in words, feature319), so the profile has one of each this month.
+const dbDir = await seedFixture(`
+cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
+a = cur.lastrowid
+for d, desc, amt in (("${dateInMonth(0, 1)}", "Paycheck", "1500.00"), ("${dateInMonth(0, 2)}", "Groceries run", "-80.00")):
+    cur.execute("INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?,?,?,?,?,?,?)", (a, d, desc, amt, None, None, f"{a}|{d}|{desc}|{amt}"))
+`);
+const app = await launchApp({ dbDir });
 try {
   const { browser } = app;
   await browser.setWindowSize(1280, 900);

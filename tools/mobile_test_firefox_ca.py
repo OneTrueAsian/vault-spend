@@ -59,8 +59,6 @@ with os.add_dll_directory(str(browser)):
             raise RuntimeError("NSS test-profile certificate decode failed")
         if mode == "import":
             check(import_cert(slot, cert, 0, nickname, 0), "certificate import")
-        if not cert:
-            raise RuntimeError("NSS test-profile certificate lookup failed")
         trust = Trust()
         check(decode_trust(c.byref(trust), b"C,," if mode == "import" else b",,"), "trust decode")
         check(change_trust(db, cert, c.byref(trust)), "website trust")

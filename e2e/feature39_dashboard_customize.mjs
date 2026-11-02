@@ -40,11 +40,11 @@ try {
   );
 
   const layoutMenu = await app.browser.$(".layout-select-toggle");
-  await chooseMenuOption(layoutMenu, { label: "Customize…" });
+  await chooseMenuOption(layoutMenu, { label: "Customize" });
 
   await app.browser.waitUntil(async () => (await app.browser.$$(".dashboard-widget-controls")).length > 0, {
     timeout: 5000,
-    timeoutMsg: "expected the widget controls once Customize… is chosen from the Layout menu",
+    timeoutMsg: "expected the widget controls once Customize is chosen from the Layout menu",
   });
   const removeButtons = await app.browser.$$(".dashboard-widget-controls button:last-child");
   const widgetCountBefore = removeButtons.length;
@@ -67,7 +67,7 @@ try {
     timeoutMsg: () => `expected ${widgetCountBefore - 1} widgets left, found ${remaining}`,
   });
 
-  // "+ Add widget…" (in the toolbar, next to the Layout menu) — add back a
+  // "+ Add widget" (in the toolbar, next to the Layout menu) — add back a
   // pinned-report widget not in the default layout. The toolbar sits
   // above every widget, so it's always on-screen with the content
   // scrolled to the top — but the prior remove-button click scrolled the

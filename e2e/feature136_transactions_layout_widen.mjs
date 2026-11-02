@@ -88,11 +88,17 @@ try {
   const tooltipMatchesLabel = await accountTrigger.execute((el) => el.title !== "" && el.title === el.querySelector("span").textContent);
   assert.ok(tooltipMatchesLabel, "expected the row's account button to carry its full name as a tooltip");
   await pickFromMenu(browser, async () => accountTrigger, "//button[@role='menuitemradio'][.//span[normalize-space()='Savings']]");
+  // Picking an account opens the same review as the selection bar's "Move to account": nothing moves until it is confirmed.
+  await (await browser.$("[data-move-dialog]")).waitForExist({ timeout: 10000, timeoutMsg: "expected picking an account to open the move review" });
+  assert.ok((await (await rowFor("Grocery Run")).$('[aria-label*="Account for"]').getText()).includes("Checking"), "expected the transaction to stay in Checking until the move is confirmed");
+  const confirmMove = await browser.$("[data-move-confirm]");
+  await confirmMove.waitForEnabled({ timeout: 10000, timeoutMsg: "expected the move review to be ready to confirm" });
+  await confirmMove.click();
   await browser.waitUntil(
     async () => (await (await rowFor("Grocery Run")).$('[aria-label*="Account for"]')).getText().then((t) => t.includes("Savings")),
     { timeout: 10000, timeoutMsg: "expected picking Savings from the row's account editor to actually move the transaction" },
   );
-  console.log("row account editor: RowFieldDropdown, and picking an option saves it");
+  console.log("row account editor: RowFieldDropdown, and picking an option opens the move review that saves it");
 
   // ---- 2b. The category editor's "Uncategorized" placeholder is not a
   //          real, pickable choice — a regression found by code review:

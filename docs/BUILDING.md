@@ -22,8 +22,8 @@ Vault Spend is a Tauri v2 app: a React + TypeScript frontend (Vite) and a Rust b
 npm install
 npm run build                         # generate desktop/mobile assets before Rust checks on a fresh checkout
 npm test                              # frontend unit tests
-cargo test --workspace                # Rust tests
-npx tauri build --debug --no-bundle   # build after Rust tests; embeds frontend assets for WebDriver
+npm run access -- cargo-test -- cargo test --workspace -- --test-threads=1
+npm run build:app                     # build after Rust tests; embeds frontend assets for WebDriver
 ```
 
 Start with the [architecture and invariants guide](ARCHITECTURE.md) for code ownership and lifecycle contracts. See `AGENTS.md` for which checks to run for which kind of change, and `e2e/README.md` before touching the end-to-end suite. A release build is `npx tauri build`.
@@ -31,7 +31,7 @@ Start with the [architecture and invariants guide](ARCHITECTURE.md) for code own
 ## Testing notes
 
 - **Windows shell.** Run cargo and `npx tauri build` from PowerShell (or another shell where Strawberry Perl comes first on `PATH`). Git Bash resolves `perl` to Git's own copy, which breaks the OpenSSL build.
-- **Build before you drive the app.** The end-to-end specs drive the compiled app, so run `npx tauri build --debug --no-bundle` after any frontend or backend change, then the specs. To build into a different folder, set a *short* `CARGO_TARGET_DIR` and point `VAULTSPEND_EXE` at that build.
+- **Build before you drive the app.** The end-to-end specs drive the compiled app, so run `npm run build:app` after any frontend or backend change, then `npm run e2e:smoke` and the affected specs through `npm run e2e -- --spec=...`. The managed build records its inputs and takes exclusive access to the shared executable; it rejects unsupported Cargo target/output overrides. A separate raw Cargo build is not a substitute for a current managed Tauri artifact.
 - **Isolated data.** Every spec launches the app with its own throwaway `VAULTSPEND_DB_DIR`; set it yourself when you launch a build for manual testing so it never touches your real profiles.
 - **Platforms.** The end-to-end suite uses Windows WebDriver (`tauri-driver` with Edge WebDriver) and runs on Windows only. macOS builds are compiled and unit-tested in CI (`.github/workflows/build-macos-check.yml`), and their behavior is checked by hand on a real Mac; there is no automated macOS UI test.
 

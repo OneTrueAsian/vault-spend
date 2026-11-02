@@ -4,6 +4,7 @@ import type { Account, BillAwareForecast, CashFlow, CategoryAmount, DebtPayoffPl
 import { lowestPoint } from "./safeToSpend";
 import { BarChart, DonutChart, LineChart, fmtMoneyShort } from "./charts";
 import { formatAmount, formatDisplayDate } from "./format";
+import { forecastHint } from "./forecastNotes";
 import { forecastChartPoints } from "./forecastChart";
 import { DebtPayoffPlannerSection } from "./ReportsOverview";
 import { PinToDashboardButton } from "./PinToDashboardButton";
@@ -129,6 +130,8 @@ export function CashFlowView({
           ],
         }));
 
+  const hasBarActivity = barData.some((month) => month.values.some((value) => value.value !== 0));
+
   // Month-over-month trend per displayed category — "New" when it had no
   // spend at all the prior month (a percent change would be either
   // meaningless (0 -> 0) or a nonsensical infinite jump (0 -> something)).
@@ -223,15 +226,16 @@ export function CashFlowView({
                 {compareLastYear ? "Net cash flow — this year vs. last year" : "Income vs. expenses"}
               </span>
             </div>
-            <BarChart
+            {hasBarActivity ? <BarChart
               data={barData}
               height={240}
+              caption={compareLastYear ? "Net cash flow by month, this year and last year" : "Income and expenses by month"}
               onBarClick={(i) => {
                 const m = barMonths[i];
                 if (m) onMonthClick(m.year, m.month);
               }}
-            />
-            <p className="chart-hint">Click a bar to see where that month's expenses went.</p>
+            /> : <p className="empty-state" role="status">No income or spending in this period.</p>}
+            {hasBarActivity && <p className="chart-hint">Click a bar to see where that month's expenses went.</p>}
             {compareLastYear && yoyCashFlow ? (
               <div className="chart-legend">
                 <div className="chart-legend-item">
@@ -378,6 +382,7 @@ export function CashFlowView({
               // Only about every 8th of the 30-90 daily points is labelled (see forecastChartPoints).
               points={forecastChartPoints(forecastData.points)}
               height={200}
+              caption="Projected balance by day"
             />
             {forecastData.uses_recurring && (() => {
               const low = lowestPoint(forecastData.points);
@@ -407,13 +412,7 @@ export function CashFlowView({
           ) : (
             <p className="empty-state">Loading…</p>
           )}
-          <p className="chart-hint">
-            {forecastData?.uses_recurring
-              ? `Every bill and paycheck on your Recurring list lands on the day it's due. Everyday spending carries on at your recent average (${formatAmount(
-                  Math.abs(parseFloat(forecastData.daily_baseline)).toFixed(2),
-                )} a day ${parseFloat(forecastData.daily_baseline) <= 0 ? "out" : "in"}, with recurring items and transfers left out so nothing is counted twice).`
-              : "Projects your cash balance (checking/savings) forward as a smooth trend, based on your actual net cash flow (income minus spending) over roughly the last 90 days. Add your bills and paycheck to Recurring for a forecast that shows each one landing on its due date."}
-          </p>
+          <p className="chart-hint">{forecastHint(forecastData ?? null)}</p>
         </div>
       )}
 

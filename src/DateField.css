@@ -1,7 +1,13 @@
-/* The one date field (DateField.tsx). The real date input draws the box, so whatever field style its
-   context gives inputs (dialog, filter panel, inline row editor) still applies, and it stays the thing
-   that is clicked, typed into and read by tests. While it isn't being edited its own "mm/dd/yyyy"
-   segments are hidden and the written-out date sits over it in the same place. */
+/* The date and month fields (DateField.tsx, MonthField.tsx). A text input draws the box, so whatever field
+   style its context gives inputs (dialog, filter panel, inline row editor) still applies, and it stays the
+   thing that is clicked, typed into and read by tests. While it isn't being edited its own text is hidden
+   and the written-out date sits over it in the same place. The calendar button sits inside the box at its
+   end; the calendar itself is drawn by CalendarPicker.css. */
+:root {
+  /* Room the box keeps at its end for the calendar button (a 24px target plus its margin). */
+  --date-field-button: 30px;
+}
+
 .date-field {
   position: relative;
   display: inline-flex;
@@ -21,22 +27,67 @@
   width: 100%;
 }
 
-/* The browser pads a date input's text segments a pixel above and below, which made every date field
-   2px taller than the text fields beside it. */
-.date-field-input::-webkit-datetime-edit,
-.date-field-input::-webkit-datetime-edit-fields-wrapper {
-  padding-block: 0;
+/* The end of the box belongs to the calendar button. !important because contexts and themes set a field's
+   padding with long selectors, and this is a layout need, not a look. */
+.date-field > .date-field-input {
+  padding-inline-end: calc(var(--date-field-pad-x, 10px) + var(--date-field-button)) !important;
+  text-overflow: ellipsis;
 }
 
-/* Hide only the input's own "mm/dd/yyyy" text: its border, background and calendar button stay.
-   !important because every theme sets field text colour with a long selector (Retro's is 0,6,1), and
-   this is a state, not a look: whatever the theme, the text under the written-out date must not show. */
+/* Hide only the input's own text: its border and background stay. !important because every theme sets
+   field text colour with a long selector (Retro's is 0,6,1), and this is a state, not a look: whatever
+   the theme, the text under the written-out date must not show. */
 .date-field:not(.date-field-editing) > .date-field-input {
   color: transparent !important;
 }
 
-.date-field:not(.date-field-editing) > .date-field-input::-webkit-datetime-edit {
-  opacity: 0;
+.date-field:not(.date-field-editing) > .date-field-input::placeholder {
+  color: transparent;
+}
+
+.date-field-input::placeholder {
+  color: var(--text-muted);
+}
+
+.date-field-trigger {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 3px;
+  margin: auto 0;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 26px;
+  block-size: 26px;
+  min-height: 0;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.date-field-trigger:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.date-field-trigger:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.date-field-trigger-icon {
+  inline-size: 14px;
+  block-size: 14px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 1v2H2.5A1.5 1.5 0 0 0 1 4.5v9A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 13.5 3H12V1h-1.5v2h-5V1H4zM2.5 6h11v7.5h-11V6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 1v2H2.5A1.5 1.5 0 0 0 1 4.5v9A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 13.5 3H12V1h-1.5v2h-5V1H4zM2.5 6h11v7.5h-11V6z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.date-field-invalid > .date-field-input {
+  border-color: var(--negative);
 }
 
 .date-field-text {
@@ -46,7 +97,8 @@
   align-items: center;
   /* Starts where the input's own text does (its 1px border plus the usual field padding) and stops
      short of the calendar button on the right, so a long hint in a narrow field ends in "…" before it. */
-  padding: 0 calc(var(--date-field-pad-x, 10px) + 1px + var(--date-field-button, 22px)) 0 calc(var(--date-field-pad-x, 10px) + 1px);
+  padding-block: 0;
+  padding-inline: calc(var(--date-field-pad-x, 10px) + 1px) calc(var(--date-field-pad-x, 10px) + 1px + var(--date-field-button));
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
