@@ -4,7 +4,8 @@ import path from "node:path";
 
 // jsdom does no layout, so the layout rules are pinned in the stylesheet text (as frameLayout.test.ts does for copy);
 // the real geometry is checked by e2e/feature366_settings_layout_scrolling.mjs in the compiled app.
-const read = (file: string) => fs.readFileSync(path.join(__dirname, file), "utf8");
+// A Windows checkout may turn the stylesheet's line endings into CRLF; the rules below are matched on LF.
+const read = (file: string) => fs.readFileSync(path.join(__dirname, file), "utf8").replace(/\r\n/g, "\n");
 const css = read("SettingsPage.css");
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const rule = (selector: string) => {
