@@ -42,6 +42,12 @@ describe("grouped release notes", () => {
     expect(fixes).toMatch(/Quick settings shortcuts/);
   });
 
+  it("lists the credit card and loan account page wording and the accented store name fix among the 1.3.2 bug fixes", () => {
+    const fixes = changelogSections(CHANGELOG["1.3.2"]).find((s) => s.heading === "Bug fixes")!.notes.join("\n");
+    expect(fixes).toMatch(/amount owed and the credit still available/);
+    expect(fixes).toMatch(/Store names with accents, such as CAFÉ/);
+  });
+
   it("covers the delivered 1.3.1 scope in plain words", () => {
     const text = changelogNotes(CHANGELOG["1.3.1"]).join("\n");
     for (const part of [/Ask the Vault/, /what-if|cut/i, /savings/i, /retirement/i, /statement/i, /holdings/i, /update/i, /scroll/i]) expect(text).toMatch(part);

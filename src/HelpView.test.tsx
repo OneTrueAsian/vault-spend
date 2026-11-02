@@ -484,3 +484,45 @@ describe("HelpView names the review button as it reads", () => {
     host.remove();
   });
 });
+
+describe("HelpView search finds the 1.3.2 features by the words people use", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn();
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    act(() => root.render(<HelpView />));
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  function search(text: string) {
+    const input = container.querySelector<HTMLInputElement>("input[type=search]")!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, text);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+
+  it.each([
+    ["statement layouts", "How do I reconcile an account against a statement?"],
+    ["statement layout", "How do I reconcile an account against a statement?"],
+    ["saved layouts", "How do I reconcile an account against a statement?"],
+    ["re-check", "Can I ask questions about my spending in plain English?"],
+    ["double-check", "Can I ask questions about my spending in plain English?"],
+    ["account move", "How do I move transactions to another account?"],
+    ["move history", "How do I move transactions to another account?"],
+    ["update", "How do I update Vault Spend?"],
+  ])("finds the right help for %s", (query, heading) => {
+    search(query);
+    expect(container.textContent).toContain(heading);
+    // Search narrows the page: an entry that has nothing to do with the words is gone.
+    expect(container.textContent).not.toContain("Can I save my own Dashboard layout?");
+  });
+});

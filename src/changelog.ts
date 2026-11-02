@@ -51,6 +51,8 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
       "Bills with accented letters in their name, such as Café, are now matched to their charges even when the bank prints the name in capitals, so they no longer show as unpaid.",
       "If the app cannot make a safety copy before upgrading your data, it explains the backup problem and leaves the data unchanged instead of suggesting that the file is damaged.",
       "Changing your Quick settings shortcuts several times in a row no longer leaves the list showing a change that was not saved when one of the saves fails.",
+      "A credit card's account page now shows the amount owed and the credit still available, and a loan's page shows the amount owed, matching the Accounts list. Before, the card's credit available was labelled as its balance.",
+      "Store names with accents, such as CAFÉ, now match your category rules and learned categories written without accents, so they are no longer left to a guess.",
     ],
   },
   "1.3.1": {

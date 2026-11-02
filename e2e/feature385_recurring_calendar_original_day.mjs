@@ -8,11 +8,19 @@ import assert from "node:assert/strict";
 import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
+// Anchors are built from today's year so the fixture does not age: the 31st of January last year, and
+// 29 February of the most recent leap year before today.
+const year = new Date().getFullYear();
+let leapYear = year - 1;
+while (new Date(leapYear, 1, 29).getMonth() !== 1) leapYear--;
+const monthlyAnchor = `${year - 1}-01-31`;
+const yearlyAnchor = `${leapYear}-02-29`;
+
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Joint Checking', 'checking', '1000.00')")
 acct = cur.lastrowid
-cur.execute("INSERT INTO recurring (merchant, amount, cadence, anchor_date, account_id) VALUES ('Month End Bill', '-31.00', 'monthly', '2026-01-31', ?)", (acct,))
-cur.execute("INSERT INTO recurring (merchant, amount, cadence, anchor_date, account_id) VALUES ('Leap Day Fee', '-29.00', 'annual', '2024-02-29', ?)", (acct,))
+cur.execute("INSERT INTO recurring (merchant, amount, cadence, anchor_date, account_id) VALUES ('Month End Bill', '-31.00', 'monthly', '${monthlyAnchor}', ?)", (acct,))
+cur.execute("INSERT INTO recurring (merchant, amount, cadence, anchor_date, account_id) VALUES ('Leap Day Fee', '-29.00', 'annual', '${yearlyAnchor}', ?)", (acct,))
 `);
 
 const app = await launchApp({ dbDir });

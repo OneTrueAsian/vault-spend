@@ -287,7 +287,7 @@ export const TAB_HELP: TabHelp[] = [
       "density", "compact", "comfortable", "transfer", "link", "unlink", "possible transfers", "dismiss", "auto-link",
       "auto-linked", "review inbox", "inbox", "note", "notes", "annotate", "add transaction", "money out", "money in",
       "charge", "payment", "needs a category", "uncategorized", "apply to a debt", "split principal", "delete transaction",
-      "row menu",
+      "row menu", "account move", "account move history", "move history", "move transactions", "move to account",
     ],
   },
   {
@@ -1414,7 +1414,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
   },
   {
     question: "How do I reconcile an account against a statement?",
-    tags: ["reconcile", "reconciliation", "statement", "ticked", "cleared", "balance", "checking", "savings", "credit card", "loan", "account details", "ending balance"],
+    tags: ["reconcile", "reconciliation", "statement", "ticked", "cleared", "balance", "checking", "savings", "credit card", "loan", "account details", "ending balance", "statement layout", "statement layouts", "saved layouts", "remembered layout"],
     answer: (
       <p>
         On Accounts, click an account's row (or choose Details in its ⋯
@@ -1668,7 +1668,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
   },
   {
     question: "Can I ask questions about my spending in plain English?",
-    tags: ["ask the vault", "question", "search", "natural language", "query", "dashboard"],
+    tags: ["ask the vault", "question", "search", "natural language", "query", "dashboard", "re-check", "recheck", "double-check", "double check", "ask again", "still up to date"],
     answer: (
       <p>
         Yes — the "Ask the Vault" box at the top of the Dashboard answers
