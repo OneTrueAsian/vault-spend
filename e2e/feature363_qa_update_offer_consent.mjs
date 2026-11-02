@@ -14,7 +14,8 @@ const b = app.browser;
 const shots = process.env.VS_UPDATE_UI_SHOTS;
 if (shots) fs.mkdirSync(shots, { recursive: true });
 try {
-  await b.execute(installUpdaterFixture);
+  const currentVersion = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
+  const offeredVersion = await b.execute(installUpdaterFixture, null, currentVersion);
   // The real profile-create gesture remounts the real App and UpdateBanner while
   // preserving this document's fixture bridge. No financial command is stubbed.
   await b.$('.nav-item[data-tab="settings"]').click();
@@ -23,7 +24,9 @@ try {
   await b.$('.profile-create-form button[type="submit"]').click();
   await waitForDataLoaded(b);
   await b.$("//div[contains(@class,'update-banner')]//button[normalize-space()='Download update']").waitForDisplayed({ timeout: 10000 });
-  assert.match(await b.$('.update-banner').getText(), /1\.3\.2.*signed installer/s);
+  const bannerText = await b.$('.update-banner').getText();
+  assert.ok(bannerText.includes(offeredVersion), bannerText);
+  assert.match(bannerText, /signed installer/);
   await b.$("//div[contains(@class,'update-banner')]//button[normalize-space()='Download update']").click(); // fixture only
   await b.$("//div[contains(@class,'update-banner')]//button[normalize-space()='Open verified installer']").waitForDisplayed({ timeout: 10000 });
   const calls = () => b.execute(() => window.__qaUpdateFixture.calls);

@@ -8,26 +8,37 @@ function fixture(){
 }
 describe('compiled update fixture at the actual mutable fetch seam',()=>{
   it('works with immutable Tauri invoke and returns protocol-shaped publisher metadata',async()=>{
-    const {win,native,fetch}=fixture();installUpdaterFixture(win);
+    const {win,native,fetch}=fixture();installUpdaterFixture(win,'1.3.1');
     expect(win.__TAURI_INTERNALS__.invoke).toBe(native);
     const response=await win.fetch('http://ipc.localhost/fetch_latest_release',{body:'{}'});
     expect(response.headers.get('Tauri-Response')).toBe('ok');
     expect((await response.json()).tag_name).toBe('v1.3.2');expect(fetch).not.toHaveBeenCalled();
   });
   it('leaves financial calls and non-IPC URLs untouched',async()=>{
-    const {win,fetch}=fixture();installUpdaterFixture(win);
+    const {win,fetch}=fixture();installUpdaterFixture(win,'1.3.1');
     for(const url of ['http://ipc.localhost/list_accounts','https://example.invalid/fetch_latest_release']){
       const init={body:'original payload'};expect(await (await win.fetch(url,init)).text()).toBe('original');expect(fetch).toHaveBeenLastCalledWith(url,init);
     }
     expect(win.__qaUpdateFixture.calls).toEqual([]);
   });
   it('records simulated operations and refuses an unexpected simulated installer token',async()=>{
-    const {win,fetch}=fixture();installUpdaterFixture(win);
+    const {win,fetch}=fixture();installUpdaterFixture(win,'1.3.1');
     const call=async(cmd,args={})=>win.fetch('http://ipc.localhost/'+cmd,{body:JSON.stringify(args)});
     const offer=await (await call('prepare_signed_update')).json();
     expect(await (await call('download_signed_update',{handle:offer.handle})).json()).toBe(offer.handle);
     await expect(call('install_signed_update',{token:'wrong'})).rejects.toThrow(/fixture token/);
     expect(await (await call('install_signed_update',{token:offer.handle})).json()).toBeNull();
     expect(fetch).not.toHaveBeenCalled();
+  });
+  it.each(['1.3.2','1.3.9','2.0.0'])('offers a newer patch consistently for app %s',async current=>{
+    const {win}=fixture();
+    const offered=installUpdaterFixture(win,current);
+    const [major,minor,patch]=current.split('.').map(Number);
+    expect(offered).toBe(`${major}.${minor}.${patch+1}`);
+    const metadata=await (await win.fetch('http://ipc.localhost/fetch_latest_release',{body:'{}'})).json();
+    const prepared=await (await win.fetch('http://ipc.localhost/prepare_signed_update',{body:'{}'})).json();
+    expect(metadata.tag_name).toBe(`v${offered}`);
+    expect(metadata.html_url).toBe(`https://github.com/OneTrueAsian/vault-spend/releases/tag/v${offered}`);
+    expect(prepared.version).toBe(offered);
   });
 });
