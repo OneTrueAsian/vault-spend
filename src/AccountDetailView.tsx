@@ -229,6 +229,8 @@ export function AccountDetailView({
   const group = groupOf(account.account_type);
   const isCredit = group === "credit";
   const isLoan = group === "loan";
+  // The history is of the stored figure, which is the credit still available on a card and what is owed on a loan.
+  const historyName = isCredit ? "Available credit" : isLoan ? "Amount owed" : "Balance";
 
   return (
     <div className="account-detail" data-account-detail={account.id}>
@@ -282,10 +284,10 @@ export function AccountDetailView({
 
       <div className="card">
         <div className="card-head">
-          <span className="reports-section-title">Balance over the last year</span>
+          <span className="reports-section-title">{`${historyName} over the last year`}</span>
         </div>
         {balances.length >= 2 ? (
-          <LineChart points={history.map((p) => ({ label: shortMonthDay(p.date), value: parseFloat(p.balance) }))} height={160} maxLabels={6} caption="Account balance over time" />
+          <LineChart points={history.map((p) => ({ label: shortMonthDay(p.date), value: parseFloat(p.balance) }))} height={160} maxLabels={6} caption={isCredit || isLoan ? `${historyName} over time` : "Account balance over time"} />
         ) : (
           <p className="modal-message-secondary">Not enough history to draw a chart yet.</p>
         )}

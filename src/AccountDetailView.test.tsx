@@ -477,3 +477,33 @@ describe("AccountDetailView headline figures", () => {
     expect(statLabels()[0]).toEqual(["Amount owed", "$18,250.00"]);
   });
 });
+
+describe("AccountDetailView history chart title", () => {
+  const twoMonths = [
+    { date: "2026-09-01", balance: "8000.00" },
+    { date: "2026-10-01", balance: "7849.67" },
+  ];
+  const chartTitle = () => host.querySelector(".reports-section-title")?.textContent;
+  const chartCaption = () => host.querySelector("svg[role=img]")?.getAttribute("aria-label");
+
+  it("calls a checking account's history its balance", async () => {
+    answer({ account_balance_history: twoMonths, last_reconciliation: null });
+    await showAccount(account);
+    expect(chartTitle()).toBe("Balance over the last year");
+    expect(chartCaption()).toBe("Account balance over time");
+  });
+
+  it("calls a credit card's history the credit available, since that is the figure it tracks", async () => {
+    answer({ account_balance_history: twoMonths, last_reconciliation: null });
+    await showAccount({ ...account, account_type: "credit", starting_balance: "9000.00" });
+    expect(chartTitle()).toBe("Available credit over the last year");
+    expect(chartCaption()).toBe("Available credit over time");
+  });
+
+  it("calls a loan's history the amount owed", async () => {
+    answer({ account_balance_history: twoMonths, last_reconciliation: null });
+    await showAccount({ ...account, account_type: "loan", starting_balance: "0" });
+    expect(chartTitle()).toBe("Amount owed over the last year");
+    expect(chartCaption()).toBe("Amount owed over time");
+  });
+});

@@ -164,7 +164,7 @@ export const TAB_HELP: TabHelp[] = [
         question: "How do I open an account's own page?",
         steps: [
           <>Click anywhere on the account's row, or choose <strong>Details</strong> in its <strong>⋯</strong> menu.</>,
-          <>Its page shows a <strong>Balance over the last year</strong> chart and its transactions.</>,
+          <>Its page shows a <strong>Balance over the last year</strong> chart and its transactions. For a credit card the chart is titled <strong>Available credit over the last year</strong> and for a loan <strong>Amount owed over the last year</strong>, and the amount owed on a card shows at the top of its page.</>,
         ],
       },
       {

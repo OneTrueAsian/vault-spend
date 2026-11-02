@@ -46,6 +46,8 @@ describe("grouped release notes", () => {
     const fixes = changelogSections(CHANGELOG["1.3.2"]).find((s) => s.heading === "Bug fixes")!.notes.join("\n");
     expect(fixes).toMatch(/amount owed and the credit still available/);
     expect(fixes).toMatch(/Store names with accents, such as CAFÉ/);
+    expect(fixes).toMatch(/no clue about, such as a store name it has never seen/);
+    expect(fixes).toMatch(/Available credit over the last year/);
   });
 
   it("covers the delivered 1.3.1 scope in plain words", () => {

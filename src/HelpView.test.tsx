@@ -70,6 +70,8 @@ describe("HelpView", () => {
   it("names the account page chart the way its card is titled", () => {
     const accounts = (container.querySelector("#help-accounts")!.textContent ?? "").replace(/\s+/g, " ");
     expect(accounts).toContain("Balance over the last year");
+    expect(accounts).toContain("Available credit over the last year");
+    expect(accounts).toContain("Amount owed over the last year");
     expect(accounts).not.toContain("balance-history chart");
   });
 
