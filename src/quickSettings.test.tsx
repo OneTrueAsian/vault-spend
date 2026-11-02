@@ -130,6 +130,87 @@ describe("useQuickSettings", () => {
     expect(api.error).toBe("Couldn't save your Quick settings. Try again.");
   });
 
+  describe("saves that overlap", () => {
+    /** A save the test settles itself, recording what it would have stored when it succeeds. The outcome can be chosen
+     * before the save starts; it then takes effect when the save does. */
+    function pendingSave(stored: { value: string | null }) {
+      let value: string | null = null;
+      let outcome: boolean | null = null;
+      let resolve!: () => void;
+      let reject!: (e: Error) => void;
+      const promise = new Promise<void>((res, rej) => ((resolve = res), (reject = rej)));
+      const apply = () => {
+        if (value === null || outcome === null) return;
+        if (outcome) {
+          stored.value = value;
+          resolve();
+        } else {
+          reject(new Error("disk full"));
+        }
+      };
+      return {
+        promise,
+        settle: (ok: boolean) => ((outcome = ok), apply()),
+        remember: (v: string) => ((value = v), apply()),
+      };
+    }
+
+    async function startTwoSaves(first: ReturnType<typeof pendingSave>, second: ReturnType<typeof pendingSave>) {
+      const saves = [first, second];
+      setProfileUiState.mockImplementation((_key: string, value: string) => {
+        const save = saves.shift()!;
+        save.remember(value);
+        return save.promise;
+      });
+      getProfileUiState.mockResolvedValue("[]");
+      await mount();
+      await act(async () => {
+        api.add("a");
+        api.add("b");
+      });
+    }
+
+    it("an older save that fails after a newer one succeeded does not undo the newer change", async () => {
+      const stored = { value: null as string | null };
+      const first = pendingSave(stored);
+      const second = pendingSave(stored);
+      await startTwoSaves(first, second);
+
+      await act(async () => second.settle(true));
+      await act(async () => first.settle(false));
+
+      expect(api.ids).toEqual(["a", "b"]);
+      expect(api.error).toBeNull();
+      expect(stored.value).toBe('["a","b"]');
+    });
+
+    it("when both fail, the list goes back to what is saved, not to an unsaved in-between list", async () => {
+      const stored = { value: null as string | null };
+      const first = pendingSave(stored);
+      const second = pendingSave(stored);
+      await startTwoSaves(first, second);
+
+      await act(async () => first.settle(false));
+      await act(async () => second.settle(false));
+
+      expect(api.ids).toEqual([]);
+      expect(api.error).toBe("Couldn't save your Quick settings. Try again.");
+    });
+
+    it("saves reach storage in the order they were made, so a slow earlier one cannot overwrite a later one", async () => {
+      const stored = { value: null as string | null };
+      const first = pendingSave(stored);
+      const second = pendingSave(stored);
+      await startTwoSaves(first, second);
+
+      await act(async () => second.settle(true));
+      await act(async () => first.settle(true));
+
+      expect(stored.value).toBe('["a","b"]');
+      expect(api.ids).toEqual(["a", "b"]);
+    });
+  });
+
   it("a failed read falls back to the defaults", async () => {
     getProfileUiState.mockRejectedValue(new Error("locked"));
     await mount();

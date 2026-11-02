@@ -23,12 +23,16 @@ export function parseQuickSettings(raw: string | null, isKnownId: (id: string) =
 
 export const serializeQuickSettings = (ids: readonly string[]): string => JSON.stringify(ids);
 
-/** The open profile's Quick settings list. `ids` is null until it has loaded. A write that fails puts the list back
- * as it was and sets `error`. App remounts when the profile changes, so a list never carries over between profiles. */
+/** The open profile's Quick settings list. `ids` is null until it has loaded. Saves run one after another, in the
+ * order made. A save that fails puts the list back to what was last saved and sets `error`, unless a newer change has
+ * been made since (that change saves the whole list again). App remounts when the profile changes, so a list never carries over between profiles. */
 export function useQuickSettings(isKnownId: (id: string) => boolean) {
   const [ids, setIds] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const current = useRef<string[] | null>(null);
+  const saved = useRef<string[] | null>(null);
+  const latest = useRef(0);
+  const queue = useRef<Promise<void>>(Promise.resolve());
   const known = useRef(isKnownId);
   known.current = isKnownId;
 
@@ -40,6 +44,7 @@ export function useQuickSettings(isKnownId: (id: string) => boolean) {
       .then((list) => {
         if (!alive) return;
         current.current = list;
+        saved.current = list;
         setIds(list);
       });
     return () => {
@@ -47,19 +52,23 @@ export function useQuickSettings(isKnownId: (id: string) => boolean) {
     };
   }, []);
 
-  const write = useCallback(async (next: string[]) => {
-    const before = current.current;
+  const write = useCallback((next: string[]) => {
+    const mine = ++latest.current;
     current.current = next;
     setIds(next);
     setError(null);
-    try {
-      const generation = await getCurrentGeneration();
-      await setProfileUiState("quick_settings", serializeQuickSettings(next), generation);
-    } catch {
-      current.current = before;
-      setIds(before);
-      setError(saveFailedMessage);
-    }
+    queue.current = queue.current.then(async () => {
+      try {
+        const generation = await getCurrentGeneration();
+        await setProfileUiState("quick_settings", serializeQuickSettings(next), generation);
+        saved.current = next;
+      } catch {
+        if (mine !== latest.current) return;
+        current.current = saved.current;
+        setIds(saved.current);
+        setError(saveFailedMessage);
+      }
+    });
   }, []);
 
   const add = useCallback((id: string) => {
