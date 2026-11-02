@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { diagnose, launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { OLD_DAY, TODAY, chooseMoveDestination, dialogText, makeInvoke, openTransactions, seedMoveFixture, sel, sqlRows, tickRow, waitForReview } from "./lib/moveTransactions.mjs";
 
 const SHOTS = process.env.HISTORICAL_EVIDENCE_DIR ?? path.join(tmpdir(), "vaultspend-move-screenshots");
@@ -73,8 +73,11 @@ try {
 const again = await launchApp({ dbDir });
 try {
   const read = makeInvoke(again.browser);
-  const list = Object.fromEntries((await read("list_accounts")).map((a) => [a.name, a.current_balance]));
-  assert.deepEqual([list.Checking, list.Savings], ["990.00", "460.00"], "the corrected balances survive a restart");
+  const accounts = await read("list_accounts");
+  const list = Object.fromEntries(accounts.map((a) => [a.name, a.current_balance]));
+  // If a restart ever shows other accounts, say what the app returned, what the database holds and what the window shows.
+  const state = async () => `list_accounts=${JSON.stringify(accounts)} db=${JSON.stringify(sqlRows(dbDir, "SELECT id, name FROM accounts"))} window=${JSON.stringify(await diagnose(again.browser))}`;
+  assert.deepEqual([list.Checking, list.Savings], ["990.00", "460.00"], `the corrected balances survive a restart; ${await state()}`);
   console.log("PASS feature380");
 } finally {
   await again.close();

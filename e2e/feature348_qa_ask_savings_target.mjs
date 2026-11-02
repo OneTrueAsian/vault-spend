@@ -116,11 +116,11 @@ try {
   if (fromNowWhole) {
     await h.clickButton("Review the details"); await h.waitText("Check every detail", "review");
     await h.clickButton("Show the preview"); await h.waitText("Your savings target preview", "result");
-    // Whole months only: the months after this one in the year (computed from the calendar; 2 on 27 October 2026). Room 600 + 180 + 120 = 900 over these dates; target 200 -> 133.33.. / 40.00 / 26.66.. and the spare cent goes to Shopping (largest remainder).
+    // Whole months only: the months after this one in the year (computed from the calendar; 2 on 27 October 2026). Room 600 + 180 + 120 = 900 over two months (450 a month), so the maximum is 450 x whole months; target 200 -> 133.33.. / 40.00 / 26.66.. and the spare cent goes to Shopping (largest remainder).
     assert.deepEqual(await heads(), ["Category", "Allocated over these dates", "Approx. monthly cut", "Approx. monthly limit"]);
     assert.deepEqual(await rows(), split({ num: BigInt(left.whole), den: 1n }, ...CATEGORIES));
     t = await h.text();
-    for (const needle of ["Goal: $200.00 over these dates", "Maximum: $900.00 over these dates", "Shortfall: $0.00 over these dates", "$200.00 across the selected dates", `(${left.whole} month`, "Monthly equivalents and limits are rounded to cents. Use the allocated over these dates amounts"]) assert.ok(t.includes(needle), `${needle}: ${t}`);
+    for (const needle of ["Goal: $200.00 over these dates", `Maximum: $${(450 * left.whole).toFixed(2)} over these dates`, "Shortfall: $0.00 over these dates", "$200.00 across the selected dates", `(${left.whole} month`, "Monthly equivalents and limits are rounded to cents. Use the allocated over these dates amounts"]) assert.ok(t.includes(needle), `${needle}: ${t}`);
     // The history each category's usual month rests on is available in the result.
     const detail = await b.execute(() => document.querySelector('[role="dialog"]').textContent);
     for (const needle of ["$300.00", "$90.00", "$60.00"]) assert.ok(detail.includes(needle), `the category details show ${needle}`);

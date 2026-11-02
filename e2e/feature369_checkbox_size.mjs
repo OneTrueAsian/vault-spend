@@ -75,6 +75,9 @@ const noSideScroll = (where) =>
   }).then(({ doc, main }) => assert.ok(doc <= 1 && main <= 1, `${where}: nothing should scroll sideways (page ${doc}px, content ${main}px)`));
 
 async function check(where, scope, { atLeast = 1 } = {}) {
+  // A dialog pops in over 160ms (scale 0.97 -> 1) and getBoundingClientRect includes that transform, so measuring
+  // before it settles reads a box a few percent too small, most often when the machine is busy.
+  await waitUntilOrDiagnose(b, () => b.execute(() => document.getAnimations().every((a) => a.playState !== "running" || a.effect?.getTiming().iterations === Infinity)), { timeoutMsg: `${where}: the screen's animations never settled` });
   let boxes = [];
   await waitUntilOrDiagnose(b, async () => (boxes = await checkboxes(scope)).length >= atLeast, { timeoutMsg: `${where}: expected checkboxes in ${scope}`, extra: () => String(boxes.length) });
   for (const box of boxes) {

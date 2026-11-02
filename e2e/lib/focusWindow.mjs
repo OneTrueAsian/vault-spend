@@ -14,6 +14,19 @@ const SCRIPT = [
   "[void]$f.ShowDialog()",
 ].join("; ");
 
+// The title of the window that has OS foreground right now, for a failure message that says who held it.
+export function foregroundWindowTitle() {
+  const script = [
+    "Add-Type -TypeDefinition 'using System; using System.Text; using System.Runtime.InteropServices; public static class Fg { [DllImport(\"user32.dll\")] static extern IntPtr GetForegroundWindow(); [DllImport(\"user32.dll\", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n); public static string Title() { var s = new StringBuilder(256); GetWindowText(GetForegroundWindow(), s, 256); return s.ToString(); } }'",
+    "[Fg]::Title()",
+  ].join("; ");
+  try {
+    return execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { encoding: "utf8", timeout: 15000 }).trim() || "(no title)";
+  } catch (e) {
+    return `(unavailable: ${String(e.message).slice(0, 100)})`;
+  }
+}
+
 export function openFocusWindow() {
   const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-STA", "-Command", SCRIPT], { stdio: "ignore", detached: false });
   child.on("error", () => { /* reported by the caller's wait for the window */ });

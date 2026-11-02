@@ -427,6 +427,26 @@ export async function waitUntilOrDiagnose(browser, condition, { timeout = 10000,
   }
 }
 
+// What the unlock screen looked like when a wait for the profile to open ran out: whether the lock screen or the profile
+// selector is still showing, how many characters the password box holds and whether Unlock is enabled.
+export async function unlockDiagnostics(browser) {
+  try {
+    return await browser.execute(() => ({
+      lockScreen: !!document.querySelector("[data-profile-lock-screen]"),
+      selector: !!document.querySelector("[data-profile-selector]"),
+      passwordLength: document.querySelector("#password-form-field")?.value.length ?? null,
+      unlockDisabled: [...document.querySelectorAll("button")].find((button) => button.textContent === "Unlock")?.disabled ?? null,
+    }));
+  } catch (e) {
+    return { unlockDiagnosticsFailed: String(e).slice(0, 200) };
+  }
+}
+
+/** Waits for the unlocked app's brand word; a timeout reports the window and the unlock screen's state. */
+export async function waitForUnlocked(browser, timeout, timeoutMsg) {
+  await waitUntilOrDiagnose(browser, async () => (await browser.$(".brand-word")).isExisting(), { timeout, timeoutMsg, extra: () => unlockDiagnostics(browser) });
+}
+
 const SETTINGS_GROUP_NAMES = { quick: "Quick settings", display: "Display", profiles: "Profiles & security", data: "Data", features: "Features", about: "About" };
 
 /** Opens Settings and shows one group the way a person does: clicks Settings, then the group in the list, and waits

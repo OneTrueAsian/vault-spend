@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { launchApp } from "./harness.mjs";
+import { launchApp, waitForUnlocked } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { invoke } from "./lib/change-password.mjs";
 import { enableProtectionThroughUI } from "./lib/protection.mjs";
@@ -56,7 +56,7 @@ try {
   await b.$("[data-profile-lock-screen]").waitForExist({ timeout: 10000 });
   assert.ok((await invoke(b, "get_ask_vault_retirement_context", readArgs)).error);
   assert.ok((await invoke(b, "get_ask_vault_retirement_accounts", { ...protectedAuth, request: { contractVersion: 1, expectedRevision: null } })).error);
-  await b.$("#password-form-field").setValue(password); await b.$("button=Unlock").click(); await b.$(".brand-word").waitForExist({ timeout: 10000 });
+  await b.$("#password-form-field").setValue(password); await b.$("button=Unlock").click(); await waitForUnlocked(b, 10000, "the profile should unlock");
   assert.ok((await invoke(b, "get_ask_vault_retirement_context", readArgs)).error, "old origin cannot read after unlock");
   console.log("FEATURE 303 M5 NATIVE CONTEXT CONTRACT PASSED (no routed M5 UI claimed)");
 } finally { await app.close(); }

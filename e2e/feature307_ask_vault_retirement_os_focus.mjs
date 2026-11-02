@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { launchApp, reclaimWindowFocus } from "./harness.mjs";
-import { openFocusWindow } from "./lib/focusWindow.mjs";
+import { foregroundWindowTitle, openFocusWindow } from "./lib/focusWindow.mjs";
 import { askHelpers, seedRetirementProfile } from "./lib/askRetirement.mjs";
 
 // M5 real OS focus acceptance: another window takes OS foreground (the page sees a real blur) and the app gets it back (a real focus); the open result then retires.
@@ -35,7 +35,7 @@ try {
     } finally { other.close(); }
     if (!tookForeground) await reclaimWindowFocus(b);
   }
-  assert.ok(tookForeground, "REAL OS FOCUS BLOCKED: a second window never took OS foreground in three tries, so no blur occurred");
+  assert.ok(tookForeground, `REAL OS FOCUS BLOCKED: a second window never took OS foreground in three tries, so no blur occurred (foreground window: "${foregroundWindowTitle()}")`);
   await reclaimWindowFocus(b);
   await b.waitUntil(() => b.execute(() => document.hasFocus()), { timeout: 10000, timeoutMsg: "the app window did not regain OS focus" });
   const blurAfter = await b.execute(() => window.__m5Blur), focusAfter = await b.execute(() => window.__m5Focus);
