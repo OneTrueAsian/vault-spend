@@ -298,6 +298,22 @@ fn dismissal_skips_a_pair_that_is_no_longer_eligible_without_erroring_the_batch(
 }
 
 #[test]
+fn dismissal_skips_a_pair_with_a_deleted_leg_without_erroring_the_batch() {
+    let store = Store::open_in_memory().unwrap();
+    let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-11");
+    let (out_id2, in_id2) = seed_transfer_pair(&store, "2026-09-01", "2026-09-02");
+    store.delete_transaction(in_id2, test_now()).unwrap();
+
+    let newly = store.dismiss_transfer_candidates(&[(out_id, in_id), (out_id2, in_id2)]).unwrap();
+
+    assert_eq!(
+        newly,
+        vec![TransferCandidate { out_id, in_id }],
+        "a pair with a deleted leg must be skipped, not dismissed"
+    );
+}
+
+#[test]
 fn dismissal_of_a_nonexistent_transaction_rolls_back_the_whole_batch() {
     let store = Store::open_in_memory().unwrap();
     let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-11");

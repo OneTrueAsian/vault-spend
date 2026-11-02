@@ -281,9 +281,8 @@ impl Store {
     pub fn recurring_matches(&self, today: NaiveDate) -> rusqlite::Result<Vec<RecurringMatch>> {
         const CYCLES: usize = 6;
         let mut stmt = self.conn.prepare(&format!(
-            "SELECT t.date, t.amount FROM transactions t
-             WHERE t.deleted_at IS NULL AND t.date >= ?2 AND t.date <= ?3
-                   AND instr(lower(t.description), lower(?1)) > 0
+            "SELECT t.date, t.amount, t.description FROM transactions t
+             WHERE t.deleted_at IS NULL AND t.date >= ?1 AND t.date <= ?2
                    AND (t.category IS NULL OR t.category <> 'Transfer')
                    AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
                    AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})"
@@ -317,11 +316,17 @@ impl Store {
             let mut candidates: Vec<(NaiveDate, Decimal)> = Vec::new();
             if !merchant.is_empty() {
                 let window_start = occurrences[0] - chrono::Duration::days(before);
-                let rows = stmt.query_map(params![merchant, window_start.to_string(), today.to_string()], |row| {
-                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                // The name is matched here, not with SQL lower(), which folds only ASCII letters and would
+                // disagree with `detect_recurring_candidates` about names such as "Café".
+                let merchant_lower = merchant.to_lowercase();
+                let rows = stmt.query_map(params![window_start.to_string(), today.to_string()], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
                 })?;
                 for row in rows {
-                    let (date, amount) = row?;
+                    let (date, amount, description) = row?;
+                    if !description.to_lowercase().contains(&merchant_lower) {
+                        continue;
+                    }
                     let date = NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("date stored by this crate must be valid");
                     let amount = Decimal::from_str(&amount).expect("amount stored by this crate must be valid");
                     if (amount < Decimal::ZERO) == (item.amount < Decimal::ZERO) {

@@ -926,6 +926,8 @@ impl Store {
                 .execute("DELETE FROM balance_resets WHERE account_id = ?1", params![id])
                 .map(|_| ())
         })?;
+        // `reconciliations.account_id` has no foreign key, so these would otherwise outlive the account.
+        self.conn.execute("DELETE FROM reconciliations WHERE account_id = ?1", params![id])?;
         self.conn.execute("DELETE FROM accounts WHERE id = ?1", params![id])?;
         Ok(tx_ids.len())
     }

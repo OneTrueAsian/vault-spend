@@ -212,7 +212,12 @@ impl Store {
                 params![out_id, in_id],
                 |row| row.get(0),
             )?;
-            if already_linked {
+            let leg_deleted: bool = sql_tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM transactions WHERE id IN (?1, ?2) AND deleted_at IS NOT NULL)",
+                params![out_id, in_id],
+                |row| row.get(0),
+            )?;
+            if already_linked || leg_deleted {
                 continue;
             }
             let inserted = sql_tx.execute(

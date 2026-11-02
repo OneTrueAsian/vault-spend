@@ -711,6 +711,43 @@ fn delete_account_removes_a_balance_reset_snapshot_taken_against_it() {
 }
 
 #[test]
+fn delete_account_removes_its_finished_reconciliations() {
+    // `reconciliations.account_id` has no foreign key, so nothing stopped a deleted account's statement
+    // dates and balances from staying in the profile (and its backups) as orphan rows.
+    let store = Store::open_in_memory().unwrap();
+    let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
+    let savings = store.get_or_create_account("Nest Egg", AccountType::Savings).unwrap();
+    for account in [checking, savings] {
+        store
+            .finish_reconciliation(
+                &FinishReconciliation {
+                    account_id: account,
+                    period_start: None,
+                    statement_date: day("2026-08-31"),
+                    statement_start: Some(dec("0.00")),
+                    statement_end: dec("0.00"),
+                    source: ReconcileSource::Manual,
+                },
+                test_now(),
+            )
+            .unwrap()
+            .expect("reconciliation finished");
+    }
+    let count = |id: i64| -> i64 {
+        store
+            .conn
+            .query_row("SELECT COUNT(*) FROM reconciliations WHERE account_id = ?1", params![id], |r| r.get(0))
+            .unwrap()
+    };
+    assert_eq!((count(checking), count(savings)), (1, 1));
+
+    store.delete_account(checking).unwrap();
+
+    assert_eq!(count(checking), 0, "the deleted account's reconciliations go with it");
+    assert_eq!(count(savings), 1, "another account's reconciliations are untouched");
+}
+
+#[test]
 fn delete_family_member_nulls_member_id_on_the_accounts_it_owns() {
     let store = Store::open_in_memory().unwrap();
     let member = store.create_family_member("Alex").unwrap();

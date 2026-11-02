@@ -821,6 +821,20 @@ fn a_bill_with_a_charge_near_its_due_date_is_paid() {
 }
 
 #[test]
+fn a_bill_whose_name_has_accented_letters_matches_a_statement_line_in_capitals() {
+    // SQLite's lower() folds only ASCII, so matching in SQL treated "CAFÉ ROUGE" and "Café Rouge" as different
+    // names while the suggestion filter (which folds in Rust) treated them as the same.
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    let id = store
+        .create_recurring("Café Rouge", None, dec("-12.00"), "monthly", day("2026-08-03"), None)
+        .unwrap();
+    put(&store, account, "2026-09-03", "CAFÉ ROUGE 4412", "-12.00");
+
+    assert_eq!(match_for(&store, "2026-09-05", id).state, "paid");
+}
+
+#[test]
 fn a_charge_that_posts_a_few_days_late_still_counts() {
     let store = Store::open_in_memory().unwrap();
     let account = test_account(&store);
