@@ -1745,7 +1745,11 @@ fn balance_history_counts_a_purchase_only_from_its_own_date() {
         ("2028-03-01", "2028-02-29", "815.00", "815.00"), // February in a leap year
     ] {
         let history = store.account_balance_history(acct, day(today), 2).unwrap();
-        assert_eq!(history, vec![(day(previous_end), dec(previous)), (day(today), dec(latest))], "history as of {today}");
+        assert_eq!(
+            history,
+            vec![(day(previous_end), dec(previous)), (day(today), dec(latest))],
+            "history as of {today}"
+        );
     }
 }
 

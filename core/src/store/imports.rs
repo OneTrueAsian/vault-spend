@@ -1,6 +1,6 @@
 //! Imports: writing a reviewed import file all at once, or not at all.
 
-use super::transactions::{normalize_notes, NotesError};
+use super::transactions::{NotesError, normalize_notes};
 use super::{CategorySource, Store};
 use crate::csv_loader::ColumnNames;
 use crate::models::Transaction;

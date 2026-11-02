@@ -95,8 +95,16 @@ mod tests {
             KdfParams { m_kib: 262_145, t: 3, p: 1 },
             KdfParams { m_kib: 65_536, t: 11, p: 1 },
             KdfParams { m_kib: 65_536, t: 3, p: 9 },
-            KdfParams { m_kib: 65_536, t: 3, p: u32::MAX },
-            KdfParams { m_kib: 65_536, t: 3, p: u32::MAX / 8 + 1 },
+            KdfParams {
+                m_kib: 65_536,
+                t: 3,
+                p: u32::MAX,
+            },
+            KdfParams {
+                m_kib: 65_536,
+                t: 3,
+                p: u32::MAX / 8 + 1,
+            },
             KdfParams { m_kib: 65_536, t: 0, p: 1 },
             KdfParams { m_kib: 65_536, t: 3, p: 0 },
             KdfParams { m_kib: 7, t: 3, p: 1 },

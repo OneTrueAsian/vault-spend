@@ -338,10 +338,7 @@ mod tests {
         recovery_slot.recovery_slot.kdf.p = u32::MAX;
 
         for file in [password_slot, recovery_slot] {
-            assert!(matches!(
-                KeyFile::from_json(&file.to_json()),
-                Err(ProtectionError::KdfOutOfBounds(_))
-            ));
+            assert!(matches!(KeyFile::from_json(&file.to_json()), Err(ProtectionError::KdfOutOfBounds(_))));
         }
     }
 

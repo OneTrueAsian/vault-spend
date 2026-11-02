@@ -36,6 +36,8 @@ impl QuoteServer {
                     Err(error) => panic!("fixture accept failed: {error}"),
                 }
             };
+            // An accepted socket inherits the listener's non-blocking mode on Windows, which would turn a slow request into WouldBlock.
+            stream.set_nonblocking(false).unwrap();
             stream.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
             let mut bytes = Vec::new();
             let mut buf = [0; 1024];
