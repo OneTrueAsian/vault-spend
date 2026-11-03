@@ -19,6 +19,10 @@ on:
         description: 'Run all build and test gates without publishing installers or signatures'
         type: boolean
         default: false
+      sharded:
+        description: 'Diagnostic only: run the desktop gate as parallel shards against one build (cannot publish or sign)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -28,15 +32,47 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  sharded-request:
+    # The sharded gate is a diagnostic: it can run the checks and the desktop gate but has no packaging, signing or publishing.
+    # Refuse every sharded request that is not already a pinned, non-publishing diagnostic.
+    if: ${{ inputs.sharded }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a pinned non-publishing diagnostic
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          RECOVERY: ${{ inputs.recovery }}
+          DIAGNOSTIC_ONLY: ${{ inputs.diagnostic_only }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          [[ "$DIAGNOSTIC_ONLY" == "true" && "$RECOVERY" == "true" ]] || { echo 'A sharded run must be a recovery diagnostic (diagnostic_only and recovery)'; exit 1; }
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'A sharded run needs the exact source commit'; exit 1; }
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Invalid stable release tag'; exit 1; }
+          [[ "$GITHUB_REF" == refs/heads/* ]] || { echo 'A sharded run must use a workflow branch'; exit 1; }
+
+  sharded-gate:
+    needs: sharded-request
+    if: ${{ inputs.sharded }}
+    # Read-only and secret-free, whatever the workflow-level permission: nothing in the called gate can publish, sign or move a tag.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/windows-desktop-gate-sharded.yml
+    with:
+      source_sha: ${{ inputs.source_sha }}
+      tag: ${{ inputs.tag }}
+      recovery: ${{ inputs.recovery }}
+
   release:
+    if: ${{ !inputs.sharded }}
     # Pin the desktop environment; image migrations must pass the smoke preflight first.
     runs-on: windows-2022
     outputs:
       source-sha: ${{ steps.provenance.outputs.source_sha }}
       installer-digests: ${{ steps.provenance.outputs.digests }}
-    # A measured serial gate took 50 minutes and a fresh optimized build took 41;
-    # leave room for the final release build and installer packaging as well.
-    timeout-minutes: 150
+    # A measured serial gate took 50 minutes and a fresh optimized build took 41; leave room for the final release build and
+    # installer packaging as well. The v1.3.2 job took 145 minutes (80 of them the gate), so the limit is 240 until the gate is
+    # faster. This removes no check: a stuck step is still ended by its own step timeout.
+    timeout-minutes: 240
     defaults:
       run:
         shell: pwsh

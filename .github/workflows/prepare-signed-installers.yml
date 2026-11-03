@@ -12,12 +12,20 @@ on:
       source_sha:
         required: true
         type: string
+      sharded:
+        description: 'Diagnostic only: run just the Windows gate as parallel shards (no installers, no signing)'
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       source_sha:
         description: 'Exact release-1.3.1 commit to prepare; no tag or release is created'
         required: true
         type: string
+      sharded:
+        description: 'Diagnostic only: run just the Windows gate as parallel shards (no installers, no signing)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -27,9 +35,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  sharded-gate:
+    if: ${{ inputs.sharded }}
+    # Same read-only, secret-free gate as release-windows.yml's sharded diagnostic; the packaging and signing jobs below are skipped.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/windows-desktop-gate-sharded.yml
+    with:
+      source_sha: ${{ inputs.source_sha }}
+      validate_preparation: true
+      contract_tests: tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs tools/prepare-update-artifacts.test.mjs
+
   windows:
+    if: ${{ !inputs.sharded }}
     runs-on: windows-2022
-    timeout-minutes: 150
+    # Same gate as release-windows.yml, which used 145 of 150 minutes on v1.3.2: temporary headroom, no check removed.
+    timeout-minutes: 240
     outputs:
       source-sha: ${{ steps.provenance.outputs.source_sha }}
       installer-digests: ${{ steps.provenance.outputs.digests }}
@@ -214,6 +235,7 @@ jobs:
           retention-days: 14
 
   macos:
+    if: ${{ !inputs.sharded }}
     runs-on: macos-latest
     timeout-minutes: 90
     outputs:
@@ -277,6 +299,7 @@ jobs:
           retention-days: 14
 
   sign-updates:
+    if: ${{ !inputs.sharded }}
     needs: [windows, macos]
     runs-on: ubuntu-latest
     environment: release-signing

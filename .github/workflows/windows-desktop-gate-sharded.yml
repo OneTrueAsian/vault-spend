@@ -1,0 +1,382 @@
+name: Windows desktop gate (sharded)
+run-name: Sharded Windows gate ${{ inputs.source_sha }}
+
+# The Windows release gate split across parallel runners: one job runs every check and builds the desktop test app once, six jobs
+# each run a slice of the desktop specs against that one executable, and one job joins the results. It is a reusable workflow so
+# release-windows.yml and prepare-signed-installers.yml share a single implementation.
+#
+# This workflow cannot publish, sign or touch a tag: it has read-only repository permission, receives no secrets, and contains no
+# packaging, release or push step. Callers use it for diagnostic runs only (their own validation refuses anything else).
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        description: 'Exact commit to check out and test'
+        required: true
+        type: string
+      tag:
+        description: 'Release tag whose version must match the source (empty for preparation runs)'
+        type: string
+        default: ''
+      recovery:
+        description: 'Repair legacy test driver paths and skip the signed-updater contract tests, as release-windows.yml recovery does'
+        type: boolean
+        default: false
+      validate_preparation:
+        description: 'Also run tools/prepare-update-artifacts.mjs validate (preparation runs)'
+        type: boolean
+        default: false
+      contract_tests:
+        description: 'Space-separated node --test files for the signed-updater contracts (empty skips them)'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    # Every check the serial gate runs, then one build of the desktop test app. The shards receive that executable.
+    runs-on: windows-2022
+    timeout-minutes: 240
+    outputs:
+      node-version: ${{ steps.versions.outputs.node }}
+      rust-version: ${{ steps.versions.outputs.rust }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Use LF line endings for checkout
+        # Windows checkouts default to CRLF, and the Tauri CLI rewrites src-tauri/Cargo.toml to LF during the desktop test
+        # build. The build-identity check then sees a changed input and refuses the executable.
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Validate source and version
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          if ($env:SOURCE_SHA -notmatch '^[0-9a-f]{40}$') { throw 'A sharded gate needs the exact source commit' }
+          if ((git rev-parse HEAD) -ne $env:SOURCE_SHA) { throw 'Checked-out source differs from the requested commit' }
+          if ($env:RELEASE_TAG) {
+            if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw 'Invalid stable release tag' }
+            $version = $env:RELEASE_TAG.Substring(1)
+            foreach ($path in @('package.json', 'src-tauri/tauri.conf.json')) {
+              if ((Get-Content $path -Raw | ConvertFrom-Json).version -ne $version) { throw "Version mismatch in $path" }
+            }
+            $cargo = Get-Content src-tauri/Cargo.toml -Raw
+            if ($cargo -notmatch ('(?m)^version\s*=\s*"' + [regex]::Escape($version) + '"\s*$')) { throw 'Rust package version mismatch' }
+          }
+      - name: Validate pinned preparation source
+        if: ${{ inputs.validate_preparation }}
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: node tools/prepare-update-artifacts.mjs validate
+      - name: Repair legacy test driver paths for recovery
+        if: ${{ inputs.recovery }}
+        run: |
+          $file = 'e2e/harness.mjs'
+          $source = [IO.File]::ReadAllText($file)
+          $pattern = '(?m)^const CARGO_BIN = "[^"\r\n]+";\r?$'
+          $matches = [regex]::Matches($source, $pattern)
+          if ($matches.Count -eq 1) {
+            $replacement = 'const CARGO_BIN = path.join(process.env.CARGO_HOME || path.join(process.env.USERPROFILE, ".cargo"), "bin");'
+            [IO.File]::WriteAllText($file, [regex]::Replace($source, $pattern, $replacement), [Text.UTF8Encoding]::new($false))
+            Write-Host 'Repaired only the legacy E2E driver directory; application sources are unchanged.'
+          } elseif ($source -notmatch 'const CARGO_BIN = cargoBin\(\);') {
+            throw 'Unrecognized harness driver setup; refusing an unverified repair'
+          }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-release
+          cache-on-failure: true
+      - name: Install dependencies
+        run: npm ci
+      - name: Install RustSec scanner
+        run: cargo install cargo-audit --locked
+      - name: Dependency security policy tests
+        run: node --test tools/dependency-security-policy.test.mjs tools/browser-download-contract.test.mjs
+      - name: Verify signed updater release contracts
+        if: ${{ inputs.contract_tests != '' }}
+        env:
+          CONTRACT_TESTS: ${{ inputs.contract_tests }}
+        run: node --test @($env:CONTRACT_TESTS -split '\s+' | Where-Object { $_ })
+      - name: Audit dependencies for x86_64-pc-windows-msvc
+        env:
+          VAULTSPEND_AUDIT_OUTPUT: dependency-audit/x86_64-pc-windows-msvc
+        run: node tools/audit-dependencies.mjs x86_64-pc-windows-msvc
+      - name: Retain dependency audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-sharded-windows-${{ github.run_attempt }}
+          path: dependency-audit/
+          if-no-files-found: error
+      - name: Frontend tests
+        run: npm test
+      - name: Lint
+        run: npm run lint
+      - name: Build frontend for Rust tests
+        run: npm run build
+      - name: Rust tests
+        run: cargo test --workspace
+      - name: Build E2E database fixture tool
+        run: cargo build -p budget_core --bin init_db
+      - name: Build current desktop test app
+        env:
+          # Keep debug-only crash/race fixtures, while avoiding unoptimized crypto timing
+          # that differs from the production build on the hosted CPU.
+          CARGO_PROFILE_DEV_OPT_LEVEL: 1
+        run: npm run build:app
+      - name: Record toolchain versions for the test jobs
+        id: versions
+        run: |
+          $node = (node --version).Trim().TrimStart('v')
+          $rust = (rustc --version) -replace '^rustc (\d+\.\d+\.\d+).*$', '$1'
+          if ($node -notmatch '^\d+\.\d+\.\d+$' -or $rust -notmatch '^\d+\.\d+\.\d+$') { throw "Unexpected toolchain versions: node '$node', rustc '$rust'" }
+          "node=$node" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "rust=$rust" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - name: Stage the desktop test app for the test jobs
+        env:
+          CARGO_PROFILE_DEV_OPT_LEVEL: 1
+        # Refuses unless the executable is fresh by the same build-identity check the test jobs apply again.
+        run: node tools/transfer-build.mjs stage transfer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-test-app-${{ github.run_attempt }}
+          path: transfer/
+          if-no-files-found: error
+          retention-days: 3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-test-app-manifest-${{ github.run_attempt }}
+          path: transfer/transfer-manifest.json
+          if-no-files-found: error
+          retention-days: 3
+
+  shard:
+    needs: prepare
+    runs-on: windows-2022
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    name: shard ${{ matrix.shard }} of 6
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Use LF line endings for checkout
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Confirm the requested commit
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          if ((git rev-parse HEAD) -ne $env:SOURCE_SHA) { throw 'Checked-out source differs from the requested commit' }
+      - name: Repair legacy test driver paths for recovery
+        if: ${{ inputs.recovery }}
+        run: |
+          $file = 'e2e/harness.mjs'
+          $source = [IO.File]::ReadAllText($file)
+          $pattern = '(?m)^const CARGO_BIN = "[^"\r\n]+";\r?$'
+          $matches = [regex]::Matches($source, $pattern)
+          if ($matches.Count -eq 1) {
+            $replacement = 'const CARGO_BIN = path.join(process.env.CARGO_HOME || path.join(process.env.USERPROFILE, ".cargo"), "bin");'
+            [IO.File]::WriteAllText($file, [regex]::Replace($source, $pattern, $replacement), [Text.UTF8Encoding]::new($false))
+            Write-Host 'Repaired only the legacy E2E driver directory; application sources are unchanged.'
+          } elseif ($source -notmatch 'const CARGO_BIN = cargoBin\(\);') {
+            throw 'Unrecognized harness driver setup; refusing an unverified repair'
+          }
+      # The same Node and Rust the prepare job built with, so the build key recomputed here matches without any relaxation.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ needs.prepare.outputs.node-version }}
+          cache: npm
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ needs.prepare.outputs.rust-version }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-release
+          save-if: false
+      - name: Install dependencies
+        run: npm ci
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install E2E browsers
+        run: npx playwright install chromium firefox webkit
+      - name: Refresh hosted WebView2 runtime
+        timeout-minutes: 10
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'MicrosoftEdgeWebView2RuntimeInstallerX64.exe'
+          Invoke-WebRequest 'https://go.microsoft.com/fwlink/?linkid=2124701' -OutFile $installer
+          $signature = Get-AuthenticodeSignature -LiteralPath $installer
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation(?:,|$)') { throw 'WebView2 installer is not validly signed by Microsoft' }
+          $process = Start-Process -FilePath $installer -ArgumentList '/silent', '/install' -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "WebView2 installation failed: $($process.ExitCode)" }
+          $root = "${env:ProgramFiles(x86)}\Microsoft\EdgeWebView\Application"
+          $runtime = Get-ChildItem $root -Directory | Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+          if (-not $runtime) { throw 'WebView2 runtime missing after installation' }
+          if ([version]$runtime.Name -le [version]'131.0.2903.86') { throw 'Hosted WebView2 refresh retained the stale runtime from the failed diagnostic' }
+          Write-Host "Hosted WebView2 runtime: $($runtime.Name)"
+      - name: Pin hosted Edge version
+        run: |
+          # The WebView2 refresh above wakes Edge's updater, which moved Edge from 152 to 155 during a
+          # gate (run 38339761633) after the native driver for 152 had been installed. Stop it from
+          # changing the browser for the rest of this job; the job's VM is discarded afterwards.
+          $policy = 'HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate'
+          New-Item -Path $policy -Force | Out-Null
+          Set-ItemProperty -Path $policy -Name 'UpdateDefault' -Value 0 -Type DWord
+          Set-ItemProperty -Path $policy -Name '{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}' -Value 0 -Type DWord
+          foreach ($name in 'edgeupdate', 'edgeupdatem') {
+            $service = Get-Service -Name $name -ErrorAction SilentlyContinue
+            if ($service) {
+              Stop-Service -Name $name -Force -ErrorAction SilentlyContinue
+              Set-Service -Name $name -StartupType Disabled
+            }
+          }
+          Get-ScheduledTask -TaskName 'MicrosoftEdgeUpdateTaskMachine*' -ErrorAction SilentlyContinue | Disable-ScheduledTask | Out-Null
+          Write-Host 'Edge automatic updates disabled for this job'
+      - name: Install desktop test drivers
+        run: |
+          cargo install tauri-driver --locked
+          if ($LASTEXITCODE -ne 0) { throw 'tauri-driver installation failed' }
+          $root = "${env:ProgramFiles(x86)}\Microsoft\EdgeWebView\Application"
+          $runtime = Get-ChildItem $root -Directory | Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+          if (-not $runtime) { throw 'WebView2 runtime not found' }
+          $zip = Join-Path $env:RUNNER_TEMP 'edgedriver.zip'
+          Invoke-WebRequest "https://msedgedriver.microsoft.com/$($runtime.Name)/edgedriver_win64.zip" -OutFile $zip
+          $cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $env:USERPROFILE '.cargo' }
+          Expand-Archive $zip -DestinationPath (Join-Path $cargoHome 'bin') -Force
+      - name: Install native Edge test driver
+        run: |
+          # WebView2 and Edge have independent versions on hosted images. Keep Tauri's
+          # runtime-matched driver in cargo/bin and use a separate driver for native Edge.
+          $edge = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe") | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if (-not $edge) { throw 'Microsoft Edge browser not found' }
+          $version = (Get-Item -LiteralPath $edge).VersionInfo.ProductVersion
+          if ($version -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw 'Invalid Microsoft Edge browser version' }
+          $directory = Join-Path $env:RUNNER_TEMP 'native-edge-driver'
+          $zip = Join-Path $env:RUNNER_TEMP 'native-edge-driver.zip'
+          Invoke-WebRequest "https://msedgedriver.microsoft.com/$version/edgedriver_win64.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $directory -Force
+          $driver = Join-Path $directory 'msedgedriver.exe'
+          $reported = & $driver --version
+          if ($LASTEXITCODE -ne 0 -or $reported -notmatch [regex]::Escape($version)) { throw 'Native Edge driver version mismatch' }
+          Write-Host "Native Edge $version; $reported"
+          "MSEDGEDRIVER=$driver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - uses: actions/download-artifact@v4
+        with:
+          name: desktop-test-app-${{ github.run_attempt }}
+          path: transfer
+      - name: Receive the desktop test app and check its build identity
+        env:
+          CARGO_PROFILE_DEV_OPT_LEVEL: 1
+        # Copies the executable and its record unchanged, then applies the ordinary build-identity check from this job's own checkout,
+        # toolchain and environment. Anything but "fresh" stops the job; nothing is rebuilt or re-recorded here.
+        run: node tools/transfer-build.mjs receive transfer
+      - name: Prepare medium-integrity desktop tests
+        run: |
+          # Current WebView2 suppresses remote debugging on elevated hosts. Match Tauri's
+          # own CI approach, while granting access only to this runner's user SID.
+          $zip = Join-Path $env:RUNNER_TEMP 'gsudo.portable.zip'
+          Invoke-WebRequest 'https://github.com/gerardog/gsudo/releases/download/v2.6.1/gsudo.portable.zip' -OutFile $zip
+          if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne '21130bf178d7b9891207f00bff56f05b6b363ce9cec7b2d084e45fb12ee51f44') { throw 'gsudo portable checksum mismatch' }
+          $directory = Join-Path $env:RUNNER_TEMP 'gsudo-portable'
+          Expand-Archive $zip -DestinationPath $directory -Force
+          $gsudo = Join-Path $directory 'x64\gsudo.exe'
+          if (-not (Test-Path -LiteralPath $gsudo)) { throw 'gsudo x64 executable missing' }
+          $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          foreach ($directory in @($env:GITHUB_WORKSPACE, $env:RUNNER_TEMP)) {
+            & icacls.exe $directory /grant "*${sid}:(OI)(CI)F" /q
+            if ($LASTEXITCODE -ne 0) { throw 'Runner user access grant failed' }
+          }
+          "VAULTSPEND_CI_GSUDO=$gsudo" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Desktop WebDriver smoke preflight
+        env:
+          CARGO_PROFILE_DEV_OPT_LEVEL: 1
+        run: |
+          & $env:VAULTSPEND_CI_GSUDO --integrity Medium --direct --chdir $env:GITHUB_WORKSPACE pwsh -NoProfile -NonInteractive -File tools/run-hosted-desktop-tests.ps1 -Gate smoke
+          exit $LASTEXITCODE
+      - name: Verify native Edge driver still matches Edge
+        run: |
+          $edge = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe") | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if (-not $edge) { throw 'Microsoft Edge browser not found' }
+          & tools/assert-edge-driver-match.ps1 -Edge $edge -Driver $env:MSEDGEDRIVER
+      - name: Full desktop E2E release gate
+        id: gate
+        # Focus/blur and protected-profile tests share the hosted OS foreground window, so each shard runs its specs one at a time.
+        env:
+          # Match the artifact's recorded build environment; this does not rebuild it.
+          CARGO_PROFILE_DEV_OPT_LEVEL: 1
+          # Protection specs measured 15-60 s here against about 10 s locally; the default 60 s hang
+          # ceiling is for developer machines. A genuine hang is still killed, just later.
+          VAULTSPEND_E2E_SPEC_TIMEOUT_MS: '180000'
+        run: |
+          & $env:VAULTSPEND_CI_GSUDO --integrity Medium --direct --chdir $env:GITHUB_WORKSPACE pwsh -NoProfile -NonInteractive -File tools/run-hosted-desktop-tests.ps1 -Gate full -Shard ${{ matrix.shard }}/6
+          exit $LASTEXITCODE
+      - name: Collect this shard's evidence
+        if: always()
+        env:
+          SHARD: ${{ matrix.shard }}
+          GATE_OUTCOME: ${{ steps.gate.outcome }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          New-Item -ItemType Directory -Force shard-evidence | Out-Null
+          if (Test-Path target/e2e-last-run.json) { Copy-Item target/e2e-last-run.json shard-evidence/e2e-last-run.json }
+          [ordered]@{ index = [int]$env:SHARD; total = 6; runAttempt = [int]$env:RUN_ATTEMPT; outcome = $env:GATE_OUTCOME } | ConvertTo-Json | Set-Content -Encoding utf8 shard-evidence/shard-meta.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shard-evidence-${{ matrix.shard }}-attempt-${{ github.run_attempt }}
+          path: shard-evidence/
+          if-no-files-found: error
+          retention-days: 14
+
+  aggregate:
+    # Joins the shards into the one verdict the serial gate gave. Runs even when a shard failed, so the failures are reported together.
+    needs: [prepare, shard]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: desktop-test-app-manifest-${{ github.run_attempt }}
+          path: manifest
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: shard-evidence-*-attempt-${{ github.run_attempt }}
+          path: evidence
+      - name: Join shard results
+        env:
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: node tools/aggregate-shard-results.mjs evidence manifest/transfer-manifest.json 6 "$RUN_ATTEMPT" gate-summary.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sharded-gate-summary-${{ github.run_attempt }}
+          path: gate-summary.json
+          if-no-files-found: ignore
+          retention-days: 14

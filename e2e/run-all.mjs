@@ -9,6 +9,7 @@
 //   node e2e/run-all.mjs --spec=75,77      # only matching feature numbers
 //   node e2e/run-all.mjs --spec=smoke      # quick launch check
 //   node e2e/run-all.mjs --list            # show selected specs without launching
+//   node e2e/run-all.mjs --shard=2/6       # only the second of six balanced slices (see lib/specShard.mjs)
 //
 // Six is the pool limit inherited from the historical "reduce E2E testing time"
 // measurements. Current source-bound approvals determine whether any specs can
@@ -28,6 +29,7 @@ import { GuardRefusal, beginGuardedRun } from "./lib/runGuard.mjs";
 import { classifySpecs, createApprovalContext, runSchedule } from "./lib/scheduler.mjs";
 import { matchesSelector } from "./lib/specSelectors.mjs";
 import { parseRetryOptions, retryFailuresInIsolation } from "./lib/isolatedRetry.mjs";
+import { parseShard, shardSpecs } from "./lib/specShard.mjs";
 
 const e2eDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -76,7 +78,14 @@ if (selectors) {
     }
   }
 }
-const specs = selectors ? allSpecs.filter((name) => selectors.some((selector) => matchesSelector(name, selector))) : allSpecs;
+const selectedSpecs = selectors ? allSpecs.filter((name) => selectors.some((selector) => matchesSelector(name, selector))) : allSpecs;
+// --shard=2/6: only this slice of the selected specs (hosted jobs each run their own slice at the same time). The split uses the
+// committed spec-weights.json, never local timings, so every shard computes the same partition.
+let shard;
+try { shard = parseShard(process.argv); } catch (error) { console.error(error.message); process.exit(1); }
+let shardWeights = {};
+try { shardWeights = JSON.parse(fs.readFileSync(path.join(e2eDir, "spec-weights.json"), "utf8")).weights ?? {}; } catch { /* no weights yet: an even split by count */ }
+const specs = shard ? shardSpecs(selectedSpecs, shardWeights, shard) : selectedSpecs;
 let classification;
 try { classification = JSON.parse(fs.readFileSync(path.join(e2eDir, "spec-classification.json"), "utf8")); } catch { classification = undefined; } // unreadable: everything exclusive
 let effectiveClassification = schedule === "classified" ? classification : { parallelSafe: specs };
@@ -230,8 +239,8 @@ if (schedule === "classified") {
   classes = classifySpecs(specs, effectiveClassification, approvalContext);
 }
 console.log(schedule === "classified"
-  ? `Running ${specs.length} specs, classified: ${classes.parallel.length} parallel-safe at concurrency ${concurrency}, then ${classes.exclusive.length} exclusive one at a time...\n`
-  : `Running ${specs.length} specs with concurrency ${concurrency}...\n`);
+  ? `Running ${specs.length} specs${shard ? ` (shard ${shard.index} of ${shard.total})` : ""}, classified: ${classes.parallel.length} parallel-safe at concurrency ${concurrency}, then ${classes.exclusive.length} exclusive one at a time...\n`
+  : `Running ${specs.length} specs${shard ? ` (shard ${shard.index} of ${shard.total})` : ""} with concurrency ${concurrency}...\n`);
 const scheduled = await runSchedule({ specs, classification: effectiveClassification, approvalContext, concurrency, run: runAndReport, durations: knownDurations });
 let results = scheduled, flaky = [], retrySkipped;
 if (retryOptions.enabled) {

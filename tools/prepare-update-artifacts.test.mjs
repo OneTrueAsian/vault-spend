@@ -44,7 +44,7 @@ test("preparation workflow cannot publish and retains protected signing and comp
   assert.deepEqual(workflow.permissions, { contents: "read" });
   assert.deepEqual(Object.keys(workflow.on), ["workflow_call", "workflow_dispatch"]);
   assert.doesNotMatch(text, /gh release|contents: write|tagName:|releaseName:|releaseId:|GITHUB_TOKEN:|git push/);
-  for (const job of Object.values(workflow.jobs)) for (const step of job.steps) {
+  for (const job of Object.values(workflow.jobs)) for (const step of job.steps ?? []) {
     if (step.uses === "tauri-apps/tauri-action@v0") assert.deepEqual(Object.keys(step.with), ["args"]);
     if (step.uses === "actions/checkout@v4") assert.equal(step.with["persist-credentials"], false);
   }
