@@ -739,6 +739,7 @@ describe("the Ask the Vault card", () => {
     expect(text()).not.toContain("Coffee");
     await click("Show all 10");
     const dialog = document.querySelector("[role='dialog']")!;
+    expect(dialog.classList.contains("modal-panel-wide")).toBe(true);
     expect(dialog.querySelectorAll("li")).toHaveLength(10);
     expect(dialog.textContent).toContain("Coffee");
     await click("Close");

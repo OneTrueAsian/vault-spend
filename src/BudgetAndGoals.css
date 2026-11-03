@@ -152,6 +152,17 @@
   padding: 6px 0;
 }
 
+/* Full answers use the wide dialog. Keep the table readable in smaller windows;
+   AnswerRows' own scroll container contains any horizontal scrolling. */
+.ledger-qa-all-rows .ledger-qa-breakdown {
+  table-layout: auto;
+  min-width: 576px;
+}
+
+.ledger-qa-all-rows .ledger-qa-breakdown th:last-child {
+  width: 50%;
+}
+
 .ledger-qa-breakdown th,
 .ledger-qa-breakdown td {
   white-space: normal;
@@ -164,10 +175,18 @@
   font-variant-numeric: tabular-nums;
 }
 
-.ledger-qa-breakdown tbody th {
+.ledger-qa-breakdown tbody th[scope="row"] {
+  /* These label data rows; only thead should receive the theme's column-header treatment. */
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
   text-transform: none;
   letter-spacing: normal;
   font-size: inherit;
+}
+
+.ledger-qa-breakdown tbody tr:hover > :is(th, td) {
+  background: var(--surface-hover);
 }
 
 .ledger-qa-rows {

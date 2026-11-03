@@ -421,13 +421,16 @@ export function AskVaultCard({
         <ModalShell
           title={view.result.answer.headline}
           onCancel={() => setAllRowsOpen(false)}
+          wide
           footer={
             <button type="button" onClick={() => setAllRowsOpen(false)}>
               Close
             </button>
           }
         >
-          <AnswerRows rows={view.result.answer.rows} label={view.result.answer.rowsLabel} />
+          <div className="ledger-qa-all-rows">
+            <AnswerRows rows={view.result.answer.rows} label={view.result.answer.rowsLabel} />
+          </div>
         </ModalShell>
       )}
 
