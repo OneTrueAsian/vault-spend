@@ -413,6 +413,26 @@ export async function diagnose(browser) {
 
 // browser.waitUntil, but a timeout says what the window looked like (and anything `extra` reports),
 // so a failure seen once in a full parallel run explains itself instead of needing a re-run.
+// Waits written for a developer machine are too short on a slow hosted runner (protection setup took 15-60 s there, against
+// about 10 s locally). VAULTSPEND_E2E_TIMEOUT_SCALE stretches every explicit or default wait timeout by that factor; the
+// per-spec hang limit (VAULTSPEND_E2E_SPEC_TIMEOUT_MS) still kills a spec that genuinely hangs.
+const DEFAULT_WAIT_TIMEOUT_MS = 5000;
+export function timeoutScale(env = process.env) {
+  const factor = Number(env.VAULTSPEND_E2E_TIMEOUT_SCALE);
+  return Number.isFinite(factor) && factor > 1 ? factor : 1;
+}
+export function scaleWaitTimeouts(browser, factor = timeoutScale()) {
+  if (!(factor > 1)) return;
+  const scaled = (options) => {
+    const given = options && typeof options === "object" ? options : {};
+    return { ...given, timeout: (given.timeout ?? DEFAULT_WAIT_TIMEOUT_MS) * factor };
+  };
+  browser.overwriteCommand("waitUntil", (original, condition, options) => original(condition, scaled(options)), false);
+  for (const name of ["waitForExist", "waitForDisplayed", "waitForEnabled", "waitForClickable"]) {
+    browser.overwriteCommand(name, (original, options) => original(scaled(options)), true);
+  }
+}
+
 export async function waitUntilOrDiagnose(browser, condition, { timeout = 10000, timeoutMsg, extra } = {}) {
   try {
     await browser.waitUntil(condition, { timeout });
@@ -664,6 +684,8 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
   // Opt-in profiling output (VAULTSPEND_E2E_PHASES=1): where launch time went, for each phase marked above. Off by default.
   const profilePhases = process.env.VAULTSPEND_E2E_PHASES === "1";
   if (profilePhases) console.error(`[harness] launch phases: ${phases.join(" | ")} | total +${((Date.now() - launchStartedAt) / 1000).toFixed(2)}s`);
+
+  scaleWaitTimeouts(browser);
 
   return {
     browser,

@@ -13,6 +13,8 @@ import {
   pickFromMenu,
   reclaimWindowFocus,
   requestedWindowSize,
+  scaleWaitTimeouts,
+  timeoutScale,
   trackWindowSize,
   withFocusRetry,
   wrapScriptResults,
@@ -707,5 +709,33 @@ describe("driver installation directory", () => {
   });
   it("honours a custom Cargo home", () => {
     expect(cargoBin({ CARGO_HOME: "D:/cargo" }, "C:/Users/runneradmin").replaceAll("\\", "/")).toBe("D:/cargo/bin");
+  });
+});
+
+describe("slow-runner wait scaling", () => {
+  it("only scales for a factor above 1", () => {
+    expect(timeoutScale({})).toBe(1);
+    expect(timeoutScale({ VAULTSPEND_E2E_TIMEOUT_SCALE: "abc" })).toBe(1);
+    expect(timeoutScale({ VAULTSPEND_E2E_TIMEOUT_SCALE: "0.5" })).toBe(1);
+    expect(timeoutScale({ VAULTSPEND_E2E_TIMEOUT_SCALE: "3" })).toBe(3);
+  });
+  it("leaves the browser alone without a factor", () => {
+    const overwriteCommand = vi.fn();
+    scaleWaitTimeouts({ overwriteCommand }, 1);
+    expect(overwriteCommand).not.toHaveBeenCalled();
+  });
+  it("stretches explicit and default timeouts and keeps the other options", async () => {
+    const wrapped = {};
+    scaleWaitTimeouts({ overwriteCommand: (name, fn, element) => (wrapped[name] = { fn, element }) }, 3);
+    const original = vi.fn();
+    await wrapped.waitUntil.fn(original, "condition", { timeout: 10000, timeoutMsg: "msg" });
+    expect(original).toHaveBeenLastCalledWith("condition", { timeout: 30000, timeoutMsg: "msg" });
+    await wrapped.waitUntil.fn(original, "condition");
+    expect(original).toHaveBeenLastCalledWith("condition", { timeout: 15000 });
+    expect(wrapped.waitUntil.element).toBe(false);
+    await wrapped.waitForExist.fn(original, { timeout: 15000, reverse: true });
+    expect(original).toHaveBeenLastCalledWith({ timeout: 45000, reverse: true });
+    expect(wrapped.waitForExist.element).toBe(true);
+    expect(Object.keys(wrapped).sort()).toEqual(["waitForClickable", "waitForDisplayed", "waitForEnabled", "waitForExist", "waitUntil"]);
   });
 });
