@@ -258,6 +258,22 @@ describe("ImportReviewDialog", () => {
     });
   });
 
+  it("lets the person open a bank category's row count to see which transactions use it, marking unticked ones", () => {
+    const rows = [
+      row(0, { category: "Merchandise", matched_category: null, description: "MEIJER", amount: "156.99" }),
+      row(1, { category: "Merchandise", matched_category: null, description: "WALMART", amount: "36.82" }),
+    ];
+    const r = review(rows, { includedIndices: new Set([0]), importCategoryChoices: { Merchandise: { action: "skip" } } });
+    r.pendingImport!.preview.unmatched_categories = [{ name: "Merchandise", count: 2 }];
+    show(r);
+    const toggle = dialog()!.querySelector<HTMLButtonElement>("button.import-category-rows-toggle")!;
+    expect(toggle.textContent).toBe("2 rows");
+    expect(dialog()!.querySelector(".import-category-transactions")).toBeNull();
+    act(() => toggle.click());
+    const items = [...dialog()!.querySelectorAll(".import-category-transactions li")];
+    expect(items.map((li) => li.textContent)).toEqual([expect.stringContaining("MEIJER"), expect.stringMatching(/WALMART.*Not importing/)]);
+  });
+
   it("does not cancel while the import is being saved", () => {
     const r = review([row(0)]);
     show(r, true);

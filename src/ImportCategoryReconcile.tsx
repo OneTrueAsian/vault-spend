@@ -1,5 +1,8 @@
+import { useId, useState } from "react";
+import { formatAmount, formatDisplayDate } from "./format";
+import { InfoTip } from "./InfoTip";
 import { MenuSelect } from "./MenuSelect";
-import type { UnmatchedCategory } from "./importResolution";
+import type { ImportRow, UnmatchedCategory } from "./importResolution";
 export type { UnmatchedCategory } from "./importResolution";
 /** What to do with a category an import file uses that the person doesn't have. Sent to
  * `commit_import` as-is (`action` is what the backend reads). Nothing is added to their
@@ -41,6 +44,8 @@ export function ImportCategoryReconcile({
   onChange,
   onSetAll,
   disabled = false,
+  rows = [],
+  included = new Set<number>(),
 }: {
   unmatched: UnmatchedCategory[];
   /** The person's own categories — the only ones a file category can be filed under. */
@@ -50,7 +55,13 @@ export function ImportCategoryReconcile({
   onSetAll: (action: "skip" | "create") => void;
   /** While the import is being saved. */
   disabled?: boolean;
+  /** Every row of the file. Clicking a category's row count lists the ones that use it. */
+  rows?: ImportRow[];
+  /** The rows ticked for import; the others are listed as "Not importing". */
+  included?: Set<number>;
 }) {
+  const listId = useId();
+  const [open, setOpen] = useState<Set<string>>(new Set());
   if (unmatched.length === 0) return null;
   const many = unmatched.length !== 1;
 
@@ -69,35 +80,90 @@ export function ImportCategoryReconcile({
           </button>
         </span>
       </div>
-      <p className="modal-message-secondary">Pick one of yours for each. The app will remember it next time.</p>
-      <ul className="import-category-list">
-        {unmatched.map((u) => (
-          <li key={u.name} className="import-category-row">
-            <span className="import-category-name">
-              <span className="import-category-file-name">{u.name}</span>
-              <span className="account-col">
-                {u.count} {u.count === 1 ? "row" : "rows"}
-                {u.remembered_category &&
-                  choices[u.name]?.action === "map_to" &&
-                  (choices[u.name] as { category: string }).category === u.remembered_category &&
-                  " · Your choice from last time"}
+      <p className="modal-message-secondary">
+        Pick one of yours for each. The app will remember it next time.{" "}
+        <InfoTip
+          label="Let the app guess"
+          text={
+            "If you choose “Let the app guess”, the app does not remember that choice. If your bank uses this name again, it will ask again. " +
+            "To stop being asked, pick one of your own categories for it. The app remembers that."
+          }
+        />
+      </p>
+      <ul className="import-category-list" data-has-open={open.size > 0 || undefined}>
+        {unmatched.map((u, i) => {
+          const key = u.name.trim().toLowerCase();
+          const uses = rows.filter((r) => r.category && r.category.trim().toLowerCase() === key);
+          const isOpen = open.has(u.name);
+          const rowsId = `${listId}-${i}`;
+          const countText = `${u.count} ${u.count === 1 ? "row" : "rows"}`;
+          return (
+            <li key={u.name} className="import-category-row">
+              <span className="import-category-name">
+                <span className="import-category-file-name">{u.name}</span>
+                <span className="account-col">
+                  {uses.length === 0 ? (
+                    countText
+                  ) : (
+                    <button
+                      type="button"
+                      className="import-category-rows-toggle"
+                      aria-expanded={isOpen}
+                      aria-controls={rowsId}
+                      onClick={() =>
+                        setOpen((prev) => {
+                          const next = new Set(prev);
+                          if (!next.delete(u.name)) next.add(u.name);
+                          return next;
+                        })
+                      }
+                    >
+                      {countText}
+                    </button>
+                  )}
+                  {u.remembered_category &&
+                    choices[u.name]?.action === "map_to" &&
+                    (choices[u.name] as { category: string }).category === u.remembered_category &&
+                    " · Your choice from last time"}
+                </span>
               </span>
-            </span>
-            <MenuSelect
-              ariaLabel={`What to do with the file's “${u.name}” category`}
-              value={toValue(choices[u.name])}
-              onChange={(v) => onChange(u.name, fromValue(v))}
-              disabled={disabled}
-              options={[
-                { value: "skip", label: "Let the app guess" },
-                { value: "create", label: "Add as a new category" },
-                ...categories.map((c) => ({ value: `map:${c}`, label: c, group: "Use one of my categories" })),
-              ]}
-              fill
-              triggerAttrs={{ "data-import-category-choice": "", "data-import-category-name": u.name }}
-            />
-          </li>
-        ))}
+              {isOpen && uses.length > 0 && (
+                <ul id={rowsId} className="import-category-transactions" tabIndex={0} aria-label={`Transactions in “${u.name}”`}>
+                  {uses.map((r) => (
+                    <li key={r.index} data-not-importing={!included.has(r.index) || undefined}>
+                      <span className="import-category-tx-date">{formatDisplayDate(r.date)}</span>
+                      <span className="import-category-tx-desc">
+                        {r.description}
+                        {!included.has(r.index) && <span className="import-category-tx-skipped">Not importing</span>}
+                      </span>
+                      <span className="import-category-tx-amount">{formatAmount(r.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <MenuSelect
+                ariaLabel={`What to do with the file's “${u.name}” category`}
+                value={toValue(choices[u.name])}
+                onChange={(v) => onChange(u.name, fromValue(v))}
+                disabled={disabled}
+                options={[
+                  { value: "skip", label: "Let the app guess" },
+                  { value: "create", label: "Add as a new category" },
+                  ...categories.map((c) => ({
+                    value: `map:${c}`,
+                    label: c,
+                    group: "Use one of my categories",
+                  })),
+                ]}
+                fill
+                triggerAttrs={{
+                  "data-import-category-choice": "",
+                  "data-import-category-name": u.name,
+                }}
+              />
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

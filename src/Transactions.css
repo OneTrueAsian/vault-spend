@@ -2307,6 +2307,14 @@ table.ledger.recurring-table .actions-col {
   gap: 8px;
   max-height: 260px;
   overflow-y: auto;
+  /* Names wrap, so nothing is meant to run sideways; a line that fits to the last pixel must not add a scrollbar. */
+  overflow-x: hidden;
+}
+
+/* With a transaction list open the panel grows with the dialog, which already scrolls, instead of
+   scrolling inside it. */
+.import-category-list[data-has-open] {
+  max-height: none;
 }
 
 .import-category-row {
@@ -2327,6 +2335,84 @@ table.ledger.recurring-table .actions-col {
 
 .import-category-file-name {
   font-weight: 600;
+}
+
+/* The row count is a button that opens the list of transactions using this file category. */
+.import-category-rows-toggle,
+.import-category-rows-toggle:hover {
+  display: inline;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* A small arrow drawn with borders (no font glyph): right when closed, down when open. */
+.import-category-rows-toggle::after {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  vertical-align: 1px;
+}
+
+.import-category-rows-toggle[aria-expanded="true"]::after {
+  transform: rotate(45deg);
+}
+
+.import-category-transactions {
+  box-sizing: border-box;
+  flex: 1 0 100%;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.import-category-transactions li {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 6px 10px;
+}
+
+.import-category-transactions li + li {
+  border-top: 1px solid var(--border);
+}
+
+.import-category-transactions li[data-not-importing] {
+  color: var(--text-muted);
+}
+
+.import-category-tx-date {
+  color: var(--text-muted);
+}
+
+.import-category-tx-desc {
+  overflow-wrap: anywhere;
+}
+
+.import-category-tx-skipped {
+  margin-left: 8px;
+  font-size: 0.85em;
+}
+
+.import-category-tx-amount {
+  font-variant-numeric: tabular-nums;
 }
 
 .import-category-row select {

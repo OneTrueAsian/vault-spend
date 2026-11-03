@@ -120,6 +120,8 @@ export function ImportReviewDialog({
           categories={categoryOptions}
           choices={importCategoryChoices}
           disabled={busy}
+          rows={rows}
+          included={includedIndices}
           onChange={(name, choice) => updateImportCategoryChoices({ ...importCategoryChoices, [name]: choice })}
           onSetAll={(action) =>
             updateImportCategoryChoices(Object.fromEntries(unmatched_categories.map((u) => [u.name, { action } as CategoryChoice])))

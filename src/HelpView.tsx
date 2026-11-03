@@ -1179,7 +1179,8 @@ const FAQ_ENTRIES: FaqEntry[] = [
         it, add it as a new one, or let the app guess from your rules. When
         you use one of your own categories for a name, the app remembers
         that choice for your next import, from any account; you can change it
-        there each time.
+        there each time. Letting the app guess is not remembered: if your bank
+        uses that name again, the review screen asks again.
       </p>
     ),
   },
