@@ -1,4 +1,4 @@
-// Hosted sharded gate: `stage <dir>` (after the build) packs the debug executable, its build record and the database fixture tool;
+// Hosted sharded gate: `stage <dir>` (after the build) packs the debug executable, its build record, the database fixture tool and the mobile viewer build;
 // `receive <dir>` (in each test job) unpacks them and prints what the unchanged build-identity guard says. Only "fresh" exits 0.
 import { execFileSync } from "node:child_process";
 import path from "node:path";
@@ -9,7 +9,7 @@ import { receiveBuild, stageBuild } from "../e2e/lib/buildTransfer.mjs";
 const [action, dir] = process.argv.slice(2);
 if (!["stage", "receive"].includes(action) || !dir) { console.error("Usage: node tools/transfer-build.mjs stage|receive <directory>"); process.exit(2); }
 const sourceSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, encoding: "utf8" }).trim();
-const common = { exePath, recordPath, initDbPath: path.join(repoRoot, "target", "debug", "init_db.exe"), stageDir: path.resolve(dir), sourceSha, inputs: await collectInputs(repoRoot), toolchain: readToolchain(), mode: BUILD_MODE };
+const common = { exePath, recordPath, initDbPath: path.join(repoRoot, "target", "debug", "init_db.exe"), mobileDir: path.join(repoRoot, "dist-mobile"), stageDir: path.resolve(dir), sourceSha, inputs: await collectInputs(repoRoot), toolchain: readToolchain(), mode: BUILD_MODE };
 try {
   if (action === "stage") {
     const manifest = stageBuild(common);

@@ -11,7 +11,7 @@ import { beginGuardedRun, GuardRefusal } from "./runGuard.mjs";
 const toolchain = { node: "v22.1.0", rustc: "rustc 1.90.0", cargo: "cargo 1.90.0" };
 const inputs = { "src/main.tsx": "same-app", "Cargo.lock": "locked", "@build/environment": JSON.stringify({ CARGO_PROFILE_DEV_OPT_LEVEL: "1" }), "e2e/feature1.mjs": "a-test" };
 let building, testing;
-const paths = root => ({ exePath: path.join(root, "target", "debug", "vaultspend.exe"), recordPath: path.join(root, "target", "debug", "vaultspend.artifact.json"), initDbPath: path.join(root, "target", "debug", "init_db.exe"), lockDir: path.join(root, "lock") });
+const paths = root => ({ exePath: path.join(root, "target", "debug", "vaultspend.exe"), recordPath: path.join(root, "target", "debug", "vaultspend.artifact.json"), initDbPath: path.join(root, "target", "debug", "init_db.exe"), mobileDir: path.join(root, "dist-mobile"), lockDir: path.join(root, "lock") });
 const guardOptions = (root, files = inputs, tc = toolchain) => ({ operation: "fixture", ...paths(root), collectInputs: () => files, toolchain: tc, mode: "debug" });
 const SHA = "a".repeat(40);
 
@@ -21,11 +21,49 @@ beforeEach(async () => {
   const p = paths(building);
   await buildArtifact({ ...guardOptions(building), runBuild: async () => { fs.mkdirSync(path.dirname(p.exePath), { recursive: true }); fs.writeFileSync(p.exePath, "compiled output"); } });
   fs.writeFileSync(p.initDbPath, "fixture tool");
+  // The mobile viewer build (gitignored, produced by the same build step) that specs 172 and 358 serve to a second browser.
+  fs.mkdirSync(path.join(p.mobileDir, "assets"), { recursive: true });
+  fs.writeFileSync(path.join(p.mobileDir, "index.html"), "<html>mobile</html>");
+  fs.writeFileSync(path.join(p.mobileDir, "assets", "app.js"), "console.log('mobile')");
 });
 afterEach(() => { fs.rmSync(building, { recursive: true, force: true }); fs.rmSync(testing, { recursive: true, force: true }); });
 
 const stage = () => stageBuild({ ...paths(building), stageDir: path.join(building, "stage"), sourceSha: SHA, inputs, toolchain, mode: "debug" });
 const receive = (over = {}) => receiveBuild({ ...paths(testing), stageDir: path.join(building, "stage"), sourceSha: SHA, inputs, toolchain, mode: "debug", ...over });
+
+describe("the mobile viewer build that travels with the executable", () => {
+  const staged = name => path.join(building, "stage", "dist-mobile", name);
+  it("is staged with a hash for every file and restored byte for byte", () => {
+    const manifest = stage();
+    expect(Object.keys(manifest.mobileAssets).sort()).toEqual(["assets/app.js", "index.html"]);
+    expect(fs.readFileSync(staged("assets/app.js"), "utf8")).toBe("console.log('mobile')");
+    const received = receive();
+    expect(received.problems).toEqual([]);
+    expect(fs.readFileSync(path.join(paths(testing).mobileDir, "index.html"), "utf8")).toBe("<html>mobile</html>");
+    expect(fs.readFileSync(path.join(paths(testing).mobileDir, "assets", "app.js"), "utf8")).toBe("console.log('mobile')");
+  });
+  it("is never staged when the build produced no mobile files", () => {
+    fs.rmSync(paths(building).mobileDir, { recursive: true, force: true });
+    expect(() => stage()).toThrow(/mobile viewer build is missing or empty/);
+  });
+  it("is refused when a file was altered in transit", () => {
+    stage(); fs.writeFileSync(staged("assets/app.js"), "tampered");
+    expect(receive().problems).toContain("Mobile viewer file differs from the build: assets/app.js");
+  });
+  it("is refused when a file is missing or an unlisted file was added", () => {
+    stage(); fs.rmSync(staged("index.html")); fs.writeFileSync(staged("extra.js"), "unlisted");
+    const { problems } = receive();
+    expect(problems).toContain("Mobile viewer file is missing from the transfer: index.html");
+    expect(problems).toContain("Mobile viewer file was not in the build: extra.js");
+  });
+  it("replaces whatever the receiving job already had, so no leftover file is served", () => {
+    stage();
+    fs.mkdirSync(paths(testing).mobileDir, { recursive: true });
+    fs.writeFileSync(path.join(paths(testing).mobileDir, "old-bundle.js"), "leftover");
+    expect(receive().problems).toEqual([]);
+    expect(fs.existsSync(path.join(paths(testing).mobileDir, "old-bundle.js"))).toBe(false);
+  });
+});
 
 describe("a transferred executable and the unchanged build-identity guard", () => {
   it("is accepted as fresh, and the ordinary run guard then accepts it as valid evidence", async () => {

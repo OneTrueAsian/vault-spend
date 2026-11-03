@@ -84,6 +84,13 @@ test("each shard checks the transferred build before any test runs, and never re
   assert.equal(gate.jobs.prepare.steps.find(s => s.name === "Stage the desktop test app for the test jobs").env.CARGO_PROFILE_DEV_OPT_LEVEL, 1);
 });
 
+test("the whole staging folder travels, so the gitignored mobile viewer build reaches every shard", () => {
+  const upload = gate.jobs.prepare.steps.find(s => s.with?.name === "desktop-test-app-${{ github.run_attempt }}");
+  assert.equal(upload.with.path, "transfer/");
+  const download = gate.jobs.shard.steps.find(s => s.with?.name === "desktop-test-app-${{ github.run_attempt }}");
+  assert.equal(download.with.path, "transfer");
+});
+
 test("the shards use the Node and Rust the build used", () => {
   const setup = gate.jobs.shard.steps.find(s => s.uses === "actions/setup-node@v4");
   assert.equal(setup.with["node-version"], "${{ needs.prepare.outputs.node-version }}");
