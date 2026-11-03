@@ -233,6 +233,8 @@ A spec that runs longer than 60 seconds is killed as hung. A much slower machine
 runner) can raise that ceiling with `VAULTSPEND_E2E_SPEC_TIMEOUT_MS` (a whole number of milliseconds from
 60000 to 600000; anything else is refused). The hosted release gate sets it to 180000.
 
+`VAULTSPEND_E2E_TIMEOUT_SCALE` (a number above 1, for example `3`) stretches every `waitUntil` and `waitFor*` timeout in the specs by that factor, because their waits are sized for a developer machine (protection setup takes about 10 s locally and 15-60 s on a hosted runner). It is unset by default; the hosted release gate sets it to 3.
+
 SQLite files and driver ports are isolated, but desktop foreground, pointer, keyboard and clipboard are shared. They require exclusive scheduling even when databases do not overlap. Historical results below do not approve the current dependency closure or change the hosted serial gate. An earlier 52-spec benchmark measured 304.5s
 sequential, 86.7s at concurrency 4, and 50.9s at concurrency 8. The suite
 has grown since then; the default is 6 because later measurements found
