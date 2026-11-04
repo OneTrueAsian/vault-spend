@@ -47,6 +47,20 @@ async function chooseMode(label) {
   await (await browser.$(`//div[contains(@class,'sidebar-controls')]//div[@role='group']/button[normalize-space()='${label}']`)).click();
 }
 
+/** Clicks the mode once, then again only while the page has not taken that theme (a single click can be missed on a hosted runner). */
+async function chooseModeUntil(label, theme) {
+  await chooseMode(label);
+  await waitUntilOrDiagnose(
+    browser,
+    async () => {
+      if ((await browser.execute(() => document.documentElement.dataset.theme)) === theme) return true;
+      await chooseMode(label);
+      return false;
+    },
+    { timeout: 20000, timeoutMsg: `${label} should apply from the sidebar` },
+  );
+}
+
 /** Hide amounts and the theme group: fully inside the window and the sidebar, sidebar not scrolled. */
 const pinnedOnScreen = () =>
   browser.execute(() => {
@@ -176,7 +190,7 @@ try {
 
   // Dark from the sidebar.
   await reclaimWindowFocus(browser);
-  await chooseMode("Dark");
+  await chooseModeUntil("Dark", "dark");
   const darkState = () =>
     browser.execute(() => ({
       theme: document.documentElement.dataset.theme,
@@ -217,7 +231,7 @@ try {
       ["Light", "light"],
       ["Dark", "dark"],
     ]) {
-      await chooseMode(mode);
+      await chooseModeUntil(mode, theme);
       await waitUntilOrDiagnose(
         browser,
         async () => {
@@ -234,7 +248,7 @@ try {
   // A narrow window (icon-only sidebar), from a known state (Default, Light): the one-button switch
   // and the eye.
   await chooseStyle(browser, "Default", "transparent");
-  await chooseMode("Light");
+  await chooseModeUntil("Light", "light");
   await waitUntilOrDiagnose(browser, () => browser.execute(() => document.documentElement.dataset.theme === "light"), {
     timeoutMsg: "Light should apply before the narrow-window checks",
   });
