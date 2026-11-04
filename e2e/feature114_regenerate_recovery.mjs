@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { launchApp } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
-import { enableProtectionThroughUI, seedPopulatedProfile } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, seedPopulatedProfile, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 
 const PASSWORD = "correct horse battery staple";
 
@@ -25,7 +25,7 @@ try {
   const { browser } = app;
   await (await browser.$("button*=Settings")).click();
   const oldRecovery = await enableProtectionThroughUI(browser, PASSWORD);
-  await browser.$("button=Regenerate recovery key").waitForExist({ timeout: 15000 });
+  await browser.$("button=Regenerate recovery key").waitForExist({ timeout: PROTECTION_FINISH_MS });
 
   await (await browser.$("button=Regenerate recovery key")).click();
   await (await browser.$("#regenerate-recovery-current")).setValue(PASSWORD);

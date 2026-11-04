@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { launchApp, withFocusRetry, openSettingsGroup } from "./harness.mjs";
-import { enableProtectionThroughUI } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 import { invoke } from "./lib/change-password.mjs";
 
 const app = await launchApp();
@@ -8,7 +8,8 @@ const b = app.browser;
 try {
   await b.$("button*=Settings").click();
   await enableProtectionThroughUI(b, "manual confirmation password");
-  await b.waitUntil(async () => (await b.$('.page').getText()).includes('Password protection: On'), { timeout: 10000 });
+  await b.waitUntil(async () => (await b.$('.page').getText()).includes('Password protection: On'), { timeout: PROTECTION_FINISH_MS });
+  await b.$('.profile-switcher-toggle').waitForExist({ timeout: PROTECTION_FINISH_MS });
   // Create an actual unsaved rule dialog. Invoke the actual lock button event behind it to exercise
   // the confirmation path without bypassing React or mocking the dirty-state detector.
   await openSettingsGroup(b, "features");
