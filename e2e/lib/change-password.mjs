@@ -2,7 +2,7 @@
 // with a populated profile, and the change-password dialog walked up to its final confirmation.
 import { launchApp } from "../harness.mjs";
 import { freshTestDbDir } from "./seed.mjs";
-import { enableProtectionThroughUI, seedPopulatedProfile } from "./protection.mjs";
+import { enableProtectionThroughUI, seedPopulatedProfile, PROTECTION_FINISH_MS } from "./protection.mjs";
 import { openSettingsGroup } from "../harness.mjs";
 
 export const OLD_PASSWORD = "correct horse battery staple";
@@ -23,7 +23,7 @@ export async function prepareChange(browser, currentPassword, newPassword) {
   await (await browser.$("#change-password-confirm")).setValue(newPassword);
   await (await browser.$("button=Continue")).click();
   const recoveryEl = await browser.$(".change-password-dialog .protection-setup-key");
-  await recoveryEl.waitForExist({ timeout: 10000 });
+  await recoveryEl.waitForExist({ timeout: PROTECTION_FINISH_MS });
   const recovery = (await recoveryEl.getText()).trim();
   await (await browser.$("button=I've saved it")).click();
   const label0 = await browser.$("label[for='change-password-answer-0']");

@@ -15,7 +15,9 @@ function shortWaits(source) {
     const call = lines.slice(i, i + 3).join(" ");
     const state = /Password protection: On/.test(line) ? call.match(/timeout:\s*(\w+)/) : null;
     const button = /button=(Change password|Remove protection|Regenerate recovery key)"\)\.waitForExist\(\{\s*timeout:\s*(\d+)/.exec(line);
-    const ms = Number(state?.[1] ?? button?.[2] ?? Infinity);
+    // A dialog that closes only once a key change or a restore has re-derived the keys.
+    const closes = /(change-password-dialog|restoreDialog)[^\n]*waitForExist\(\{\s*reverse: true,\s*timeout:\s*(\d+)/.exec(line);
+    const ms = Number(state?.[1] ?? button?.[2] ?? closes?.[2] ?? Infinity);
     if (ms < PROTECTION_FINISH_MS) found.push(`line ${i + 1}: ${ms}ms`);
   });
   return found;
@@ -30,6 +32,7 @@ describe("waits that follow turning password protection on", () => {
     const source = read("lib/protection.mjs");
     expect(source).toMatch(/recoveryEl\.waitForExist\(\{ timeout: PROTECTION_FINISH_MS \}\)/);
     expect(source).toMatch(/const FAILPOINT_WAIT_MS = 90_000;/);
+    expect(read("lib/change-password.mjs")).toMatch(/recoveryEl\.waitForExist\(\{ timeout: PROTECTION_FINISH_MS \}\)/);
   });
   it.each(specs)("%s waits for the result with that allowance, not a short literal", file => {
     const source = read(file);

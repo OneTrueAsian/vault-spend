@@ -9,6 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { openSettingsGroup } from "./harness.mjs";
 import { NEW_PASSWORD, OLD_PASSWORD, createProtectedFixture, invoke, prepareChange } from "./lib/change-password.mjs";
+import { PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 
 // A backup carries the password/key from the point when it was created. Simulate an old copy that
 // lived outside the primary folder while password rotation re-keyed the primary copies, put that
@@ -30,7 +31,7 @@ import { NEW_PASSWORD, OLD_PASSWORD, createProtectedFixture, invoke, prepareChan
 
     await prepareChange(app.browser, OLD_PASSWORD, NEW_PASSWORD);
     await (await app.browser.$("button=Finish")).click();
-    await app.browser.$(".change-password-dialog").waitForExist({ reverse: true, timeout: 15000 });
+    await app.browser.$(".change-password-dialog").waitForExist({ reverse: true, timeout: PROTECTION_FINISH_MS });
 
     // Put the point-in-time pair back under the filename already displayed by Settings.
     fs.copyFileSync(archivedPath, backupPath);
@@ -56,7 +57,7 @@ import { NEW_PASSWORD, OLD_PASSWORD, createProtectedFixture, invoke, prepareChan
     });
     await restorePassword.setValue(OLD_PASSWORD);
     await (await restoreDialog.$("button=Restore")).click();
-    await restoreDialog.waitForExist({ reverse: true, timeout: 15000 });
+    await restoreDialog.waitForExist({ reverse: true, timeout: PROTECTION_FINISH_MS });
 
     const generation = (await invoke(app.browser, "get_current_generation")).ok;
     const oldCheck = await invoke(app.browser, "verify_current_password", { password: OLD_PASSWORD, expectedGeneration: generation });
