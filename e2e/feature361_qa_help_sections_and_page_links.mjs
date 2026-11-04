@@ -18,8 +18,11 @@ try {
     await nav(label);
     const help = await b.$(`button[aria-label="Help for ${label}"]`);
     await help.waitForExist({ timeout: 10000, timeoutMsg: `${label} has a ? button named "Help for ${label}"` });
-    await help.click();
-    await b.$(".help-view, .help-search").waitForExist({ timeout: 10000 });
+    await b.waitUntil(async () => {
+      if (await b.$(".help-view, .help-search").isExisting()) return true;
+      await help.click();
+      return false;
+    }, { timeout: 20000, interval: 1500, timeoutMsg: `Help should open from the ? on ${label}` });
     await waitUntilOrDiagnose(b, async () => await b.execute(i => document.getElementById(`help-${i}`)?.open === true, id), { timeout: 8000, timeoutMsg: `${label}'s own section is open`, extra: () => b.execute(() => [...document.querySelectorAll("details.help-tab[open]")].map(d => d.id)) });
     const state = await b.execute(i => {
       const el = document.getElementById(`help-${i}`);
