@@ -36,6 +36,9 @@ describe("waits that follow turning password protection on", () => {
     expect(source).toMatch(/import \{[^}]*PROTECTION_FINISH_MS[^}]*\} from "\.\/lib\/protection\.mjs"/);
     expect(source).toMatch(/timeout: PROTECTION_FINISH_MS/);
   });
+  it("recovering a profile with its code waits as long, since it derives the key again", () => {
+    expect(read("feature116_recover_via_code.mjs")).toMatch(/timeout: PROTECTION_FINISH_MS, timeoutMsg: "recovery should reopen the profile directly"/);
+  });
   it("no spec waits for protection setup to finish for less than that allowance", () => {
     const offenders = allSpecs.flatMap(file => shortWaits(read(file)).map(where => `${file} ${where}`));
     expect(offenders).toEqual([]);

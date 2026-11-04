@@ -78,7 +78,7 @@ async function profileOptionTexts(browser) {
     await (await browser.$("#recover-profile-answer-1")).setValue(groups[group1]);
     await (await browser.$("button=Finish")).click();
 
-    await browser.$(".brand-word").waitForExist({ timeout: 10000, timeoutMsg: "recovery should reopen the profile directly" });
+    await browser.$(".brand-word").waitForExist({ timeout: PROTECTION_FINISH_MS, timeoutMsg: "recovery should reopen the profile directly" });
     assert.ok((await invoke(browser, "list_transactions")).ok.some((row) => row.description === "Market Basket"), "the data must survive recovery");
 
     const generation = (await invoke(browser, "get_current_generation")).ok;
