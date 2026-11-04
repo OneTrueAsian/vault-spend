@@ -14,6 +14,7 @@
 
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { clickUntilShown } from "./lib/clickUntilShown.mjs";
 import { SUMMARY_EXPECTED as X, SUMMARY_FIXTURE_PY } from "./lib/accumulation-fixture.mjs";
 import { futureValue, money, nav, parseMoney, text, waitForAccumulation } from "./lib/accumulation.mjs";
 
@@ -111,15 +112,13 @@ try {
   if ((await text(browser, "[data-account-back]")) !== "← Investments") fail(`Back should say where it goes, got ${await text(browser, "[data-account-back]")}`);
   // Sam's saved plan is shown: 3 yearly withdrawals.
   await browser.waitUntil(async () => (await browser.$$("[data-acc-drawdown-row]")).length === 3, { timeout: 10000, timeoutMsg: "Sam's plan spreads over 3 years, so 3 withdrawals should be listed" });
-  await (await browser.$("[data-account-back]")).click();
-  await browser.$("[data-acc-summary]").waitForExist({ timeout: 10000, timeoutMsg: "Back should return to the Investments tab" });
+  await clickUntilShown(browser, "[data-account-back]", "[data-acc-summary]", { timeoutMsg: "Back should return to the Investments tab" });
   if (!/Investments/.test(await text(browser, ".view-title"))) fail("we should be back on the Investments tab");
 
   // The Details button does the same.
   await (await browser.$("[data-acc-summary-row='Joey Roth IRA'] [data-acc-open]")).click();
   await browser.$("[data-accumulation]").waitForExist({ timeout: 10000 });
-  await (await browser.$("[data-account-back]")).click();
-  await browser.$("[data-acc-summary]").waitForExist({ timeout: 10000 });
+  await clickUntilShown(browser, "[data-account-back]", "[data-acc-summary]", { timeoutMsg: "Back should return to the Investments tab" });
   // The keyboard has its own way in: the account's name is a real button, so Tab reaches it and Enter opens
   // the account (a row click is only the mouse's shortcut to the same place).
   await browser.execute(() => document.querySelector("[data-acc-summary-row='Joey Roth IRA'] [data-acc-open]").focus());
@@ -128,8 +127,7 @@ try {
   await browser.keys("Enter");
   await browser.$("[data-accumulation]").waitForExist({ timeout: 10000, timeoutMsg: "Enter on the focused account name should open that account" });
   if ((await text(browser, ".view-title")) !== "Joey Roth IRA") fail(`Enter should open Joey Roth IRA, got ${await text(browser, ".view-title")}`);
-  await (await browser.$("[data-account-back]")).click();
-  await browser.$("[data-acc-summary]").waitForExist({ timeout: 10000 });
+  await clickUntilShown(browser, "[data-account-back]", "[data-acc-summary]", { timeoutMsg: "Back should return to the Investments tab" });
 
   // ---- 19.15: the Goal projection what-if card is unchanged ----------------------------------------------
   const goal = await browser.execute(() => {

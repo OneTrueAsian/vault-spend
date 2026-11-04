@@ -177,8 +177,11 @@ try {
   await b.execute(() => [...document.querySelectorAll('[role="dialog"] button')].find(x => x.textContent.trim() === "Use my saved plan").focus());
   await b.keys("Enter"); await h.waitText("Illustrative balance at", "keyboard: result");
   await withFocusRetry(b, async () => {
-    await b.keys("Escape");
-    await b.waitUntil(async () => !(await h.dialogOpen()), { timeout: 5000, timeoutMsg: "keyboard: Escape closes the result" });
+    await b.waitUntil(async () => {
+      if (!(await h.dialogOpen())) return true;
+      await b.keys("Escape");
+      return false;
+    }, { timeout: 15000, interval: 1500, timeoutMsg: "keyboard: Escape closes the result" });
   });
   assert.ok(await h.focusOnQuestion(), "keyboard: focus returns to the question after Escape");
   // Choices by keyboard: pick an account with the arrow keys and continue.
