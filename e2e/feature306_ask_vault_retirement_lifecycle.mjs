@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { invoke } from "./lib/change-password.mjs";
+import { chooseProfileFromMenu } from "./lib/profileMenu.mjs";
 import { askHelpers, QUESTION, QUESTION_NO_ACCOUNT, seedRetirementProfile } from "./lib/askRetirement.mjs";
 
 // M5 lifecycle and privacy acceptance in the compiled app. Evidence classes are kept apart in the output:
@@ -111,9 +112,7 @@ try {
   await b.$("//tr[td[contains(.,'Default')]]//button[text()='Switch']").click();
   await b.$(".ledger-qa-card input").waitForExist({ timeout: 10000 });
   await h.toResult(); // a result open in the original profile
-  await b.execute(() => document.querySelector(".profile-switcher-toggle").click());
-  await b.$(".profile-switcher-option").waitForExist({ timeout: 5000, timeoutMsg: "the profile list should open before an option is chosen" });
-  await b.execute(() => [...document.querySelectorAll(".profile-switcher-option")].find(o => o.textContent.includes("M5 Other")).click());
+  await chooseProfileFromMenu(b, "M5 Other");
   await b.waitUntil(async () => (await b.$(".profile-switcher-name").getText()) === "M5 Other", { timeout: 10000 });
   await b.$(".ledger-qa-card input").waitForExist({ timeout: 10000 });
   assert.equal(await b.$(".ledger-qa-card input").getValue(), "", "the other profile starts with an empty question");
@@ -122,9 +121,7 @@ try {
   await h.ask(QUESTION()); // the other profile has no investment account at all
   await b.waitUntil(async () => (await h.dialogOpen()) && /investment account/i.test(await h.text()), { timeout: 10000, timeoutMsg: "the other profile answers from its own (empty) accounts" });
   await h.closeDialog();
-  await b.execute(() => document.querySelector(".profile-switcher-toggle").click());
-  await b.$(".profile-switcher-option").waitForExist({ timeout: 5000, timeoutMsg: "the profile list should open before an option is chosen" });
-  await b.execute(() => [...document.querySelectorAll(".profile-switcher-option")].find(o => o.textContent.includes("Default")).click());
+  await chooseProfileFromMenu(b, "Default");
   await b.waitUntil(async () => (await b.$(".profile-switcher-name").getText()) === "Default", { timeout: 10000 });
   await b.$(".ledger-qa-card input").waitForExist({ timeout: 10000 });
   assert.ok(!(await h.dialogOpen()), "nothing returns after switching back");

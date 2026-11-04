@@ -11,4 +11,8 @@ describe("clicking Lock profile in the profile menu", () => {
     const offenders = specs.filter(file => /querySelector\(\s*["']\[data-profile-switcher-lock\]["']\s*\)\.click\(\)/.test(fs.readFileSync(new URL(file, dir), "utf8")));
     expect(offenders).toEqual([]);
   });
+  it("opens the profile menu through the shared helper, not a one-step script click that can be missed (specs 306 and 310)", () => {
+    const offenders = specs.filter(file => /querySelector\(\s*["']\.profile-switcher-toggle["']\s*\)\.click\(\)/.test(fs.readFileSync(new URL(file, dir), "utf8")));
+    expect(offenders).toEqual([]);
+  });
 });
