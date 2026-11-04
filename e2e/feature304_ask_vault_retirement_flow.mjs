@@ -87,6 +87,7 @@ try {
   // Changing the details asks for the account again, and drops the result at once.
   await clickButton("Change the details");
   await waitText("Nothing has been calculated yet", "choices after Change the details");
+  await waitText("M5 IRA", "the investment accounts to be listed after Change the details");
   const again = await text();
   assert.ok(again.includes("M5 IRA") && again.includes("M5 Other") && !again.includes("Illustrative balance"), `the account is asked again and the result is gone: ${again}`);
   await closeAndCheckFocus();
@@ -117,6 +118,7 @@ try {
   // 6. A question without an account asks which one; the roster is the native one.
   await ask("extra $50 a month for retirement");
   await waitText("Nothing has been calculated yet", "choices");
+  await waitText("M5 IRA", "the investment accounts to be listed");
   const choices = await text();
   assert.ok(choices.includes("M5 IRA") && choices.includes("M5 Other") && !choices.includes("M5 Checking"), `only investment accounts are offered: ${choices}`);
   await clickButton("Close");
