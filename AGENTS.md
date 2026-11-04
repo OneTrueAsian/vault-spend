@@ -29,3 +29,7 @@ Authority: the owner's 20 October 2026 instruction to record these rules in repo
 - Additional benchmark repetitions beyond the agreed measurement plan require explicit owner approval. Record all failures and retries; approval is not inferred from silence or an available time budget.
 - Coordinate measurement windows: do not run unit tests, lint, compilation, other desktop sessions or profiling alongside another agent's performance measurements. Do not stop another agent's processes to obtain access.
 - The verification tooling must expose its plan before execution and must not silently turn a routine fix into full regression or benchmarking. Existing selection/cache limitations must be disclosed rather than used as a reason to repeat unaffected validation.
+
+## Waiting on long-running or remote work
+
+An assistant does nothing between turns. Never close a turn with "I'll check later" unless the wake-up is already running: start a background watch (for example `gh run watch <id> --exit-status` with `run_in_background`) in the same turn as the dispatch, before the hand-off message. If the watch can end early, say so and re-arm it when it returns; if nothing can wake the assistant, tell the owner to ping it. When the work finishes, read and report the result unprompted (passed, failed, cause, options). Never rely on the owner to announce a failure.

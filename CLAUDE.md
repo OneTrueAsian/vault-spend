@@ -58,6 +58,12 @@ Touch only what you must. Clean up only your own mess. The test: every changed l
 - UAT plans are published pages with screenshots, Do→Expect checks, Pass/Fail marks and sign-off (template in `Implementations/uat-template/`). Screenshot new screens and look at them; jsdom does not prove geometry or contrast.
 - Research and spike plans and reports go to `E:/misc/Programming/Agents/Implementations`, never into the repo.
 
+### Long-running and remote work
+
+- Never end a turn saying "I'll check / watch / report back" unless the mechanism that wakes me is already running. I do nothing between turns. Dispatching a hosted run, a build, a release or any other wait means starting a background watch (for example `gh run watch <id> --exit-status` with `run_in_background`) in the same turn as the dispatch, before the hand-off message.
+- If the watch can end before the work does (a time limit, a crash), say so, and re-arm it when it returns. If no wake-up mechanism is available, tell the owner plainly that they must ping me; do not imply I will follow up.
+- When the watched work finishes, read the result and report it without being asked: what passed, what failed, the cause if known, and the options. Never make the owner say a run failed.
+
 ### Safety
 
 - No messages to other people or services without explicit authorization.
