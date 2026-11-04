@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { launchApp } from "./harness.mjs";
-import { enableProtectionThroughUI } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 import { invoke } from "./lib/change-password.mjs";
 
 const app = await launchApp();
@@ -9,7 +9,7 @@ const password = "shared policy correct password";
 try {
   await b.$("button*=Settings").click();
   await enableProtectionThroughUI(b, password);
-  await b.waitUntil(async () => (await b.$('.page').getText()).includes('Password protection: On'), { timeout: 10000 });
+  await b.waitUntil(async () => (await b.$('.page').getText()).includes('Password protection: On'), { timeout: PROTECTION_FINISH_MS });
   const generation = (await invoke(b, 'get_current_generation')).ok;
   const profiles = (await invoke(b, 'list_profiles')).ok;
   const id = profiles.find(profile => profile.is_password_protected).id;

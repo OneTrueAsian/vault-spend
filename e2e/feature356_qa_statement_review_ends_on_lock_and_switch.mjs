@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { launchApp, waitUntilOrDiagnose, openSettingsGroup } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
-import { enableProtectionThroughUI } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 import { seedFixtureInto } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 import { invoke } from "./lib/change-password.mjs";
@@ -31,7 +31,7 @@ try {
   await (await b.$("button*=Settings")).click();
   await openSettingsGroup(b, "profiles");
   await enableProtectionThroughUI(b, PASSWORD);
-  await b.$("button=Change password").waitForExist({ timeout: 30000 });
+  await b.$("button=Change password").waitForExist({ timeout: PROTECTION_FINISH_MS });
 
   // --- lock with a review open ---------------------------------------------------------------------------------------------------------------------------------------
   await openAccountPage(b, "Everyday Checking");

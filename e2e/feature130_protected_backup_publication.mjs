@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { freshTestDbDir } from "./lib/seed.mjs";
-import { enableProtectionThroughUI, seedPopulatedProfile } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, seedPopulatedProfile, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 import { finals, invoke, keyFiles, killDuringBackupNow, launchWithFailpoint, listedBackups, openApp, PASSWORD, seedRecentBackup, stagingFiles, unlockOnlyProfile } from "./lib/backup_publication.mjs";
 import { launchApp, openSettingsGroup } from "./harness.mjs";
 
@@ -28,7 +28,7 @@ const backupsDir = path.join(dbDir, "backups", "protected");
     await (await browser.$("button*=Settings")).click();
     await openSettingsGroup(browser, "data");
     await enableProtectionThroughUI(browser, PASSWORD);
-    await browser.$("button=Change password").waitForExist({ timeout: 15000 });
+    await browser.$("button=Change password").waitForExist({ timeout: PROTECTION_FINISH_MS });
     const before = (await listedBackups(browser)).length;
     await openSettingsGroup(browser, "data");
     await (await browser.$("button=Back up now")).click();

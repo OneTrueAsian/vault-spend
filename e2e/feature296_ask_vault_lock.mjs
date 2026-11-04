@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { launchApp } from "./harness.mjs";
 import { seedHouseholdDatabase } from "./household-demo.mjs";
 import { freshTestDbDir, seedFixture } from "./lib/seed.mjs";
-import { enableProtectionThroughUI } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 import { invoke } from "./lib/change-password.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 import { runAskLayoutChecks } from "./lib/askLayoutChecks.mjs";
@@ -19,7 +19,7 @@ const b = app.browser;
 try {
   await b.$("button*=Settings").click();
   await enableProtectionThroughUI(b, PASSWORD);
-  await b.waitUntil(async () => (await b.$(".page").getText()).includes("Password protection: On"), { timeout: 10000 });
+  await b.waitUntil(async () => (await b.$(".page").getText()).includes("Password protection: On"), { timeout: PROTECTION_FINISH_MS });
 
   const openDashboard = async () => {
     await (await b.$(".nav-item[data-tab=dashboard]")).click();

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { dismissFirstLaunchDialogs, launchApp } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
-import { enableProtectionThroughUI, seedPopulatedProfile, seedProfiles } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, seedPopulatedProfile, seedProfiles, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 
 const OLD_PASSWORD = "correct horse battery staple";
 const NEW_PASSWORD = "recovered brand new password!!";
@@ -45,7 +45,7 @@ async function profileOptionTexts(browser) {
     const { browser } = app;
     await (await browser.$("button*=Settings")).click();
     const oldRecovery = await enableProtectionThroughUI(browser, OLD_PASSWORD);
-    await browser.waitUntil(async () => (await browser.$(".page").getText()).includes("Password protection: On"), { timeout: 10000 });
+    await browser.waitUntil(async () => (await browser.$(".page").getText()).includes("Password protection: On"), { timeout: PROTECTION_FINISH_MS });
     await lockViaSwitcher(browser);
 
     await (await browser.$("[data-forgot-password]")).click();
@@ -109,7 +109,7 @@ async function profileOptionTexts(browser) {
 
     await (await browser.$("button*=Settings")).click();
     await enableProtectionThroughUI(browser, OLD_PASSWORD);
-    await browser.waitUntil(async () => (await browser.$(".page").getText()).includes("Password protection: On"), { timeout: 10000 });
+    await browser.waitUntil(async () => (await browser.$(".page").getText()).includes("Password protection: On"), { timeout: PROTECTION_FINISH_MS });
     blairDbPath = (await invoke(browser, "get_data_file_location")).ok;
     await lockViaSwitcher(browser);
 

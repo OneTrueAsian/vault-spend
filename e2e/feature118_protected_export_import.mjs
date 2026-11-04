@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { launchApp } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
-import { enableProtectionThroughUI, seedPopulatedProfile } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, seedPopulatedProfile, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 
 const PASSWORD = "correct horse battery staple";
 
@@ -26,7 +26,7 @@ try {
   const { browser } = app;
   await (await browser.$("button*=Settings")).click();
   await enableProtectionThroughUI(browser, PASSWORD);
-  await browser.$("button=Change password").waitForExist({ timeout: 15000 });
+  await browser.$("button=Change password").waitForExist({ timeout: PROTECTION_FINISH_MS });
 
   const packagePath = path.join(testDbDir, "portable-profile.vaultspend");
   const exported = await invoke(browser, "export_database", { destination: packagePath });

@@ -7,7 +7,7 @@ import { launchApp, waitUntilOrDiagnose, openSettingsGroup } from "./harness.mjs
 import { seedFixture } from "./lib/seed.mjs";
 import { askHelpers } from "./lib/askRetirement.mjs";
 import { invoke } from "./lib/change-password.mjs";
-import { enableProtectionThroughUI } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 import { setDateInput } from "./lib/statementUi.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 import { monthsLeftInYear, scheduleMonths } from "./lib/savingsTargetMonths.mjs";
@@ -261,7 +261,7 @@ try {
   await (await b.$("button*=Settings")).click();
   await openSettingsGroup(b, "profiles");
   await enableProtectionThroughUI(b, PASSWORD);
-  await b.waitUntil(async () => (await b.$(".page").getText()).includes("Password protection: On"), { timeout: 15000 });
+  await b.waitUntil(async () => (await b.$(".page").getText()).includes("Password protection: On"), { timeout: PROTECTION_FINISH_MS });
   await h.openDashboard();
   await h.ask("What if I cut Groceries by $50 a month?");
   await h.waitText("Which dates should I use?", "dates"); await radio("The whole of"); await h.clickButton("Review the details"); await h.waitText("Check these details", "review");

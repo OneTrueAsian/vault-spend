@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { launchApp, waitForUnlocked } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { invoke } from "./lib/change-password.mjs";
-import { enableProtectionThroughUI } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 
 // Native contract acceptance only: M5 has no routed question-to-result flow yet.
 // Real linked money-in counts once for the selected investment account; other account evidence never leaks.
@@ -47,7 +47,7 @@ try {
   assert.deepEqual(other.ok.returnAssumption, { kind: "application-default", annualPct: "7" });
   await b.$("button*=Settings").click(); const password = "m5 native fixture password";
   await enableProtectionThroughUI(b, password);
-  await b.waitUntil(async () => (await b.$(".page").getText()).includes("Password protection: On"), { timeout: 15000 });
+  await b.waitUntil(async () => (await b.$(".page").getText()).includes("Password protection: On"), { timeout: PROTECTION_FINISH_MS });
   const protectedOrigin = (await invoke(b, "get_transaction_context")).ok;
   const protectedAuth = { expectedGeneration: protectedOrigin.generation, expectedSessionRevision: protectedOrigin.sessionRevision };
   const readArgs = { ...protectedAuth, request: { ...request, expectedRevision: null } };

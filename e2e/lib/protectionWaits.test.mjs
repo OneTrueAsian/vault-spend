@@ -5,7 +5,21 @@ import { PROTECTION_FINISH_MS } from "./protection.mjs";
 // Turning password protection on runs Argon2id key derivation and encrypted exports. A hosted runner that is several times slower than the
 // serial one (seen in the sharded gate) failed specs that gave that work only 10 to 15 seconds. Every wait that follows it shares one allowance.
 const read = file => fs.readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+const allSpecs = fs.readdirSync(new URL("../", import.meta.url)).filter(f => /^feature\d+.*\.mjs$/.test(f));
 const specs = ["feature114_regenerate_recovery.mjs", "feature123_window_lock_triggers.mjs", "feature124_system_session_lock.mjs", "feature133_generation_rearm_after_swap.mjs", "feature286_manual_lock_confirmation.mjs"];
+
+// The two ways a spec waits for protection setup to finish: the settings page saying so, or a button that only exists once it is on.
+function shortWaits(source) {
+  const lines = source.split(/\r?\n/), found = [];
+  lines.forEach((line, i) => {
+    const call = lines.slice(i, i + 3).join(" ");
+    const state = /Password protection: On/.test(line) ? call.match(/timeout:\s*(\w+)/) : null;
+    const button = /button=(Change password|Remove protection|Regenerate recovery key)"\)\.waitForExist\(\{\s*timeout:\s*(\d+)/.exec(line);
+    const ms = Number(state?.[1] ?? button?.[2] ?? Infinity);
+    if (ms < PROTECTION_FINISH_MS) found.push(`line ${i + 1}: ${ms}ms`);
+  });
+  return found;
+}
 
 describe("waits that follow turning password protection on", () => {
   it("share the setup allowance the conversion wait already uses", () => {
@@ -21,5 +35,9 @@ describe("waits that follow turning password protection on", () => {
     const source = read(file);
     expect(source).toMatch(/import \{[^}]*PROTECTION_FINISH_MS[^}]*\} from "\.\/lib\/protection\.mjs"/);
     expect(source).toMatch(/timeout: PROTECTION_FINISH_MS/);
+  });
+  it("no spec waits for protection setup to finish for less than that allowance", () => {
+    const offenders = allSpecs.flatMap(file => shortWaits(read(file)).map(where => `${file} ${where}`));
+    expect(offenders).toEqual([]);
   });
 });

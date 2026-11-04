@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
-import { enableProtectionThroughUI } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 import { baseSetup, invoke, nav, openReportsTab, setupSnippet, waitForCards } from "./lib/comparisons.mjs";
 
 const today = new Date();
@@ -116,7 +116,7 @@ try {
   await browser.setWindowSize(1440, 1400);
   await nav(browser, "Settings");
   await enableProtectionThroughUI(browser, PASSWORD);
-  await browser.waitUntil(async () => (await browser.$(".page").getText()).includes("Password protection: On"), { timeout: 30000, timeoutMsg: "protection should turn on" });
+  await browser.waitUntil(async () => (await browser.$(".page").getText()).includes("Password protection: On"), { timeout: PROTECTION_FINISH_MS, timeoutMsg: "protection should turn on" });
 
   // The setup travelled into the encrypted database.
   await openReportsTab(browser, "comparisons");

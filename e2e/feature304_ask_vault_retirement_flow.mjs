@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { chooseStyle, launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { invoke } from "./lib/change-password.mjs";
-import { enableProtectionThroughUI } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 import { askPreparedQuestion } from "./lib/askPreparedQuestion.mjs";
 
 // M5 acceptance in the compiled app: the Ask card takes a question about extra money into one investment account through
@@ -167,7 +167,7 @@ try {
   // 9. Locking removes everything: no dialog, no figures, no question after unlocking.
   await (await b.$("button*=Settings")).click();
   await enableProtectionThroughUI(b, PASSWORD);
-  await b.waitUntil(async () => (await b.$(".page").getText()).includes("Password protection: On"), { timeout: 15000 });
+  await b.waitUntil(async () => (await b.$(".page").getText()).includes("Password protection: On"), { timeout: PROTECTION_FINISH_MS });
   await openDashboard();
   await toResult();
   assert.equal((await invoke(b, "debug_apply_system_session_event", { event: "locked" })).ok, true);

@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { dismissFirstLaunchDialogs, launchApp, openSettingsGroup } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
-import { enableProtectionThroughUI, killAtFailpoint, seedPopulatedProfile } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, killAtFailpoint, seedPopulatedProfile, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 
 const PASSWORD = "correct horse battery staple";
 async function invoke(browser, command, args = {}) {
@@ -17,7 +17,7 @@ async function fixture() {
   const app = await launchApp({ dbDir: testDbDir });
   await (await app.browser.$("button*=Settings")).click();
   await enableProtectionThroughUI(app.browser, PASSWORD);
-  await app.browser.$("button=Remove protection").waitForExist({ timeout: 15000 });
+  await app.browser.$("button=Remove protection").waitForExist({ timeout: PROTECTION_FINISH_MS });
   return { testDbDir, app };
 }
 async function prepare(browser) {
@@ -25,7 +25,7 @@ async function prepare(browser) {
   await (await browser.$("button=Remove protection")).click();
   await (await browser.$("#remove-protection-current")).setValue(PASSWORD);
   await (await browser.$("button=Continue")).click();
-  await browser.$(".remove-protection-dialog").$("button=Remove protection").waitForExist({ timeout: 10000 });
+  await browser.$(".remove-protection-dialog").$("button=Remove protection").waitForExist({ timeout: PROTECTION_FINISH_MS });
 }
 // `list_profiles`'s DTO deliberately has no db_path (the frontend never needs a filesystem path),
 // so use the dedicated command for the authoritative path and compare it with Settings' display.
