@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -83,7 +84,7 @@ describe("What's New dialog", () => {
 describe("release notes order", () => {
   it("lists the newest version first however the entries are written in the file", () => {
     const versions = versionsNewestFirst();
-    expect(versions.slice(0, 3)).toEqual(["1.3.2", "1.3.1", "1.3.0"]);
+    expect(versions[0]).toBe(JSON.parse(readFileSync("package.json", "utf8")).version);
     expect([...versions].sort()).toEqual([...Object.keys(CHANGELOG)].sort());
     const parts = (v: string) => v.split(".").map(Number);
     for (let i = 1; i < versions.length; i++) {

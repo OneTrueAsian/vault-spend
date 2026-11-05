@@ -6,7 +6,8 @@ run-name: Sharded Windows gate ${{ inputs.source_sha }}
 # release-windows.yml and prepare-signed-installers.yml share a single implementation.
 #
 # This workflow cannot publish, sign or touch a tag: it has read-only repository permission, receives no secrets, and contains no
-# packaging, release or push step. Callers use it for diagnostic runs only (their own validation refuses anything else).
+# packaging, release or push step. Its callers decide what may follow a green verdict: diagnostics stop here, and release-windows.yml packages
+# and signs a draft only in jobs that need this one to have succeeded (their own validation refuses anything else).
 on:
   workflow_call:
     inputs:
@@ -28,6 +29,10 @@ on:
         default: false
       contract_tests:
         description: 'Space-separated node --test files for the signed-updater contracts (empty skips them)'
+        type: string
+        default: ''
+      fault:
+        description: "Draft test release proof only (the caller validates it): 'prepare' fails the prepare job at once, '1' to '6' fails that shard before its gate. It can only make the gate fail"
         type: string
         default: ''
 
@@ -54,6 +59,9 @@ jobs:
         with:
           ref: ${{ inputs.source_sha }}
           persist-credentials: false
+      - name: Injected test fault - fail preparation
+        if: ${{ inputs.fault == 'prepare' }}
+        run: throw 'Injected test fault - preparation fails on purpose'
       - name: Validate source and version
         env:
           SOURCE_SHA: ${{ inputs.source_sha }}
@@ -186,6 +194,9 @@ jobs:
           SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
           if ((git rev-parse HEAD) -ne $env:SOURCE_SHA) { throw 'Checked-out source differs from the requested commit' }
+      - name: Injected test fault - fail this shard
+        if: ${{ inputs.fault == format('{0}', matrix.shard) }}
+        run: throw 'Injected test fault - this shard fails on purpose before its gate'
       - name: Repair legacy test driver paths for recovery
         if: ${{ inputs.recovery }}
         run: |
@@ -326,6 +337,8 @@ jobs:
           # Protection specs measured 15-60 s here against about 10 s locally; the default 60 s hang
           # ceiling is for developer machines. A genuine hang is still killed, just later.
           VAULTSPEND_E2E_SPEC_TIMEOUT_MS: '180000'
+          # The serial gate stretches every wait 3x on the cold hosted runner (1.3.2 fix); a shard runs the same specs on the same runner.
+          VAULTSPEND_E2E_TIMEOUT_SCALE: '3'
         run: |
           & $env:VAULTSPEND_CI_GSUDO --integrity Medium --direct --chdir $env:GITHUB_WORKSPACE pwsh -NoProfile -NonInteractive -File tools/run-hosted-desktop-tests.ps1 -Gate full -Shard ${{ matrix.shard }}/6
           exit $LASTEXITCODE

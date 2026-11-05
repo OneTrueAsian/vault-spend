@@ -10,9 +10,8 @@ to use the official release page for manual installation.
 The implementation and production public key apply to version **1.3.1** on
 `release-1.3.1` and subsequent releases. Pipeline validation, key setup, signing,
 and release preparation do not authorize public publication. Obtain separate
-owner approval for the prepared release before publishing it. The current manual
-release workflows publish installers during packaging, before the signing review;
-dispatch those publishing workflows only for an explicitly approved publication.
+owner approval for the prepared release before publishing it. The Windows release workflow now builds a draft and signs it without publishing; the macOS workflow still publishes its release during packaging,
+before the signing review, so dispatch it only for an explicitly approved publication.
 Use the Windows non-publishing diagnostic mode for pipeline validation.
 
 ## Prepare installers without publishing
@@ -61,6 +60,51 @@ build SHA, downloads those exact run artifacts and verifies their recorded bytes
 before signing. Signing recovery creates neither tags nor releases. Keep build
 and signing-run provenance separately in the QA receipt.
 
+## Windows releases are drafts (serial and sharded gate)
+
+`release-windows.yml` never publishes. Whatever gate it uses, it builds the installers into a **draft** release for the tag, signs
+that draft's exact bytes, and stops. The owner reviews the draft and publishes it by hand; nothing in this workflow does.
+(`build-macos.yml` is unchanged and still publishes its own release directly; see the migration notes in the backlog.)
+
+**Choosing the gate.** `sharded` selects the gate and nothing else. Off (the default) is the serial gate in the `release` job. On, the
+`sharded-gate` job runs preparation, six parallel shards and an aggregate, and `sharded-package` then `sharded-sign-updates` follow.
+`test_release` is separate: it only turns on the restricted test behaviour below and needs `sharded`.
+
+**Request shapes.** `sharded-request` accepts exactly three shapes and refuses everything else before any build starts:
+
+1. A recovery diagnostic (`recovery` and `diagnostic_only`, from a workflow branch). It stops after the gate and never packages or signs.
+2. A sharded release: a normal stable tag, dispatched **on that tag**, with `source_sha` equal to the tag commit, and no recovery,
+   diagnostic or fault. Reserved test tags are refused.
+3. A draft test release: `sharded` and `test_release` on a reserved test tag (v1.3.90 to v1.3.99), dispatched on that tag, with the
+   same tag-commit rule. `fault` (`prepare` or `1` to `6`) exists only here and can only make the gate fail.
+
+**What must happen before anything is packaged or signed.**
+
+- `release-baseline` reads `releases/latest` once, before anything is built, and checks it with `tools/assert-draft-release.mjs`: the
+  newest published release must be that tag, the new tag must be newer than it (unless recovering an older tag), no reserved test
+  tag may be published, and the new tag must have no release yet or only an empty draft. Its result, `previous`, is passed to every
+  later check, so a release published by someone else mid-run is noticed. Nothing is hard-coded to a version.
+- The serial path: the baseline job must succeed, then the serial gate, then the same before/after draft checks around packaging.
+  Diagnostics publish nothing and skip the baseline.
+- The sharded path: preparation, all six shards and the aggregate must succeed. `sharded-package` then verifies the aggregate's
+  summary with `tools/verify-sharded-gate-summary.mjs` (every spec ran once and passed, six shards, retries inside the gate-wide
+  budget of 3, same source commit and run attempt) before it builds. A job status alone is not accepted. There is no `always()`,
+  `cancelled()` or `failure()` on the packaging or signing jobs, so a failed, cancelled or skipped need stops them.
+- Both signing jobs use the protected `release-signing` environment, so the owner's review is still required.
+
+**Draft policy.** `releaseDraft` is always true; `prerelease` is true only for the test route. After every step that changes the release,
+`assert-draft-release.mjs` requires exactly one release for the tag, still a draft, with `previous` still the newest published release,
+so the stable updater (`releases/latest`) never sees it. A real release is not a prerelease; a test release is.
+
+**No overwriting, and reruns.** No upload uses `--clobber`. Before packaging, the tag must have no release or only a draft with **no
+files**; a draft that already holds files from an earlier attempt is refused, and signing's `gh release upload` fails on any existing
+asset. To rerun after a failed attempt, the owner deletes the unpublished draft (the tag stays; tags are never moved) and dispatches
+again on the same tag. A partially uploaded set of manifests is inspected by the owner and resumed only with matching bytes. Recovery
+(an existing older tag) builds the same kind of draft and never signs.
+
+**Test route notes.** Neither macOS packaging nor installation or update checks are part of it. Delete the draft and the test tag after
+review. `prepare-signed-installers.yml` is not migrated: it keeps its serial path and a sharded diagnostic that cannot package or sign (it is also
+pinned to 1.3.1). Its later migration needs are in the backlog.
 ## Generate and protect the key
 
 Use Node 22 and PowerShell 7 on a trusted machine. Choose a **new directory outside

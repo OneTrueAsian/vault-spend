@@ -32,17 +32,17 @@ test("both callers reach it read-only, without secrets, and keep their serial pa
     assert.equal(workflow.on.workflow_dispatch.inputs.sharded.default, false, name);
     assert.equal(workflow.on.workflow_dispatch.inputs.sharded.type, "boolean", name);
   }
-  assert.equal(release.jobs.release.if, "${{ !inputs.sharded }}");
+  assert.equal(release.jobs.release.if, "${{ !cancelled() && !inputs.sharded && !inputs.test_release && (inputs.diagnostic_only || needs.release-baseline.result == 'success') }}");
   assert.equal(prepare.jobs.windows.if, "${{ !inputs.sharded }}");
   assert.equal(prepare.jobs.macos.if, "${{ !inputs.sharded }}");
   assert.equal(prepare.jobs["sign-updates"].if, "${{ !inputs.sharded }}");
   assert.equal(prepare.on.workflow_call.inputs.sharded.default, false);
 });
 
-test("a sharded release-windows request must already be a pinned non-publishing diagnostic", () => {
+test("a sharded release-windows request must be a pinned diagnostic, a release on its own tag, or a draft test release", () => {
   assert.deepEqual(release.jobs["sharded-gate"].needs, "sharded-request");
   const run = release.jobs["sharded-request"].steps[0].run;
-  for (const needle of ['"$DIAGNOSTIC_ONLY" == "true"', '"$RECOVERY" == "true"', "[0-9a-f]{40}", "refs/heads/*", "v[0-9]+"]) assert.ok(run.includes(needle), needle);
+  for (const needle of ['"$DIAGNOSTIC_ONLY" == "true"', '"$RECOVERY" == "true"', "[0-9a-f]{40}", "refs/heads/*", 'refs/tags/$RELEASE_TAG', '"$SOURCE_SHA" == "$GITHUB_SHA"', "v[0-9]+"]) assert.ok(run.includes(needle), needle);
   assert.equal(release.jobs["sharded-gate"].with.recovery, "${{ inputs.recovery }}");
   // The signing job is unreachable for diagnostics.
   assert.equal(release.jobs["sign-updates"].if, "${{ !inputs.recovery && !inputs.diagnostic_only }}");
@@ -50,7 +50,7 @@ test("a sharded release-windows request must already be a pinned non-publishing 
 
 test("the serial gate still runs every check, unchanged, when the flag is off", () => {
   const names = release.jobs.release.steps.map(s => s.name).filter(Boolean);
-  for (const name of ["Frontend tests", "Lint", "Rust tests", "Build current desktop test app", "Desktop WebDriver smoke preflight", "Full desktop E2E release gate", "Build and publish Windows installers"]) assert.ok(names.includes(name), name);
+  for (const name of ["Frontend tests", "Lint", "Rust tests", "Build current desktop test app", "Desktop WebDriver smoke preflight", "Full desktop E2E release gate", "Build Windows installers into the draft release"]) assert.ok(names.includes(name), name);
   assert.equal(step(release.jobs.release, "Full desktop E2E release gate").run.includes("-Shard"), false);
   assert.equal(step(prepare.jobs.windows, "Full desktop E2E release gate").run.includes("-Shard"), false);
   assert.equal(release.jobs.release["timeout-minutes"], 240);

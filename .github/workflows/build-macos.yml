@@ -33,6 +33,11 @@ jobs:
       source-sha: ${{ steps.provenance.outputs.source_sha }}
       installer-digests: ${{ steps.provenance.outputs.digests }}
     steps:
+      - name: Refuse reserved test tags
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          [[ ! "$RELEASE_TAG" =~ ^v1\.3\.9[0-9]$ ]] || { echo 'Reserved test tag: macOS packaging and publishing are not part of the draft test release'; exit 1; }
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}

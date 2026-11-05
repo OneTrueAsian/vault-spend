@@ -50,7 +50,12 @@ test("preparation workflow cannot publish and retains protected signing and comp
   }
   const release = yaml.load(fs.readFileSync(new URL("../.github/workflows/release-windows.yml", import.meta.url), "utf8"));
   for (const name of ["Frontend tests", "Lint", "Rust tests", "Build current desktop test app", "Refresh hosted WebView2 runtime", "Pin hosted Edge version", "Install desktop test drivers", "Install native Edge test driver", "Prepare medium-integrity desktop tests", "Desktop WebDriver smoke preflight", "Full desktop E2E release gate"])
-    assert.deepEqual(workflow.jobs.windows.steps.find(step => step.name === name), release.jobs.release.steps.find(step => step.name === name), name);
+  {
+    // release-windows.yml's serial gate stretches waits 3x (VAULTSPEND_E2E_TIMEOUT_SCALE, the 1.3.2 hosted fix). This preparation workflow is pinned to 1.3.1 and does not; that one key is the only allowed difference (see the backlog's migration notes).
+    const expected = structuredClone(release.jobs.release.steps.find(step => step.name === name));
+    if (name === "Full desktop E2E release gate") delete expected.env.VAULTSPEND_E2E_TIMEOUT_SCALE;
+    assert.deepEqual(workflow.jobs.windows.steps.find(step => step.name === name), expected, name);
+  }
   assert.equal(workflow.jobs["sign-updates"].environment, "release-signing");
   assert.deepEqual(workflow.jobs["sign-updates"].needs, ["windows", "macos"]);
   const secretSteps = workflow.jobs["sign-updates"].steps.filter(step => JSON.stringify(step).includes("secrets.UPDATE_SIGNING"));

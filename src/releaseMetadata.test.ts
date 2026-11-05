@@ -31,6 +31,12 @@ describe("release metadata", () => {
     expect(changelogNotes(CHANGELOG[pkg] ?? []).length).toBeGreaterThan(0);
   });
 
+  it("has no What's New entry newer than the current version", () => {
+    const parts = (v: string) => v.split(".").map(Number);
+    const newer = Object.keys(CHANGELOG).filter((v) => { const [a, b] = [parts(v), parts(pkg)]; return (a[0] - b[0] || a[1] - b[1] || a[2] - b[2]) > 0; });
+    expect(newer).toEqual([]);
+  });
+
   it("preserves the feature notes that shipped in 1.3.0", () => {
     const notes = changelogNotes(CHANGELOG["1.3.0"] ?? []).join("\n");
     expect(notes).toMatch(/mobile/i);

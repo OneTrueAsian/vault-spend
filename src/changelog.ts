@@ -24,6 +24,13 @@ export const changelogNotes = (entry: ChangelogEntry): string[] => changelogSect
  * here as part of cutting each release, condensed from that release's
  * GitHub notes — a version with no entry here just shows nothing. */
 export const CHANGELOG: Record<string, ChangelogEntry> = {
+  "1.3.3": {
+    Enhancements: [
+      "Ask the Vault's Show all answers now open in the wide window, so long answer tables are easier to read. In a narrow window the table scrolls sideways inside its own box instead of squeezing the columns.",
+      "On the import review, the number of rows under each bank category is now a button. Click it to see those transactions (date, description and amount) before you choose one of your own categories. Rows that are not being imported are listed too, marked Not importing.",
+      "An info icon next to The app will remember it next time explains that Let the app guess is not remembered, so the app will ask again. Help says the same.",
+    ],
+  },
   "1.3.2": {
     "New features": [
       "Move transactions to another account without deleting and importing them again. Select the rows, choose Move to account, review the balance changes and confirm. Dates, amounts, categories, tags, notes and splits stay with the transactions. Reconciled rows, linked transfers, applied debt payments and duplicates keep their safeguards.",

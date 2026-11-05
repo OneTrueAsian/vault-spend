@@ -13,16 +13,24 @@ on:
         type: boolean
         default: false
       source_sha:
-        description: 'Expected existing tag commit (required for recovery)'
+        description: 'Expected existing tag commit (required for recovery and for the sharded gate)'
         type: string
       diagnostic_only:
         description: 'Run all build and test gates without publishing installers or signatures'
         type: boolean
         default: false
       sharded:
-        description: 'Diagnostic only: run the desktop gate as parallel shards against one build (cannot publish or sign)'
+        description: 'Run the desktop gate as parallel shards against one build, then package and sign only after every shard and the aggregate passed. With diagnostic_only it stops after the gate'
         type: boolean
         default: false
+      test_release:
+        description: 'Restricted test behaviour for the sharded gate: a reserved test tag (v1.3.90 to v1.3.99) and a DRAFT prerelease. Needs sharded. Leave off for real releases'
+        type: boolean
+        default: false
+      fault:
+        description: "Test release proof only: 'prepare' fails the prepare job at once; '1' to '6' fails that shard before its gate. Leave empty otherwise"
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -33,22 +41,77 @@ concurrency:
 
 jobs:
   sharded-request:
-    # The sharded gate is a diagnostic: it can run the checks and the desktop gate but has no packaging, signing or publishing.
-    # Refuse every sharded request that is not already a pinned, non-publishing diagnostic.
-    if: ${{ inputs.sharded }}
+    # The sharded gate may only run for one of three request shapes. Anything else is refused before any build starts.
+    if: ${{ inputs.sharded || inputs.test_release }}
     runs-on: ubuntu-latest
     steps:
-      - name: Require a pinned non-publishing diagnostic
+      - name: Require a recognised sharded request
         env:
           RELEASE_TAG: ${{ inputs.tag }}
           RECOVERY: ${{ inputs.recovery }}
           DIAGNOSTIC_ONLY: ${{ inputs.diagnostic_only }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+          SHARDED: ${{ inputs.sharded }}
+          TEST_RELEASE: ${{ inputs.test_release }}
+          FAULT: ${{ inputs.fault }}
         run: |
-          [[ "$DIAGNOSTIC_ONLY" == "true" && "$RECOVERY" == "true" ]] || { echo 'A sharded run must be a recovery diagnostic (diagnostic_only and recovery)'; exit 1; }
+          # Three shapes are accepted.
+          #  1. A diagnostic: recovery plus diagnostic_only from a workflow branch. It can never package or sign.
+          #  2. A real release: a normal stable tag dispatched on that tag itself, never recovery or diagnostic. Its draft is packaged and signed
+          #     only after preparation, all six shards and the aggregate succeeded.
+          #  3. A draft test release: the same, on a reserved test tag, with test_release.
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'A sharded run needs the exact source commit'; exit 1; }
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Invalid stable release tag'; exit 1; }
-          [[ "$GITHUB_REF" == refs/heads/* ]] || { echo 'A sharded run must use a workflow branch'; exit 1; }
+          [[ "$SHARDED" == "true" ]] || { echo 'A draft test release needs the sharded gate'; exit 1; }
+          if [[ "$TEST_RELEASE" == "true" ]]; then
+            [[ "$DIAGNOSTIC_ONLY" == "false" && "$RECOVERY" == "false" ]] || { echo 'A draft test release is neither a diagnostic nor a recovery'; exit 1; }
+            [[ "$RELEASE_TAG" =~ ^v1\.3\.9[0-9]$ ]] || { echo 'A draft test release needs a reserved test tag (v1.3.90 to v1.3.99)'; exit 1; }
+            [[ "$GITHUB_REF" == "refs/tags/$RELEASE_TAG" ]] || { echo 'A draft test release must be dispatched on its test tag'; exit 1; }
+            [[ "$SOURCE_SHA" == "$GITHUB_SHA" ]] || { echo 'The source commit must be the test tag commit'; exit 1; }
+            [[ -z "$FAULT" || "$FAULT" =~ ^(prepare|[1-6])$ ]] || { echo 'Unknown test fault'; exit 1; }
+          else
+            [[ ! "$RELEASE_TAG" =~ ^v1\.3\.9[0-9]$ ]] || { echo 'Reserved test tags only run as a draft test release'; exit 1; }
+            [[ -z "$FAULT" ]] || { echo 'A test fault is only for a draft test release'; exit 1; }
+            if [[ "$DIAGNOSTIC_ONLY" == "true" || "$RECOVERY" == "true" ]]; then
+              [[ "$DIAGNOSTIC_ONLY" == "true" && "$RECOVERY" == "true" ]] || { echo 'A sharded run that is not a release must be a recovery diagnostic (diagnostic_only and recovery)'; exit 1; }
+              [[ "$GITHUB_REF" == refs/heads/* ]] || { echo 'A sharded diagnostic must use a workflow branch'; exit 1; }
+            else
+              [[ "$GITHUB_REF" == "refs/tags/$RELEASE_TAG" ]] || { echo 'A sharded release must be dispatched on its release tag'; exit 1; }
+              [[ "$SOURCE_SHA" == "$GITHUB_SHA" ]] || { echo 'The source commit must be the release tag commit'; exit 1; }
+            fi
+          fi
+
+  release-baseline:
+    # Read once, before anything is built: the newest published release. The release must be newer than it, it must still be the newest
+    # published release every time a later step touches the release, and the tag must have no release yet or only an empty draft.
+    # Diagnostics publish nothing, so they skip this.
+    if: ${{ !inputs.diagnostic_only }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      previous: ${{ steps.baseline.outputs.previous }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Read and check the newest published release
+        id: baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          TEST_RELEASE: ${{ inputs.test_release }}
+          RECOVERY: ${{ inputs.recovery }}
+        run: |
+          previous=$(gh api repos/OneTrueAsian/vault-spend/releases/latest --jq .tag_name)
+          [[ "$previous" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Unexpected latest release tag: $previous"; exit 1; }
+          mode=production; [[ "$TEST_RELEASE" == "true" ]] && mode=test
+          older=(); [[ "$RECOVERY" == "true" ]] && older=(--allow-older)
+          gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,assets:[.assets[].name]}' | node tools/assert-draft-release.mjs "$RELEASE_TAG" --mode "$mode" --stage before --previous "$previous" "${older[@]}"
+          echo "previous=$previous" >> "$GITHUB_OUTPUT"
 
   sharded-gate:
     needs: sharded-request
@@ -61,9 +124,159 @@ jobs:
       source_sha: ${{ inputs.source_sha }}
       tag: ${{ inputs.tag }}
       recovery: ${{ inputs.recovery }}
+      contract_tests: ${{ !inputs.recovery && 'tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs tools/verify-sharded-gate-summary.test.mjs tools/assert-draft-release.test.mjs tools/sharded-gate-workflow.test.mjs tools/release-windows-workflow.test.mjs' || '' }}
+      fault: ${{ inputs.fault }}
+
+  sharded-package:
+    # Sharded releases (real or test) only. Runs after the WHOLE sharded gate (prepare, six shards, aggregate) succeeded and the baseline was
+    # read. There is deliberately no always(), !cancelled() or failure() here: GitHub's implicit success() skips this job unless every needed job
+    # succeeded, and the summary check below refuses anything the job status alone would not show.
+    needs: [sharded-gate, release-baseline]
+    if: ${{ inputs.sharded && !inputs.diagnostic_only }}
+    runs-on: windows-2022
+    timeout-minutes: 120
+    permissions:
+      contents: write
+    outputs:
+      source-sha: ${{ steps.provenance.outputs.source_sha }}
+      installer-digests: ${{ steps.provenance.outputs.digests }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Use LF line endings for checkout
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Validate the release request
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          TEST_RELEASE: ${{ inputs.test_release }}
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw 'Invalid stable release tag' }
+          $reserved = $env:RELEASE_TAG -match '^v1\.3\.9\d$'
+          if ($env:TEST_RELEASE -eq 'true' -and -not $reserved) { throw 'A draft test release needs a reserved test tag' }
+          if ($env:TEST_RELEASE -ne 'true' -and $reserved) { throw 'Reserved test tag: it only runs as a draft test release' }
+          if ($env:GITHUB_REF -ne "refs/tags/$env:RELEASE_TAG") { throw 'Dispatch must use the release tag as its ref' }
+          if ($env:SOURCE_SHA -notmatch '^[0-9a-f]{40}$' -or $env:GITHUB_SHA -ne $env:SOURCE_SHA -or (git rev-parse HEAD) -ne $env:SOURCE_SHA) { throw 'The release tag does not point at the tested commit' }
+          $version = $env:RELEASE_TAG.Substring(1)
+          foreach ($path in @('package.json', 'src-tauri/tauri.conf.json')) {
+            if ((Get-Content $path -Raw | ConvertFrom-Json).version -ne $version) { throw "Version mismatch in $path" }
+          }
+          $cargo = Get-Content src-tauri/Cargo.toml -Raw
+          if ($cargo -notmatch ('(?m)^version\s*=\s*"' + [regex]::Escape($version) + '"\s*$')) { throw 'Rust package version mismatch' }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-release
+          save-if: false
+      - name: Install dependencies
+        run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: sharded-gate-summary-${{ github.run_attempt }}
+          path: gate-evidence
+      - name: Verify the gate evidence before building anything
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: node tools/verify-sharded-gate-summary.mjs gate-evidence/gate-summary.json $env:RUN_ATTEMPT
+      - name: Confirm the tag has no release yet or only an empty draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          MODE: ${{ inputs.test_release && 'test' || 'production' }}
+          PREVIOUS: ${{ needs.release-baseline.outputs.previous }}
+        run: gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,assets:[.assets[].name]}' | node tools/assert-draft-release.mjs "$RELEASE_TAG" --mode "$MODE" --stage before --previous "$PREVIOUS"
+      - name: Build Windows installers into the draft release
+        id: package
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ inputs.tag }}
+          releaseName: ${{ inputs.test_release && format('Vault Spend TEST {0} (draft, do not publish)', inputs.tag) || format('Vault Spend {0}', inputs.tag) }}
+          releaseBody: ${{ inputs.test_release && 'Test build that proves the sharded Windows gate. Windows only. Not for users; delete this draft after review.' || '' }}
+          releaseDraft: true
+          prerelease: ${{ inputs.test_release }}
+          args: --bundles nsis,msi
+      - name: Confirm the release is still one draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          MODE: ${{ inputs.test_release && 'test' || 'production' }}
+          PREVIOUS: ${{ needs.release-baseline.outputs.previous }}
+        run: gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,assets:[.assets[].name]}' | node tools/assert-draft-release.mjs "$RELEASE_TAG" --mode "$MODE" --stage after --previous "$PREVIOUS"
+      - name: Record final Windows build provenance
+        id: provenance
+        env:
+          ARTIFACT_PATHS: ${{ steps.package.outputs.artifactPaths }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: node tools/update-build-provenance.mjs windows-x86_64 $env:RELEASE_TAG.Substring(1)
+
+  sharded-sign-updates:
+    # Same protected signing as the serial release, applied to the draft's installers. Needs only the packaging job (which itself needs the
+    # whole gate). The release stays a draft: nothing here publishes it.
+    needs: [sharded-package, release-baseline]
+    if: ${{ inputs.sharded && !inputs.diagnostic_only }}
+    runs-on: ubuntu-latest
+    environment: release-signing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.sharded-package.outputs.source-sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download the draft's Windows installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          MODE: ${{ inputs.test_release && 'test' || 'production' }}
+          PREVIOUS: ${{ needs.release-baseline.outputs.previous }}
+        run: |
+          gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,assets:[.assets[].name]}' | node tools/assert-draft-release.mjs "$RELEASE_TAG" --mode "$MODE" --stage after --previous "$PREVIOUS"
+          mkdir "$RUNNER_TEMP/update-input"
+          gh release download "$RELEASE_TAG" --repo OneTrueAsian/vault-spend --dir "$RUNNER_TEMP/update-input" --pattern "Vault.Spend_${RELEASE_TAG#v}_x64-setup.exe" --pattern "Vault.Spend_${RELEASE_TAG#v}_x64_en-US.msi"
+      - name: Sign exact final Windows bytes
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          VAULTSPEND_UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
+          VAULTSPEND_UPDATE_SIGNING_PASSWORD: ${{ secrets.UPDATE_SIGNING_PASSWORD }}
+          VAULTSPEND_UPDATE_SIGNING_KEY_ID: ${{ vars.UPDATE_SIGNING_KEY_ID }}
+          VAULTSPEND_UPDATE_EXPECTED_DIGESTS: ${{ needs.sharded-package.outputs.installer-digests }}
+        run: node tools/update-signing.mjs sign windows-x86_64 "${RELEASE_TAG#v}" "$RUNNER_TEMP/update-signed" "$RUNNER_TEMP/update-input/Vault.Spend_${RELEASE_TAG#v}_x64-setup.exe" "$RUNNER_TEMP/update-input/Vault.Spend_${RELEASE_TAG#v}_x64_en-US.msi"
+      - name: Upload manifests and signatures to the draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          MODE: ${{ inputs.test_release && 'test' || 'production' }}
+          PREVIOUS: ${{ needs.release-baseline.outputs.previous }}
+        run: |
+          gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,assets:[.assets[].name]}' | node tools/assert-draft-release.mjs "$RELEASE_TAG" --mode "$MODE" --stage after --previous "$PREVIOUS"
+          gh release upload "$RELEASE_TAG" --repo OneTrueAsian/vault-spend "$RUNNER_TEMP/update-signed/"*.json
+      - name: Confirm the release is still one draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          MODE: ${{ inputs.test_release && 'test' || 'production' }}
+          PREVIOUS: ${{ needs.release-baseline.outputs.previous }}
+        run: gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,assets:[.assets[].name]}' | node tools/assert-draft-release.mjs "$RELEASE_TAG" --mode "$MODE" --stage after --previous "$PREVIOUS"
 
   release:
-    if: ${{ !inputs.sharded }}
+    # The serial gate. Diagnostics publish nothing and need no baseline; every real release needs the baseline job to have succeeded first.
+    needs: release-baseline
+    if: ${{ !cancelled() && !inputs.sharded && !inputs.test_release && (inputs.diagnostic_only || needs.release-baseline.result == 'success') }}
     # Pin the desktop environment; image migrations must pass the smoke preflight first.
     runs-on: windows-2022
     outputs:
@@ -93,6 +306,7 @@ jobs:
           DIAGNOSTIC_ONLY: ${{ inputs.diagnostic_only }}
         run: |
           if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw 'Invalid stable release tag' }
+          if ($env:RELEASE_TAG -match '^v1\.3\.9\d$') { throw 'Reserved test tag: it only runs as a draft test release' }
           if ($env:DIAGNOSTIC_ONLY -eq 'true' -and $env:RECOVERY -ne 'true') { throw 'Diagnostics require recovery mode with a pinned source SHA' }
           if ($env:RECOVERY -eq 'true') {
             if ($env:GITHUB_REF -notlike 'refs/heads/*') { throw 'Recovery must use a workflow branch' }
@@ -136,7 +350,7 @@ jobs:
         run: node --test tools/dependency-security-policy.test.mjs tools/browser-download-contract.test.mjs
       - name: Verify signed updater release contracts
         if: ${{ !inputs.recovery }}
-        run: node --test tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs
+        run: node --test tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs tools/verify-sharded-gate-summary.test.mjs tools/assert-draft-release.test.mjs tools/sharded-gate-workflow.test.mjs tools/release-windows-workflow.test.mjs
       - name: Audit dependencies for x86_64-pc-windows-msvc
         env:
           VAULTSPEND_AUDIT_OUTPUT: dependency-audit/x86_64-pc-windows-msvc
@@ -270,7 +484,19 @@ jobs:
         run: |
           & $env:VAULTSPEND_CI_GSUDO --integrity Medium --direct --chdir $env:GITHUB_WORKSPACE pwsh -NoProfile -NonInteractive -File tools/run-hosted-desktop-tests.ps1 -Gate full
           exit $LASTEXITCODE
-      - name: Build and publish Windows installers
+      - name: Confirm the tag has no release yet or only an empty draft
+        if: ${{ !inputs.diagnostic_only }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          MODE: production
+          PREVIOUS: ${{ needs.release-baseline.outputs.previous }}
+          ALLOW_OLDER: ${{ inputs.recovery }}
+        run: |
+          older=(); [[ "$ALLOW_OLDER" == "true" ]] && older=(--allow-older)
+          gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,assets:[.assets[].name]}' | node tools/assert-draft-release.mjs "$RELEASE_TAG" --mode "$MODE" --stage before --previous "$PREVIOUS" "${older[@]}"
+      - name: Build Windows installers into the draft release
         if: ${{ !inputs.diagnostic_only }}
         id: package
         uses: tauri-apps/tauri-action@v0
@@ -279,9 +505,21 @@ jobs:
         with:
           tagName: ${{ inputs.tag }}
           releaseName: Vault Spend ${{ inputs.tag }}
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           args: --bundles nsis,msi
+      - name: Confirm the release is still one draft
+        if: ${{ !inputs.diagnostic_only }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          MODE: production
+          PREVIOUS: ${{ needs.release-baseline.outputs.previous }}
+          ALLOW_OLDER: ${{ inputs.recovery }}
+        run: |
+          older=(); [[ "$ALLOW_OLDER" == "true" ]] && older=(--allow-older)
+          gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,assets:[.assets[].name]}' | node tools/assert-draft-release.mjs "$RELEASE_TAG" --mode "$MODE" --stage after --previous "$PREVIOUS" "${older[@]}"
       - name: Record final Windows build provenance
         if: ${{ !inputs.recovery && !inputs.diagnostic_only }}
         id: provenance
@@ -291,8 +529,9 @@ jobs:
         run: node tools/update-build-provenance.mjs windows-x86_64 $env:RELEASE_TAG.Substring(1)
 
   sign-updates:
+    # Signs the draft's exact bytes and adds the manifests to it. The release stays a draft: nothing here publishes it.
     if: ${{ !inputs.recovery && !inputs.diagnostic_only }}
-    needs: release
+    needs: [release, release-baseline]
     runs-on: ubuntu-latest
     environment: release-signing
     steps:
@@ -306,8 +545,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ inputs.tag }}
+          MODE: production
+          PREVIOUS: ${{ needs.release-baseline.outputs.previous }}
         run: |
           [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || exit 1
+          gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,assets:[.assets[].name]}' | node tools/assert-draft-release.mjs "$RELEASE_TAG" --mode "$MODE" --stage after --previous "$PREVIOUS"
           mkdir "$RUNNER_TEMP/update-input"
           gh release download "$RELEASE_TAG" --repo OneTrueAsian/vault-spend --dir "$RUNNER_TEMP/update-input" --pattern "Vault.Spend_${RELEASE_TAG#v}_x64-setup.exe" --pattern "Vault.Spend_${RELEASE_TAG#v}_x64_en-US.msi"
       - name: Sign exact final Windows bytes
@@ -318,8 +560,19 @@ jobs:
           VAULTSPEND_UPDATE_SIGNING_KEY_ID: ${{ vars.UPDATE_SIGNING_KEY_ID }}
           VAULTSPEND_UPDATE_EXPECTED_DIGESTS: ${{ needs.release.outputs.installer-digests }}
         run: node tools/update-signing.mjs sign windows-x86_64 "${RELEASE_TAG#v}" "$RUNNER_TEMP/update-signed" "$RUNNER_TEMP/update-input/Vault.Spend_${RELEASE_TAG#v}_x64-setup.exe" "$RUNNER_TEMP/update-input/Vault.Spend_${RELEASE_TAG#v}_x64_en-US.msi"
-      - name: Publish immutable Windows manifests and signatures
+      - name: Upload immutable Windows manifests and signatures to the draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ inputs.tag }}
-        run: gh release upload "$RELEASE_TAG" --repo OneTrueAsian/vault-spend "$RUNNER_TEMP/update-signed/"*.json
+          MODE: production
+          PREVIOUS: ${{ needs.release-baseline.outputs.previous }}
+        run: |
+          gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,assets:[.assets[].name]}' | node tools/assert-draft-release.mjs "$RELEASE_TAG" --mode "$MODE" --stage after --previous "$PREVIOUS"
+          gh release upload "$RELEASE_TAG" --repo OneTrueAsian/vault-spend "$RUNNER_TEMP/update-signed/"*.json
+      - name: Confirm the release is still one draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          MODE: production
+          PREVIOUS: ${{ needs.release-baseline.outputs.previous }}
+        run: gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,assets:[.assets[].name]}' | node tools/assert-draft-release.mjs "$RELEASE_TAG" --mode "$MODE" --stage after --previous "$PREVIOUS"
