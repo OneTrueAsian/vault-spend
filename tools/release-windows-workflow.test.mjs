@@ -79,15 +79,16 @@ function callGate(callerInputs, fail) {
     if (!runs(job, ctx)) { inner[id] = "skipped"; continue; }
     let outcomes;
     if (id === "shard") outcomes = [1, 2, 3, 4, 5, 6].map(s => (faulted(job, s) ? "failure" : fail[`shard-${s}`] ?? "success"));
-    else if (id === "aggregate") outcomes = [fail.aggregate ?? (needs.prepare.result === "success" && needs.shard.result === "success" ? "success" : "failure")];
+    else if (id === "aggregate") outcomes = [fail.aggregate ?? (Object.values(needs).every(n => n.result === "success") ? "success" : "failure")];
     else outcomes = [faulted(job) ? "failure" : fail[id] ?? "success"];
-    inner[id] = outcomes.includes("cancelled") ? "cancelled" : outcomes.includes("failure") ? "failure" : "success";
+    inner[id] = outcomes.includes("cancelled") ? "cancelled" : outcomes.includes("failure") ? "failure" : outcomes.includes("skipped") ? "skipped" : "success";
   }
   const all = Object.values(inner);
   return all.includes("cancelled") ? "cancelled" : all.includes("failure") ? "failure" : all.every(r => r === "skipped") ? "skipped" : "success";
 }
 const dispatch = (over = {}) => ({ tag: "v1.3.90", recovery: false, source_sha: "a".repeat(40), diagnostic_only: false, sharded: true, test_release: true, fault: "", ...over });
 const DOWNSTREAM = ["sharded-package", "sharded-sign-updates", "release", "sign-updates"];
+const GATE_JOBS_WITH_CHECKS = ["build", "checks-rust", "checks-other"];
 
 test("the evaluator itself follows GitHub's rules", () => {
   assert.equal(evaluate("${{ inputs.a && 'x' || 'y' }}", { inputs: { a: true } }), "x");
@@ -112,15 +113,19 @@ test("any failed, cancelled, skipped or fault-injected part of the gate, or a fa
   for (const [name, make] of ROUTES) {
     const blocked = (inputs, fail) => { const r = simulate(release, inputs, fail); for (const j of DOWNSTREAM) assert.equal(r[j], "skipped", `${name}: ${j} must not run: ${JSON.stringify([inputs.fault, fail])}`); return r; };
     assert.equal(blocked(make(), { "sharded-request": "failure" })["sharded-gate"], "skipped", name);
-    for (const bad of ["failure", "cancelled"]) {
-      blocked(make(), { prepare: bad });
+    for (const bad of ["failure", "cancelled", "skipped"]) {
+      for (const job of GATE_JOBS_WITH_CHECKS) blocked(make(), { [job]: bad });
       for (let s = 1; s <= 6; s++) blocked(make(), { [`shard-${s}`]: bad });
-      blocked(make(), { aggregate: bad });
+      if (bad !== "skipped") blocked(make(), { aggregate: bad }); // an aggregate that never ran leaves no summary: the packaging job fails at its download (guarded below)
       blocked(make(), { "release-baseline": bad });
     }
   }
   // The injected faults reach the real gate steps through the real `if:` expressions, on the test route only.
-  assert.equal(simulate(release, dispatch({ fault: "prepare" }))["sharded-gate"], "failure");
+  for (const fault of ["prepare", "rust-checks", "other-checks"]) {
+    const r = simulate(release, dispatch({ fault }));
+    assert.equal(r["sharded-gate"], "failure", fault);
+    for (const j of DOWNSTREAM) assert.equal(r[j], "skipped", `${fault}: ${j}`);
+  }
   for (let s = 1; s <= 6; s++) {
     const r = simulate(release, dispatch({ fault: String(s) }));
     assert.equal(r["sharded-gate"], "failure", `shard ${s}`);
@@ -191,7 +196,11 @@ test("the sharded packaging job verifies the gate evidence first, builds a draft
   assert.ok(verify > 0 && verify < before && before < build && build < after);
   assert.ok(names.indexOf("Validate the release request") < verify);
   assert.equal(steps.find(s => s.uses === "actions/download-artifact@v4").with.name, "sharded-gate-summary-${{ github.run_attempt }}");
-  assert.match(steps[verify].run, /verify-sharded-gate-summary\.mjs gate-evidence\/gate-summary\.json/);
+  assert.ok(names.indexOf("actions/download-artifact@v4") < verify, "the summary the aggregate writes is fetched before anything else is trusted");
+  assert.match(steps[verify].run, /verify-sharded-gate-summary\.mjs gate-evidence\/gate-summary\.json \$env:RUN_ATTEMPT --contracts yes$/);
+  assert.equal(steps[verify].env.SOURCE_SHA, "${{ inputs.source_sha }}");
+  assert.equal(steps[verify].env.RUN_ATTEMPT, "${{ github.run_attempt }}");
+  assert.equal(steps[verify].env.GITHUB_RUN_ID, undefined, "the run id comes from the runner, not from the workflow");
   const tauri = steps[build];
   assert.equal(tauri.with.releaseDraft, true, "always a draft");
   assert.equal(tauri.with.prerelease, "${{ inputs.test_release }}", "a prerelease only on the test route");
@@ -268,18 +277,20 @@ test("the request script, run for real, accepts only the three intended shapes",
   // 1. The draft test release.
   assert.equal(attempt(dispatch()), true, "valid draft test release");
   assert.equal(attempt(dispatch({ fault: "prepare" })), true);
+  assert.equal(attempt(dispatch({ fault: "rust-checks" })), true);
+  assert.equal(attempt(dispatch({ fault: "other-checks" })), true);
   assert.equal(attempt(dispatch({ fault: "6" })), true);
   for (const [name, over, github] of [
     ["not sharded", { sharded: false }], ["diagnostic", { diagnostic_only: true }], ["recovery", { recovery: true }],
     ["stable tag", { tag: "v1.3.2" }], ["next real tag", { tag: "v1.3.3" }], ["band edge", { tag: "v1.3.100" }], ["other minor", { tag: "v1.4.90" }],
     ["branch ref", {}, { GITHUB_REF: "refs/heads/test-release" }], ["other tag ref", {}, { GITHUB_REF: "refs/tags/v1.3.91" }],
-    ["source differs from the tag commit", {}, { GITHUB_SHA: "b".repeat(40) }], ["short sha", { source_sha: "abc" }, { GITHUB_SHA: "abc" }], ["bad fault", { fault: "7" }], ["bad fault word", { fault: "all" }],
+    ["source differs from the tag commit", {}, { GITHUB_SHA: "b".repeat(40) }], ["short sha", { source_sha: "abc" }, { GITHUB_SHA: "abc" }], ["bad fault", { fault: "7" }], ["bad fault word", { fault: "all" }], ["near-miss fault", { fault: "rust" }],
   ]) assert.equal(attempt(dispatch(over), github), false, `test route: ${name}`);
   // 2. A sharded production release: a normal tag, on its own tag, never a fault, never recovery or diagnostic.
   assert.equal(attempt(production()), true, "valid sharded production release");
   assert.equal(attempt(production({ tag: "v2.0.0" })), true);
   for (const [name, over, github] of [
-    ["reserved tag", { tag: "v1.3.90" }], ["reserved tag edge", { tag: "v1.3.99" }], ["fault", { fault: "prepare" }], ["fault number", { fault: "2" }],
+    ["reserved tag", { tag: "v1.3.90" }], ["reserved tag edge", { tag: "v1.3.99" }], ["fault", { fault: "prepare" }], ["check fault", { fault: "rust-checks" }], ["fault number", { fault: "2" }],
     ["recovery only", { recovery: true }, { GITHUB_REF: "refs/heads/release-1.3.3" }], ["diagnostic only", { diagnostic_only: true }, { GITHUB_REF: "refs/heads/release-1.3.3" }],
     ["branch ref", {}, { GITHUB_REF: "refs/heads/release-1.3.3" }], ["another tag as ref", {}, { GITHUB_REF: "refs/tags/v1.3.2" }],
     ["source differs from the tag commit", {}, { GITHUB_SHA: "b".repeat(40) }], ["no source", { source_sha: "" }, { GITHUB_SHA: "" }], ["bad tag", { tag: "1.3.3" }], ["prerelease tag", { tag: "v1.3.3-rc1" }],
@@ -291,6 +302,7 @@ test("the request script, run for real, accepts only the three intended shapes",
   assert.equal(diag({ recovery: false }), false);
   assert.equal(diag({ tag: "v1.3.90" }), false, "a reserved tag never runs as a plain diagnostic");
   assert.equal(diag({ fault: "prepare" }), false, "faults belong to the draft test path only");
+  assert.equal(diag({ fault: "other-checks" }), false, "faults belong to the draft test path only");
   assert.equal(diag({}, { GITHUB_REF: "refs/tags/v1.3.2" }), false, "diagnostics still need a workflow branch");
 });
 
@@ -308,7 +320,7 @@ test("the serial path and the macOS publisher refuse the reserved test band", { 
 });
 
 test("the same required contract tests run in the serial gate and in the sharded gate, and the fault comes only from the caller", () => {
-  const call = release.jobs["sharded-gate"], required = ["tools/update-signing.test.mjs", "tools/update-signing-workflow.test.mjs", "tools/verify-sharded-gate-summary.test.mjs", "tools/assert-draft-release.test.mjs", "tools/sharded-gate-workflow.test.mjs", "tools/release-windows-workflow.test.mjs"];
+  const call = release.jobs["sharded-gate"], required = ["tools/update-signing.test.mjs", "tools/update-signing-workflow.test.mjs", "tools/verify-sharded-gate-summary.test.mjs", "tools/assert-draft-release.test.mjs", "tools/sharded-gate-workflow.test.mjs", "tools/release-windows-workflow.test.mjs", "tools/aggregate-shard-results.test.mjs", "tools/write-check-records.test.mjs"];
   for (const testRelease of [true, false]) assert.deepEqual(evaluate(call.with.contract_tests, { inputs: { test_release: testRelease, recovery: false } }).split(" "), required, `sharded gate, test_release=${testRelease}`);
   assert.equal(evaluate(call.with.contract_tests, { inputs: { test_release: false, recovery: true } }), "", "recovery diagnostics keep running no contract tests, as before");
   const serial = release.jobs.release.steps.find(s => s.name === "Verify signed updater release contracts");
@@ -318,7 +330,9 @@ test("the same required contract tests run in the serial gate and in the sharded
   assert.equal(call.with.fault, "${{ inputs.fault }}");
   assert.equal(call.with.recovery, "${{ inputs.recovery }}");
   assert.equal(gate.on.workflow_call.inputs.fault.default, "");
-  assert.ok(gate.jobs.prepare.steps.some(s => s.name === "Injected test fault - fail preparation"));
+  assert.ok(gate.jobs.build.steps.some(s => s.name === "Injected test fault - fail preparation"));
+  assert.ok(gate.jobs["checks-rust"].steps.some(s => s.name === "Injected test fault - fail the Rust checks"));
+  assert.ok(gate.jobs["checks-other"].steps.some(s => s.name === "Injected test fault - fail the other checks"));
   assert.ok(gate.jobs.shard.steps.some(s => s.name === "Injected test fault - fail this shard"));
   assert.deepEqual(gate.permissions, { contents: "read" });
 });

@@ -5,16 +5,19 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { verifyGateSummary } from "./verify-sharded-gate-summary.mjs";
+import { GATE_JOBS, makeCheckRecord, requiredChecks, checkOwner } from "../e2e/lib/gateChecks.mjs";
 
-const SHA = "a".repeat(40), SPECS = 12;
+const SHA = "a".repeat(40), SPECS = 12, RUN = "777";
+const checkRecords = (contracts = true) => requiredChecks({ contracts }).map(check => makeCheckRecord({ check, job: checkOwner(check), sourceSha: SHA, runId: RUN, runAttempt: 1 }));
 const good = () => ({
-  ok: true, problems: [], runAttempt: 1,
+  ok: true, problems: [], runAttempt: 1, runId: RUN, contracts: true,
+  checks: checkRecords(), jobs: Object.fromEntries(GATE_JOBS.map(j => [j, "success"])),
   totals: { expected: SPECS, ran: SPECS, passed: SPECS, failed: 0, retried: 1, passedOnRetry: 1 },
   failures: [], retries: [{ shard: 2, name: "feature9.mjs", firstExit: 1, finalExit: 0, passedOnRetry: true }],
   shards: [1, 2, 3, 4, 5, 6].map(shard => ({ shard, specs: 2, passed: 2, failed: 0, seconds: 10 })),
   prepared: { sourceSha: SHA, buildKey: "b".repeat(64), exeSha256: "c".repeat(64), toolchain: {} },
 });
-const expected = { sourceSha: SHA, runAttempt: 1, specCount: SPECS, total: 6 };
+const expected = { sourceSha: SHA, runAttempt: 1, runId: RUN, contracts: true, specCount: SPECS, total: 6 };
 const refuses = (change, pattern) => {
   const summary = good(); change(summary);
   const problems = verifyGateSummary(summary, expected);
@@ -70,6 +73,30 @@ test("evidence from another attempt or another source commit is refused", () => 
   refuses(s => { s.prepared.exeSha256 = "xyz"; }, /executable/);
 });
 
+test("the summary must carry exactly the expected check records and successful job results for this run", () => {
+  refuses(s => { delete s.checks; }, /missing/);
+  refuses(s => { s.checks = s.checks.filter(c => c.check !== "lint"); }, /lint.*missing/);
+  refuses(s => { s.checks.push({ ...s.checks[0] }); }, /records/);
+  refuses(s => { s.checks.push({ ...s.checks[0], check: "extra" }); }, /extra.*not expected/);
+  refuses(s => { s.checks[0].runId = "1"; }, /run id/);
+  refuses(s => { s.checks[0].runAttempt = 2; }, /attempt/);
+  refuses(s => { s.checks[0].sourceSha = "d".repeat(40); }, /source/);
+  refuses(s => { s.checks[0].result = "failed"; }, /not passed/);
+  refuses(s => { s.runId = "1"; }, /run id/);
+  refuses(s => { delete s.runId; }, /run id/);
+  refuses(s => { delete s.jobs; }, /job/);
+  for (const job of GATE_JOBS) for (const result of ["failure", "cancelled", "skipped"]) refuses(s => { s.jobs[job] = result; }, new RegExp(`job ${job}`));
+  refuses(s => { s.jobs = { ...s.jobs, extra: "success" }; }, /extra/);
+});
+
+test("contract tests are required whenever the caller requires them, and cannot be waived by the summary", () => {
+  const s = good(); s.checks = s.checks.filter(c => c.check !== "contract-tests"); s.contracts = false;
+  assert.match(verifyGateSummary(s, expected).join(" | "), /contract-tests.*missing/);
+  assert.deepEqual(verifyGateSummary(s, { ...expected, contracts: false }), []);
+  const t = good(); t.checks = checkRecords(false);
+  assert.match(verifyGateSummary(t, expected).join(" | "), /contract-tests.*missing/);
+});
+
 test("the command line reads the summary file and checks the checked-out commit and spec list", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gate-summary-"));
   try {
@@ -77,13 +104,19 @@ test("the command line reads the summary file and checks the checked-out commit 
     const specs = execFileSync(process.execPath, ["e2e/run-all.mjs", "--list"], { encoding: "utf8" }).split(/\r?\n/).filter(s => s.trim()).length;
     const summary = good();
     summary.prepared.sourceSha = head;
+    summary.checks = requiredChecks({ contracts: true }).map(check => makeCheckRecord({ check, job: checkOwner(check), sourceSha: head, runId: RUN, runAttempt: 1 }));
     summary.totals = { expected: specs, ran: specs, passed: specs, failed: 0, retried: 0, passedOnRetry: 0 };
     summary.retries = [];
     summary.shards = [1, 2, 3, 4, 5, 6].map(shard => ({ shard, specs: shard === 1 ? specs - 5 : 1, passed: shard === 1 ? specs - 5 : 1, failed: 0, seconds: 1 }));
     const file = path.join(dir, "gate-summary.json");
     fs.writeFileSync(file, JSON.stringify(summary));
-    const run = (args, env = {}) => spawnSync(process.execPath, ["tools/verify-sharded-gate-summary.mjs", ...args], { encoding: "utf8", env: { ...process.env, SOURCE_SHA: head, ...env } });
-    assert.equal(run([file, "1"]).status, 0);
+    const run = (args, env = {}) => spawnSync(process.execPath, ["tools/verify-sharded-gate-summary.mjs", ...args], { encoding: "utf8", env: { ...process.env, SOURCE_SHA: head, GITHUB_RUN_ID: RUN, ...env } });
+    assert.equal(run([file, "1", "--contracts", "yes"]).status, 0);
+    assert.notEqual(run([file, "1"]).status, 0, "the caller must say whether contract tests were required");
+    assert.notEqual(run([file, "1", "--contracts", "maybe"]).status, 0);
+    assert.notEqual(run([file, "1", "--contracts", "yes"], { GITHUB_RUN_ID: "" }).status, 0, "no run id");
+    assert.notEqual(run([file, "1", "--contracts", "yes"], { GITHUB_RUN_ID: "1" }).status, 0, "another run");
+    assert.notEqual(run([file, "1", "--contracts", "no"]).status, 0, "a contract record the caller did not expect is an extra record");
     assert.notEqual(run([path.join(dir, "missing.json"), "1"]).status, 0, "missing evidence");
     fs.writeFileSync(path.join(dir, "bad.json"), "{not json");
     assert.notEqual(run([path.join(dir, "bad.json"), "1"]).status, 0, "unreadable evidence");

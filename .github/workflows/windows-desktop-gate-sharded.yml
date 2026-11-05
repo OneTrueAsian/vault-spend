@@ -1,9 +1,13 @@
 name: Windows desktop gate (sharded)
 run-name: Sharded Windows gate ${{ inputs.source_sha }}
 
-# The Windows release gate split across parallel runners: one job runs every check and builds the desktop test app once, six jobs
-# each run a slice of the desktop specs against that one executable, and one job joins the results. It is a reusable workflow so
-# release-windows.yml and prepare-signed-installers.yml share a single implementation.
+# The Windows release gate split across parallel runners. Three jobs start together: `build` builds the desktop test app once, `checks-rust` runs the Rust tests and
+# `checks-other` runs the frontend tests, lint, dependency/security and contract checks. Six `shard` jobs each run a slice of the desktop specs against that one
+# executable and need ONLY `build`, so they start as soon as it succeeds. `aggregate` joins everything. It is a reusable workflow so release-windows.yml and
+# prepare-signed-installers.yml share a single implementation.
+#
+# One authoritative gate: aggregate fails unless build, both check jobs and every shard succeeded (their real results, from `needs`), left exactly the expected check
+# records (bound to the source commit, this run id and attempt) and passed the shard coverage rules. A failed, skipped or cancelled job cannot be hidden by a record.
 #
 # This workflow cannot publish, sign or touch a tag: it has read-only repository permission, receives no secrets, and contains no
 # packaging, release or push step. Its callers decide what may follow a green verdict: diagnostics stop here, and release-windows.yml packages
@@ -32,7 +36,7 @@ on:
         type: string
         default: ''
       fault:
-        description: "Draft test release proof only (the caller validates it): 'prepare' fails the prepare job at once, '1' to '6' fails that shard before its gate. It can only make the gate fail"
+        description: "Draft test release proof only (the caller validates it): 'prepare' fails the build job at once, 'rust-checks' or 'other-checks' fails that check job at once, '1' to '6' fails that shard before its gate. It can only make the gate fail"
         type: string
         default: ''
 
@@ -40,8 +44,8 @@ permissions:
   contents: read
 
 jobs:
-  prepare:
-    # Every check the serial gate runs, then one build of the desktop test app. The shards receive that executable.
+  build:
+    # The ONE build of the desktop test app. The shards need only this job, so they start as soon as it succeeds and never wait for the checks below.
     runs-on: windows-2022
     timeout-minutes: 240
     outputs:
@@ -78,11 +82,6 @@ jobs:
             $cargo = Get-Content src-tauri/Cargo.toml -Raw
             if ($cargo -notmatch ('(?m)^version\s*=\s*"' + [regex]::Escape($version) + '"\s*$')) { throw 'Rust package version mismatch' }
           }
-      - name: Validate pinned preparation source
-        if: ${{ inputs.validate_preparation }}
-        env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
-        run: node tools/prepare-update-artifacts.mjs validate
       - name: Repair legacy test driver paths for recovery
         if: ${{ inputs.recovery }}
         run: |
@@ -108,34 +107,6 @@ jobs:
           cache-on-failure: true
       - name: Install dependencies
         run: npm ci
-      - name: Install RustSec scanner
-        run: cargo install cargo-audit --locked
-      - name: Dependency security policy tests
-        run: node --test tools/dependency-security-policy.test.mjs tools/browser-download-contract.test.mjs
-      - name: Verify signed updater release contracts
-        if: ${{ inputs.contract_tests != '' }}
-        env:
-          CONTRACT_TESTS: ${{ inputs.contract_tests }}
-        run: node --test @($env:CONTRACT_TESTS -split '\s+' | Where-Object { $_ })
-      - name: Audit dependencies for x86_64-pc-windows-msvc
-        env:
-          VAULTSPEND_AUDIT_OUTPUT: dependency-audit/x86_64-pc-windows-msvc
-        run: node tools/audit-dependencies.mjs x86_64-pc-windows-msvc
-      - name: Retain dependency audit evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-audit-sharded-windows-${{ github.run_attempt }}
-          path: dependency-audit/
-          if-no-files-found: error
-      - name: Frontend tests
-        run: npm test
-      - name: Lint
-        run: npm run lint
-      - name: Build frontend for Rust tests
-        run: npm run build
-      - name: Rust tests
-        run: cargo test --workspace
       - name: Build E2E database fixture tool
         run: cargo build -p budget_core --bin init_db
       - name: Build current desktop test app
@@ -169,9 +140,156 @@ jobs:
           path: transfer/transfer-manifest.json
           if-no-files-found: error
           retention-days: 3
+      - name: Record the build check
+        # Last steps of the job and deliberately without always(): they run only when everything above passed.
+        run: node tools/write-check-records.mjs check-records desktop-build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: check-records-build-attempt-${{ github.run_attempt }}
+          path: check-records/
+          if-no-files-found: error
+          retention-days: 14
+
+  checks-rust:
+    # The Rust tests, on their own runner, alongside the build and the other checks. Acceptance still requires them (see the aggregate).
+    runs-on: windows-2022
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Use LF line endings for checkout
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Confirm the requested commit
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          if ($env:SOURCE_SHA -notmatch '^[0-9a-f]{40}$') { throw 'A sharded gate needs the exact source commit' }
+          if ((git rev-parse HEAD) -ne $env:SOURCE_SHA) { throw 'Checked-out source differs from the requested commit' }
+      - name: Injected test fault - fail the Rust checks
+        if: ${{ inputs.fault == 'rust-checks' }}
+        run: throw 'Injected test fault - the Rust checks fail on purpose'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-release
+          cache-on-failure: true
+      - name: Install dependencies
+        run: npm ci
+      - name: Build frontend for Rust tests
+        run: npm run build
+      - name: Rust tests
+        run: cargo test --workspace
+      - name: Record the Rust check
+        # Last steps of the job and deliberately without always(): they run only when everything above passed.
+        run: node tools/write-check-records.mjs check-records rust-tests
+      - uses: actions/upload-artifact@v4
+        with:
+          name: check-records-checks-rust-attempt-${{ github.run_attempt }}
+          path: check-records/
+          if-no-files-found: error
+          retention-days: 14
+
+  checks-other:
+    # Everything else the serial gate checks before the desktop specs: dependency and contract tests, the dependency audit, frontend tests and lint.
+    runs-on: windows-2022
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Use LF line endings for checkout
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Confirm the requested commit
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          if ($env:SOURCE_SHA -notmatch '^[0-9a-f]{40}$') { throw 'A sharded gate needs the exact source commit' }
+          if ((git rev-parse HEAD) -ne $env:SOURCE_SHA) { throw 'Checked-out source differs from the requested commit' }
+      - name: Injected test fault - fail the other checks
+        if: ${{ inputs.fault == 'other-checks' }}
+        run: throw 'Injected test fault - the other checks fail on purpose'
+      - name: Validate pinned preparation source
+        if: ${{ inputs.validate_preparation }}
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: node tools/prepare-update-artifacts.mjs validate
+      - name: Repair legacy test driver paths for recovery
+        if: ${{ inputs.recovery }}
+        run: |
+          $file = 'e2e/harness.mjs'
+          $source = [IO.File]::ReadAllText($file)
+          $pattern = '(?m)^const CARGO_BIN = "[^"\r\n]+";\r?$'
+          $matches = [regex]::Matches($source, $pattern)
+          if ($matches.Count -eq 1) {
+            $replacement = 'const CARGO_BIN = path.join(process.env.CARGO_HOME || path.join(process.env.USERPROFILE, ".cargo"), "bin");'
+            [IO.File]::WriteAllText($file, [regex]::Replace($source, $pattern, $replacement), [Text.UTF8Encoding]::new($false))
+            Write-Host 'Repaired only the legacy E2E driver directory; application sources are unchanged.'
+          } elseif ($source -notmatch 'const CARGO_BIN = cargoBin\(\);') {
+            throw 'Unrecognized harness driver setup; refusing an unverified repair'
+          }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-release
+          save-if: false
+      - name: Install dependencies
+        run: npm ci
+      - name: Install RustSec scanner
+        run: cargo install cargo-audit --locked
+      - name: Dependency security policy tests
+        run: node --test tools/dependency-security-policy.test.mjs tools/browser-download-contract.test.mjs
+      - name: Verify signed updater release contracts
+        if: ${{ inputs.contract_tests != '' }}
+        env:
+          CONTRACT_TESTS: ${{ inputs.contract_tests }}
+        run: node --test @($env:CONTRACT_TESTS -split '\s+' | Where-Object { $_ })
+      - name: Audit dependencies for x86_64-pc-windows-msvc
+        env:
+          VAULTSPEND_AUDIT_OUTPUT: dependency-audit/x86_64-pc-windows-msvc
+        run: node tools/audit-dependencies.mjs x86_64-pc-windows-msvc
+      - name: Retain dependency audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-sharded-windows-${{ github.run_attempt }}
+          path: dependency-audit/
+          if-no-files-found: error
+      - name: Frontend tests
+        run: npm test
+      - name: Lint
+        run: npm run lint
+      - name: Record the checks
+        # Last steps of the job and deliberately without always(): they run only when everything above passed.
+        run: node tools/write-check-records.mjs check-records dependency-security frontend-tests lint
+      - name: Record the contract tests check
+        if: ${{ inputs.contract_tests != '' }}
+        run: node tools/write-check-records.mjs check-records contract-tests
+      - uses: actions/upload-artifact@v4
+        with:
+          name: check-records-checks-other-attempt-${{ github.run_attempt }}
+          path: check-records/
+          if-no-files-found: error
+          retention-days: 14
 
   shard:
-    needs: prepare
+    needs: build
     runs-on: windows-2022
     timeout-minutes: 120
     strategy:
@@ -211,14 +329,14 @@ jobs:
           } elseif ($source -notmatch 'const CARGO_BIN = cargoBin\(\);') {
             throw 'Unrecognized harness driver setup; refusing an unverified repair'
           }
-      # The same Node and Rust the prepare job built with, so the build key recomputed here matches without any relaxation.
+      # The same Node and Rust the build job built with, so the build key recomputed here matches without any relaxation.
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ needs.prepare.outputs.node-version }}
+          node-version: ${{ needs.build.outputs.node-version }}
           cache: npm
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ needs.prepare.outputs.rust-version }}
+          toolchain: ${{ needs.build.outputs.rust-version }}
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: windows-release
@@ -361,8 +479,9 @@ jobs:
           retention-days: 14
 
   aggregate:
-    # Joins the shards into the one verdict the serial gate gave. Runs even when a shard failed, so the failures are reported together.
-    needs: [prepare, shard]
+    # Joins the shards, the check records and the real result of every job into the one verdict the serial gate gave. Runs even when a job failed, so the
+    # failures are reported together; it fails unless build, checks-rust, checks-other and every shard succeeded AND left exactly the expected records.
+    needs: [build, checks-rust, checks-other, shard]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -382,10 +501,17 @@ jobs:
         with:
           pattern: shard-evidence-*-attempt-${{ github.run_attempt }}
           path: evidence
-      - name: Join shard results
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: check-records-*-attempt-${{ github.run_attempt }}
+          path: checks
+      - name: Join shard results, check records and job results
         env:
           RUN_ATTEMPT: ${{ github.run_attempt }}
-        run: node tools/aggregate-shard-results.mjs evidence manifest/transfer-manifest.json 6 "$RUN_ATTEMPT" gate-summary.json
+          CONTRACTS: ${{ inputs.contract_tests != '' && 'yes' || 'no' }}
+          # What every job really ended with. A record can never turn a failed, cancelled or skipped job into a pass.
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: node tools/aggregate-shard-results.mjs evidence manifest/transfer-manifest.json 6 "$RUN_ATTEMPT" gate-summary.json --checks checks --contracts "$CONTRACTS"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

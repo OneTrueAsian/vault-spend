@@ -28,7 +28,7 @@ on:
         type: boolean
         default: false
       fault:
-        description: "Test release proof only: 'prepare' fails the prepare job at once; '1' to '6' fails that shard before its gate. Leave empty otherwise"
+        description: "Test release proof only: 'prepare' fails the build job at once; 'rust-checks' or 'other-checks' fails that check job at once; '1' to '6' fails that shard before its gate. Leave empty otherwise"
         type: string
         default: ''
 
@@ -68,7 +68,7 @@ jobs:
             [[ "$RELEASE_TAG" =~ ^v1\.3\.9[0-9]$ ]] || { echo 'A draft test release needs a reserved test tag (v1.3.90 to v1.3.99)'; exit 1; }
             [[ "$GITHUB_REF" == "refs/tags/$RELEASE_TAG" ]] || { echo 'A draft test release must be dispatched on its test tag'; exit 1; }
             [[ "$SOURCE_SHA" == "$GITHUB_SHA" ]] || { echo 'The source commit must be the test tag commit'; exit 1; }
-            [[ -z "$FAULT" || "$FAULT" =~ ^(prepare|[1-6])$ ]] || { echo 'Unknown test fault'; exit 1; }
+            [[ -z "$FAULT" || "$FAULT" =~ ^(prepare|rust-checks|other-checks|[1-6])$ ]] || { echo 'Unknown test fault'; exit 1; }
           else
             [[ ! "$RELEASE_TAG" =~ ^v1\.3\.9[0-9]$ ]] || { echo 'Reserved test tags only run as a draft test release'; exit 1; }
             [[ -z "$FAULT" ]] || { echo 'A test fault is only for a draft test release'; exit 1; }
@@ -124,11 +124,11 @@ jobs:
       source_sha: ${{ inputs.source_sha }}
       tag: ${{ inputs.tag }}
       recovery: ${{ inputs.recovery }}
-      contract_tests: ${{ !inputs.recovery && 'tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs tools/verify-sharded-gate-summary.test.mjs tools/assert-draft-release.test.mjs tools/sharded-gate-workflow.test.mjs tools/release-windows-workflow.test.mjs' || '' }}
+      contract_tests: ${{ !inputs.recovery && 'tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs tools/verify-sharded-gate-summary.test.mjs tools/assert-draft-release.test.mjs tools/sharded-gate-workflow.test.mjs tools/release-windows-workflow.test.mjs tools/aggregate-shard-results.test.mjs tools/write-check-records.test.mjs' || '' }}
       fault: ${{ inputs.fault }}
 
   sharded-package:
-    # Sharded releases (real or test) only. Runs after the WHOLE sharded gate (prepare, six shards, aggregate) succeeded and the baseline was
+    # Sharded releases (real or test) only. Runs after the WHOLE sharded gate (build, both check jobs, six shards, aggregate) succeeded and the baseline was
     # read. There is deliberately no always(), !cancelled() or failure() here: GitHub's implicit success() skips this job unless every needed job
     # succeeded, and the summary check below refuses anything the job status alone would not show.
     needs: [sharded-gate, release-baseline]
@@ -187,7 +187,7 @@ jobs:
         env:
           SOURCE_SHA: ${{ inputs.source_sha }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
-        run: node tools/verify-sharded-gate-summary.mjs gate-evidence/gate-summary.json $env:RUN_ATTEMPT
+        run: node tools/verify-sharded-gate-summary.mjs gate-evidence/gate-summary.json $env:RUN_ATTEMPT --contracts yes
       - name: Confirm the tag has no release yet or only an empty draft
         shell: bash
         env:
@@ -350,7 +350,7 @@ jobs:
         run: node --test tools/dependency-security-policy.test.mjs tools/browser-download-contract.test.mjs
       - name: Verify signed updater release contracts
         if: ${{ !inputs.recovery }}
-        run: node --test tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs tools/verify-sharded-gate-summary.test.mjs tools/assert-draft-release.test.mjs tools/sharded-gate-workflow.test.mjs tools/release-windows-workflow.test.mjs
+        run: node --test tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs tools/verify-sharded-gate-summary.test.mjs tools/assert-draft-release.test.mjs tools/sharded-gate-workflow.test.mjs tools/release-windows-workflow.test.mjs tools/aggregate-shard-results.test.mjs tools/write-check-records.test.mjs
       - name: Audit dependencies for x86_64-pc-windows-msvc
         env:
           VAULTSPEND_AUDIT_OUTPUT: dependency-audit/x86_64-pc-windows-msvc
