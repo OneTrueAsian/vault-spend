@@ -24,6 +24,11 @@ export const changelogNotes = (entry: ChangelogEntry): string[] => changelogSect
  * here as part of cutting each release, condensed from that release's
  * GitHub notes — a version with no entry here just shows nothing. */
 export const CHANGELOG: Record<string, ChangelogEntry> = {
+  "1.3.92": {
+    Enhancements: [
+      "This is a test build used to check Vault Spend's release process. It is not a public release and is not offered as an update.",
+    ],
+  },
   "1.3.3": {
     Enhancements: [
       "Ask the Vault's Show all answers now open in the wide window, so long answer tables are easier to read. In a narrow window the table scrolls sideways inside its own box instead of squeezing the columns.",
