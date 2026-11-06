@@ -28,7 +28,7 @@ import { collectInputs, readToolchain } from "./lib/buildIdentity.mjs";
 import { GuardRefusal, beginGuardedRun } from "./lib/runGuard.mjs";
 import { classifySpecs, createApprovalContext, runSchedule } from "./lib/scheduler.mjs";
 import { matchesSelector } from "./lib/specSelectors.mjs";
-import { parseRetryOptions, retryFailuresInIsolation } from "./lib/isolatedRetry.mjs";
+import { parseRetryOptions, retryFailuresInIsolation, serializeExecutedResult } from "./lib/isolatedRetry.mjs";
 import { parseShard, shardSpecs } from "./lib/specShard.mjs";
 
 const e2eDir = path.dirname(fileURLToPath(import.meta.url));
@@ -281,7 +281,7 @@ try {
   fs.mkdirSync(path.dirname(lastRunPath), { recursive: true });
   fs.writeFileSync(lastRunPath, JSON.stringify({
     identity: verdict.identity, validationManifest: verdict.validationManifest, approvalBinding: approvalContext?.binding ?? createApprovalContext({ inputs: verdict.validationManifest?.before, identity: verdict.identity }).binding, sourceValid, valid: verdict.valid, problems: verdict.problems, schedule, parallelSafe: classes.parallel.length, exclusive: classes.exclusive.length, concurrency, specTimeoutMs: SPEC_TIMEOUT_MS, elapsedSeconds: Number(totalSeconds), launchRetries, timeouts,
-    selected: specs, executed: results.map((r) => ({ name: r.name, code: r.code, durationMs: r.durationMs, output: r.output, ...(r.attempts ? { attempts: r.attempts.map((a) => ({ code: a.code, durationMs: a.durationMs, output: a.output })), flaky: r.code === 0 } : {}) })),
+    selected: specs, executed: results.map(serializeExecutedResult),
   }, null, 2) + "\n");
 } catch { /* the record is evidence for the report, not part of the verdict */ }
 if (retrySkipped) console.log(`\nNOT RETRIED: ${retrySkipped}`);
