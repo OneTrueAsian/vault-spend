@@ -28,7 +28,7 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
     Enhancements: [
       "Ask the Vault's Show all answers now open in the wide window, so long answer tables are easier to read. In a narrow window the table scrolls sideways inside its own box instead of squeezing the columns.",
       "On the import review, the number of rows under each bank category is now a button. Click it to see those transactions (date, description and amount) before you choose one of your own categories. Rows that are not being imported are listed too, marked Not importing.",
-      "An info icon next to The app will remember it next time explains that Let the app guess is not remembered, so the app will ask again. Help says the same.",
+      "On the import review, a small info icon now sits beside \"The app will remember it next time.\" It explains that if you choose \"Let the app guess\" for a bank category, the app does not remember that choice and will ask you about that category again on a later import. Picking one of your own categories is what the app remembers. The Help page says the same.",
     ],
   },
   "1.3.2": {
