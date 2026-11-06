@@ -257,6 +257,19 @@
   color: inherit;
 }
 
+/* The report-a-problem card: its buttons side by side, and the result under them. */
+.report-issue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 4px 0 10px;
+}
+
+.report-issue [aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 .help-faq-entry {
   padding: 14px 0;
 }

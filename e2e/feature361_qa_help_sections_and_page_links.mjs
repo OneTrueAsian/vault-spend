@@ -52,5 +52,20 @@ try {
   const text = await b.execute(() => document.querySelector(".help-view")?.innerText ?? document.body.innerText);
   for (const bad of [/undefined/, /\[object /, /TODO/, /lorem ipsum/i, /\{\{/, /NaN/]) assert.ok(!bad.test(text), `Help text contains no ${bad}`);
 
+  // VS-24: Help offers "Report a bug or issue". Looked at, focused and checked for fit, never activated: activating it opens the real public form in the default browser.
+  await b.$(".help-search").waitForExist({ timeout: 10000 });
+  const report = await b.execute(() => {
+    const btn = [...document.querySelectorAll(".help-view button")].find(x => x.textContent.trim() === "Report a bug or issue");
+    if (!btn) return null;
+    btn.focus();
+    const r = btn.getBoundingClientRect(), card = btn.closest(".card").getBoundingClientRect();
+    return { focused: document.activeElement === btn, visible: r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= innerWidth, insideCard: r.left >= card.left && r.right <= card.right,
+      noLink: document.querySelector(".report-issue a[href], .report-issue iframe") === null, live: document.querySelectorAll(".report-issue [role=status], .report-issue [role=alert]").length };
+  });
+  assert.ok(report, "Help has a Report a bug or issue button");
+  assert.ok(report.focused && report.visible && report.insideCard, "the button takes keyboard focus and fits inside its card: " + JSON.stringify(report));
+  assert.equal(report.noLink, true, "the form is not embedded or linked inside the page");
+  assert.equal(report.live, 2, "its status and error live regions are on the page");
+
   console.log("FEATURE 361 PASSED: the ? on each of the ten pages opens its own section; every Help section has content and no placeholder text.");
 } finally { await app.close(); }

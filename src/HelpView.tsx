@@ -2,6 +2,7 @@ import { Fragment, ReactNode, useEffect, useState, type SyntheticEvent } from "r
 import type { Tab } from "./appTypes";
 import thirdPartyNotices from "../docs/THIRD-PARTY-NOTICES.txt?raw";
 import { LegalNoticeHelp } from "./LegalNoticeHelp";
+import { ReportIssueCard } from "./ReportIssueCard";
 
 /** One filterable unit of help content. `tags` drives search — always
  * include the entry's own visible name/heading among them (so searching
@@ -656,6 +657,8 @@ export const TAB_HELP: TabHelp[] = [
     ],
   },
 ];
+
+const REPORT_ISSUE_TAGS = ["report a bug or issue", "bug", "issue", "problem", "feedback", "support", "contact", "something wrong", "not working", "error", "suggestion"];
 
 function tabHelpMatches(help: TabHelp, query: string): boolean {
   return matchesQuery([help.title, ...help.tags, ...help.howTo.map((h) => h.question)], query);
@@ -1789,6 +1792,7 @@ export function HelpView({ focusTab = null }: { focusTab?: Tab | null }) {
   const importingVisible = matchesQuery(IMPORTING_ENTRY.tags, query);
   const bulkSetupVisible = matchesQuery(BULK_SETUP_ENTRY.tags, query);
   const exportVisible = EXPORT_ENTRIES.filter((e) => matchesQuery(e.tags, query));
+  const reportIssueVisible = matchesQuery(REPORT_ISSUE_TAGS, query);
   const faqVisible = FAQ_ENTRIES.filter((e) => matchesQuery(e.tags, query) || e.question.toLowerCase().includes(query.trim().toLowerCase()));
 
   const nothingMatched =
@@ -1798,7 +1802,8 @@ export function HelpView({ focusTab = null }: { focusTab?: Tab | null }) {
     !importingVisible &&
     !bulkSetupVisible &&
     exportVisible.length === 0 &&
-    faqVisible.length === 0;
+    faqVisible.length === 0 &&
+    !reportIssueVisible;
 
   function setOpen(key: string, open: boolean) {
     setOpenKeys((current) => {
@@ -1839,6 +1844,8 @@ export function HelpView({ focusTab = null }: { focusTab?: Tab | null }) {
           <p className="modal-message-secondary">No results for "{query}" — try a different word.</p>
         </div>
       )}
+
+      {(reportIssueVisible || nothingMatched) && <ReportIssueCard />}
 
       {gettingStartedVisible && (
         <details className="card help-topic" {...fold("getting-started")}>
