@@ -10,8 +10,8 @@ to use the official release page for manual installation.
 The implementation and production public key apply to version **1.3.1** on
 `release-1.3.1` and subsequent releases. Pipeline validation, key setup, signing,
 and release preparation do not authorize public publication. Obtain separate
-owner approval for the prepared release before publishing it. The Windows release workflow now builds a draft and signs it without publishing; the macOS workflow still publishes its release during packaging,
-before the signing review, so dispatch it only for an explicitly approved publication.
+owner approval for the prepared release before publishing it. The Windows release workflow builds a draft and signs it without publishing; the macOS workflow adds
+its files to that same draft and never publishes (see "macOS joins the Windows draft" below). The owner publishes the finished draft by hand.
 Use the Windows non-publishing diagnostic mode for pipeline validation.
 
 ## Prepare installers without publishing
@@ -64,7 +64,7 @@ and signing-run provenance separately in the QA receipt.
 
 `release-windows.yml` never publishes. Whatever gate it uses, it builds the installers into a **draft** release for the tag, signs
 that draft's exact bytes, and stops. The owner reviews the draft and publishes it by hand; nothing in this workflow does.
-(`build-macos.yml` is unchanged and still publishes its own release directly; see the migration notes in the backlog.)
+(`build-macos.yml` adds the macOS files to this same draft and never publishes either; see "macOS joins the Windows draft" below.)
 
 **Choosing the gate.** `sharded` selects the gate and nothing else. Off (the default) is the serial gate in the `release` job. On, the
 `sharded-gate` job runs preparation, six parallel shards and an aggregate, and `sharded-package` then `sharded-sign-updates` follow.
@@ -102,9 +102,48 @@ asset. To rerun after a failed attempt, the owner deletes the unpublished draft 
 again on the same tag. A partially uploaded set of manifests is inspected by the owner and resumed only with matching bytes. Recovery
 (an existing older tag) builds the same kind of draft and never signs.
 
-**Test route notes.** Neither macOS packaging nor installation or update checks are part of it. Delete the draft and the test tag after
-review. `prepare-signed-installers.yml` is not migrated: it keeps its serial path and a sharded diagnostic that cannot package or sign (it is also
-pinned to 1.3.1). Its later migration needs are in the backlog.
+**Test route notes.** Installation and update checks are not part of it, and Windows does not run macOS packaging; macOS can be added to the test draft by
+a separate `build-macos.yml` run (below). Delete the draft and the test tag after review. `prepare-signed-installers.yml` is not migrated: it keeps its
+serial path and a sharded diagnostic that cannot package or sign (it is also pinned to 1.3.1). Its later migration needs are in the backlog.
+
+## macOS joins the Windows draft (`build-macos.yml`)
+
+**Who owns what.** `release-windows.yml` owns the shared release: it validates the tag, reads the newest published release, creates the
+draft and signs the Windows files. `build-macos.yml` only **joins** that draft. Neither workflow publishes; the owner reviews the whole draft
+(Windows and macOS files together) and publishes it by hand. No workflow creates a public release, un-drafts one, or deletes anything.
+
+**Order for one tag.** Windows draft complete (both installers, manifests and signatures, after the `release-signing` approval) -> run
+`build-macos.yml` for the same tag -> macOS signing approval -> owner review -> owner publishes. The order is enforced, not just advised:
+the first macOS step that touches the release (`tools/assert-macos-release.mjs --stage before`, before the long macOS build) refuses unless
+exactly one release exists for the tag and, when it is a draft, it already holds the complete signed Windows set and no macOS file. With no
+release macOS stops and creates nothing, so it cannot race the Windows workflow into a second release. Windows' own check
+(`assert-draft-release.mjs --stage before`) refuses a draft that already holds files, so the reverse order is refused there as well.
+
+**What the action does.** The packaging step is `tauri-apps/tauri-action` pinned to the commit `v0` pointed at (v0.6.2,
+`84b9d35b5fc46c1e45415bdb6144030364f7ebc5`), whose source was read for this policy: with `releaseDraft: false` it looks the release up with
+`getReleaseByTag`, which cannot see a draft, so it would have created a **second, public** release for a tag whose Windows draft existed
+(and `releases/latest` would have pointed at it). With `releaseId` set it uploads straight to that release and does not look up, create,
+publish or change draft/prerelease flags; it replaces a same-named file, which the check above rules out for a draft. The workflow passes
+the id found by the check, keeps `releaseDraft: true`, and gives no `releaseName`, so the action could not create a release even with an empty id.
+
+**Checks around every change.** After packaging and around the signing upload, `assert-macos-release.mjs --stage packaged|signed` requires
+the same release id in the same state (still a draft), exactly Windows' files plus the expected macOS files (the DMG, its manifest and signature,
+and the unversioned `Vault.Spend_universal.app.tar.gz` archive that tauri-action also uploads, as it did for v1.3.1 and v1.3.2; any other file is
+refused), and that the newest published release is still the one read at the start. Before the build, a draft must also have been created
+from the same commit this macOS run checked out (the release's recorded target), so one release cannot mix sources. That archive has no
+manifest or signature of its own (unchanged from earlier releases). The signing job keeps the protected `release-signing`
+environment and signs the exact bytes whose digests the build recorded; manifests are uploaded without `--clobber`. The tag, the checked-out
+commit and the version in `package.json`, `tauri.conf.json` and `Cargo.toml` are checked before anything is built.
+
+**Routes.** A normal stable tag joins a draft that is **not** a prerelease. A reserved test tag (v1.3.90 to v1.3.99) joins only a draft that **is** a
+prerelease (the sharded test release); a published reserved-tag release is always refused. Before this change macOS refused reserved tags
+outright; it is now allowed there only so the macOS path can be proven against a test draft without a real release.
+
+**Reruns.** A release that was already published when the run starts (the local Release Tool publishes first, then dispatches macOS) still
+receives the macOS files it lacks; nothing is created or hidden. Owner decision (6 November 2026): a macOS file that is already there is never
+replaced, in a draft or in a published release (tauri-action would silently replace a same-named file, and the manifest upload already fails on an
+existing one). A failed macOS attempt that left a file in the draft is rerun by deleting that unpublished macOS file by hand; the Windows files
+are never touched.
 ## Generate and protect the key
 
 Use Node 22 and PowerShell 7 on a trusted machine. Choose a **new directory outside

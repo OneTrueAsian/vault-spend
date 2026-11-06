@@ -306,17 +306,19 @@ test("the request script, run for real, accepts only the three intended shapes",
   assert.equal(diag({}, { GITHUB_REF: "refs/tags/v1.3.2" }), false, "diagnostics still need a workflow branch");
 });
 
-test("the serial path and the macOS publisher refuse the reserved test band", { skip: !BASH && "bash is required" }, () => {
+test("the serial path refuses the reserved test band", { skip: !BASH && "bash is required" }, () => {
   const validate = release.jobs.release.steps.find(s => s.name === "Validate release tag and version").run;
   assert.match(validate, /\^v1\\\.3\\\.9\\d\$/);
   assert.ok(validate.indexOf("Reserved test tag") < validate.indexOf("Diagnostics require recovery"));
-  const refuse = macos.jobs["build-macos"].steps[0];
-  assert.equal(refuse.name, "Refuse reserved test tags");
-  const run = tag => spawnSync(BASH, ["-c", refuse.run], { env: { PATH: process.env.PATH, RELEASE_TAG: tag }, encoding: "utf8" }).status;
-  for (const tag of ["v1.3.90", "v1.3.95", "v1.3.99"]) assert.notEqual(run(tag), 0, tag);
-  for (const tag of ["v1.3.2", "v1.3.3", "v1.3.9", "v1.3.100", "v1.2.90"]) assert.equal(run(tag), 0, tag);
-  // The refusal runs before anything is checked out, built or published.
-  assert.equal(macos.jobs["build-macos"].steps.findIndex(s => s.uses === "tauri-apps/tauri-action@v0") > 0, true);
+});
+
+test("macOS no longer refuses the reserved test band outright (VS-20): it joins a test draft prerelease and nothing else, as tools/build-macos-workflow.test.mjs proves", () => {
+  const steps = macos.jobs["build-macos"].steps;
+  assert.equal(steps[0].name, "Validate the release tag");
+  assert.equal(steps.some(s => s.name === "Refuse reserved test tags"), false);
+  const check = steps.find(s => s.id === "release");
+  assert.match(check.run, /assert-macos-release\.mjs/);
+  assert.ok(steps.indexOf(check) < steps.findIndex(s => /^tauri-apps\/tauri-action@/.test(s.uses ?? "")), "the release check runs before the packaging step");
 });
 
 test("the same required contract tests run in the serial gate and in the sharded gate, and the fault comes only from the caller", () => {

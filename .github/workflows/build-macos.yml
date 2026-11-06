@@ -1,13 +1,34 @@
 name: Build macOS
 
 # Builds an unsigned, universal (Intel + Apple Silicon) macOS bundle and
-# attaches it to a GitHub Release — Tauri apps have to be built on macOS
-# itself (the WebView layer isn't cross-compilable from Windows), so this
-# runs on a GitHub-hosted macOS runner instead. Unsigned means Gatekeeper
-# will block a plain double-click; whoever installs it needs to right-click
-# the .app and choose "Open" the first time (or clear the quarantine flag
-# via `xattr -d com.apple.quarantine`), similar in spirit to the Windows
+# attaches it to the shared GitHub Release for the tag - Tauri apps have to be
+# built on macOS itself (the WebView layer isn't cross-compilable from Windows),
+# so this runs on a GitHub-hosted macOS runner instead. Unsigned means
+# Gatekeeper will block a plain double-click; whoever installs it needs to
+# right-click the .app and choose "Open" the first time (or clear the quarantine
+# flag via `xattr -d com.apple.quarantine`), similar in spirit to the Windows
 # SmartScreen note already included with the Windows installers.
+#
+# Release policy (VS-20): this workflow NEVER creates, publishes or un-drafts a
+# release. The Windows workflow (release-windows.yml) owns the shared release: it
+# builds it as a DRAFT and signs its Windows files. macOS joins that draft AFTER
+# the Windows workflow finished, including its signing approval, so the order for
+# one tag is always: Windows draft complete -> this workflow -> the owner reviews
+# the whole draft and publishes it by hand. Nothing here publishes it.
+#   - It refuses to start unless exactly one release exists for the tag and, when
+#     that release is a draft, it already holds the complete signed Windows set and
+#     no macOS file (tools/assert-macos-release.mjs). With no release it stops;
+#     it never creates one, so it cannot race the Windows workflow into a second one.
+#   - The existing release is handed to tauri-action by id, so the action neither
+#     looks one up by tag (it cannot see drafts) nor creates one.
+#   - After every step that changes the release it checks that it is still the same
+#     release in the same state, with only the expected files.
+#   - A reserved test tag (v1.3.90 to v1.3.99) is joined only as a draft prerelease.
+#   - A release that was already published when the run started may still receive
+#     macOS files it lacks; nothing is created or hidden, and a macOS file that
+#     is already there is never replaced (draft or published).
+# The Release Tool (a separate repository) still has to learn to dispatch this
+# after a Windows draft; until then the owner dispatches it by hand.
 #
 # Started manually by the release tool or the Actions Run workflow button.
 # Tag pushes do not start a second publishing build.
@@ -16,7 +37,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to build and attach the macOS bundle to (e.g. v1.1.1)"
+        description: "Release tag whose existing release the macOS bundle is added to (e.g. v1.1.1)"
         required: true
 
 permissions:
@@ -29,18 +50,41 @@ concurrency:
 jobs:
   build-macos:
     runs-on: macos-latest
+    # An explicit bash shell runs with pipefail, so a release listing that fails partway fails the step instead of being checked as if complete.
+    defaults:
+      run:
+        shell: bash
     outputs:
       source-sha: ${{ steps.provenance.outputs.source_sha }}
       installer-digests: ${{ steps.provenance.outputs.digests }}
+      release-id: ${{ steps.release.outputs.release_id }}
+      release-state: ${{ steps.release.outputs.state }}
+      previous: ${{ steps.release.outputs.previous }}
     steps:
-      - name: Refuse reserved test tags
+      - name: Validate the release tag
         env:
-          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          [[ ! "$RELEASE_TAG" =~ ^v1\.3\.9[0-9]$ ]] || { echo 'Reserved test tag: macOS packaging and publishing are not part of the draft test release'; exit 1; }
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo "Invalid stable release tag: $RELEASE_TAG"; exit 1; }
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: refs/tags/${{ inputs.tag }}
+
+      - name: Validate the tag commit and version
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          tagged=$(git rev-parse --verify --quiet "refs/tags/$RELEASE_TAG^{commit}") || { echo "Tag $RELEASE_TAG is not in this checkout"; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "$tagged" ]] || { echo 'The checked-out commit is not the release tag commit; refusing to package'; exit 1; }
+          node - <<'EOF'
+          const fs = require("node:fs");
+          const version = process.env.RELEASE_TAG.slice(1);
+          for (const file of ["package.json", "src-tauri/tauri.conf.json"]) {
+            if (JSON.parse(fs.readFileSync(file, "utf8")).version !== version) { console.error(`Version mismatch in ${file}`); process.exit(1); }
+          }
+          const cargo = fs.readFileSync("src-tauri/Cargo.toml", "utf8");
+          if (!new RegExp(`^version\\s*=\\s*"${version.replace(/\./g, "\\.")}"\\s*$`, "m").test(cargo)) { console.error("Rust package version mismatch"); process.exit(1); }
+          EOF
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -52,6 +96,17 @@ jobs:
         with:
           node-version: 22
 
+      - name: Check the shared release before building
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          previous=$(gh api repos/OneTrueAsian/vault-spend/releases/latest --jq .tag_name)
+          source_sha=$(git rev-parse HEAD)
+          gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,target_commitish,assets:[.assets[].name]}' | node tools/assert-macos-release.mjs "$RELEASE_TAG" --stage before --previous "$previous" --source-sha "$source_sha"
+          echo "previous=$previous" >> "$GITHUB_OUTPUT"
+
       - name: Install frontend dependencies
         run: npm ci
       - name: Install RustSec scanner
@@ -59,7 +114,7 @@ jobs:
       - name: Dependency security policy tests
         run: node --test tools/dependency-security-policy.test.mjs tools/browser-download-contract.test.mjs
       - name: Verify signed updater release contracts
-        run: node --test tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs
+        run: node --test tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs tools/assert-macos-release.test.mjs tools/build-macos-workflow.test.mjs
       - name: Audit dependencies for aarch64-apple-darwin
         env:
           VAULTSPEND_AUDIT_OUTPUT: dependency-audit/aarch64-apple-darwin
@@ -76,17 +131,29 @@ jobs:
           path: dependency-audit/
           if-no-files-found: error
 
-      - name: Build and attach macOS bundle
+      # Pinned to the commit "v0" pointed at (v0.6.2) when its source was reviewed: with releaseId the action uploads
+      # straight to that release (no lookup by tag, no creation, no publication, no change to the draft or prerelease flags);
+      # a same-named file would be replaced, which the check above rules out for a draft. releaseName is left out so that,
+      # even if the id were ever empty, the action could not create a release.
+      - name: Build and attach macOS bundle to the existing release
         id: package
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.event.inputs.tag || github.ref_name }}
-          releaseName: "Vault Spend ${{ github.event.inputs.tag || github.ref_name }}"
-          releaseDraft: false
-          prerelease: false
+          tagName: ${{ inputs.tag }}
+          releaseId: ${{ steps.release.outputs.release_id }}
+          releaseDraft: true
+          prerelease: ${{ steps.release.outputs.prerelease }}
           args: --target universal-apple-darwin
+      - name: Confirm the release is the same private draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_ID: ${{ steps.release.outputs.release_id }}
+          RELEASE_STATE: ${{ steps.release.outputs.state }}
+          PREVIOUS: ${{ steps.release.outputs.previous }}
+        run: gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,target_commitish,assets:[.assets[].name]}' | node tools/assert-macos-release.mjs "$RELEASE_TAG" --stage packaged --release-id "$RELEASE_ID" --state "$RELEASE_STATE" --previous "$PREVIOUS"
       - name: Record final macOS build provenance
         id: provenance
         env:
@@ -98,6 +165,9 @@ jobs:
     needs: build-macos
     runs-on: ubuntu-latest
     environment: release-signing
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
         with:
@@ -105,6 +175,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Check the release before downloading
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_ID: ${{ needs.build-macos.outputs.release-id }}
+          RELEASE_STATE: ${{ needs.build-macos.outputs.release-state }}
+          PREVIOUS: ${{ needs.build-macos.outputs.previous }}
+        run: gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,target_commitish,assets:[.assets[].name]}' | node tools/assert-macos-release.mjs "$RELEASE_TAG" --stage packaged --release-id "$RELEASE_ID" --state "$RELEASE_STATE" --previous "$PREVIOUS"
       - name: Download final macOS release artifact
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -125,4 +203,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ inputs.tag }}
-        run: gh release upload "$RELEASE_TAG" --repo OneTrueAsian/vault-spend "$RUNNER_TEMP/update-signed/"*.json
+          RELEASE_ID: ${{ needs.build-macos.outputs.release-id }}
+          RELEASE_STATE: ${{ needs.build-macos.outputs.release-state }}
+          PREVIOUS: ${{ needs.build-macos.outputs.previous }}
+        run: |
+          gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,target_commitish,assets:[.assets[].name]}' | node tools/assert-macos-release.mjs "$RELEASE_TAG" --stage packaged --release-id "$RELEASE_ID" --state "$RELEASE_STATE" --previous "$PREVIOUS"
+          gh release upload "$RELEASE_TAG" --repo OneTrueAsian/vault-spend "$RUNNER_TEMP/update-signed/"*.json
+      - name: Confirm the release holds the signed set and is unchanged
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_ID: ${{ needs.build-macos.outputs.release-id }}
+          RELEASE_STATE: ${{ needs.build-macos.outputs.release-state }}
+          PREVIOUS: ${{ needs.build-macos.outputs.previous }}
+        run: gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,target_commitish,assets:[.assets[].name]}' | node tools/assert-macos-release.mjs "$RELEASE_TAG" --stage signed --release-id "$RELEASE_ID" --state "$RELEASE_STATE" --previous "$PREVIOUS"
