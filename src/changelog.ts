@@ -24,7 +24,10 @@ export const changelogNotes = (entry: ChangelogEntry): string[] => changelogSect
  * here as part of cutting each release, condensed from that release's
  * GitHub notes — a version with no entry here just shows nothing. */
 export const CHANGELOG: Record<string, ChangelogEntry> = {
-  "1.3.3": {
+  "1.3.4": {
+    "New features": [
+      "Help now has a Found a problem? card. The button opens a short form in your web browser where you can tell us what went wrong or what could be better. Nothing from your budget, accounts or files is sent unless you type it into the form yourself.",
+    ],
     Enhancements: [
       "Ask the Vault's Show all answers now open in the wide window, so long answer tables are easier to read. In a narrow window the table scrolls sideways inside its own box instead of squeezing the columns.",
       "On the import review, the number of rows under each bank category is now a button. Click it to see those transactions (date, description and amount) before you choose one of your own categories. Rows that are not being imported are listed too, marked Not importing.",
