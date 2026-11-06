@@ -2,15 +2,31 @@ import assert from "node:assert/strict";
 import { launchApp, withFocusRetry, openSettingsGroup } from "./harness.mjs";
 import { enableProtectionThroughUI, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 import { invoke } from "./lib/change-password.mjs";
+import { waitForFocusOn } from "./lib/dialogFocus.mjs";
+import { installMenuRecorder, markMenuSite, reportMenuFailure } from "./lib/profileMenuDiagnostics.mjs";
 
 // Opens the profile menu and clicks Lock profile through the page's own click event, waiting for each element to render first.
-async function lockViaProfileMenu(b) {
-  const toggle = await b.$('.profile-switcher-toggle');
-  await toggle.waitForExist({ timeout: 10000, timeoutMsg: 'the profile menu button should be on the page' });
-  await b.execute(el => el.click(), toggle);
-  const lock = await b.$('[data-profile-switcher-lock]');
-  await lock.waitForExist({ timeout: 10000, timeoutMsg: 'the profile menu should offer Lock profile' });
-  await b.execute(el => el.click(), lock);
+// `site` names which of the spec's menu openings this is. A page-side recorder and, on a failure, one DIAGNOSTIC line (menu, dialogs, focus,
+// window and profile state, no names) explain why the menu did not offer Lock profile. They only observe: waits and clicks are unchanged.
+async function lockViaProfileMenu(b, site) {
+  await b.execute(installMenuRecorder);
+  await b.execute(markMenuSite, site);
+  let step = 'finding the menu button';
+  try {
+    const toggle = await b.$('.profile-switcher-toggle');
+    await toggle.waitForExist({ timeout: 10000, timeoutMsg: 'the profile menu button should be on the page' });
+    step = 'opening the menu';
+    await b.execute(el => el.click(), toggle);
+    step = 'waiting for the Lock profile entry';
+    const lock = await b.$('[data-profile-switcher-lock]');
+    await lock.waitForExist({ timeout: 10000, timeoutMsg: 'the profile menu should offer Lock profile' });
+    step = 'clicking Lock profile';
+    await b.execute(el => el.click(), lock);
+  } catch (error) {
+    await reportMenuFailure(b, invoke, site, step);
+    throw error;
+  }
+  console.log(`profile menu opening ok: ${site}`);
 }
 
 const app = await launchApp();
@@ -27,7 +43,7 @@ try {
   await b.$('input[placeholder*="Ferrywood"]').setValue('unsaved draft');
   for (const palette of ["transparent", "futuristic", "retro"]) for (const theme of ["light", "dark"]) {
     await b.execute((p, t) => { document.documentElement.dataset.palette = p; document.documentElement.dataset.theme = t; }, palette, theme);
-    await lockViaProfileMenu(b);
+    await lockViaProfileMenu(b, `loop ${palette}/${theme}`);
     await b.$('button=Keep editing').waitForExist({ timeout: 5000 });
     const layout = await b.execute(() => {
       const panels = [...document.querySelectorAll('.modal-panel')];
@@ -38,9 +54,11 @@ try {
     assert.equal(layout.count, 2); assert.equal(layout.contained, true); assert.equal(layout.focus, true); assert.equal(layout.border, 'solid');
     await withFocusRetry(b, async () => { await b.$('button=Keep editing').click(); });
     await b.$('button=Keep editing').waitForExist({ reverse: true, timeout: 5000 });
+    // The closing dialog hands focus back to the draft one timer tick later; opening the profile menu before that closes the menu again.
+    await waitForFocusOn(b, 'input[placeholder*="Ferrywood"]', 'the unsaved draft');
     assert.equal(await b.$('input[placeholder*="Ferrywood"]').getValue(), 'unsaved draft');
   }
-  await lockViaProfileMenu(b);
+  await lockViaProfileMenu(b, 'discard and lock');
   await b.$('button=Discard and lock').waitForExist({ timeout: 5000 });
   await b.$('button=Discard and lock').click();
   await b.$('[data-profile-lock-screen]').waitForExist({ timeout: 10000 });
@@ -51,7 +69,7 @@ try {
   await openSettingsGroup(b, "features");
   await (await b.$('#categorization-rules')).$('button=Add rule').click();
   await b.$('input[placeholder*="Ferrywood"]').setValue('another unsaved draft');
-  await lockViaProfileMenu(b);
+  await lockViaProfileMenu(b, 'after unlock');
   await b.$('button=Discard and lock').waitForExist({ timeout: 5000 });
   // Automatic workstation locking must not wait for an open manual confirmation.
   assert.equal((await invoke(b, 'debug_apply_system_session_event', { event: 'locked' })).ok, true);
