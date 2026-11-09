@@ -16,7 +16,7 @@ const key = (over = {}) => computeBuildKey({ files: files(), toolchain: toolchai
 
 describe("which files are build inputs", () => {
   it.each([
-    "src/main.tsx", "src/new/untracked-file.ts", "src/askVault/x.ts", "src/mobilePreviewFixtures.ts", "src-tauri/src/commands.rs", "src-tauri/capabilities/default.json", "core/src/store/accounts.rs", "Cargo.toml", "Cargo.lock",
+    "src/main.tsx", "src/new/untracked-file.ts", "src/askVault/x.ts", "src/mobile/mobilePreviewFixtures.ts", "src-tauri/src/commands.rs", "src-tauri/capabilities/default.json", "core/src/store/accounts.rs", "Cargo.toml", "Cargo.lock",
     "package.json", "package-lock.json", "vite.config.ts", "vite.mobile.config.ts", "tsconfig.json", "tsconfig.node.json", "index.html", "public/icon.svg", "src-tauri/tauri.conf.json", "rust-toolchain.toml", "src-tauri/build.rs", "src-tauri/Cargo.toml",
   ])("%s changes what gets built", path => expect(isBuildInput(path)).toBe(true));
   it.each(["README.md", "e2e/feature1_x.mjs", "e2e/run-all.mjs", "docs/notes.md", ".github/workflows/release-windows.yml", "e2e/.e2e-durations.json", "target/debug/vaultspend.exe", "node_modules/x/index.js"])(
@@ -26,10 +26,10 @@ describe("which files are build inputs", () => {
 
 describe("test-only files are not application build inputs (owner decision 20 Oct 2026)", () => {
   it.each([
-    "src/askVault/useRetirementScenario.test.tsx", "src/format.test.ts", "src\\askVault\\a.test.ts", "src/testSupport/render.tsx", "src/cssTestUtils.ts", "src/menuSelectTestUtils.ts", "src/statementTestUtils.ts",
+    "src/askVault/useRetirementScenario.test.tsx", "src/shared/lib/format.test.ts", "src\\askVault\\a.test.ts", "src/testSupport/render.tsx", "src/shared/lib/cssTestUtils.ts", "src/shared/ui/menuSelectTestUtils.ts", "src/features/statements/statementTestUtils.ts",
     "core/src/store/tests.rs", "core/src/store/tests/accounts.rs", "core/src/store/tests/ask_vault_retirement_fixtures.json",
   ])("%s is test-only and cannot change the executable", path => { expect(isTestOnlyFile(path)).toBe(true); expect(isBuildInput(path)).toBe(false); });
-  it.each(["src/main.tsx", "src/askVault/useRetirementScenario.ts", "src/mobilePreviewFixtures.ts", "src/setupTemplate.ts", "src/ledgerHelpers.ts", "core/src/store.rs", "core/src/store/accounts.rs", "src-tauri/src/lib.rs", "src/testament.ts", "src/latest.tsx"])(
+  it.each(["src/main.tsx", "src/askVault/useRetirementScenario.ts", "src/mobile/mobilePreviewFixtures.ts", "src/features/imports/setupTemplate.ts", "src/ledgerHelpers.ts", "core/src/store.rs", "core/src/store/accounts.rs", "src-tauri/src/lib.rs", "src/testament.ts", "src/latest.tsx"])(
     "%s is not test-only", path => { expect(isTestOnlyFile(path)).toBe(false); expect(isBuildInput(path)).toBe(true); });
   it("a test-only edit leaves the application key unchanged and a production edit changes it", () => {
     const withTests = { ...files(), "src/askVault/useRetirementScenario.test.tsx": "t1", "core/src/store/tests/accounts.rs": "t2" };

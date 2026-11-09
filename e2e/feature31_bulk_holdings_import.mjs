@@ -1,7 +1,7 @@
 // E2E smoke test for the Settings tab's bulk setup-data import/export
 // buttons, now that "Holdings" is a 5th section on that template
 // (core/src/setup_import.rs, src-tauri/src/commands.rs's
-// preview_setup_import/commit_setup_import, src/App.tsx's
+// preview_setup_import/commit_setup_import, src/app/App.tsx's
 // pendingSetupImport review screen).
 //
 // "Download setup template" and "Import setup data" both go through a

@@ -1,6 +1,6 @@
-import { monthsUntil, projectAccount } from "../accumulation";
-import { projectBalancesExact, subtractRational, todaysDollarsFactor } from "../accumulationExact";
-import type { Rational } from "../accumulationExact";
+import { monthsUntil, projectAccount } from "../shared/lib/accumulation";
+import { projectBalancesExact, subtractRational, todaysDollarsFactor } from "../features/investments/accumulationExact";
+import type { Rational } from "../features/investments/accumulationExact";
 import type {
   CalculateRetirementScenario, FormatRetirementEstimate, ProjectRetirementAccount, RetirementEstimate, RetirementIllustration,
 } from "./retirementScenarioContract";

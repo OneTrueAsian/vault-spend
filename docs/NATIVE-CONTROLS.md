@@ -18,7 +18,7 @@ DateField callers include:
 | comparisons/AmountEditor | Date measured |
 
 MonthField callers include the Withdraw month in AccumulationSection. DateField
-and MonthField share `src/calendar/CalendarField.tsx`: regional text entry and an
+and MonthField share `src/shared/ui/calendar/CalendarField.tsx`: regional text entry and an
 app-drawn calendar popup. Their compiled workflow, theme, keyboard and contrast
 checks are described in `e2e/README.md` (features 370–373). These caller examples
 are not an exhaustive inventory.

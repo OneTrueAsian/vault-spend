@@ -4,7 +4,7 @@ import { validateBaselineBatchSnapshot } from "./cutPreviewBatch";
 import { explainFailure } from "./controller";
 import { scenarioBaselineProblem } from "./spendingScenarioMath";
 import type { ScenarioSource } from "./spendingScenarioContract";
-import { dateOutOfRange } from "../dateRange";
+import { dateOutOfRange } from "../shared/lib/dateRange";
 
 /** Abort the wait, not the native command. Its late settlement is always observed and discarded. */
 function cancellable<T>(work: Promise<T>, signal?: AbortSignal): Promise<T | null> {

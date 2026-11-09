@@ -1,5 +1,5 @@
-import { date as isDate } from "../contractChecks";
-import { dateOutOfRange, DATE_RANGE_PROBLEM } from "../dateRange";
+import { date as isDate } from "../shared/native/contractChecks";
+import { dateOutOfRange, DATE_RANGE_PROBLEM } from "../shared/lib/dateRange";
 
 /** M3 intent only: not a native financial-read request or an authorization token. */
 export type SpendingScenarioIntent = {

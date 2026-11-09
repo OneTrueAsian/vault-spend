@@ -1,8 +1,8 @@
 import { CHANGED_BODY } from "./changedState";
 import type { AskDataRevision } from "./types";
-import { date as isDate, integer, id as isId } from "../contractChecks";
-import { dateOutOfRange } from "../dateRange";
-import { TransactionError, transactionError } from "../transactionContracts";
+import { date as isDate, integer, id as isId } from "../shared/native/contractChecks";
+import { dateOutOfRange } from "../shared/lib/dateRange";
+import { TransactionError, transactionError } from "../shared/native/transactionContracts";
 import { plainArray, validateRetirementContext, validateRetirementContextRequest, validateRetirementInflationCandidate } from "./retirementScenarioContract";
 import type { RetirementContext, RetirementContribution, RetirementInflationCandidate, RetirementReturn, RetirementSource } from "./retirementScenarioContract";
 

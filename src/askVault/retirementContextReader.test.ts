@@ -3,7 +3,7 @@ import { readRetirementContext, readRetirementRoster, retirementContextClient, r
 import type { ReadRetirementContext, RetirementContextClient, RetirementContextRead, RetirementContextRequest, RetirementSource } from "./retirementScenarioContract";
 import type { RetirementContextReply, RetirementRosterReply } from "./retirementNativeContract";
 import { retirementContextFromReply } from "./retirementNativeContract";
-import { TransactionError } from "../transactionContracts";
+import { TransactionError } from "../shared/native/transactionContracts";
 
 /** F1: the reader the app uses is the frozen ReadRetirementContext (Contract.md), not a private variant of it. */
 const frozen: ReadRetirementContext = readRetirementContext;

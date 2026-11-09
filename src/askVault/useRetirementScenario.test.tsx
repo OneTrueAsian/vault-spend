@@ -14,7 +14,7 @@ import type { ConfirmedRetirementScenario, RetirementCalculation, RetirementCont
 import type { RetirementContextReply, RetirementContextWireRequest, RetirementRosterReply, RetirementRosterWireRequest } from "./retirementNativeContract";
 import { retirementContextFromReply, validateRetirementContextReply, validateRetirementRosterReply } from "./retirementNativeContract";
 import type { AskDataRevision, ParseContext } from "./types";
-import { TransactionError } from "../transactionContracts";
+import { TransactionError } from "../shared/native/transactionContracts";
 
 vi.mock("./retirementParser", async importOriginal => { const real = await importOriginal<typeof import("./retirementParser")>(); return { ...real, parseRetirementScenario: vi.fn(real.parseRetirementScenario) }; });
 vi.mock("./retirementScenarioMath", async importOriginal => { const real = await importOriginal<typeof import("./retirementScenarioMath")>(); return { ...real, calculateRetirementScenario: vi.fn(real.calculateRetirementScenario) }; });

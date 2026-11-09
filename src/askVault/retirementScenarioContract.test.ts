@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { projectAccount } from "../accumulation";
+import { projectAccount } from "../shared/lib/accumulation";
 import {
   retirementProjectionNumber, validateConfirmedRetirementScenario, validateRetirementContext,
   validateRetirementContextRequest, validateRetirementDraft, validateRetirementIntent, validateRetirementRate,

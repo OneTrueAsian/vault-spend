@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { traceRetire, traceReviewPublisher } from "./retirementStageTrace";
-import { createFinancialClient } from "../financialReads";
+import { createFinancialClient } from "../shared/native/financialReads";
 import { onDataWrite } from "./dataWriteEvents";
 import { compareRetirementRosterRows, retirementFreshness } from "./retirementNativeContract";
 import { readRetirementContext, readRetirementRoster, retirementContextClient, retirementSourceFromRoster } from "./retirementContextReader";

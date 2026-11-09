@@ -1,4 +1,4 @@
-import { date as isDate } from "../contractChecks";
+import { date as isDate } from "../shared/native/contractChecks";
 import { validateScenarioIntent } from "./spendingScenarioContract";
 import { distance } from "./distance";
 import { ordinaryOperatorStore, wholeNamePattern } from "./savingLead";

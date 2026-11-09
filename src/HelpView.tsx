@@ -1,8 +1,8 @@
 import { Fragment, ReactNode, useEffect, useState, type SyntheticEvent } from "react";
-import type { Tab } from "./appTypes";
+import type { Tab } from "./shared/native/appTypes";
 import thirdPartyNotices from "../docs/THIRD-PARTY-NOTICES.txt?raw";
-import { LegalNoticeHelp } from "./LegalNoticeHelp";
-import { ReportIssueCard } from "./ReportIssueCard";
+import { LegalNoticeHelp } from "./features/help/LegalNoticeHelp";
+import { ReportIssueCard } from "./features/help/ReportIssueCard";
 
 /** One filterable unit of help content. `tags` drives search — always
  * include the entry's own visible name/heading among them (so searching

@@ -1,8 +1,8 @@
 import { CHANGED_BODY } from "./changedState";
-import type { Projection, ProjectionInput } from "../accumulation";
+import type { Projection, ProjectionInput } from "../shared/lib/accumulation";
 import type { AskClarification } from "./types";
-import { date as isDate } from "../contractChecks";
-import { dateOutOfRange } from "../dateRange";
+import { date as isDate } from "../shared/native/contractChecks";
+import { dateOutOfRange } from "../shared/lib/dateRange";
 
 /** M5 domain contracts only. Native transport, parser, calculator and controller are separate workers. */
 export type RetirementParseContext = {

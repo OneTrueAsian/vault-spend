@@ -11,14 +11,46 @@ changing its owner, inclusion rule or lifecycle boundary.
 |---|---|
 | Financial model | [core Store](../core/src/store.rs), split into feature modules: SQLite/SQLCipher data, exact arithmetic, inclusion rules and mutations; no Tauri dependency |
 | Desktop service | [command worker](../src-tauri/src/command_thread.rs), [runtime](../src-tauri/src/runtime.rs) and [commands](../src-tauri/src/commands.rs): IPC dispatch, open-session access and profile lifecycle |
-| Desktop UI | [App](../src/App.tsx): composition, navigation and shared consumers; transaction feature owners are mapped in [Transactions ownership](TRANSACTIONS-OWNERSHIP.md) |
+| Desktop UI | [App](../src/app/App.tsx): composition, navigation and shared consumers; transaction feature owners are mapped in [Transactions ownership](TRANSACTIONS-OWNERSHIP.md) |
 | Statement reconciling | [Statement reconciling](STATEMENT-RECONCILE.md): reading statements, layouts, matching, the shared balance rule, the review session and privacy; [reader](../core/src/statement/mod.rs), [store rules](../core/src/store/reconcile.rs), [commands](../src-tauri/src/commands/statements.rs) |
-| Mobile | [HTTPS service](../src-tauri/src/mobile_server.rs), [connection](../src/mobileConnection.ts), [repository](../src/mobileRepository.ts) and [offline UI](../src/MobileOfflineApp.tsx): approved read-only projections and separately saved copies |
+| Mobile | [HTTPS service](../src-tauri/src/mobile_server.rs), [connection](../src/mobile/mobileConnection.ts), [repository](../src/mobile/mobileRepository.ts) and [offline UI](../src/mobile/MobileOfflineApp.tsx): approved read-only projections and separately saved copies |
 
 Commands use glob re-exports: Tauri's generated command macros must remain
 available. A Rust function being exported does not itself grant renderer
 permission; registration, capabilities, validation and runtime checks are
 separate boundaries.
+
+## Frontend source layout
+
+`src/` is organised by feature. Tests and styles sit beside the code they cover.
+
+| Folder | Holds |
+|---|---|
+| `main.tsx` | Desktop entry point. |
+| `app/` | App shell, navigation, startup gate, view loading and the shell stylesheets. Nothing under `features/` or `shared/` imports from here. |
+| `features/<name>/` | One folder per feature: `profiles`, `dashboard`, `transactions`, `budgets`, `reports`, `household`, `imports`, `statements`, `investments`, `comparisons`, `backups`, `settings`, `updates`, `help`. Components, hooks, styles, feature-only helpers and their tests stay together. |
+| `shared/ui/` | Reusable controls (`Modal`, `MenuSelect`, `DateField`, charts), shared stylesheets, plus `calendar/` and `icons/`. |
+| `shared/hooks/` | Hooks used by more than one feature. |
+| `shared/native/` | Tauri transport (`tauriInvoke`), IPC and read contracts, and the validators every native reply passes through. |
+| `shared/lib/` | Formatting, money, date and other helpers used by more than one feature. |
+| `mobile/` | The phone viewer: its entry points (`mobileMain.tsx`, `mobilePreview.tsx`, `mobileStorageProbe.tsx`, loaded by `mobile/*.html`), repository, storage and screens. It must not import Tauri; `vite.mobile.config.ts` enforces that. |
+| `themes/`, `assets/` | Theme stylesheets and bundled images and fonts. |
+| `testSupport/` | Test-only fixtures. `guards/` holds the tests that scan the whole source tree (dates, layout, scrolling, plain language, write-command freshness, renderer security) and so belong to no single feature. |
+
+A module moves into `shared/` when two or more features (or the phone viewer) use it. Features may import another feature's components when that is the real owner, but not `app/`.
+
+Files deliberately left at the top of `src/`: `main.tsx`, `vite-env.d.ts`, and the Ask the Vault files listed below.
+
+### Ask the Vault is pinned in place
+
+The Ask the Vault scoring freeze (`src/testSupport/askVaultM6/`, signed freeze records) hashes the bytes of about a hundred files under `src/askVault/` and `src/testSupport/askVaultM6/`. Editing any of them fails `scoringFreeze.test.ts` until a new signed freeze version is made. Those files import, or read from disk by fixed path, a few other files, so these stay where they are:
+
+- `src/askVault/` and `src/testSupport/askVaultM6/` (frozen bytes; `src/askVault/` is also imported by the app).
+- `AskVaultCard.tsx`, `CutPreviewDialog.tsx` and `.css`, `transactionQa.ts`: imported by frozen files.
+- `HelpView.tsx`, `SpendingScenarioDialog.tsx` and `.css`, `RetirementScenarioDialog.tsx` and `.css`: read by frozen tests that quote them.
+- The matching `*.test.tsx` files named in `testSupport/askVaultM6/helpClaims.ts`, and `askVaultStyles.test.ts`.
+
+Moving them into a feature folder is a follow-up that needs a new signed freeze.
 
 ## Money, balances and inclusion
 
@@ -60,14 +92,14 @@ the displayed page as an aggregate's data source.
 
 ## Trace a transaction mutation
 
-For notes, follow [handleSaveNotes](../src/useTransactionRowActions.ts#L236):
+For notes, follow [handleSaveNotes](../src/features/transactions/useTransactionRowActions.ts#L236):
 the feature owner calls the profile-bound transaction client, invokes
 `update_transaction_notes`, then requests `refreshRows([id])`.
-[transactionReads](../src/transactionReads.ts) captures generation/session
+[transactionReads](../src/shared/native/transactionReads.ts) captures generation/session
 context; the synchronous worker's request scope is checked again by
 `AppRuntime::lock` before backend access. The Store owns validation and writing.
 
-[useTransactionData](../src/useTransactionData.ts) publishes one validated
+[useTransactionData](../src/features/transactions/useTransactionData.ts) publishes one validated
 snapshot containing rows and related metadata. A targeted refresh removes
 missing requested rows; overlap, external commits or changes outside those IDs
 can require a full read. Invalid, superseded or wrong-session results cannot
@@ -96,7 +128,7 @@ snapshots, preserving inheritance and intentionally empty months.
 
 ## Import commit boundary
 
-[useImportReview](../src/useImportReview.ts) owns review/selection and the
+[useImportReview](../src/features/imports/useImportReview.ts) owns review/selection and the
 profile-bound preview/commit calls. The backend
 [commit_import_for](../src-tauri/src/commands/import.rs#L299) reloads the file,
 checks its review token, validates row indices and resolves accounts/categories
@@ -124,7 +156,7 @@ guard. Its lock path advances generation, closes access and broadcasts state.
 Manual confirmation, timer, window and supported system events share this
 lifecycle rather than hiding financial UI alone.
 
-[StartupGate](../src/StartupGate.tsx#L11) installs its event listener before the
+[StartupGate](../src/app/StartupGate.tsx#L11) installs its event listener before the
 initial read; newer broadcasts win over stale reads. Locked/selector states
 unmount the financial App. Selecting a protected profile requires unlock;
 the [unlock command](../src-tauri/src/protection_commands.rs#L129) reads strict
@@ -182,13 +214,13 @@ runs explicit idempotent column/data migrations, including historical sign/data
 corrections with stored markers. There is no general numbered migration runner;
 do not assume all changes are merely additive. Preserve old-profile fixtures.
 [legacy migration](../src-tauri/src/legacy_migration.rs), journaled protection
-conversion/rotation and [profile UI-state migration](../src/profileUiState.ts)
+conversion/rotation and [profile UI-state migration](../src/shared/lib/profileUiState.ts)
 are distinct owners. Browser snapshot envelope/schema/viewer versions are checked
 separately; an unsupported copy is not silently reinterpreted.
 
-Use [Modal](../src/Modal.tsx), [MenuSelect](../src/MenuSelect.tsx),
-[EditableCombobox](../src/EditableCombobox.tsx), [DateField](../src/DateField.tsx)
-and [MonthField](../src/MonthField.tsx) with existing theme tokens. Default is
+Use [Modal](../src/shared/ui/Modal.tsx), [MenuSelect](../src/shared/ui/MenuSelect.tsx),
+[EditableCombobox](../src/shared/ui/EditableCombobox.tsx), [DateField](../src/shared/ui/DateField.tsx)
+and [MonthField](../src/shared/ui/MonthField.tsx) with existing theme tokens. Default is
 `transparent`; Futuristic/Retro are separate palettes, light/dark is independent.
 Native calendar/file/print boundaries are documented in [native controls](NATIVE-CONTROLS.md).
 Keep feature CSS scoped; verify real compiled geometry and keyboard/overlay behavior.

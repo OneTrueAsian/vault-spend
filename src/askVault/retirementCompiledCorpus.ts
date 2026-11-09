@@ -1,7 +1,7 @@
 import type { CorpusCase } from "./retirementCorpus";
 import { RETIREMENT_CORPUS, retirementExecutionExpectation, retirementScoringPlan } from "./retirementCorpus";
-import { date as isDate } from "../contractChecks";
-import { dateOutOfRange } from "../dateRange";
+import { date as isDate } from "../shared/native/contractChecks";
+import { dateOutOfRange } from "../shared/lib/dateRange";
 
 /** Owner-approved test-driver adaptation, never imported by the app or used to change parser outcomes. */
 export function compiledRetirementCase(c: CorpusCase, today: string) {

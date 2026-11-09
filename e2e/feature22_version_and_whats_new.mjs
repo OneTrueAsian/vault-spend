@@ -18,9 +18,9 @@ import { launchApp } from "./harness.mjs";
 // The release version and its What's New bullets, read from the source of truth rather than
 // hard-coded, so the same spec verifies every release candidate.
 const expectedVersion = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
-const changelogSource = fs.readFileSync("src/changelog.ts", "utf8");
+const changelogSource = fs.readFileSync("src/shared/lib/changelog.ts", "utf8");
 const entryMatch = new RegExp(`^  "${expectedVersion.replaceAll(".", "\\.")}": [\\[{]\\r?\\n([\\s\\S]*?)^  [\\]}],`, "m").exec(changelogSource);
-if (!entryMatch) throw new Error(`src/changelog.ts has no entry for ${expectedVersion}`);
+if (!entryMatch) throw new Error(`src/shared/lib/changelog.ts has no entry for ${expectedVersion}`);
 const expectedBullets = [...entryMatch[1].matchAll(/^ {4,6}"(.*)",\s*$/gm)].map((m) => JSON.parse(`"${m[1]}"`));
 if (expectedBullets.length === 0) throw new Error(`the ${expectedVersion} changelog entry has no bullets`);
 

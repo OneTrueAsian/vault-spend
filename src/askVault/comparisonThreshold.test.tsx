@@ -13,7 +13,7 @@ import { buildReplyIndex, observeCase, type RouteEnv } from "../testSupport/askV
  * Owner instruction Q3 (answers of 21 October 2026): the approved gold `m2-enabled-comparison-v1` for "compare purchases over $100 this month to last month"
  * must be answered, not refused. Public-route tests, written before the harness change (RED first).
  *
- * Finding that shapes the fix: the shipped Dashboard ALWAYS hands the card a family list (src/DashboardView.tsx:321-322 `familyMembers: familyMembers.map(...)`, an array
+ * Finding that shapes the fix: the shipped Dashboard ALWAYS hands the card a family list (src/features/dashboard/DashboardView.tsx:321-322 `familyMembers: familyMembers.map(...)`, an array
  * that may be empty), and the parser treats a defined family list as the M2 context (src/askVault/parser.ts:994 `version2`), where a threshold in a comparison is
  * allowed (parserV2.test.ts "comparison purchase thresholds"). The three M1-origin cases were refused only because the frozen M1-era parse context has NO family list,
  * a context the shipped app never builds. So the defect was in how the harness mounted the card, not in the parser; the intentional M1-mode refusal is kept.
@@ -80,7 +80,7 @@ describe("comparison with a purchase threshold, through the real card as the app
     const m1 = family.find(c => c.id === "m1/101-0295")!;
     const o = await observeCase(m1, m1.required[0], env, buildReplyIndex(env), { contextMode: "frozen" });
     expect(o.stage).toBe("refusal");
-    const dashboard = readFileSync("src/DashboardView.tsx", "utf8");
+    const dashboard = readFileSync("src/features/dashboard/DashboardView.tsx", "utf8");
     expect(dashboard).toContain("familyMembers: familyMembers.map(({ id, name }) => ({ id, name })),");
   }, 30_000);
 });

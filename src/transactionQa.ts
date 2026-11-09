@@ -1,7 +1,7 @@
 import * as chrono from "chrono-node";
-import type { Bucket, Recurring } from "./types";
-import { groupOf, netWorthContribution, owedAmount } from "./accountGroups";
-import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
+import type { Bucket, Recurring } from "./shared/lib/types";
+import { groupOf, netWorthContribution, owedAmount } from "./shared/lib/accountGroups";
+import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./shared/lib/format";
 import {
   compareQuery,
   findAccount,
@@ -11,7 +11,7 @@ import {
   type DateRange,
   type Metric,
   type QaContext,
-} from "./transactionQuery";
+} from "./features/transactions/transactionQuery";
 
 // Re-exported so existing imports of `QaContext` from this module (e.g.
 // transactionQa.test.ts) keep working — the type itself now lives in

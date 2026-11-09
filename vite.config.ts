@@ -12,8 +12,8 @@ export default defineConfig(async () => ({
   // Tauri's own variables (TAURI_ENV_DEBUG says whether this is a debug build) reach the frontend alongside the usual VITE_ ones.
   envPrefix: ["VITE_", "TAURI_ENV_"],
 
-  // Every import of Tauri's invoke goes through src/tauriInvoke.ts, which announces successful writes (Ask the Vault retires open illustrations).
-  resolve: { alias: [{ find: /^@tauri-apps\/api\/core$/, replacement: fileURLToPath(new URL("./src/tauriInvoke.ts", import.meta.url)) }] },
+  // Every import of Tauri's invoke goes through src/shared/native/tauriInvoke.ts, which announces successful writes (Ask the Vault retires open illustrations).
+  resolve: { alias: [{ find: /^@tauri-apps\/api\/core$/, replacement: fileURLToPath(new URL("./src/shared/native/tauriInvoke.ts", import.meta.url)) }] },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

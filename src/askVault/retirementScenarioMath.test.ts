@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
-import * as accumulation from "../accumulation";
-import type { ProjectionInput } from "../accumulation";
-import { projectGoal } from "../projections";
+import * as accumulation from "../shared/lib/accumulation";
+import type { ProjectionInput } from "../shared/lib/accumulation";
+import { projectGoal } from "../shared/lib/projections";
 import { retirementContractExamples } from "./retirementScenarioContractExamples";
 import { calculateRetirementScenario, formatRetirementEstimate, formatRetirementInterval, projectRetirementAccount } from "./retirementScenarioMath";
 import type { ConfirmedRetirementScenario } from "./retirementScenarioContract";

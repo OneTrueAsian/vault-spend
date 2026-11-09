@@ -1,5 +1,5 @@
-import { array, boolean, date, integer, nullable, object, string } from "../contractChecks";
-import { TransactionError } from "../transactionContracts";
+import { array, boolean, date, integer, nullable, object, string } from "../shared/native/contractChecks";
+import { TransactionError } from "../shared/native/transactionContracts";
 import { alignedPrior, dayCount, monthsTouching } from "./calendar";
 import { addMoney, averageToCents, compareMoney, isMoney, percentChangeTenths, subtractMoney } from "./money";
 import type { AskAlignment, AskDataRevision, AskFamilyMember, AskKind, AskVaultRequestV2 } from "./types";

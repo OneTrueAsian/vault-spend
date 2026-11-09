@@ -1,5 +1,5 @@
 /** Synthetic, hand-calculated contract fixtures. No production calculator/formatter is implemented here. */
-import type { Projection } from "../accumulation";
+import type { Projection } from "../shared/lib/accumulation";
 import type { ConfirmedRetirementScenario, RetirementCalculation, RetirementEstimate, RetirementIllustration, RetirementLiveContext } from "./retirementScenarioContract";
 
 export type RetirementContractExample = {

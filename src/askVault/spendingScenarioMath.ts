@@ -5,7 +5,7 @@
  * The calculator checks its own input, because the type annotations are not runtime validation. It does not decide whether the
  * baseline is fresh or the person confirmed it: those belong to the controller. Invalid input throws, so it can never produce a number.
  */
-import { date as isDate, integer } from "../contractChecks";
+import { date as isDate, integer } from "../shared/native/contractChecks";
 import { dateParts, daysInMonth, dayCount, isoDate, monthsTouching } from "./calendar";
 import type { AskMonthCoverage } from "./contractV2";
 import {

@@ -118,7 +118,7 @@ To switch visual style the way a person does, use `chooseStyle(browser,
 style's row, chooses it and waits until it applies.
 
 Dates on screen are written out ("Oct 4", or "Oct 4, 2025" for another year), the way
-`formatDisplayDate` in `src/format.ts` shows them; `displayDate` in `lib/dates.mjs` gives the text to
+`formatDisplayDate` in `src/shared/lib/format.ts` shows them; `displayDate` in `lib/dates.mjs` gives the text to
 expect. Every date field is `DateField` and every month field `MonthField`: a text box in the
 region's own order ("10/04/2026", "04/10/2026", "2026/10/04") with a calendar the app draws beside it;
 there is no native date or month control, so nothing in a spec may select `input[type="date"]` or

@@ -19,7 +19,7 @@ const context = () => ({ binding, receipts: { one: receipt("one"), two: receipt(
 
 describe("dependency-bound scheduling approvals", () => {
   it("binds helper, fixture, application and classification changes, without a circular registry key", () => {
-    const inputs = { "src/App.css": "one", "e2e/lib/helper.mjs": "one", "e2e/fixtures/ledger.sql": "one", "e2e/spec-classification.json": "one", "e2e/parallel-approvals.json": "one" };
+    const inputs = { "src/shared/ui/App.css": "one", "e2e/lib/helper.mjs": "one", "e2e/fixtures/ledger.sql": "one", "e2e/spec-classification.json": "one", "e2e/parallel-approvals.json": "one" };
     const current = createApprovalContext({ inputs, identity: binding });
     for (const file of Object.keys(inputs).filter(p => !p.endsWith("parallel-approvals.json"))) {
       expect(createApprovalContext({ inputs: { ...inputs, [file]: "two" }, identity: binding }).binding.sourceKey).not.toBe(current.binding.sourceKey);

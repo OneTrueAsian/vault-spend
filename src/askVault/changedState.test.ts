@@ -3,7 +3,7 @@ import { CHANGED_BODY, CHANGED_HEADING } from "./changedState";
 import { explainFailure } from "./controller";
 import { explainRetirementFailure } from "./retirementNativeContract";
 import { RETIREMENT_CHANGED_MESSAGE } from "./retirementScreenContract";
-import { TransactionError } from "../transactionContracts";
+import { TransactionError } from "../shared/native/transactionContracts";
 
 /** D-S3-04 (UC-06): one heading and one body for every "your data changed" state, in every family. */
 describe("the shared changed-state wording", () => {

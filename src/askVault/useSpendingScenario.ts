@@ -1,6 +1,6 @@
 import { CHANGED_BODY } from "./changedState";
 import { useEffect, useRef, useState } from "react";
-import { createFinancialClient } from "../financialReads";
+import { createFinancialClient } from "../shared/native/financialReads";
 import type { ScenarioBaselineChoice, ScenarioChoiceAnswers, SpendingScenarioScreen } from "../SpendingScenarioDialog";
 import { baselineFromSnapshot, baselineRequest, sameScenarioSource, scenarioSourceFromSnapshot, scenarioSourceRequest } from "./spendingScenarioBaseline";
 import { parseSpendingScenario } from "./spendingScenarioParser";

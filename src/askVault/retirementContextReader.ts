@@ -1,6 +1,6 @@
 import { CHANGED_BODY } from "./changedState";
-import { createFinancialClient } from "../financialReads";
-import { TransactionError } from "../transactionContracts";
+import { createFinancialClient } from "../shared/native/financialReads";
+import { TransactionError } from "../shared/native/transactionContracts";
 import type { AskDataRevision } from "./types";
 import { explainRetirementFailure, retirementContextFromReply, retirementSourceFromReply, retirementWireRequestFromSource } from "./retirementNativeContract";
 import type { RetirementRosterReply } from "./retirementNativeContract";

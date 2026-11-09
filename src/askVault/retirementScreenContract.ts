@@ -1,6 +1,6 @@
 import { CHANGED_BODY } from "./changedState";
-import { monthsUntil } from "../accumulation";
-import { dateOutOfRange } from "../dateRange";
+import { monthsUntil } from "../shared/lib/accumulation";
+import { dateOutOfRange } from "../shared/lib/dateRange";
 import { calculateRetirementScenario } from "./retirementScenarioMath";
 import {
   plainArray, validateConfirmedRetirementScenario, validateRetirementContext, validateRetirementDraft, validateRetirementInflationCandidate, validateRetirementIntent, validateRetirementRate,

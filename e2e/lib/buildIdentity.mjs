@@ -10,14 +10,14 @@ import os from "node:os";
 const norm = file => file.replaceAll("\\", "/");
 const ROOT_INPUTS = /^(index\.html|package\.json|package-lock\.json|Cargo\.toml|Cargo\.lock|rust-toolchain(\.toml)?|tsconfig[^/]*\.json|vite[^/]*\.(ts|mjs|js))$/;
 
-// Files outside src/ that the app compiles in with `?raw` (src/legalNotice.ts, src/HelpView.tsx). A test in affected.test.mjs reads the source for
+// Files outside src/ that the app compiles in with `?raw` (src/features/help/legalNotice.ts, src/HelpView.tsx). A test in affected.test.mjs reads the source for
 // such imports, so a new one fails there until it is added here.
 const EMBEDDED_OUTSIDE_SRC = new Set(["docs/LEGAL-NOTICE.md", "docs/THIRD-PARTY-NOTICES.txt"]);
 const BUILD_TOOLS = new Set(["tools/mobile-offline-build.ts", "tools/mobile-icons.ts"]);
 
 // Test-only files (owner decision, 20 Oct 2026): a test edit cannot change the application, so it must not rebuild or invalidate it. Only files that are never compiled into
 // the app qualify. buildIdentity.test.mjs proves it: no production module under src/ imports one, and the Rust test modules are declared #[cfg(test)].
-const TS_TEST_ONLY = /^src\/(?:.*\.test\.(?:ts|tsx)|testSupport\/.*|[^/]*TestUtils\.ts)$/;
+const TS_TEST_ONLY = /^src\/(?:.*\.test\.(?:ts|tsx)|testSupport\/.*|(?:.*\/)?[^/]*TestUtils\.ts)$/;
 const RUST_TEST_ONLY = /^core\/src\/(?:.*\/)?(?:tests\.rs|[^/]*_tests\.rs|tests\/.*)$/;
 export function isTestOnlyFile(file) {
   const f = norm(file);

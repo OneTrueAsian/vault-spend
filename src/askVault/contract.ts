@@ -1,5 +1,5 @@
-import { array, boolean, date, integer, nullable, object, string } from "../contractChecks";
-import { TransactionError } from "../transactionContracts";
+import { array, boolean, date, integer, nullable, object, string } from "../shared/native/contractChecks";
+import { TransactionError } from "../shared/native/transactionContracts";
 import { addMoney, compareMoney, isMoney, subtractMoney } from "./money";
 import type { AskVaultSnapshotV2 } from "./contractV2";
 import { checkVersion2, periodExtraShape, snapshotExtraShape } from "./contractV2";

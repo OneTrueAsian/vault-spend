@@ -1,5 +1,5 @@
 // UAT-082 (Review inbox: bulk accept, and rejecting a duplicate) and UAT-086 (nothing to review).
-// Specified behaviour (Old/vault-spend-inbox-bulk-review-uat.md:12-13, src/ImportInboxDialog.tsx): "Review selected" accepts the shown categories and keeps flagged transactions, clearing
+// Specified behaviour (Old/vault-spend-inbox-bulk-review-uat.md:12-13, src/features/imports/ImportInboxDialog.tsx): "Review selected" accepts the shown categories and keeps flagged transactions, clearing
 // their flags, and needs a category for every selected row that has none; the only way to reject a transaction is the per-row "Delete duplicate", which removes that one row.
 // With nothing flagged there is no Review inbox button at all and the Transactions page shows no "needs a category" prompt.
 import assert from "node:assert/strict";

@@ -16,7 +16,7 @@ cur.execute("INSERT INTO transactions(account_id,date,description,amount,categor
 cur.execute("INSERT INTO budgets(period,category,monthly_amount,budget_group) VALUES ('${today.slice(0, 7)}','Groceries','50','flexible')")
 `);
 const bundle = await build({
-  entryPoints: ["src/compactTransactionContracts.ts"],
+  entryPoints: ["src/shared/native/compactTransactionContracts.ts"],
   bundle: true,
   write: false,
   format: "iife",

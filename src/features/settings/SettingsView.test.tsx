@@ -1,0 +1,606 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+
+const getCurrentGeneration = vi.hoisted(() => vi.fn());
+vi.mock("../../shared/lib/profileUiState", () => ({ getCurrentGeneration }));
+vi.mock("../profiles/ProtectionSetupDialog", () => ({
+  ProtectionSetupDialog: ({ newProfileName }: { newProfileName: string | null }) => (
+    <div data-protection-setup-dialog>{newProfileName}</div>
+  ),
+}));
+
+import { AppearanceSection, BackupsBlock, CardFeedbackProvider, DataFileBlock, IconCreditsSection, ProfilesSection } from "./SettingsView";
+import { DEFAULT_APPEARANCE_PREFS, type AppearancePrefs } from "../../shared/lib/themeBootstrap";
+import type { Theme } from "../../shared/native/appTypes";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+function typeInto(input: HTMLInputElement, value: string) {
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+  act(() => {
+    setValue.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+describe("Settings ProfilesSection", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  const onCreateProfile = vi.fn();
+
+  beforeEach(() => {
+    getCurrentGeneration.mockReset().mockResolvedValue(11);
+    onCreateProfile.mockReset();
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  function show(profiles: Parameters<typeof ProfilesSection>[0]["profiles"] = []) {
+    act(() => {
+      root.render(
+        <ProfilesSection
+          profiles={profiles}
+          onCreateProfile={onCreateProfile}
+          onUseExistingDataFile={vi.fn()}
+          onSwitchProfile={vi.fn()}
+          onRenameProfile={vi.fn()}
+          onSetProfileIcon={vi.fn()}
+          onDeleteProfile={vi.fn()}
+          onProtected={vi.fn()}
+        />,
+      );
+    });
+  }
+
+  it("opens protected-profile setup instead of creating a plain profile when protection is checked", async () => {
+    show();
+    typeInto(container.querySelector<HTMLInputElement>('input[placeholder^="New profile"]')!, "Jamie");
+    act(() => container.querySelector<HTMLInputElement>("[data-protect-new-profile]")!.click());
+
+    await act(async () => {
+      container.querySelector<HTMLFormElement>("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    expect(document.body.querySelector("[data-protection-setup-dialog]")?.textContent).toBe("Jamie");
+    expect(onCreateProfile).not.toHaveBeenCalled();
+  });
+
+  it("shows a lock indicator only beside password-protected profiles", () => {
+    show([
+      { id: "a", name: "Alex", is_active: true, icon_key: null, is_password_protected: false },
+      { id: "b", name: "Blair", is_active: false, icon_key: null, is_password_protected: true },
+    ]);
+
+    const rows = [...container.querySelectorAll("tbody tr")];
+    expect(rows[0].querySelector('[aria-label="Password protected"]')).toBeNull();
+    expect(rows[1].querySelector('[aria-label="Password protected"]')).not.toBeNull();
+  });
+
+  // The icon picker floats over the page; a keyboard user must be able to dismiss it without choosing an icon, and land back on the swatch that opened it.
+  it("closes the profile icon picker with Escape, keeping the icon and returning focus to its swatch", () => {
+    show([{ id: "a", name: "Alex", is_active: true, icon_key: null, is_password_protected: false }]);
+    const swatch = container.querySelector<HTMLButtonElement>("tbody tr .icon-picker-swatch")!;
+    swatch.focus();
+    act(() => swatch.click());
+    expect(document.body.querySelector(".icon-picker")).not.toBeNull();
+    act(() => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+    expect(document.body.querySelector(".icon-picker")).toBeNull();
+    expect(document.activeElement).toBe(swatch);
+  });
+});
+
+describe("Settings protected backup restore", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it("asks for the selected encrypted backup's password before restoring", async () => {
+    const onRestore = vi.fn();
+    act(() => {
+      root.render(
+        <BackupsBlock
+          backups={[{ filename: "old.db", created_at: "2026-09-21 10:00", size_bytes: 1024 }]}
+          onCreateBackupNow={vi.fn()}
+          onRestoreBackup={onRestore}
+          isProtected
+          copyDir={null}
+          onSetCopyDir={vi.fn()}
+          onBrowseCopyDir={vi.fn()}
+        />,
+      );
+    });
+
+    act(() => [...container.querySelectorAll("button")].find((button) => button.textContent === "Restore")!.click());
+    act(() => [...container.querySelectorAll("button")].find((button) => button.textContent === "Restore")!.click());
+
+    const password = document.body.querySelector<HTMLInputElement>('input[type="password"]');
+    expect(password).not.toBeNull();
+    typeInto(password!, "old password");
+    await act(async () => {
+      document.body.querySelector<HTMLButtonElement>("button.password-form-submit")!.click();
+    });
+    expect(onRestore).toHaveBeenCalledWith("old.db", "old password");
+  });
+});
+
+describe("Settings AppearanceSection", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  function show(
+    onSetThemeStyle = vi.fn(),
+    themeStyle: Parameters<typeof AppearanceSection>[0]["themeStyle"] = "transparent",
+    appearance: AppearancePrefs = DEFAULT_APPEARANCE_PREFS,
+    onSetAppearance = vi.fn(),
+    { theme = "system", onSetTheme = vi.fn(), resolvedTheme = "light" }: { theme?: Theme; onSetTheme?: (t: Theme) => void; resolvedTheme?: "light" | "dark" } = {},
+  ) {
+    act(() => {
+      root.render(
+        <AppearanceSection
+          themeStyle={themeStyle}
+          onSetThemeStyle={onSetThemeStyle}
+          appearance={appearance}
+          onSetAppearance={onSetAppearance}
+          theme={theme}
+          onSetTheme={onSetTheme}
+          resolvedTheme={resolvedTheme}
+        />,
+      );
+    });
+    return onSetThemeStyle;
+  }
+
+  function futuristicOptions() {
+    return container.querySelector<HTMLElement>("[data-futuristic-options]");
+  }
+
+  describe("Futuristic options", () => {
+    const prefs: AppearancePrefs = { accent: "cyan", intensity: 70, reduceMotion: false };
+
+    it("appear only while Futuristic is the chosen style", () => {
+      show(vi.fn(), "transparent");
+      expect(futuristicOptions()).toBeNull();
+      show(vi.fn(), "retro");
+      expect(futuristicOptions()).toBeNull();
+      show(vi.fn(), "futuristic");
+      expect(futuristicOptions()).not.toBeNull();
+    });
+
+    it("offer three named accent colors, with the saved one checked and marked", () => {
+      show(vi.fn(), "futuristic", { ...prefs, accent: "violet" });
+      const group = futuristicOptions()!.querySelector('[role="radiogroup"][aria-label="Accent color"]')!;
+      const options = Array.from(group.querySelectorAll<HTMLInputElement>("input[type=radio]"));
+      expect(options.map((o) => o.closest("label")!.textContent!.trim())).toEqual(["Ion Cyan", "Rebel Pink", "Ultraviolet"]);
+      const checked = options.filter((o) => o.checked);
+      expect(checked).toHaveLength(1);
+      expect(checked[0].closest("label")!.textContent).toContain("Ultraviolet");
+      expect(checked[0].closest("label")!.querySelector("[data-accent-check]")).not.toBeNull();
+      expect(options[0].closest("label")!.querySelector("[data-accent-check]")).toBeNull();
+    });
+
+    it("change only the accent when another one is picked", () => {
+      const onSetAppearance = vi.fn();
+      show(vi.fn(), "futuristic", { accent: "cyan", intensity: 40, reduceMotion: true }, onSetAppearance);
+      const pink = Array.from(futuristicOptions()!.querySelectorAll("label")).find((l) => l.textContent?.includes("Rebel Pink"))!;
+      act(() => {
+        pink.querySelector("input")!.click();
+      });
+      expect(onSetAppearance).toHaveBeenCalledWith({ accent: "pink", intensity: 40, reduceMotion: true });
+    });
+
+    it("show the glow strength as a 0-100 slider and change only that", () => {
+      const onSetAppearance = vi.fn();
+      show(vi.fn(), "futuristic", prefs, onSetAppearance);
+      const slider = futuristicOptions()!.querySelector<HTMLInputElement>('input[type=range][aria-label="Neon intensity"]')!;
+      expect(slider.min).toBe("0");
+      expect(slider.max).toBe("100");
+      expect(slider.value).toBe("70");
+      expect(futuristicOptions()!.textContent).toContain("70%");
+      typeInto(slider, "30");
+      expect(onSetAppearance).toHaveBeenLastCalledWith({ ...prefs, intensity: 30 });
+    });
+
+    it("reset puts back Ion Cyan, glow 70 and normal motion", () => {
+      const onSetAppearance = vi.fn();
+      show(vi.fn(), "futuristic", { accent: "pink", intensity: 5, reduceMotion: true }, onSetAppearance);
+      const reset = Array.from(futuristicOptions()!.querySelectorAll("button")).find((b) => /reset/i.test(b.textContent ?? ""))!;
+      act(() => {
+        reset.click();
+      });
+      expect(onSetAppearance).toHaveBeenCalledWith(DEFAULT_APPEARANCE_PREFS);
+    });
+  });
+
+  it("offers Reduce motion with every style", () => {
+    for (const style of ["transparent", "futuristic", "retro"] as const) {
+      const onSetAppearance = vi.fn();
+      show(vi.fn(), style, DEFAULT_APPEARANCE_PREFS, onSetAppearance);
+      const box = container.querySelector<HTMLInputElement>("input[type=checkbox][data-reduce-motion]");
+      expect(box, style).not.toBeNull();
+      expect(box!.checked).toBe(false);
+      act(() => {
+        box!.click();
+      });
+      expect(onSetAppearance, style).toHaveBeenCalledWith({ ...DEFAULT_APPEARANCE_PREFS, reduceMotion: true });
+    }
+  });
+
+  function optionLabels() {
+    return Array.from(container.querySelectorAll('[role="radiogroup"][aria-label="Style"] .style-preview-name')).map((el) => el.textContent);
+  }
+
+  it("offers Default, Futuristic and Retro, and no longer Slate", () => {
+    show();
+    expect(optionLabels()).toEqual(["Default", "Futuristic", "Retro"]);
+  });
+
+  it("calls the frosted-glass look Default and stores it under its existing id", () => {
+    const onSet = show(vi.fn(), "retro");
+    const row = Array.from(container.querySelectorAll(".style-preview-tile")).find((r) => r.textContent?.startsWith("Default"))!;
+    act(() => {
+      (row.querySelector("input") as HTMLInputElement).click();
+    });
+    expect(onSet).toHaveBeenCalledWith("transparent");
+  });
+
+  it("checks Default when the saved style is the frosted-glass one", () => {
+    show(vi.fn(), "transparent");
+    const checked = Array.from(container.querySelectorAll<HTMLInputElement>("input[type=radio]")).filter((i) => i.checked);
+    expect(checked[0].closest(".style-preview-tile")?.textContent).toContain("Default");
+  });
+
+  it("describes Futuristic by its look and its options, not by font names", () => {
+    show();
+    const row = Array.from(container.querySelectorAll(".style-preview-tile")).find((r) => r.textContent?.startsWith("Futuristic"))!;
+    expect(row.textContent).not.toMatch(/orbitron|rajdhani|share tech/i);
+    expect(row.textContent).toMatch(/glow/i);
+  });
+
+  it("describes Retro without naming Microsoft or Windows", () => {
+    show();
+    const row = Array.from(container.querySelectorAll(".style-preview-tile")).find((r) => r.textContent?.includes("Retro"))!;
+    expect(row.textContent).not.toMatch(/microsoft|windows/i);
+  });
+
+  it("describes Retro as a classic gray look with square corners", () => {
+    show();
+    const row = Array.from(container.querySelectorAll(".style-preview-tile")).find((r) => r.textContent?.includes("Retro"))!;
+    expect(row.textContent).toMatch(/gray/i);
+    expect(row.textContent).toMatch(/square corners/i);
+  });
+
+  it("selects the retro style id when the option is chosen", () => {
+    const onSet = show();
+    const row = Array.from(container.querySelectorAll(".style-preview-tile")).find((r) => r.textContent?.includes("Retro"))!;
+    act(() => {
+      (row.querySelector("input") as HTMLInputElement).click();
+    });
+    expect(onSet).toHaveBeenCalledWith("retro");
+  });
+
+  it("checks the Retro option when it is the saved style", () => {
+    show(vi.fn(), "retro");
+    const checked = Array.from(container.querySelectorAll<HTMLInputElement>("input[type=radio]")).filter((i) => i.checked);
+    expect(checked).toHaveLength(1);
+    expect(checked[0].closest(".style-preview-tile")?.textContent).toContain("Retro");
+  });
+
+  describe("style previews (s14)", () => {
+    const tiles = () => Array.from(container.querySelectorAll<HTMLLabelElement>("label.style-preview-tile"));
+
+    it("shows each style as a picture with its radio, its name and a one-line description", () => {
+      show();
+      expect(tiles()).toHaveLength(3);
+      const alts = tiles().map((t) => t.querySelector("img")?.getAttribute("alt"));
+      expect(alts).toEqual(["Default style preview", "Futuristic style preview", "Retro style preview"]);
+      for (const tile of tiles()) {
+        const radio = tile.querySelector<HTMLInputElement>("input[type=radio][name=theme-style]");
+        expect(radio, tile.textContent ?? "").not.toBeNull();
+        // Spoken as just the style name, with the one-line description read as its description.
+        expect(radio!.getAttribute("aria-label")).toBe(tile.querySelector(".style-preview-name")?.textContent);
+        expect(document.getElementById(radio!.getAttribute("aria-describedby") ?? "")).toBe(tile.querySelector(".style-preview-description"));
+        const description = tile.querySelector(".style-preview-description")?.textContent ?? "";
+        expect(description.length, description).toBeGreaterThan(0);
+        expect(description.length, description).toBeLessThanOrEqual(90);
+        expect(description).not.toMatch(/header/i);
+      }
+      expect(container.textContent).not.toMatch(/header/i);
+    });
+
+    it("marks the chosen style's tile", () => {
+      show(vi.fn(), "futuristic");
+      const chosen = tiles().filter((t) => t.querySelector<HTMLInputElement>("input[name=theme-style]")!.checked);
+      expect(chosen).toHaveLength(1);
+      expect(chosen[0].textContent).toContain("Futuristic");
+    });
+
+    it("shows light pictures in light mode and dark pictures in dark mode", () => {
+      show(vi.fn(), "transparent", DEFAULT_APPEARANCE_PREFS, vi.fn(), { resolvedTheme: "light" });
+      expect(tiles()).toHaveLength(3);
+      for (const img of tiles().map((t) => t.querySelector("img")!)) expect(img.getAttribute("src")).toMatch(/-light\.webp$/);
+      show(vi.fn(), "transparent", DEFAULT_APPEARANCE_PREFS, vi.fn(), { resolvedTheme: "dark" });
+      for (const img of tiles().map((t) => t.querySelector("img")!)) expect(img.getAttribute("src")).toMatch(/-dark\.webp$/);
+    });
+  });
+
+  describe("Light or dark in Settings", () => {
+    // Named by its visible "Light or dark" label, so it is not a second group called "Theme" (the sidebar's).
+    const group = () => {
+      const g = container.querySelector<HTMLElement>(".appearance-theme [role=group]");
+      const label = g && document.getElementById(g.getAttribute("aria-labelledby") ?? "");
+      return label?.textContent === "Light or dark" && !g!.hasAttribute("aria-label") ? g : null;
+    };
+    const button = (label: string) => Array.from(group()?.querySelectorAll("button") ?? []).find((b) => b.textContent === label);
+
+    it("offers Light, Dark and System under a Light or dark heading, with the current one marked", () => {
+      show(vi.fn(), "transparent", DEFAULT_APPEARANCE_PREFS, vi.fn(), { theme: "dark" });
+      expect(group()).not.toBeNull();
+      expect(Array.from(group()!.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Light", "Dark", "System"]);
+      expect(button("Dark")!.getAttribute("aria-pressed")).toBe("true");
+      expect(button("Light")!.getAttribute("aria-pressed")).toBe("false");
+      expect(container.textContent).toContain("Light or dark");
+    });
+
+    it("chooses Dark", () => {
+      const onSetTheme = vi.fn();
+      show(vi.fn(), "transparent", DEFAULT_APPEARANCE_PREFS, vi.fn(), { theme: "light", onSetTheme });
+      act(() => button("Dark")!.click());
+      expect(onSetTheme).toHaveBeenCalledWith("dark");
+    });
+  });
+});
+
+
+describe("QA restore confirmation identifies the selected copy",()=>{
+ let host:HTMLDivElement,root:Root;
+ beforeEach(()=>{host=document.createElement("div");document.body.append(host);root=createRoot(host);});
+ afterEach(()=>{act(()=>root.unmount());host.remove();});
+ const backups=[{filename:"vaultspend-20261001-101501.db",created_at:"2026-10-01 10:15:01",size_bytes:1024},{filename:"vaultspend-20261001-101559.db",created_at:"2026-10-01 10:15:59",size_bytes:2048}];
+ function show(protectedProfile=false){const restore=vi.fn();act(()=>root.render(<BackupsBlock backups={backups} onCreateBackupNow={vi.fn()} onRestoreBackup={restore} isProtected={protectedProfile} copyDir={null} onSetCopyDir={vi.fn()} onBrowseCopyDir={vi.fn()}/>));return restore;}
+ it("distinguishes same-minute backups and explains replacement before confirmation",()=>{
+  const restore=show();expect(host.textContent).toContain(backups[0].filename);expect(host.textContent).toContain(backups[1].filename);
+  const rows=host.querySelectorAll("tbody tr");act(()=>rows[1].querySelector<HTMLButtonElement>("button")!.click());
+  expect(rows[1].textContent).toContain("Replace your current data");expect(rows[1].textContent).toContain("backed up first");expect(rows[1].textContent).toContain(backups[1].filename);expect(restore).not.toHaveBeenCalled();
+  act(()=>[...rows[1].querySelectorAll("button")].find(b=>b.textContent==="Cancel")!.click());expect(restore).not.toHaveBeenCalled();
+ });
+ // Continuation 12 (T04): the confirm sat in the narrow actions cell, so at 720 px it wrapped to 1-5 characters a line and made a very tall row. It now takes the whole row.
+ it("gives the restore confirmation the whole row, not the narrow actions cell",()=>{
+  show();const row=host.querySelectorAll("tbody tr")[1];act(()=>row.querySelector<HTMLButtonElement>("button")!.click());
+  const cells=[...row.querySelectorAll("td")];
+  expect(cells.length).toBe(1);expect(cells[0].getAttribute("colspan")).toBe("3");
+  expect(cells[0].querySelector(".backup-restore-warning")!.textContent).toContain("Replace your current data");
+  expect([...cells[0].querySelectorAll("button")].map(b=>b.textContent)).toEqual(["Cancel","Restore"]);
+  expect(document.activeElement).toBe(cells[0].querySelector("button"));
+  act(()=>[...cells[0].querySelectorAll("button")].find(b=>b.textContent==="Cancel")!.click());
+  expect(host.querySelectorAll("tbody tr")[1].querySelectorAll("td").length).toBe(3);
+
+ });
+ it("confirmation restores the chosen plain copy only",()=>{
+  const restore=show();const row=host.querySelectorAll("tbody tr")[1];act(()=>row.querySelector<HTMLButtonElement>("button")!.click());act(()=>[...row.querySelectorAll("button")].find(b=>b.textContent==="Restore")!.click());expect(restore).toHaveBeenCalledExactlyOnceWith(backups[1].filename);
+ });
+ it("cancelling the protected backup password prompt never restores the selected copy",()=>{
+  const restore=show(true),row=host.querySelectorAll("tbody tr")[1];
+  act(()=>row.querySelector<HTMLButtonElement>("button")!.click());
+  act(()=>[...row.querySelectorAll("button")].find(b=>b.textContent==="Restore")!.click());
+  expect(document.body.querySelector('input[type="password"]')).not.toBeNull();
+  expect(restore).not.toHaveBeenCalled();
+  act(()=>document.body.querySelector<HTMLButtonElement>('[data-password-form-cancel]')!.click());
+  expect(document.body.querySelector('input[type="password"]')).toBeNull();
+  expect(restore).not.toHaveBeenCalled();
+ });
+});
+
+// Continuation 12 matrix (C03): the opened icon-credits list scrolls (max-height 60vh) but holds nothing focusable, so a keyboard user could not scroll it.
+describe("Settings icon credits list", () => {
+  it("is a keyboard-focusable, named scroll region", () => {
+    const container = document.createElement("div"); document.body.append(container);
+    const root = createRoot(container);
+    act(() => root.render(<IconCreditsSection />));
+    const list = container.querySelector<HTMLElement>(".icon-credits-disclosure ul")!;
+    expect(list.getAttribute("tabindex")).toBe("0");
+    expect(list.getAttribute("aria-label")).toBeTruthy();
+    act(() => root.unmount()); container.remove();
+  });
+});
+
+describe("Settings Data group: one clearly named card per task", () => {
+  let host: HTMLDivElement;
+  let root: Root;
+  beforeEach(() => {
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+  const titles = () => [...host.querySelectorAll(".card > .card-head .reports-section-title")].map((t) => t.textContent);
+  function showBackups(copyDir: string | null = null) {
+    act(() =>
+      root.render(
+        <BackupsBlock backups={[]} onCreateBackupNow={vi.fn()} onRestoreBackup={vi.fn()} isProtected={false} copyDir={copyDir} onSetCopyDir={vi.fn()} onBrowseCopyDir={vi.fn()} />,
+      ),
+    );
+  }
+
+  it("splits backups into Automatic backups, Second copy and Backup history cards, with no repeated 'Backups' sub-heading", () => {
+    showBackups();
+    expect(titles()).toEqual(["Automatic backups", "Second copy", "Backup history"]);
+    expect(host.querySelector(".data-subhead")).toBeNull();
+    expect(host.querySelector("[data-backups] table")).not.toBeNull();
+    expect(host.querySelector("[data-backup-copy] input[aria-label='Second backup folder']")).not.toBeNull();
+    expect(host.querySelector('[data-setting-card="backups"]')?.textContent).toContain("Back up now");
+  });
+
+  it("shows the second-copy folder wrapped inside its own card", () => {
+    showBackups("D:/OneDrive/VaultSpend");
+    expect(host.querySelector("[data-backup-copy] [data-backup-copy-dir]")?.textContent).toBe("D:/OneDrive/VaultSpend");
+  });
+
+  it("names the data file card, lets the long path wrap and copies it beside the button", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    const path = "C:/Users/someone/AppData/Roaming/VaultSpend/profiles/a-very-long-folder-name/vaultspend.db";
+    act(() => root.render(<DataFileBlock dataFileLocation={path} onRelocateDataFile={vi.fn()} onExportDatabase={vi.fn()} onUseExistingDataFile={vi.fn()} />));
+    expect(titles()).toEqual(["Data file"]);
+    expect(host.querySelector("[data-data-file] .path-box")?.textContent).toBe(path);
+    const copy = [...host.querySelectorAll("button")].find((b) => b.textContent === "Copy path")!;
+    expect(copy).toBeDefined();
+    await act(async () => copy.click());
+    expect(writeText).toHaveBeenCalledWith(path);
+    const status = host.querySelector("[data-data-file] [role='status']");
+    expect(status?.textContent).toBe("Path copied");
+    expect(copy.parentElement?.contains(status!)).toBe(true);
+  });
+
+  it("says plainly when the path could not be copied", async () => {
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: vi.fn().mockRejectedValue(new Error("no")) }, configurable: true });
+    act(() => root.render(<DataFileBlock dataFileLocation="C:/data.db" onRelocateDataFile={vi.fn()} onExportDatabase={vi.fn()} onUseExistingDataFile={vi.fn()} />));
+    await act(async () => [...host.querySelectorAll("button")].find((b) => b.textContent === "Copy path")!.click());
+    expect(host.querySelector("[role='status']")?.textContent).toBe("Couldn't copy. Select the path and copy it yourself.");
+  });
+
+  it("keeps each action's consequence visible and tucks the long explanation behind a labelled link", () => {
+    act(() => root.render(<DataFileBlock dataFileLocation="C:/data.db" onRelocateDataFile={vi.fn()} onExportDatabase={vi.fn()} onUseExistingDataFile={vi.fn()} />));
+    expect(host.textContent).toContain("Doesn't change what Vault Spend is using now.");
+    expect(host.textContent).toContain("Opens as a new profile next to your current one.");
+    const more = [...host.querySelectorAll("button")].filter((b) => b.textContent === "More about this");
+    expect(more.length).toBeGreaterThan(0);
+    expect(more[0].getAttribute("aria-expanded")).toBe("false");
+    expect(host.textContent).not.toContain("upgrading from an older version");
+    act(() => more[0].click());
+    expect(more[0].getAttribute("aria-expanded")).toBe("true");
+    expect(more[0].textContent).toBe("Less");
+  });
+});
+
+describe("Settings: the result of an action appears beside its button", () => {
+  let host: HTMLDivElement;
+  let root: Root;
+  beforeEach(() => {
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+  const render = (status: { text: string; kind: string } | null, onCreateBackupNow = vi.fn()) =>
+    act(() =>
+      root.render(
+        <CardFeedbackProvider status={status}>
+          <BackupsBlock backups={[]} onCreateBackupNow={onCreateBackupNow} onRestoreBackup={vi.fn()} isProtected={false} copyDir={null} onSetCopyDir={vi.fn()} onBrowseCopyDir={vi.fn()} />
+        </CardFeedbackProvider>,
+      ),
+    );
+  const backUpNow = () => [...host.querySelectorAll("button")].find((b) => b.textContent === "Back up now")!;
+
+  it("shows the app's message next to Back up now once the action has run, and announces it", () => {
+    const run = vi.fn();
+    render(null, run);
+    act(() => backUpNow().click());
+    expect(run).toHaveBeenCalled();
+    render({ text: "Backup created.", kind: "success" }, run);
+    const status = backUpNow().parentElement!.querySelector("[role='status']");
+    expect(status?.textContent).toBe("Backup created.");
+  });
+
+  it("marks a failure as an error and keeps Back up now the one primary button in its card", () => {
+    render(null);
+    act(() => backUpNow().click());
+    render({ text: "Backup failed.", kind: "error" });
+    expect(backUpNow().parentElement!.querySelector(".settings-feedback-error")?.textContent).toBe("Backup failed.");
+    expect(backUpNow().classList.contains("modal-secondary")).toBe(false);
+  });
+
+  it("does not show a message that no action in this card caused", () => {
+    render(null);
+    render({ text: "Something else happened.", kind: "success" });
+    expect(host.querySelector("[role='status']")?.textContent ?? "").toBe("");
+  });
+
+  it("clears the earlier result when the action is run again", () => {
+    render(null);
+    act(() => backUpNow().click());
+    render({ text: "Backup created.", kind: "success" });
+    act(() => backUpNow().click());
+    expect(backUpNow().parentElement!.querySelector("[role='status']")?.textContent).toBe("");
+  });
+
+  it("puts Automatic backups and Second copy in one pair that the wide layout can place side by side", () => {
+    render(null);
+    const pair = host.querySelector(".settings-pair")!;
+    expect([...pair.children].map((c) => c.querySelector(".reports-section-title")?.textContent)).toEqual(["Automatic backups", "Second copy"]);
+  });
+});
+
+describe("Settings Second copy: a refused folder keeps what was typed", () => {
+  let host: HTMLDivElement;
+  let root: Root;
+  beforeEach(() => {
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+  const show = (copyDir: string | null, onSetCopyDir = vi.fn()) =>
+    act(() =>
+      root.render(
+        <BackupsBlock backups={[]} onCreateBackupNow={vi.fn()} onRestoreBackup={vi.fn()} isProtected={false} copyDir={copyDir} onSetCopyDir={onSetCopyDir} onBrowseCopyDir={vi.fn()} />,
+      ),
+    );
+  const field = () => host.querySelector<HTMLInputElement>("input[aria-label='Second backup folder']")!;
+
+  it("does not clear the typed folder when the folder is refused (the folder setting stays empty)", () => {
+    const onSetCopyDir = vi.fn();
+    show(null, onSetCopyDir);
+    typeInto(field(), "Z:/not/there");
+    act(() => [...host.querySelectorAll("button")].find((b) => b.textContent === "Start copying")!.click());
+    expect(onSetCopyDir).toHaveBeenCalledWith("Z:/not/there");
+    expect(field().value).toBe("Z:/not/there");
+  });
+
+  it("clears the field once the folder has been accepted", () => {
+    const onSetCopyDir = vi.fn();
+    show(null, onSetCopyDir);
+    typeInto(field(), "D:/OneDrive/VaultSpend");
+    act(() => [...host.querySelectorAll("button")].find((b) => b.textContent === "Start copying")!.click());
+    show("D:/OneDrive/VaultSpend", onSetCopyDir);
+    show(null, onSetCopyDir); // stopped copying later: the field starts empty again
+    expect(field().value).toBe("");
+  });
+});

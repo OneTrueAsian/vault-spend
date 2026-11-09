@@ -1,5 +1,5 @@
-import { date as isDate } from "../contractChecks";
-import { dateOutOfRange } from "../dateRange";
+import { date as isDate } from "../shared/native/contractChecks";
+import { dateOutOfRange } from "../shared/lib/dateRange";
 import { distance } from "./distance";
 import { daysInMonth, isoDate } from "./calendar";
 import { parseSpendingScenario } from "./spendingScenarioParser";

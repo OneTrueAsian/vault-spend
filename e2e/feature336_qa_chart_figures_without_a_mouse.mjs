@@ -1,5 +1,5 @@
 // UAT-119 / QA-OBS-002: the Cash Flow bars and the Reports savings-rate trend show their figures in a hover-only tooltip. Each also carries a visually
-// hidden table of the same figures (src/charts.tsx), so a keyboard or screen-reader user can read them. Same fixture and hand calculations as feature328.
+// hidden table of the same figures (src/shared/ui/charts.tsx), so a keyboard or screen-reader user can read them. Same fixture and hand calculations as feature328.
 // Months (relative to today): -2 income 800 expense 200 -> 75%; -1 income 800 expense 880 -> -10%; current month expense 100, no income -> 0%.
 import assert from "node:assert/strict";
 import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";

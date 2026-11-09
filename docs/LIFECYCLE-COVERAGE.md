@@ -5,7 +5,7 @@ the case list in them is complete. "Not mapped" means nobody has checked it yet,
 
 ## Freshness of views after a write (O)
 
-`src/mutationFreshness.test.ts` scans every command the app calls. Each write command must be in exactly
+`src/testSupport/guards/mutationFreshness.test.ts` scans every command the app calls. Each write command must be in exactly
 one group: a financial mutation that advances the freshness epoch (`financialMutations`), a write whose
 caller refreshes the shared snapshot, a presentation-only setting, or a change that remounts the profile.
 A new write command fails that test until its group is chosen. The same test fails on a recorded command

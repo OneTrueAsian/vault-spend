@@ -2,7 +2,7 @@ import { CHANGED_BODY } from "./changedState";
 import { describe, expect, it, vi } from "vitest";
 import { askVault, purchaseDetailsRequest, type AskVaultClient } from "./controller";
 import type { AskVaultSnapshot } from "./contract";
-import { TransactionError } from "../transactionContracts";
+import { TransactionError } from "../shared/native/transactionContracts";
 import type { ParseContext } from "./types";
 
 const context: ParseContext = {

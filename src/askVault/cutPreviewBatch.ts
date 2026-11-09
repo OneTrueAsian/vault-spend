@@ -1,8 +1,8 @@
 import type { AskDataRevision } from "./types";
 import type { AskVaultSnapshotV2 } from "./contractV2";
-import { TransactionError } from "../transactionContracts";
-import { date, integer } from "../contractChecks";
-import { dateOutOfRange } from "../dateRange";
+import { TransactionError } from "../shared/native/transactionContracts";
+import { date, integer } from "../shared/native/contractChecks";
+import { dateOutOfRange } from "../shared/lib/dateRange";
 import { validateAskVaultSnapshot } from "./contract";
 import { baselineRequest, sameScenarioSource, scenarioSourceFromSnapshot } from "./spendingScenarioBaseline";
 

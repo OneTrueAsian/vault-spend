@@ -4,7 +4,7 @@
 // categoryIcons.tsx) and round-trips through the database. Mirrors
 // feature54_goal_icon_picker.mjs's pattern for the same feature, now
 // extended to accounts and categories, using the full-color icon set the
-// user hand-picked (src/icons/flatIcons.ts) rather than the bundled
+// user hand-picked (src/shared/ui/icons/flatIcons.ts) rather than the bundled
 // monochrome Noun Project set.
 //
 // Verifies persistence by reopening the picker and checking which swatch

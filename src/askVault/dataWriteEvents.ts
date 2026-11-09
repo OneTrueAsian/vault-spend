@@ -2,7 +2,7 @@
  * Notification of successful in-app writes that can change an open retirement illustration (M5 owner decision 2a).
  * The native data revision already exposes every write, but only when something reads it; this bus retires an open
  * review or result the moment such a write succeeds. It carries the command name only: no arguments, no results.
- * src/tauriInvoke.ts raises it after a successful call; the build aliases "@tauri-apps/api/core" to that file.
+ * src/shared/native/tauriInvoke.ts raises it after a successful call; the build aliases "@tauri-apps/api/core" to that file.
  */
 export const RELEVANT_WRITE_COMMANDS: ReadonlySet<string> = new Set([
   // Investment plans, holdings, prices (the shared inflation setting is saved with the plan).

@@ -6,7 +6,7 @@ import type { AskMonthCoverage, AskVaultSnapshotV2 } from "./contractV2";
 import { calculateSpendingScenario, scenarioMoneyToCents } from "./spendingScenarioMath";
 import { baselineFromSnapshot, baselineRequest, readScenarioBaseline, sameScenarioSource } from "./spendingScenarioBaseline";
 import type { ScenarioSource } from "./spendingScenarioContract";
-import { TransactionError } from "../transactionContracts";
+import { TransactionError } from "../shared/native/transactionContracts";
 import { readCutPreviewBaselines } from "./cutPreviewBaseline";
 
 const ASOF = "2026-10-15";

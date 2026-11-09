@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { HelpView, TAB_HELP } from "./HelpView";
-import { NAV_ITEMS, PINNED_NAV_ITEMS } from "./appTypes";
+import { NAV_ITEMS, PINNED_NAV_ITEMS } from "./shared/native/appTypes";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

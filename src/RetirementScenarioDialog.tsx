@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
-import { ModalShell } from "./Modal";
-import { MenuSelect } from "./MenuSelect";
-import { MonthField } from "./MonthField";
+import { ModalShell } from "./shared/ui/Modal";
+import { MenuSelect } from "./shared/ui/MenuSelect";
+import { MonthField } from "./shared/ui/MonthField";
 import "./SpendingScenarioDialog.css";
 import "./RetirementScenarioDialog.css";
 import {

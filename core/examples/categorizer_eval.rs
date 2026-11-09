@@ -25,7 +25,7 @@ use budget_core::store::CategorySource;
 use rusqlite::{Connection, OpenFlags};
 use std::collections::BTreeMap;
 
-/// The review inbox flags any answer below this confidence as "Unsure" (src/importInbox.ts).
+/// The review inbox flags any answer below this confidence as "Unsure" (src/features/imports/importInbox.ts).
 const LOW_CONFIDENCE: f64 = 0.7;
 
 struct Txn {

@@ -1,6 +1,6 @@
 import { CHANGED_BODY } from "./changedState";
 import { useEffect, useRef, useState } from "react";
-import { createFinancialClient } from "../financialReads";
+import { createFinancialClient } from "../shared/native/financialReads";
 import type { CutPreviewScreen } from "../CutPreviewDialog";
 import { parseCutPreview } from "./cutPreviewParser";
 import { readCutPreviewBaselines } from "./cutPreviewBaseline";

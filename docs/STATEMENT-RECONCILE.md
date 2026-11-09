@@ -26,7 +26,7 @@ Manual and statement reconciling use one rule (`core/src/store/reconcile.rs`).
   for loans (`balance_change`). Anything but exactly `0.00` blocks Finish.
 - An investment statement's record (`holdings_checked` is set) keeps the statement's total value for display,
   is never a cash starting point, and the cash it settled is carried into the next starting point.
-- All arithmetic is exact decimal in Rust and exact integer units (`src/reconcileMath.ts`) on screen; no
+- All arithmetic is exact decimal in Rust and exact integer units (`src/features/statements/reconcileMath.ts`) on screen; no
   floating point.
 
 ## The reader

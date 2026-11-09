@@ -1,11 +1,11 @@
 import { CHANGED_HEADING } from "./askVault/changedState";
 import { useId, useLayoutEffect, useRef, useState, type ComponentProps } from "react";
-import { ModalShell } from "./Modal";
+import { ModalShell } from "./shared/ui/Modal";
 import "./SpendingScenarioDialog.css";
-import { date as isDate } from "./contractChecks";
-import { DateField } from "./DateField";
-import { useFieldValidity } from "./calendar/useFieldValidity";
-import { dateOutOfRange, DATE_RANGE_PROBLEM } from "./dateRange";
+import { date as isDate } from "./shared/native/contractChecks";
+import { DateField } from "./shared/ui/DateField";
+import { useFieldValidity } from "./shared/ui/calendar/useFieldValidity";
+import { dateOutOfRange, DATE_RANGE_PROBLEM } from "./shared/lib/dateRange";
 import { scenarioBaselineProblem } from "./askVault/spendingScenarioMath";
 import type { ScenarioBaseline, SpendingScenarioCalculation, SpendingScenarioDraft, SpendingScenarioIntent } from "./askVault/spendingScenarioContract";
 import {

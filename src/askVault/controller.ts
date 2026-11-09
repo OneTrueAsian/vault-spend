@@ -1,5 +1,5 @@
-import type { createFinancialClient } from "../financialReads";
-import { transactionError } from "../transactionContracts";
+import type { createFinancialClient } from "../shared/native/financialReads";
+import { transactionError } from "../shared/native/transactionContracts";
 import { CHANGED_BODY } from "./changedState";
 import { renderAnswer, type AskVaultAnswer } from "./answer";
 import { parseQuestion } from "./parser";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TransactionError } from "../transactionContracts";
+import { TransactionError } from "../shared/native/transactionContracts";
 import {
   RETIREMENT_COMMANDS, RETIREMENT_INVALIDATION_TRIGGERS, RETIREMENT_ROSTER_LIMIT, compareRetirementRosterRows, explainRetirementFailure, retirementContextFromReply, retirementFreshness,
   retirementSourceFromReply, retirementWireRequestFromSource, validateRetirementContextReply, validateRetirementContextWireRequest,

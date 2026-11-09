@@ -8,7 +8,7 @@ import { parseQuestion } from "./askVault/parser";
 import type { AskVaultSnapshot } from "./askVault/contract";
 import type { AskVaultSnapshotV2 } from "./askVault/contractV2";
 import type { AskVaultRequest, AskVaultRequestV2, ParseContext } from "./askVault/types";
-import { TransactionError } from "./transactionContracts";
+import { TransactionError } from "./shared/native/transactionContracts";
 import type { AskBaselineBatchRequest, AskBaselineBatchSnapshot } from "./askVault/cutPreviewBatch";
 import { useCutPreview } from "./askVault/useCutPreview";
 import { parseCutPreview } from "./askVault/cutPreviewParser";

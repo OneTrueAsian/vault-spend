@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { answerTransactionQuestion, TRANSACTION_QA_EXAMPLES, parsePeriod, type QaContext } from "./transactionQa";
-import type { Account, Bucket, Recurring, Transaction } from "./types";
+import type { Account, Bucket, Recurring, Transaction } from "./shared/lib/types";
 
 const TODAY = new Date(2026, 8, 6); // Sat 2026-09-06
 

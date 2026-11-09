@@ -1,5 +1,5 @@
-import { date as isDate } from "../contractChecks";
-import { dateOutOfRange } from "../dateRange";
+import { date as isDate } from "../shared/native/contractChecks";
+import { dateOutOfRange } from "../shared/lib/dateRange";
 import { validateScenarioIntent } from "./spendingScenarioContract";
 import type { ParseContext } from "./types";
 import type { ScenarioBaselineClient } from "./spendingScenarioBaseline";

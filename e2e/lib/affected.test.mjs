@@ -63,14 +63,14 @@ describe("new, deleted and renamed files", () => {
   });
   it("a rename is judged by both paths: moving an unknown file into the area is still broad", () => {
     expect(select(change("src/askVault/retirementMoved.ts", "R", "src/askVault/retirementOld.ts")).broad).toBe(false);
-    expect(select(change("src/askVault/retirementMoved.ts", "R", "src/BudgetView.tsx")).broad).toBe(true);
+    expect(select(change("src/askVault/retirementMoved.ts", "R", "src/features/budgets/BudgetView.tsx")).broad).toBe(true);
     expect(select(change("src/Elsewhere.tsx", "R", "src/askVault/retirementOld.ts")).broad).toBe(true);
   });
 });
 
 describe("shared infrastructure, persistence and the harness keep broad coverage", () => {
   it.each([
-    "src/main.tsx", "src/App.tsx", "src/App.css", "src/SharedControls.css", "src/Modal.css", "src/tauriInvoke.ts", "src/contractChecks.ts",
+    "src/main.tsx", "src/app/App.tsx", "src/shared/ui/App.css", "src/shared/ui/SharedControls.css", "src/shared/ui/Modal.css", "src/shared/native/tauriInvoke.ts", "src/shared/native/contractChecks.ts",
     "vite.config.ts", "package.json", "package-lock.json", "tsconfig.json", "Cargo.lock", "Cargo.toml", "src-tauri/tauri.conf.json", "src-tauri/src/lib.rs", "src-tauri/src/commands.rs",
     "core/src/store.rs", "core/src/store/accounts.rs", "core/src/store/investments.rs",
     "e2e/harness.mjs", "e2e/run-all.mjs", "e2e/lib/scheduler.mjs", "e2e/lib/runGuard.mjs", "e2e/spec-classification.json", "e2e/affected-map.json",

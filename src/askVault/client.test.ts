@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { createFinancialClient } from "../financialReads";
+import { createFinancialClient } from "../shared/native/financialReads";
 import type { AskVaultRequest, AskVaultRequestV2 } from "./types";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
