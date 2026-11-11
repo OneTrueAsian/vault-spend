@@ -1,4 +1,14 @@
-import { emptySetupMessage, setupImportMessage } from "../features/imports/setupImportMessage";
+import { useProfileActions } from "../features/profiles/useProfileActions";
+import { useAccountActions } from "../features/transactions/useAccountActions";
+import { useFamilyMemberActions } from "../features/household/useFamilyMemberActions";
+import { useCategoryActions } from "../features/transactions/useCategoryActions";
+import { useFeatureToggleActions } from "../features/settings/useFeatureToggleActions";
+import { useSetupImportActions } from "../features/imports/useSetupImportActions";
+import { useBackupActions } from "../features/backups/useBackupActions";
+import { useRecurringActions } from "../features/budgets/useRecurringActions";
+import { useGoalActions } from "../features/budgets/useGoalActions";
+import { useBudgetActions } from "../features/budgets/useBudgetActions";
+import { useInvestmentActions } from "../features/investments/useInvestmentActions";
 import { rolloverMessage, contributionMessage } from "../shared/lib/maintenanceMessages";
 import { observeRead, publishRead } from "../shared/native/observeRead";
 import { useFinancialRead } from "../shared/hooks/useFinancialRead";
@@ -62,7 +72,6 @@ import vaultSpendIcon from "../assets/vault-spend-icon-1024.png";
 import { createTransactionExporter } from "../features/transactions/transactionExport";
 import { createReportPdfSaver } from "../features/reports/reportPdfSave";
 import { toCsv } from "../features/imports/csv";
-import { buildSetupTemplate } from "../features/imports/setupTemplate";
 import { CHANGELOG } from "../shared/lib/changelog";
 import {
   THEME_STORAGE_KEY,
@@ -73,27 +82,25 @@ import {
   saveAppearancePrefs,
   type AppearancePrefs,
 } from "../shared/lib/themeBootstrap";
-import {
-  ModalShell,
-  AddWidgetDialog,
-  CategoryTransactionsDialog,
-  ChooseImportAccountDialog,
-  ConfirmInvertDialog,
-  CsvExportWarningDialog,
-  ManageCategoriesDialog,
-  ManageFamilyMembersDialog,
-  MonthExpenseDetailDialog,
-  NewAccountDialog,
-  NewCategoryDialog,
-  NewTransactionDialog,
-  TransferReviewDialog,
-  AutoLinkedReviewDialog,
-  ChooseExistingDataSourceDialog,
-  SwitchToProtectedProfileDialog,
-  UseExistingDataFileDialog,
-  WelcomeDialog,
-  WhatsNewDialog,
-} from "../shared/ui/Modal";
+import { ModalShell } from "../shared/ui/Modal";
+import { AddWidgetDialog } from "../features/dashboard/AddWidgetDialog";
+import { CategoryTransactionsDialog } from "../features/transactions/CategoryTransactionsDialog";
+import { ChooseImportAccountDialog } from "../features/imports/ChooseImportAccountDialog";
+import { ConfirmInvertDialog } from "../features/imports/ConfirmInvertDialog";
+import { CsvExportWarningDialog } from "../features/transactions/CsvExportWarningDialog";
+import { ManageCategoriesDialog } from "../features/transactions/ManageCategoriesDialog";
+import { ManageFamilyMembersDialog } from "../features/household/ManageFamilyMembersDialog";
+import { MonthExpenseDetailDialog } from "../features/reports/MonthExpenseDetailDialog";
+import { NewAccountDialog } from "../features/transactions/NewAccountDialog";
+import { NewCategoryDialog } from "../features/transactions/NewCategoryDialog";
+import { NewTransactionDialog } from "../features/transactions/NewTransactionDialog";
+import { TransferReviewDialog } from "../features/transactions/TransferReviewDialog";
+import { AutoLinkedReviewDialog } from "../features/transactions/AutoLinkedReviewDialog";
+import { ChooseExistingDataSourceDialog } from "../features/profiles/ChooseExistingDataSourceDialog";
+import { SwitchToProtectedProfileDialog } from "../features/profiles/SwitchToProtectedProfileDialog";
+import { UseExistingDataFileDialog } from "../features/profiles/UseExistingDataFileDialog";
+import { WelcomeDialog } from "./WelcomeDialog";
+import { WhatsNewDialog } from "./WhatsNewDialog";
 import { TransactionNotesDialog } from "../features/transactions/TransactionNotesDialog";
 import { ColumnMappingDialog } from "../features/imports/ColumnMappingDialog";
 import { needsMapping, type ColumnInspection, type ColumnMap, type ColumnMapSource } from "../shared/lib/columnMapping";
@@ -170,7 +177,6 @@ import { UpdateBanner } from "../features/updates/UpdateBanner";
 import { SidebarNav } from "./SidebarNav";
 import { useSidebarOverlay } from "./useSidebarOverlay";
 import { formatAmount, formatDisplayDate, toLocalIsoDate } from "../shared/lib/format";
-import { summarizeLivePriceRefresh } from "../features/investments/livePriceStatus";
 import { useDelayedVisibility } from "../shared/hooks/useDelayedVisibility";
 import { DataLoading } from "./DataLoading";
 
@@ -187,18 +193,14 @@ import type {
   Asset,
   Backup,
   Bucket,
-  BudgetSuggestions,
   CashFlow,
   MonthReview,
   CategoryAmount,
   CategoryIconEntry,
   CategoryTransaction,
-  DebtPayoffPlan,
   FamilyMember,
   BillAwareForecast,
   Holding,
-  LivePriceProviderId,
-  LivePriceRefreshSummary,
   LivePriceSettings,
   MonthExpenseDetail,
   Profile,
@@ -209,7 +211,6 @@ import type {
   RecurringTotals,
   MaintenanceSummary,
   SetupImportPreview,
-  SetupImportSummary,
   SinkingFundContribution,
   ThemeStyle,
   Transaction,
@@ -580,32 +581,6 @@ function App({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [livePriceSettings?.enabled]);
 
-  async function handleCreateBackupNow() {
-    try {
-      const result = await invoke<{ filename: string; copied_to: string | null; copy_error: string | null }>("create_backup_now");
-      await refreshBackups();
-      if (result.copy_error) {
-        setStatus(`Backup created, but the copy to your second folder failed: ${result.copy_error}`, "error");
-      } else if (result.copied_to) {
-        setStatus(`Backup created and copied to ${result.copied_to}.`, "success");
-      } else {
-        setStatus("Backup created.", "success");
-      }
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetBackupCopyDir(dir: string | null) {
-    try {
-      const message = await invoke<string>("set_backup_copy_dir", { dir });
-      await refreshBackups();
-      setStatus(message, "success");
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
   async function handleSetTray(enabled: boolean) {
     try {
       await invokeProfile("set_tray_enabled", { enabled });
@@ -641,25 +616,7 @@ function App({
     }
   }
 
-  async function handleBrowseBackupCopyDir() {
-    try {
-      const picked = await open({ directory: true, multiple: false, title: "Choose a folder for the second backup copy" });
-      if (typeof picked === "string") await handleSetBackupCopyDir(picked);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleRestoreBackup(filename: string, password?: string) {
-    try {
-      const expectedGeneration = await getCurrentGeneration();
-      await invoke("restore_backup", { filename, password: password ?? null, expectedGeneration });
-      onDataFileChanged(`Restored ${filename} — your prior data was backed up first.`);
-    } catch (e) {
-      setStatus(errorMessage(e));
-      if (password !== undefined) throw e;
-    }
-  }
+  const { handleCreateBackupNow, handleSetBackupCopyDir, handleBrowseBackupCopyDir, handleRestoreBackup } = useBackupActions({ invoke, refreshBackups, setStatus, onDataFileChanged });
 
   async function handleRelocateDataFile() {
     const dir = await open({ directory: true, multiple: false });
@@ -691,86 +648,6 @@ function App({
     }
   }
 
-  async function handleCreateProfile(name: string) {
-    try {
-      const created = await invokeProfile("create_profile", { name });
-      onDataFileChanged(`Switched to the new "${created}" profile — it starts completely empty.`);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  /** "Use existing file" step 1: pick the file. Step 2 (naming it) happens
-   * in `UseExistingDataFileDialog` once `pendingExistingDbPath` is set —
-   * split the same way `handleRelocateDataFile` splits picking a folder
-   * from the backend call, except a name has to come from the user first. */
-  async function handlePickExistingDataFile() {
-    setChoosingExistingSource(true);
-  }
-
-  async function handlePickExistingDatabase() {
-    const path = await open({ multiple: false, filters: [{ name: "Vault Spend Database", extensions: ["db"] }] });
-    if (!path || Array.isArray(path)) return;
-    setChoosingExistingSource(false);
-    setPendingExistingIsProtected(false);
-    // A bare, in-place `.db` can still be encrypted — e.g. a profile removed from the list
-    // ("forgot the password? remove it" or a plain Delete) leaves exactly this shape on disk. Ask
-    // the backend rather than guessing from the filename, so the dialog knows to show a password
-    // field before the person ever hits "Use this file" and gets a confusing refusal.
-    let requiresPassword = false;
-    try {
-      requiresPassword = await invokeProfile("path_looks_password_protected", { path });
-    } catch {
-      /* best effort — worst case the dialog omits the password field and the backend's own
-         "That password didn't work for this profile" surfaces if it turns out to be needed */
-    }
-    setPendingExistingRequiresPassword(requiresPassword);
-    setPendingExistingDbPath(path);
-  }
-
-  async function handlePickProtectedPackage() {
-    const path = await open({ directory: true, multiple: false, title: "Choose a .vaultspend package folder" });
-    if (!path || Array.isArray(path)) return;
-    setChoosingExistingSource(false);
-    setPendingExistingIsProtected(true);
-    setPendingExistingRequiresPassword(false);
-    setPendingExistingDbPath(path);
-  }
-
-  async function handleAddExistingProfile(name: string, password?: string) {
-    if (!pendingExistingDbPath) return;
-    try {
-      const expectedGeneration = await getCurrentGeneration();
-      const added = await invokeProfile("add_existing_profile", {
-        name,
-        dbPath: pendingExistingDbPath,
-        password: password ?? null,
-        expectedGeneration,
-      });
-      setPendingExistingDbPath(null);
-      setPendingExistingIsProtected(false);
-      setPendingExistingRequiresPassword(false);
-      onDataFileChanged(`Switched to "${added}".`);
-    } catch (e) {
-      setStatus(errorMessage(e));
-      if (pendingExistingIsProtected || pendingExistingRequiresPassword) throw e;
-    }
-  }
-
-  async function handleSwitchProfile(id: string) {
-    const target = profiles.find((p) => p.id === id);
-    if (target?.is_password_protected) {
-      setPendingProtectedSwitch({ id, name: target.name });
-      return;
-    }
-    try {
-      const switched = await invokeProfile("switch_profile", { id });
-      onDataFileChanged(`Switched to "${switched}".`);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
   // Locking never disturbs any other profile's data (there is nothing to touch — this just drops
   // the live connection) — StartupGate's own profile-lock-state-changed subscription swaps the
   // screen over to ProfileLockScreen on its own, so there is nothing else to do here afterward.
@@ -784,133 +661,6 @@ function App({
   });
   const handleLockProfile = manualLock.start;
 
-  async function handleRenameProfile(id: string, newName: string) {
-    try {
-      await invokeProfile("rename_profile", { id, newName });
-      await refreshProfiles();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetProfileIcon(id: string, iconKey: string | null) {
-    try {
-      await invokeProfile("set_profile_icon", { id, iconKey });
-      await refreshProfiles();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleDeleteProfile(id: string) {
-    try {
-      await invokeProfile("delete_profile", { id });
-      await refreshProfiles();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetLivePriceApiKey(provider: LivePriceProviderId, apiKey: string | null) {
-    try {
-      await invoke("set_live_price_settings", { provider, apiKey });
-      await refreshLivePriceSettings();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetApplyToDebtEnabled(enabled: boolean) {
-    try {
-      await invoke("set_apply_to_debt_enabled", { enabled });
-      await refreshAppSettings();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetSplitPurchasesEnabled(enabled: boolean) {
-    try {
-      await invoke("set_split_purchases_enabled", { enabled });
-      await refreshAppSettings();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetEnvelopeCapsEnabled(enabled: boolean) {
-    try {
-      await invoke("set_envelope_caps_enabled", { enabled });
-      await refreshAppSettings();
-      // The feature's effect on the 90% threshold lives in the backend
-      // (see budget_alerts_for_month) — refresh so any already-loaded
-      // alerts pick up the change immediately instead of on next nav.
-      await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetRolloverEnabled(enabled: boolean) {
-    try {
-      await invoke("set_rollover_enabled", { enabled });
-      await refreshAppSettings();
-      // Reload the selected month after its carry policy changes.
-      await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetSafeToSpendEnabled(enabled: boolean) {
-    try {
-      await invoke("set_safe_to_spend_enabled", { enabled });
-      await refreshAppSettings();
-      if (!enabled) setSafeToSpendForecast(null);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetAutoLinkTransfers(enabled: boolean) {
-    try {
-      const linkedNow = await invoke<number>("set_auto_link_transfers", { enabled });
-      await refreshAppSettings();
-      if (!enabled) {
-        setStatus("Automatic transfer linking is off. Links already made stay; unlink any from Transactions.", "info");
-        return;
-      }
-      // Turning it on also links the clear-cut pairs already in the ledger.
-      await refresh();
-      setStatus(
-        linkedNow > 0
-          ? `Automatic linking is on. ${linkedNow === 1 ? "Linked 1 transfer that was" : `Linked ${linkedNow} transfers that were`} already there — review ${linkedNow === 1 ? "it" : "them"} on Transactions.`
-          : "Automatic linking is on. Clear-cut transfers will be linked as they arrive.",
-        "success",
-      );
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleRefreshLivePrices() {
-    try {
-      const summary = await invoke<LivePriceRefreshSummary>("refresh_live_prices");
-      await Promise.all([refreshHoldings(), refreshLivePriceSettings()]);
-      const { text, kind } = summarizeLivePriceRefresh(summary);
-      setStatus(text, kind);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleFetchLiveQuote(symbol: string): Promise<string | null> {
-    try {
-      return await invoke<string | null>("fetch_live_quote", { symbol });
-    } catch {
-      return null; // convenience autofill only — swallow errors rather than interrupting the form
-    }
-  }
   const dashboardRead = useFinancialRead<DashboardSnapshot>();
   const loadDashboard = dashboardRead.refresh;
   const todayKey = toLocalIsoDate();
@@ -1817,15 +1567,6 @@ function App({
   // must never move a different month's numbers (see BudgetView).
   const budgetPeriod = `${budgetYear}-${String(budgetMonthNum).padStart(2, "0")}`;
 
-  async function handleSetBudget(category: string, monthlyAmount: string, budgetGroup: string) {
-    try {
-      await callTransaction("set_budget", { category, period: budgetPeriod, monthlyAmount, budgetGroup });
-      await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
   // ---- Month-end review -------------------------------------------------
   const [reviewedMonths, setReviewedMonths] = useState<string[]>([]);
   const [monthReview, setMonthReview] = useState<MonthReview | null>(null);
@@ -2066,54 +1807,7 @@ function App({
     }
   }
 
-  async function handleSuggestBudgets(): Promise<BudgetSuggestions | null> {
-    try {
-      return await invoke<BudgetSuggestions>("suggest_budgets", { year: budgetYear, month: budgetMonthNum });
-    } catch (e) {
-      setStatus(errorMessage(e));
-      return null;
-    }
-  }
-
-  async function handleApplyBudgetSuggestions(rows: { category: string; amount: string; group: string }[]) {
-    try {
-      for (const row of rows) {
-        await callTransaction("set_budget", { category: row.category, period: budgetPeriod, monthlyAmount: row.amount, budgetGroup: row.group });
-      }
-      await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
-      setStatus(`Set ${rows.length} budget${rows.length === 1 ? "" : "s"} for ${budgetMonthLabel}.`);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetCap(category: string, capEnabled: boolean) {
-    try {
-      await callTransaction("set_budget_cap", { category, period: budgetPeriod, capEnabled });
-      await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetRollover(category: string, rolloverEnabled: boolean) {
-    try {
-      await callTransaction("set_budget_rollover", { category, period: budgetPeriod, rolloverEnabled });
-      // Reload the selected month after its carry policy changes.
-      await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleDeleteBudget(category: string) {
-    try {
-      await callTransaction("delete_budget", { category, period: budgetPeriod });
-      await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
+  const { handleSetBudget, handleSuggestBudgets, handleApplyBudgetSuggestions, handleSetCap, handleSetRollover, handleDeleteBudget } = useBudgetActions({ callTransaction, budgetPeriod, refreshBudgetMonthActuals, budgetYear, budgetMonthNum, setStatus, invoke, budgetMonthLabel });
 
   const [categoryTransactions, setCategoryTransactions] = useState<{
     category: string;
@@ -2184,401 +1878,17 @@ function App({
     }
   }
 
-  async function handleSetStartingBalance(accountId: number, balance: string) {
-    try {
-      await invoke("set_account_starting_balance", { id: accountId, balance });
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
+  const { handleCreateRecurring, handleUpdateRecurring, handleDeleteRecurring, handleSetRecurringStatus, handleAddRecurringCandidate, handleDismissRecurringCandidate, handleIgnoreRecurringPriceChange } = useRecurringActions({ invoke, refreshRecurring, refreshRecurringTotals, setStatus, refreshRecurringCandidates, refreshRecurringMatches });
 
-  async function handleSetBalanceOverride(accountId: number, balance: string) {
-    try {
-      await invoke("set_account_balance_override", { id: accountId, balance });
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
+  const { handleCreateBucket, handleUpdateBucketDetails, handleAddContribution, handleDeleteBucket, handleSaveProjectionAsGoal } = useGoalActions({ invoke, refreshBuckets, checkSinkingFundContributions, setStatus });
 
-  async function handleUpdateAccountType(accountId: number, accountType: string) {
-    try {
-      await invoke("update_account_type", { id: accountId, accountType });
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
+  const { handleCreateProfile, handlePickExistingDataFile, handlePickExistingDatabase, handlePickProtectedPackage, handleAddExistingProfile, handleSwitchProfile, handleRenameProfile, handleSetProfileIcon, handleDeleteProfile } = useProfileActions({ onDataFileChanged, setStatus, setChoosingExistingSource, setPendingExistingIsProtected, setPendingExistingRequiresPassword, setPendingExistingDbPath, pendingExistingDbPath, pendingExistingIsProtected, pendingExistingRequiresPassword, profiles, setPendingProtectedSwitch, refreshProfiles });
 
-  async function handleSetAccountIcon(accountId: number, iconKey: string | null) {
-    try {
-      await invoke("set_account_icon", { id: accountId, iconKey });
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
+  const { handleSetApplyToDebtEnabled, handleSetSplitPurchasesEnabled, handleSetEnvelopeCapsEnabled, handleSetRolloverEnabled, handleSetSafeToSpendEnabled, handleSetAutoLinkTransfers } = useFeatureToggleActions({ invoke, refreshAppSettings, setStatus, refreshBudgetMonthActuals, budgetYear, budgetMonthNum, setSafeToSpendForecast, refresh });
 
-  /** Hides or shows an account. Nothing about its money changes; it only moves between the Accounts list and the Hidden accounts section. */
-  async function handleSetAccountHidden(accountId: number, hidden: boolean) {
-    try {
-      await invoke("set_account_hidden", { id: accountId, hidden });
-      await refresh();
-      const name = accounts.find((a) => a.id === accountId)?.name ?? "The account";
-      setStatus(
-        hidden ? `${name} is hidden. It is still counted in your totals. Find it under Hidden accounts.` : `${name} is showing again.`,
-        "success",
-      );
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
+  const { handleSetStartingBalance, handleSetBalanceOverride, handleUpdateAccountType, handleSetAccountIcon, handleSetAccountHidden, handleDeleteAccount, handleSetAccountDetails, handleSetAccountInterestRate, handleSetAccountExcludedFromDebtPayoff, handleCalculateDebtPayoff, handleSetAccountMember } = useAccountActions({ invoke, refresh, setStatus, accounts });
 
-  async function handleDeleteAccount(accountId: number) {
-    try {
-      const removed = await invoke<number>("delete_account", { id: accountId });
-      await refresh();
-      setStatus(`Deleted account and ${removed} transaction${removed === 1 ? "" : "s"}.`, "success");
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetAccountDetails(accountId: number, institution: string | null, mask: string | null) {
-    try {
-      await invoke("set_account_details", { id: accountId, institution, mask });
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetAccountInterestRate(accountId: number, rate: string | null) {
-    try {
-      await invoke("set_account_interest_rate", { id: accountId, rate });
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetAccountExcludedFromDebtPayoff(accountId: number, excluded: boolean) {
-    try {
-      await invoke("set_account_excluded_from_debt_payoff", { id: accountId, excluded });
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleCalculateDebtPayoff(
-    strategy: string,
-    extraPayment: string,
-    minimums: { accountId: number; minimumPayment: string }[],
-  ): Promise<DebtPayoffPlan | null> {
-    try {
-      return await invoke<DebtPayoffPlan>("debt_payoff_projection", {
-        strategy,
-        extraPayment,
-        minimums: minimums.map((m) => ({ account_id: m.accountId, minimum_payment: m.minimumPayment })),
-      });
-    } catch (e) {
-      setStatus(errorMessage(e));
-      return null;
-    }
-  }
-
-  async function handleCreateBucket(
-    name: string,
-    targetAmount: string | null,
-    targetDate: string | null,
-    accountId: number | null,
-    memberId: number | null,
-    sinkingAmount: string | null,
-    color: string | null,
-    iconKey: string | null,
-    tracksAccount: boolean,
-  ) {
-    try {
-      const id = await invoke<number>("create_bucket", {
-        name,
-        targetAmount,
-        targetDate,
-        accountId,
-        sinkingAmount,
-        color,
-        iconKey,
-      });
-      if (memberId !== null) {
-        await invoke("set_bucket_member", { id, memberId });
-      }
-      if (tracksAccount && accountId !== null) {
-        await invoke("set_bucket_tracks_account", { id, tracksAccount });
-      }
-      await refreshBuckets();
-      // A brand-new auto-contribute bucket didn't exist yet the last time
-      // this month's contributions were checked (at launch) — check again
-      // now so it doesn't sit at $0 until the app is next reopened.
-      if (sinkingAmount !== null) {
-        await checkSinkingFundContributions();
-        await refreshBuckets();
-      }
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleUpdateBucketDetails(
-    id: number,
-    targetAmount: string | null,
-    targetDate: string | null,
-    accountId: number | null,
-    sinkingAmount: string | null,
-    color: string | null,
-    iconKey: string | null,
-    tracksAccount: boolean,
-    newName: string | null,
-  ): Promise<boolean> {
-    try {
-      // The rename goes first: a name that is blank or already in use is refused, and then nothing else is saved.
-      if (newName !== null) await invoke("rename_bucket", { id, newName });
-      await invoke("update_bucket_details", { id, targetAmount, targetDate, accountId, sinkingAmount, color, iconKey });
-      await invoke("set_bucket_tracks_account", { id, tracksAccount: tracksAccount && accountId !== null });
-      await refreshBuckets();
-      // Same reasoning as handleCreateBucket: a sinking amount just added
-      // (or changed) here was invisible to the launch-time check, so catch
-      // it up immediately rather than making the user reload.
-      if (sinkingAmount !== null) {
-        await checkSinkingFundContributions();
-        await refreshBuckets();
-      }
-      return true;
-    } catch (e) {
-      setStatus(errorMessage(e));
-      return false;
-    }
-  }
-
-  async function handleAddContribution(bucketId: number, date: string, amount: string, note: string | null) {
-    try {
-      await invoke("add_bucket_contribution", { bucketId, date, amount, note });
-      await refreshBuckets();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleDeleteBucket(id: number) {
-    try {
-      await invoke("delete_bucket", { id });
-      await refreshBuckets();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleCreateRecurring(
-    merchant: string,
-    category: string | null,
-    amount: string,
-    cadence: string,
-    anchorDate: string,
-    accountId: number | null,
-    memberId: number | null,
-  ) {
-    try {
-      const id = await invoke<number>("create_recurring", { merchant, category, amount, cadence, anchorDate, accountId });
-      if (memberId !== null) {
-        await invoke("set_recurring_member", { id, memberId });
-      }
-      await Promise.all([refreshRecurring(), refreshRecurringTotals()]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleUpdateRecurring(
-    id: number,
-    merchant: string,
-    category: string | null,
-    amount: string,
-    cadence: string,
-    anchorDate: string,
-    accountId: number | null,
-    memberId: number | null,
-  ) {
-    try {
-      await invoke("update_recurring", { id, merchant, category, amount, cadence, anchorDate, accountId });
-      await invoke("set_recurring_member", { id, memberId });
-      await Promise.all([refreshRecurring(), refreshRecurringTotals()]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleDeleteRecurring(id: number) {
-    try {
-      await invoke("delete_recurring", { id });
-      await Promise.all([refreshRecurring(), refreshRecurringTotals()]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetRecurringStatus(id: number, status: "keep" | "reviewing" | "canceled") {
-    try {
-      await invoke("set_recurring_status", { id, status });
-      await refreshRecurring();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleAddRecurringCandidate(candidate: RecurringCandidate) {
-    try {
-      await invoke("create_recurring", {
-        merchant: candidate.merchant,
-        category: candidate.category,
-        amount: candidate.amount,
-        cadence: candidate.cadence,
-        anchorDate: candidate.anchor_date,
-        accountId: null,
-      });
-      await Promise.all([refreshRecurring(), refreshRecurringTotals(), refreshRecurringCandidates()]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleDismissRecurringCandidate(candidate: RecurringCandidate) {
-    try {
-      await invoke("dismiss_recurring_candidate", {
-        merchant: candidate.merchant,
-        amount: candidate.amount,
-        cadence: candidate.cadence,
-      });
-      await refreshRecurringCandidates();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleIgnoreRecurringPriceChange(id: number, from: string, to: string) {
-    try {
-      await invoke("dismiss_recurring_price_change", { id, from, to });
-      await refreshRecurringMatches();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleCreateHolding(
-    accountId: number,
-    symbol: string,
-    name: string,
-    shares: string,
-    price: string,
-    costBasis: string,
-    assetClass: string | null,
-  ) {
-    try {
-      await invoke("create_holding", { accountId, symbol, name, shares, price, costBasis, assetClass });
-      await refreshHoldings();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleUpdateHoldingPrice(id: number, price: string) {
-    try {
-      await invoke("update_holding_price", { id, price });
-      await refreshHoldings();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetAllocationTargets(targets: { assetClass: string; percent: string }[]) {
-    try {
-      for (const t of targets) {
-        await invoke("set_allocation_target", { assetClass: t.assetClass, percent: t.percent });
-      }
-      await refreshHoldings();
-      setStatus("Target allocation saved.", "success");
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSaveProjectionAsGoal(name: string, targetAmount: string, targetDate: string) {
-    await handleCreateBucket(name, targetAmount, targetDate, null, null, null, null, null, false);
-    setStatus(`Saved "${name}" as a goal — it's on the Goals page.`, "success");
-  }
-
-  async function handleDeleteHolding(id: number) {
-    try {
-      await invoke("delete_holding", { id });
-      await refreshHoldings();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleCreateAsset(
-    name: string,
-    assetType: string,
-    value: string,
-    valuedOn: string,
-    notes: string | null,
-    memberId: number | null,
-  ) {
-    try {
-      const id = await invoke<number>("create_asset", { name, assetType, value, valuedOn, notes });
-      if (memberId !== null) {
-        await invoke("set_asset_member", { id, memberId });
-      }
-      await refreshAssets();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleUpdateAssetValue(id: number, value: string, valuedOn: string) {
-    try {
-      await invoke("update_asset_value", { id, value, valuedOn });
-      await refreshAssets();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetAssetMember(id: number, memberId: number | null) {
-    try {
-      await invoke("set_asset_member", { id, memberId });
-      await refreshAssets();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetAccountMember(accountId: number, memberId: number | null) {
-    try {
-      await invoke("set_account_member", { id: accountId, memberId });
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleDeleteAsset(id: number) {
-    try {
-      await invoke("delete_asset", { id });
-      await refreshAssets();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
+  const { handleSetLivePriceApiKey, handleRefreshLivePrices, handleFetchLiveQuote, handleCreateHolding, handleUpdateHoldingPrice, handleSetAllocationTargets, handleDeleteHolding, handleCreateAsset, handleUpdateAssetValue, handleSetAssetMember, handleDeleteAsset } = useInvestmentActions({ invoke, refreshLivePriceSettings, setStatus, refreshHoldings, refreshAssets });
 
   async function handleNewAccount(): Promise<number | null> {
     const result = await askNewAccount();
@@ -2670,155 +1980,11 @@ function App({
     setManageFamilyMembersOpen(true);
   }
 
-  async function handleCreateFamilyMember(name: string) {
-    try {
-      await invoke("create_family_member", { name });
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
+  const { handleCreateFamilyMember, handleRenameFamilyMember, handleDeleteFamilyMember } = useFamilyMemberActions({ invoke, refresh, setStatus });
 
-  async function handleRenameFamilyMember(id: number, newName: string) {
-    try {
-      await invoke("rename_family_member", { id, newName });
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
+  const { handleCreateCategory, handleSetCategoryIcon, handleRenameCategory, handleDeleteCategory } = useCategoryActions({ invoke, refresh, setStatus, refreshBudgetMonthActuals, budgetYear, budgetMonthNum });
 
-  async function handleDeleteFamilyMember(id: number) {
-    try {
-      await invoke("delete_family_member", { id });
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleCreateCategory(name: string, iconKey: string | null) {
-    try {
-      await invoke("create_category", { name, iconKey });
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSetCategoryIcon(name: string, iconKey: string | null) {
-    try {
-      await invoke("set_category_icon", { name, iconKey });
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleRenameCategory(oldName: string, newName: string) {
-    try {
-      await invoke("rename_category", { oldName, newName });
-      await Promise.all([refresh(), refreshBudgetMonthActuals(budgetYear, budgetMonthNum)]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleDeleteCategory(name: string) {
-    try {
-      await invoke("delete_category", { name });
-      await Promise.all([refresh(), refreshBudgetMonthActuals(budgetYear, budgetMonthNum)]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleDownloadSetupTemplate() {
-    const path = await save({
-      defaultPath: "vaultspend-setup-template.csv",
-      filters: [{ name: "CSV", extensions: ["csv"] }],
-    });
-    if (!path) return;
-    try {
-      await invoke("write_text_file", { path, content: buildSetupTemplate() });
-      setStatus(`Setup template saved to ${path} — fill it in, then use "Import setup data".`, "success");
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleImportSetupData() {
-    const path = await open({ multiple: false, filters: [{ name: "CSV", extensions: ["csv"] }] });
-    if (!path || Array.isArray(path)) return;
-    try {
-      const preview = await invoke<SetupImportPreview>("preview_setup_import", { path });
-      const total =
-        preview.accounts.length +
-        preview.categories.length +
-        preview.budgets.length +
-        preview.buckets.length +
-        preview.holdings.length;
-      if (total === 0) {
-        setStatus(
-          emptySetupMessage(preview.row_errors),
-          preview.row_errors > 0 ? "error" : "info",
-        );
-        return;
-      }
-      // Duplicates start unchecked, same convention as the transaction
-      // import's review screen; budget "will update" rows stay checked
-      // since updating an existing budget line is usually the intent.
-      // Holdings with an unresolved account start unchecked too — checking
-      // one would just get silently skipped at commit time anyway.
-      setPendingSetupImport({
-        path,
-        preview,
-        includedAccounts: new Set(preview.accounts.filter((r) => !r.already_exists).map((r) => r.index)),
-        includedCategories: new Set(preview.categories.filter((r) => !r.already_exists).map((r) => r.index)),
-        includedBudgets: new Set(preview.budgets.map((r) => r.index)),
-        includedBuckets: new Set(preview.buckets.filter((r) => !r.already_exists).map((r) => r.index)),
-        includedHoldings: new Set(preview.holdings.filter((r) => r.account_found).map((r) => r.index)),
-      });
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  function toggleSetupIncluded(
-    section: "includedAccounts" | "includedCategories" | "includedBudgets" | "includedBuckets" | "includedHoldings",
-    index: number,
-  ) {
-    setPendingSetupImport((prev) => {
-      if (!prev) return prev;
-      const next = new Set(prev[section]);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      return { ...prev, [section]: next };
-    });
-  }
-
-  async function confirmSetupImport() {
-    if (!pendingSetupImport) return;
-    setBusy(true);
-    try {
-      const summary = await invoke<SetupImportSummary>("commit_setup_import", {
-        path: pendingSetupImport.path,
-        includedAccounts: Array.from(pendingSetupImport.includedAccounts),
-        includedCategories: Array.from(pendingSetupImport.includedCategories),
-        includedBudgets: Array.from(pendingSetupImport.includedBudgets),
-        includedBuckets: Array.from(pendingSetupImport.includedBuckets),
-        includedHoldings: Array.from(pendingSetupImport.includedHoldings),
-      });
-      setPendingSetupImport(null);
-      await Promise.all([refresh(), refreshBuckets(), refreshHoldings()]);
-      const message = setupImportMessage(summary);
-      setStatus(message, summary.row_errors > 0 ? "error" : "success");
-    } catch (e) {
-      setStatus(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const { handleDownloadSetupTemplate, handleImportSetupData, toggleSetupIncluded, confirmSetupImport } = useSetupImportActions({ invoke, setStatus, setPendingSetupImport, pendingSetupImport, setBusy, refresh, refreshBuckets, refreshHoldings });
 
   async function handleExportReportsCsv() {
     if (profiles.find((p) => p.is_active)?.is_password_protected && !(await askCsvExportWarning())) return;

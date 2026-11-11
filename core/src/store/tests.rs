@@ -257,7 +257,7 @@ fn netflix_with(store: &Store, account: i64, stored_amount: &str, posted: &[(&st
 }
 
 fn roth(store: &Store) -> i64 {
-    store.get_or_create_account("Joey Roth IRA", AccountType::Investment).unwrap()
+    store.get_or_create_account("Sample Roth IRA", AccountType::Investment).unwrap()
 }
 
 fn put(store: &Store, account: i64, date: &str, description: &str, amount: &str) {

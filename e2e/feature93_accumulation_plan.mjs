@@ -30,7 +30,7 @@ def month_start(back):
     y, m = divmod(total, 12)
     return datetime.date(y, m + 1, 1)
 
-cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Joey Roth IRA', 'investment', '0.00')")
+cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Sample Roth IRA', 'investment', '0.00')")
 roth = cur.lastrowid
 # $400 on the 1st of each of the last six complete months -> the default average is exactly 400.00.
 for back in range(6, 0, -1):
@@ -76,7 +76,7 @@ const formValues = async (browser) => ({
 
 // ============================== session 1 ==============================
 await withApp(async (browser) => {
-  const id = await openDetails(browser, "Joey Roth IRA");
+  const id = await openDetails(browser, "Sample Roth IRA");
   await waitForAccumulation(browser, id);
 
   // ---- 19.3: the default, and who it came from ---------------------------------
@@ -123,7 +123,7 @@ await withApp(async (browser) => {
   }
   // Reopen the page: the form must come back exactly as it was.
   await nav(browser, "Accounts");
-  await openDetails(browser, "Joey Roth IRA");
+  await openDetails(browser, "Sample Roth IRA");
   await waitForAccumulation(browser, id);
   const afterBad = await formValues(browser);
   if (JSON.stringify(afterBad) !== JSON.stringify(untouched)) fail(`refused saves changed something: ${JSON.stringify(afterBad)} vs ${JSON.stringify(untouched)}`);
@@ -201,7 +201,7 @@ await withApp(async (browser) => {
   // The switch is per viewer (browser storage): it survives a page reload.
   await browser.url("http://tauri.localhost/index.html");
   await browser.$(".brand-word").waitForExist({ timeout: 15000 });
-  await openDetails(browser, "Joey Roth IRA");
+  await openDetails(browser, "Sample Roth IRA");
   await waitForAccumulation(browser, id);
   if (!(await (await browser.$("[data-acc-todays-dollars]")).isSelected())) fail("the today's-dollars switch should still be on after a reload");
   await (await browser.$("[data-acc-todays-dollars]")).click(); // back to off for the restart check below
@@ -209,7 +209,7 @@ await withApp(async (browser) => {
 
 // ============================== session 2: quit and reopen ==============================
 await withApp(async (browser) => {
-  const id = await openDetails(browser, "Joey Roth IRA");
+  const id = await openDetails(browser, "Sample Roth IRA");
   await waitForAccumulation(browser, id);
   const kept = await formValues(browser);
   console.log("after restart:", kept);
@@ -233,7 +233,7 @@ await withApp(async (browser) => {
 
 // ============================== session 3: the reset stuck ==============================
 await withApp(async (browser) => {
-  const id = await openDetails(browser, "Joey Roth IRA");
+  const id = await openDetails(browser, "Sample Roth IRA");
   await waitForAccumulation(browser, id);
   if ((await value(browser, "[data-acc-monthly]")) !== "400.00") fail("the reset should survive a restart");
   if (await browser.$("[data-acc-reset-average]").isExisting()) fail("no saved amount after a restart either");

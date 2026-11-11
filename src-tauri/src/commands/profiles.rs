@@ -184,7 +184,7 @@ pub fn add_existing_profile(
     paths: tauri::State<crate::config::AppPaths>,
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
-    sessions: tauri::State<crate::protection_session::Sessions>,
+    sessions: tauri::State<crate::protection::session::Sessions>,
 ) -> Result<String, crate::profiles::ProfileRefusal> {
     if paths.current_generation() != expected_generation {
         return Err(crate::profiles::ProfileRefusal::profile_changed());
@@ -274,7 +274,7 @@ pub fn add_existing_profile(
         let dek = sessions
             .check_password(&key_file, password.as_deref().unwrap_or_default())
             .map_err(|error| {
-                if error == crate::protection_session::WRONG_PASSWORD {
+                if error == crate::protection::session::WRONG_PASSWORD {
                     crate::profiles::ProfileRefusal::wrong_password()
                 } else {
                     crate::profiles::ProfileRefusal::from(error)
@@ -389,7 +389,7 @@ pub fn delete_profile(
     paths: tauri::State<crate::config::AppPaths>,
     runtime: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
-    mobile: tauri::State<crate::mobile_api::MobileAccess>,
+    mobile: tauri::State<crate::mobile::api::MobileAccess>,
 ) -> Result<(), crate::profiles::ProfileRefusal> {
     // Revoke before removing the registry entry: an I/O failure must never leave old grants
     // able to match a later profile with a reused internal ID.

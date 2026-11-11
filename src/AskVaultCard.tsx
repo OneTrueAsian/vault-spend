@@ -1,20 +1,20 @@
-import { CHANGED_HEADING } from "./askVault/changedState";
-import { traceClaimStart } from "./askVault/retirementStageTrace";
+import { CHANGED_HEADING } from "./askVault/common/changedState";
+import { traceClaimStart } from "./askVault/retirement/retirementStageTrace";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { MessageCircleQuestion } from "lucide-react";
 import { TRANSACTION_QA_EXAMPLES } from "./transactionQa";
 import { ModalShell } from "./shared/ui/Modal";
 import { formatDisplayDate } from "./shared/lib/format";
-import { formatMoney } from "./askVault/money";
-import { useAskVault, type LegacyAnswer } from "./askVault/useAskVault";
-import { useSpendingScenario } from "./askVault/useSpendingScenario";
+import { formatMoney } from "./askVault/common/money";
+import { useAskVault, type LegacyAnswer } from "./askVault/ordinary/useAskVault";
+import { useSpendingScenario } from "./askVault/spending/useSpendingScenario";
 import { SpendingScenarioDialog } from "./SpendingScenarioDialog";
-import { useCutPreview, type CutPreviewClient } from "./askVault/useCutPreview";
+import { useCutPreview, type CutPreviewClient } from "./askVault/cutPreview/useCutPreview";
 import { CutPreviewDialog } from "./CutPreviewDialog";
-import { useRetirementScenario } from "./askVault/useRetirementScenario";
-import type { RetirementClient } from "./askVault/retirementContextReader";
+import { useRetirementScenario } from "./askVault/retirement/useRetirementScenario";
+import type { RetirementClient } from "./askVault/retirement/retirementContextReader";
 import { RetirementScenarioDialog } from "./RetirementScenarioDialog";
-import type { AskMemberSelection, Correction, Interpretation, ParseContext } from "./askVault/types";
+import type { AskMemberSelection, Correction, Interpretation, ParseContext } from "./askVault/common/types";
 
 /** Questions shown as one-click suggestions when something could not be understood. */
 export const SUGGESTIONS = [

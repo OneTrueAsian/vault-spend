@@ -15,7 +15,8 @@ vi.mock("../../shared/lib/profileUiState", () => ({ getCurrentGeneration: () => 
 import { BucketsView } from "../budgets/BucketsView";
 import { HoldingImportDialog } from "../investments/HoldingImportDialog";
 import { ImportReviewDialog } from "../imports/ImportReviewDialog";
-import { ChooseImportAccountDialog, NewTransactionDialog } from "../../shared/ui/Modal";
+import { ChooseImportAccountDialog } from "../imports/ChooseImportAccountDialog";
+import { NewTransactionDialog } from "../transactions/NewTransactionDialog";
 import { RecurringView } from "../budgets/RecurringView";
 import type { ImportReview } from "../imports/useImportReview";
 import type { Account, Bucket } from "../../shared/lib/types";

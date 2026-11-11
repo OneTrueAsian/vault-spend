@@ -9,7 +9,7 @@ import { createRoot, type Root } from "react-dom/client";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async () => null) }));
 
-import { NewTransactionDialog } from "../../shared/ui/Modal";
+import { NewTransactionDialog } from "./NewTransactionDialog";
 import type { Account } from "../../shared/lib/types";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

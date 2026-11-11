@@ -1,7 +1,7 @@
 import "./CashFlowCharts.css";
 import { useEffect, useState } from "react";
 import type { Account, BillAwareForecast, CashFlow, CategoryAmount, DebtPayoffPlan, YoyCashFlow } from "../../shared/lib/types";
-import { lowestPoint } from "../dashboard/safeToSpend";
+import { lowestPoint } from "./lowestPoint";
 import { BarChart, DonutChart, LineChart, fmtMoneyShort } from "../../shared/ui/charts";
 import { formatAmount, formatDisplayDate } from "../../shared/lib/format";
 import { forecastHint } from "./forecastNotes";

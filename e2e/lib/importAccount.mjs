@@ -1,7 +1,7 @@
 import { chooseMenuOption } from "../harness.mjs";
 
 // "Import transactions" always asks which account the file is from before it opens the file picker
-// (src/shared/ui/Modal.tsx ChooseImportAccountDialog); it never starts on the account the page is showing.
+// (src/features/imports/ChooseImportAccountDialog.tsx); it never starts on the account the page is showing.
 // Specs that start an import through the button answer that question with this.
 
 /** Clicks "Import transactions" and picks `accountName` in the account question. Stops at the file

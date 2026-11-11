@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { invoke as nativeInvoke } from "../../../node_modules/@tauri-apps/api/core.js";
 import { invoke } from "./tauriInvoke";
-import { onDataWrite } from "../../askVault/dataWriteEvents";
+import { onDataWrite } from "../../askVault/common/dataWriteEvents";
 import { readFileSync } from "node:fs";
 
 vi.mock("../../../node_modules/@tauri-apps/api/core.js", () => ({ invoke: vi.fn(), convertFileSrc: vi.fn() }));
@@ -78,7 +78,7 @@ describe("M5 write notification: the app's invoke", () => {
     });
     it("a fixture hook routes an allowed write through the production notification path after success", async () => {
       await debugLoad(); expect(hook()).toBeDefined();
-      const { onDataWrite } = await import("../../askVault/dataWriteEvents"); const seen: string[] = []; const stop = onDataWrite(c => seen.push(c));
+      const { onDataWrite } = await import("../../askVault/common/dataWriteEvents"); const seen: string[] = []; const stop = onDataWrite(c => seen.push(c));
       try { await hook()!.invoke("set_investment_plan", { accountId: 5 }); expect(seen).toEqual(["set_investment_plan"]); }
       finally { stop(); }
       expect(vi.mocked(nativeInvoke).mock.calls.map(c => c[0])).toEqual(["debug_retirement_fixture_allowed", "debug_retirement_fixture_allowed", "set_investment_plan"]);
@@ -94,7 +94,7 @@ describe("M5 write notification: the app's invoke", () => {
       expect(vi.mocked(nativeInvoke).mock.calls.map(c => c[0])).toEqual(["debug_retirement_fixture_allowed"]);
     });
     it("reads and failed writes through the fixture hook do not announce a write", async () => {
-      await debugLoad(); const { onDataWrite } = await import("../../askVault/dataWriteEvents"); const seen: string[] = []; const stop = onDataWrite(c => seen.push(c));
+      await debugLoad(); const { onDataWrite } = await import("../../askVault/common/dataWriteEvents"); const seen: string[] = []; const stop = onDataWrite(c => seen.push(c));
       try {
         await hook()!.invoke("get_transaction_context");
         vi.mocked(nativeInvoke).mockImplementation(async cmd => { if (cmd === "debug_retirement_fixture_allowed") return true; throw new Error("write failed"); });

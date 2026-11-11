@@ -321,8 +321,8 @@ pub fn get_live_price_settings(state: tauri::State<AppStateHandle>) -> Result<Li
     let settings = state.store.get_live_price_settings().map_err(|e| e.to_string())?;
     let today = chrono::Local::now().date_naive();
     let requests_used_today = state.store.live_price_requests_used_today(today).map_err(|e| e.to_string())?;
-    let provider = crate::live_price_provider::LivePriceProvider::parse(&settings.provider)
-        .unwrap_or(crate::live_price_provider::LivePriceProvider::AlphaVantage);
+    let provider = crate::live_prices::provider::LivePriceProvider::parse(&settings.provider)
+        .unwrap_or(crate::live_prices::provider::LivePriceProvider::AlphaVantage);
     Ok(LivePriceSettingsDto {
         enabled: settings.api_key.is_some(),
         provider: provider.as_str().to_string(),
@@ -341,7 +341,7 @@ pub fn get_live_price_settings(state: tauri::State<AppStateHandle>) -> Result<Li
 pub fn set_live_price_settings(provider: String, api_key: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock()?;
     let provider =
-        crate::live_price_provider::LivePriceProvider::parse(&provider).ok_or_else(|| format!("unknown live-price provider: {provider}"))?;
+        crate::live_prices::provider::LivePriceProvider::parse(&provider).ok_or_else(|| format!("unknown live-price provider: {provider}"))?;
     let api_key = api_key.filter(|k| !k.trim().is_empty());
     state
         .store
@@ -396,7 +396,7 @@ pub async fn fetch_live_quote(
         return Ok(None);
     };
     let provider =
-        crate::live_price_provider::LivePriceProvider::parse(&provider).unwrap_or(crate::live_price_provider::LivePriceProvider::AlphaVantage);
+        crate::live_prices::provider::LivePriceProvider::parse(&provider).unwrap_or(crate::live_prices::provider::LivePriceProvider::AlphaVantage);
 
     if let Some(limit) = provider.daily_limit() {
         if used_today >= limit {
@@ -408,7 +408,7 @@ pub async fn fetch_live_quote(
     }
 
     let client = reqwest::Client::new();
-    let result = crate::live_price_provider::fetch_quote(provider, &client, &api_key, &symbol).await;
+    let result = crate::live_prices::provider::fetch_quote(provider, &client, &api_key, &symbol).await;
     // Same generation guard as `refresh_live_prices` — the profile that
     // was live when this request started may not be the one live now.
     // Checked here first as a cheap early-out, then checked *again* just
@@ -512,7 +512,7 @@ pub async fn refresh_live_prices(
         (settings.api_key, settings.provider, symbols, used_today)
     };
     let provider =
-        crate::live_price_provider::LivePriceProvider::parse(&provider).unwrap_or(crate::live_price_provider::LivePriceProvider::AlphaVantage);
+        crate::live_prices::provider::LivePriceProvider::parse(&provider).unwrap_or(crate::live_prices::provider::LivePriceProvider::AlphaVantage);
     let api_key = api_key.ok_or_else(|| format!("Live prices aren't enabled — add a {} API key in Settings.", provider.label()))?;
 
     let limit = provider.daily_limit();
@@ -544,7 +544,7 @@ pub async fn refresh_live_prices(
         .collect();
 
     let client = reqwest::Client::new();
-    let results = crate::live_price_provider::fetch_quotes(provider, &client, &api_key, &to_attempt).await;
+    let results = crate::live_prices::provider::fetch_quotes(provider, &client, &api_key, &to_attempt).await;
     // One HTTP request per symbol for a provider with no batching, one per
     // up-to-`max_batch_size()`-symbol chunk for one that does (StockData.org
     // today) — matches what `fetch_quotes` above actually sent, so

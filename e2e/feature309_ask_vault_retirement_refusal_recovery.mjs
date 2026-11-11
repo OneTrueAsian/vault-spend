@@ -6,7 +6,7 @@ import { askHelpers, QUESTION_REFUSED, QUESTION_REFUSED_STORED, REFUSAL_MESSAGE,
 // M5 numeric-refusal recovery in the compiled app (task item 2). A real question that the calculator refuses after consent (the corpus case m5c-027: a typed 100% return to
 // October 2100) reaches the "A few details need attention" card. Its "Change the details" must reopen the choices for account, amount, cadence and month
 // (Content-Flow.md:50; Requirements-Checklist.md:150), and the revised terms must reach the calculator: every balance the screen then shows is compared with a closed-form
-// calculation made here, independently of the app, using the display rounding rule of src/askVault/retirementScenarioMath.ts:68 (nearest 1,000 from 10,000, nearest 100 from
+// calculation made here, independently of the app, using the display rounding rule of src/askVault/retirement/retirementScenarioMath.ts:68 (nearest 1,000 from 10,000, nearest 100 from
 // 1,000, else nearest 10). Editing the amount or the cadence and asking again must move the shown figures as that calculation says. Evidence class: COMPILED (real app, real calculator).
 const SHOTS = process.env.VS_M5_SHOTS;
 const dbDir = await seedRefusalProfile();

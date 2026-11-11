@@ -59,17 +59,17 @@ try {
     if (parseMoney(row.growth) !== growth) fail(`${name}: growth should be ${money(growth)}, got ${row.growth}`);
   }
   // The monthly amount in use: the average (Roth, Alex), the saved amount (Sam), nothing to average (Brokerage).
-  if (rows["Joey Roth IRA"].monthly !== money(X.monthly["Joey Roth IRA"])) fail(`Roth monthly should be the ${money(450)} average, got ${rows["Joey Roth IRA"].monthly}`);
+  if (rows["Sample Roth IRA"].monthly !== money(X.monthly["Sample Roth IRA"])) fail(`Roth monthly should be the ${money(450)} average, got ${rows["Sample Roth IRA"].monthly}`);
   if (rows["Sam's 529"].monthly !== money(X.monthly["Sam's 529"])) fail(`Sam's saved monthly should read ${money(300)}, got ${rows["Sam's 529"].monthly}`);
   if (rows["Alex's 529"].monthly !== money(X.monthly["Alex's 529"])) fail(`Alex's monthly should be the ${money(225)} average, got ${rows["Alex's 529"].monthly}`);
   if (rows["Fidelity Brokerage"].monthly !== "—") fail(`an account with nothing to average shows a dash, got ${rows["Fidelity Brokerage"].monthly}`);
 
   // Projected numbers (balance on the withdraw month, before any withdrawal) and their dates.
-  const rothProjected = futureValue(X.worth["Joey Roth IRA"], 450, 7, 36);
+  const rothProjected = futureValue(X.worth["Sample Roth IRA"], 450, 7, 36);
   const samProjected = futureValue(X.worth["Sam's 529"], 300, 6, 60);
-  if (!rows["Joey Roth IRA"].projected.startsWith(money(rothProjected))) fail(`Roth should project ${money(rothProjected)} at 36 months, got ${rows["Joey Roth IRA"].projected}`);
+  if (!rows["Sample Roth IRA"].projected.startsWith(money(rothProjected))) fail(`Roth should project ${money(rothProjected)} at 36 months, got ${rows["Sample Roth IRA"].projected}`);
   if (!rows["Sam's 529"].projected.startsWith(money(samProjected))) fail(`Sam's should project ${money(samProjected)} at 60 months, got ${rows["Sam's 529"].projected}`);
-  if (!/[A-Z][a-z]{2} \d{4}$/.test(rows["Joey Roth IRA"].projected)) fail(`the projected cell should end with the withdraw month, got ${rows["Joey Roth IRA"].projected}`);
+  if (!/[A-Z][a-z]{2} \d{4}$/.test(rows["Sample Roth IRA"].projected)) fail(`the projected cell should end with the withdraw month, got ${rows["Sample Roth IRA"].projected}`);
   for (const name of ["Alex's 529", "Fidelity Brokerage"]) {
     if (rows[name].projected !== "No date set") fail(`${name} has no withdraw date, so it should say "No date set", got ${rows[name].projected}`);
   }
@@ -116,17 +116,17 @@ try {
   if (!/Investments/.test(await text(browser, ".view-title"))) fail("we should be back on the Investments tab");
 
   // The Details button does the same.
-  await (await browser.$("[data-acc-summary-row='Joey Roth IRA'] [data-acc-open]")).click();
+  await (await browser.$("[data-acc-summary-row='Sample Roth IRA'] [data-acc-open]")).click();
   await browser.$("[data-accumulation]").waitForExist({ timeout: 10000 });
   await clickUntilShown(browser, "[data-account-back]", "[data-acc-summary]", { timeoutMsg: "Back should return to the Investments tab" });
   // The keyboard has its own way in: the account's name is a real button, so Tab reaches it and Enter opens
   // the account (a row click is only the mouse's shortcut to the same place).
-  await browser.execute(() => document.querySelector("[data-acc-summary-row='Joey Roth IRA'] [data-acc-open]").focus());
+  await browser.execute(() => document.querySelector("[data-acc-summary-row='Sample Roth IRA'] [data-acc-open]").focus());
   const focused = await browser.execute(() => document.activeElement?.getAttribute("data-acc-open") !== null && document.activeElement?.tagName === "BUTTON");
   if (!focused) fail("the account name should be a focusable button");
   await browser.keys("Enter");
   await browser.$("[data-accumulation]").waitForExist({ timeout: 10000, timeoutMsg: "Enter on the focused account name should open that account" });
-  if ((await text(browser, ".view-title")) !== "Joey Roth IRA") fail(`Enter should open Joey Roth IRA, got ${await text(browser, ".view-title")}`);
+  if ((await text(browser, ".view-title")) !== "Sample Roth IRA") fail(`Enter should open Sample Roth IRA, got ${await text(browser, ".view-title")}`);
   await clickUntilShown(browser, "[data-account-back]", "[data-acc-summary]", { timeoutMsg: "Back should return to the Investments tab" });
 
   // ---- 19.15: the Goal projection what-if card is unchanged ----------------------------------------------

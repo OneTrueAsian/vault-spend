@@ -219,7 +219,7 @@ export async function runCalendarMatrix(style) {
         await waitUntilOrDiagnose(b, async () => !(await b.$(".modal-panel").isExisting()), { timeoutMsg: `${where}: a second Escape should close the dialog` });
 
         // The month calendar, on an investment account's page.
-        await openDetails(b, "Joey Roth IRA");
+        await openDetails(b, "Sample Roth IRA");
         await waitForAccumulation(b, (await b.execute(() => document.querySelector("[data-account-detail]").getAttribute("data-account-detail"))));
         const month = 'input[aria-label="Withdraw month"]';
         await (await b.$(month)).scrollIntoView({ block: "center" });

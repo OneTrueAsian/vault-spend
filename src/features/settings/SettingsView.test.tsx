@@ -11,7 +11,12 @@ vi.mock("../profiles/ProtectionSetupDialog", () => ({
   ),
 }));
 
-import { AppearanceSection, BackupsBlock, CardFeedbackProvider, DataFileBlock, IconCreditsSection, ProfilesSection } from "./SettingsView";
+import { AppearanceSection } from "./AppearanceSection";
+import { BackupsBlock } from "../backups/BackupsBlock";
+import { CardFeedbackProvider } from "../../shared/ui/CardFeedback";
+import { DataFileBlock } from "./DataSection";
+import { IconCreditsSection } from "./AboutSections";
+import { ProfilesSection } from "../profiles/ProfilesSection";
 import { DEFAULT_APPEARANCE_PREFS, type AppearancePrefs } from "../../shared/lib/themeBootstrap";
 import type { Theme } from "../../shared/native/appTypes";
 

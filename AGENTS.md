@@ -1,5 +1,9 @@
 # Repository instructions for coding assistants
 
+## Implementation plans
+
+- Store implementation plans and their supporting move maps, progress notes, and validation evidence in `E:\misc\Programming\Agents\Implementations`, unless the owner explicitly requests another location. Do not create new implementation plans in this repository.
+
 ## Testing workflow
 
 - Use the validation scope rules below when interpreting these commands. A requirement for a final regression is not a requirement to repeat it after every edit.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readAppStyles } from "../lib/cssTestUtils";
+import { readAppStyles } from "../../testSupport/cssTestUtils";
 
 // QA-A11Y-003: in the Default style's light theme the dialog panel is a see-through 40% white over
 // the dimmed page, which composites to about #afb2b2. The muted label colour (#5a5a61) measured

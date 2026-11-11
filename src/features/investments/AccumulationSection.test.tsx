@@ -44,7 +44,7 @@ function account(id: number, name: string, accountType: string): Account {
   };
 }
 
-const roth = account(1, "Joey Roth IRA", "investment");
+const roth = account(1, "Sample Roth IRA", "investment");
 const checking = account(2, "Everyday Checking", "checking");
 
 const accumulation: InvestmentAccumulation = {
@@ -122,7 +122,7 @@ describe("AccumulationSummaryCard", () => {
     backendWorks();
     await show([roth, checking]);
     expect(container.querySelector("[data-acc-summary-table]")).not.toBeNull();
-    expect(container.querySelector("[data-acc-summary-row='Joey Roth IRA']")).not.toBeNull();
+    expect(container.querySelector("[data-acc-summary-row='Sample Roth IRA']")).not.toBeNull();
   });
 
   it("says the summary couldn't be loaded, and why, instead of rendering nothing", async () => {
@@ -147,7 +147,7 @@ describe("AccumulationSummaryCard", () => {
     });
     await settle();
     expect(container.querySelector("[data-acc-summary-error]")).toBeNull();
-    expect(container.querySelector("[data-acc-summary-row='Joey Roth IRA']")).not.toBeNull();
+    expect(container.querySelector("[data-acc-summary-row='Sample Roth IRA']")).not.toBeNull();
   });
 
   it("says in the total row that each account's number is taken at its own date, and how many were left out", async () => {
@@ -257,6 +257,6 @@ describe("AccountAccumulationSection saving", () => {
     await pressSave();
 
     expect(container.querySelector("[data-acc-error]"), "the plan is saved, so the form must not say it failed").toBeNull();
-    expect(onMessage).toHaveBeenCalledWith(expect.stringContaining("Saved the plan for Joey Roth IRA"), expect.anything());
+    expect(onMessage).toHaveBeenCalledWith(expect.stringContaining("Saved the plan for Sample Roth IRA"), expect.anything());
   });
 });

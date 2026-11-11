@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { computeBuildKey, computeTestKey, diffInputs, isBuildInput, isHarnessInput, isTestOnlyFile, recordArtifact, verifyArtifact } from "./buildIdentity.mjs";
 
 const files = () => ({
-  "src/main.tsx": "a1", "src/askVault/useRetirementScenario.ts": "b2", "src-tauri/src/lib.rs": "c3", "core/src/store.rs": "d4",
+  "src/main.tsx": "a1", "src/askVault/retirement/useRetirementScenario.ts": "b2", "src-tauri/src/lib.rs": "c3", "core/src/store.rs": "d4",
   "Cargo.lock": "e5", "package-lock.json": "f6", "package.json": "07", "vite.config.ts": "18", "tsconfig.json": "29", "src-tauri/tauri.conf.json": "3a", "index.html": "4b",
 });
 const toolchain = () => ({ node: "v22.20.0", rustc: "rustc 1.98.0", cargo: "cargo 1.98.0" });
@@ -26,16 +26,16 @@ describe("which files are build inputs", () => {
 
 describe("test-only files are not application build inputs (owner decision 20 Oct 2026)", () => {
   it.each([
-    "src/askVault/useRetirementScenario.test.tsx", "src/shared/lib/format.test.ts", "src\\askVault\\a.test.ts", "src/testSupport/render.tsx", "src/shared/lib/cssTestUtils.ts", "src/shared/ui/menuSelectTestUtils.ts", "src/features/statements/statementTestUtils.ts",
+    "src/askVault/retirement/useRetirementScenario.test.tsx", "src/shared/lib/format.test.ts", "src\\askVault\\a.test.ts", "src/testSupport/render.tsx", "src/testSupport/cssTestUtils.ts", "src/shared/ui/menuSelectTestUtils.ts", "src/features/statements/statementTestUtils.ts",
     "core/src/store/tests.rs", "core/src/store/tests/accounts.rs", "core/src/store/tests/ask_vault_retirement_fixtures.json",
   ])("%s is test-only and cannot change the executable", path => { expect(isTestOnlyFile(path)).toBe(true); expect(isBuildInput(path)).toBe(false); });
-  it.each(["src/main.tsx", "src/askVault/useRetirementScenario.ts", "src/mobile/mobilePreviewFixtures.ts", "src/features/imports/setupTemplate.ts", "src/ledgerHelpers.ts", "core/src/store.rs", "core/src/store/accounts.rs", "src-tauri/src/lib.rs", "src/testament.ts", "src/latest.tsx"])(
+  it.each(["src/main.tsx", "src/askVault/retirement/useRetirementScenario.ts", "src/mobile/mobilePreviewFixtures.ts", "src/features/imports/setupTemplate.ts", "src/ledgerHelpers.ts", "core/src/store.rs", "core/src/store/accounts.rs", "src-tauri/src/lib.rs", "src/testament.ts", "src/latest.tsx"])(
     "%s is not test-only", path => { expect(isTestOnlyFile(path)).toBe(false); expect(isBuildInput(path)).toBe(true); });
   it("a test-only edit leaves the application key unchanged and a production edit changes it", () => {
-    const withTests = { ...files(), "src/askVault/useRetirementScenario.test.tsx": "t1", "core/src/store/tests/accounts.rs": "t2" };
+    const withTests = { ...files(), "src/askVault/retirement/useRetirementScenario.test.tsx": "t1", "core/src/store/tests/accounts.rs": "t2" };
     expect(key({ files: withTests })).toBe(key());
-    expect(key({ files: { ...withTests, "src/askVault/useRetirementScenario.test.tsx": "edited" } })).toBe(key());
-    expect(key({ files: { ...withTests, "src/askVault/useRetirementScenario.ts": "edited" } })).not.toBe(key());
+    expect(key({ files: { ...withTests, "src/askVault/retirement/useRetirementScenario.test.tsx": "edited" } })).toBe(key());
+    expect(key({ files: { ...withTests, "src/askVault/retirement/useRetirementScenario.ts": "edited" } })).not.toBe(key());
   });
   it("adding or deleting a test file does not change the application key", () => {
     expect(key({ files: { ...files(), "src/new.test.ts": "x" } })).toBe(key());

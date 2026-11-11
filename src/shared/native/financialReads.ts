@@ -1,5 +1,5 @@
 import { createTransactionClient } from "./transactionReads";
-import { traceReadStart, traceValidator } from "../../askVault/retirementStageTrace";
+import { traceReadStart, traceValidator } from "../../askVault/retirement/retirementStageTrace";
 import { TransactionError } from "./transactionContracts";
 import {
   validateBudgetSnapshot,
@@ -8,13 +8,13 @@ import {
   validateReportSummarySnapshot,
 } from "./financialContracts";
 import { toLocalIsoDate } from "../lib/format";
-import { validateAskVaultSnapshot, type AskKnownPeople } from "../../askVault/contract";
-import type { AskVaultRequest, AskVaultRequestV2 } from "../../askVault/types";
-import { validateBaselineBatchRequest, validateBaselineBatchSnapshot, type AskBaselineBatchRequest } from "../../askVault/cutPreviewBatch";
+import { validateAskVaultSnapshot, type AskKnownPeople } from "../../askVault/ordinary/contract";
+import type { AskVaultRequest, AskVaultRequestV2 } from "../../askVault/common/types";
+import { validateBaselineBatchRequest, validateBaselineBatchSnapshot, type AskBaselineBatchRequest } from "../../askVault/cutPreview/cutPreviewBatch";
 import {
   validateRetirementContextWireRequest, validateRetirementRosterWireRequest, validateRetirementContextReply, validateRetirementRosterReply,
   type RetirementContextWireRequest, type RetirementRosterWireRequest,
-} from "../../askVault/retirementNativeContract";
+} from "../../askVault/retirement/retirementNativeContract";
 export function createFinancialClient() {
   const client = createTransactionClient();
   async function read<T extends { context: { generation: number; sessionRevision: number } }>(

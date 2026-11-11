@@ -6,7 +6,7 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const SRC = join(__dirname, "..", "..");
-const ALLOWED_TAGLINE = new Set(["shared/ui/Modal.tsx", "features/settings/SettingsView.tsx"]);
+const ALLOWED_TAGLINE = new Set(["app/WelcomeDialog.tsx", "features/settings/AboutSections.tsx"]);
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -40,7 +40,7 @@ describe("page frame", () => {
   });
 
   it("points Settings > Privacy at Hide amounts at the bottom of the sidebar", () => {
-    const settings = sources.find((s) => s.rel === "features/settings/SettingsView.tsx")!.text;
+    const settings = sources.find((s) => s.rel === "features/settings/PrivacySection.tsx")!.text;
     expect(settings).toContain("The Hide amounts button at the bottom of the sidebar covers every dollar figure");
   });
 
@@ -53,7 +53,7 @@ describe("page frame", () => {
   });
 
   it("shows the tagline in Settings > About", () => {
-    const settings = sources.find((s) => s.rel === "features/settings/SettingsView.tsx")!.text;
+    const settings = sources.find((s) => s.rel === "features/settings/AboutSections.tsx")!.text;
     expect(settings).toContain('<p className="modal-message-secondary">Own your Data, Own your Money!</p>');
   });
 });

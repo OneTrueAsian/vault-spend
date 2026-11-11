@@ -4,10 +4,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { AskVaultCard, MORE_EXAMPLES, SUGGESTIONS } from "./AskVaultCard";
 import { TRANSACTION_QA_EXAMPLES } from "./transactionQa";
-import { retirementIllustrativeBalance } from "./askVault/retirementScreenContract";
-import { validateRetirementContextReply, validateRetirementRosterReply } from "./askVault/retirementNativeContract";
-import type { RetirementContextReply, RetirementContextWireRequest, RetirementRosterReply, RetirementRosterWireRequest } from "./askVault/retirementNativeContract";
-import type { AskVaultRequest, AskVaultRequestV2, ParseContext } from "./askVault/types";
+import { retirementIllustrativeBalance } from "./askVault/retirement/retirementScreenContract";
+import { validateRetirementContextReply, validateRetirementRosterReply } from "./askVault/retirement/retirementNativeContract";
+import type { RetirementContextReply, RetirementContextWireRequest, RetirementRosterReply, RetirementRosterWireRequest } from "./askVault/retirement/retirementNativeContract";
+import type { AskVaultRequest, AskVaultRequestV2, ParseContext } from "./askVault/common/types";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

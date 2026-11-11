@@ -40,7 +40,7 @@ def tx(account_id, when, description, amount):
                 (account_id, when.isoformat(), description, amount, "Transfer", "user", f"f92-{counter[0]}"))
 
 checking = acct("Everyday Checking", "checking", "1000.00")
-roth = acct("Joey Roth IRA", "investment")
+roth = acct("Sample Roth IRA", "investment")
 down = acct("Down 529", "investment")
 empty = acct("Empty 529", "investment")
 
@@ -82,7 +82,7 @@ try {
   const accountsTabWorth = await browser.waitUntil(
     async () => {
       const t = await browser.execute(() => {
-        const card = [...document.querySelectorAll(".account-card")].find((c) => c.querySelector(".account-name-cell")?.textContent.trim() === "Joey Roth IRA");
+        const card = [...document.querySelectorAll(".account-card")].find((c) => c.querySelector(".account-name-cell")?.textContent.trim() === "Sample Roth IRA");
         return card?.querySelector(".bal")?.textContent.trim() ?? null;
       });
       return t || false;
@@ -91,7 +91,7 @@ try {
   );
 
   // ---- 19.1 / 19.2: the Roth's numbers ----------------------------------------
-  const rothId = await openDetails(browser, "Joey Roth IRA");
+  const rothId = await openDetails(browser, "Sample Roth IRA");
   await waitForAccumulation(browser, rothId);
 
   const invested = await text(browser, "[data-acc-invested]");

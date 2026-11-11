@@ -76,7 +76,7 @@ gigabytes. Three layers now stop that:
 - `run-all.mjs` (and `stress.mjs`) give every spec its own `TEMP`/`TMP` folder and delete it when the spec
   ends, including a spec killed on timeout whose own exit cleanup never ran. Folders left by a run that
   was itself killed are swept from `%TEMP%\vaultspend-e2e-runs` by a later run once 6 hours old.
-- Specs and tools that start msedgedriver themselves (feature172, `tools/test_mobile_*`) give it an
+- Specs and tools that start msedgedriver themselves (feature172, `tools/mobile/test_mobile_*`) give it an
   isolated temp folder too.
 
 Screenshot folders follow the same rule: set the spec's own output variable (`VS_SCREENS_DIR`,

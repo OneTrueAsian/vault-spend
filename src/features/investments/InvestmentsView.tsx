@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import type { Account, AllocationTarget, Holding, PortfolioPoint } from "../../shared/lib/types";
-import { allocationRows, driftStatus, targetsTotal } from "../budgets/allocation";
+import { allocationRows, driftStatus, targetsTotal } from "./allocation";
 import { DonutChart, LineChart, fmtMoneyShort } from "../../shared/ui/charts";
 import { formatAmount, formatDisplayDate, isValidDecimalString, shortMonthDay, toLocalIsoDate } from "../../shared/lib/format";
 import { projectGoal } from "../../shared/lib/projections";

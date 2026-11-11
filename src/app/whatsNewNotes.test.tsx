@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { CHANGELOG, changelogNotes, changelogSections, versionsNewestFirst } from "../shared/lib/changelog";
-import { WhatsNewDialog } from "../shared/ui/Modal";
+import { WhatsNewDialog } from "./WhatsNewDialog";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

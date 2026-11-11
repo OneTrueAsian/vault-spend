@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import type { ConfirmedCutPreview, CutPreviewIntent } from "../../askVault/cutPreviewContract";
+import type { ConfirmedCutPreview, CutPreviewIntent } from "../../askVault/cutPreview/cutPreviewContract";
 
 /** Test-only separate rational reference. Authority: M4 Financial-Rules, retained Python Fraction vectors.
  * No production calculator/calendar/parser is imported. The 120 original vectors remain unmodified arithmetic evidence,

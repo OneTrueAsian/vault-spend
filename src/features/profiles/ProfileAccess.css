@@ -213,7 +213,7 @@ svg.profile-card-avatar {
 }
 
 /* Full-bleed only when it's the form's sole action (the sign-in/unlock screens) — the in-app
-   switch-to-protected-profile prompt (Modal.tsx) also renders a Cancel button alongside it, where
+   switch-to-protected-profile prompt (features/profiles/SwitchToProtectedProfileDialog.tsx) also renders a Cancel button alongside it, where
    forcing 100% width would fight the Cancel button for space instead of sharing the row. */
 .password-form-submit:only-child {
   width: 100%;

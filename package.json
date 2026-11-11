@@ -25,11 +25,11 @@
     "mobile:build": "tsc && vite build --config vite.mobile.config.ts",
     "mobile:build:preview": "tsc && vite build --config vite.mobile.config.ts --mode preview",
     "mobile:preview": "vite preview --config vite.mobile.config.ts --mode preview",
-    "mobile:e2e": "npm run mobile:build && npm run mobile:build:preview && node tools/test_mobile_viewer.mjs",
+    "mobile:e2e": "npm run mobile:build && npm run mobile:build:preview && node tools/mobile/test_mobile_viewer.mjs",
     "mobile:build:offline-test": "tsc && vite build --config vite.mobile.config.ts --mode offline-test",
-    "mobile:offline:e2e": "npm run mobile:build:offline-test && node tools/test_mobile_offline.mjs",
-    "mobile:acceptance:e2e": "npm run mobile:build:offline-test && node tools/test_mobile_cross_browser.mjs",
-    "mobile:tls:e2e": "node tools/test_mobile_trusted_firefox.mjs"
+    "mobile:offline:e2e": "npm run mobile:build:offline-test && node tools/mobile/test_mobile_offline.mjs",
+    "mobile:acceptance:e2e": "npm run mobile:build:offline-test && node tools/mobile/test_mobile_cross_browser.mjs",
+    "mobile:tls:e2e": "node tools/mobile/test_mobile_trusted_firefox.mjs"
   },
   "dependencies": {
     "@fontsource/barlow-condensed": "^5.3.0",

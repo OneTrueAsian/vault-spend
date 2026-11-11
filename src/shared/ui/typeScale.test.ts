@@ -1,7 +1,7 @@
 // No readable text below 12px (2026-10-02 QA, L2: 39 declarations went as low as 9.5px, including
 // chart axes, calendar entries, stat labels and table headers). Only arrow glyphs drawn as text
 // (disclosure markers, a menu caret) may be smaller.
-import { readAppStyles, readCssWithImports } from "../lib/cssTestUtils";
+import { readAppStyles, readCssWithImports } from "../../testSupport/cssTestUtils";
 import { describe, expect, it } from "vitest";
 
 const SHEETS = ["./App.css", "../../themes/futuristic.css", "./InfoTip.css", "../../features/profiles/AutoLockSession.css"];

@@ -1,10 +1,10 @@
-import { RETIREMENT_CORPUS, retirementExecutionExpectation } from "../../askVault/retirementCorpus";
+import { RETIREMENT_CORPUS, retirementExecutionExpectation } from "../../askVault/retirement/retirementCorpus";
 import type { CorpusCase } from "./manifest";
 import { m5FixtureId } from "./m5Scenario";
 
 /**
  * Task-4 item 6, scenario-family preparation that can be done without per-seed native fixtures. Test-only; derived from the frozen M5 corpus gold
- * (src/askVault/retirementCorpus.ts, owner-approved), never from parser output. Nothing here is stored in cases.json, so the frozen v1/v2 hashes are
+ * (src/askVault/retirement/retirementCorpus.ts, owner-approved), never from parser output. Nothing here is stored in cases.json, so the frozen v1/v2 hashes are
  * unaffected; a later freeze version must add these cases deliberately.
  *
  *  - P-NC: a retirement question whose draft is missing choices, or a clarification with a frozen choice set (Validation-Plan VP-04).
@@ -44,15 +44,15 @@ export const m5PendingCompletions = (): string[] => RETIREMENT_CORPUS.filter(c =
 export type EvidenceLink = { reference: string; nativeContext: { file: string; ref: string } | null; jsCalculation: { file: string; ref: string } | null; missing: string };
 export const SCENARIO_EVIDENCE_LINKS: EvidenceLink[] = [
   { reference: "anchor.m3.monthly", nativeContext: { file: "core/src/store/tests/ask_vault_m6.rs", ref: "fn ask_vault_m6_scenario_prerequisites" },
-    jsCalculation: { file: "src/askVault/spendingScenarioMath.test.ts", ref: "monthly-two: $50 a month for November and December saves $100 and leaves a $250 monthly limit" },
+    jsCalculation: { file: "src/askVault/spending/spendingScenarioMath.test.ts", ref: "monthly-two: $50 a month for November and December saves $100 and leaves a $250 monthly limit" },
     missing: "native context is now proved per seed world (99 baseline-shaped reads); the review/consent flow and the exact calculation per seed are JavaScript projections not yet converted into M6 cases" },
   { reference: "anchor.m4.penny", nativeContext: { file: "core/src/store/tests/ask_vault_m6.rs", ref: "fn ask_vault_m6_scenario_prerequisites" },
-    jsCalculation: { file: "src/askVault/spendingScenarioMath.test.ts", ref: "C4 largest-remainder penny tie is independent of input order" },
+    jsCalculation: { file: "src/askVault/spending/spendingScenarioMath.test.ts", ref: "C4 largest-remainder penny tie is independent of input order" },
     missing: "native baseline reads exist per seed world; the savings-target allocation per seed is a JavaScript projection not yet converted into M6 cases" },
   { reference: "anchor.m5.one-month-monthly", nativeContext: { file: "core/src/store/tests/ask_vault_m6.rs", ref: "fn ask_vault_m6_scenario_prerequisites" },
-    jsCalculation: { file: "src/askVault/retirementScenarioContractExamples.ts", ref: "one-month-monthly" },
+    jsCalculation: { file: "src/askVault/retirement/retirementScenarioContractExamples.ts", ref: "one-month-monthly" },
     missing: "native retirement-account contexts exist for seeds 101, 202 and 303 (holdings, holdings, transactions); the projection per seed is a JavaScript calculation not yet converted into M6 cases" },
   { reference: "anchor.m5.zero-month-once", nativeContext: { file: "core/src/store/tests/ask_vault_m6.rs", ref: "fn ask_vault_m6_scenario_prerequisites" },
-    jsCalculation: { file: "src/askVault/retirementScenarioContractExamples.ts", ref: "zero-month-once" },
+    jsCalculation: { file: "src/askVault/retirement/retirementScenarioContractExamples.ts", ref: "zero-month-once" },
     missing: "same as one-month-monthly" },
 ];

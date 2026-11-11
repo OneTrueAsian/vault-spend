@@ -306,7 +306,7 @@ for days, desc, amt, cat in (
 
 # ---------------------------------------------------------------------------
 # Phase 4 loose ends: investment accumulation + projection
-#   - "Joey Roth IRA": $450 on the 1st of every month for 14 months with ONE
+#   - "Sample Roth IRA": $450 on the 1st of every month for 14 months with ONE
 #     MISSED MONTH (5 months ago) and one $310 withdrawal, no plan saved yet
 #     (open Details, pick a withdraw month, watch the projection appear);
 #   - "Sam's 529": $275 a month for 15 months, with a saved plan (6% return,
@@ -317,7 +317,7 @@ for days, desc, amt, cat in (
 # The amounts avoid any figure that another loose end already uses (500, 250,
 # 180, 120) so they never join a "possible transfer" suggestion.
 # ---------------------------------------------------------------------------
-roth = acct("Joey Roth IRA", "investment", "0.00", "Fidelity", "8821")
+roth = acct("Sample Roth IRA", "investment", "0.00", "Fidelity", "8821")
 sam529 = acct("Sam's 529", "investment", "0.00", "Vanguard", "5529")
 alex529 = acct("Alex's 529", "investment", "0.00", "Vanguard", "5530")
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { RuleEditorDialog } from "../../shared/ui/Modal";
+import { RuleEditorDialog } from "./RuleEditorDialog";
 import { SortableTh } from "./SortableTh";
 import { useAutoCancelDelete } from "../../shared/hooks/useAutoCancelDelete";
 import { MenuSelect } from "../../shared/ui/MenuSelect";

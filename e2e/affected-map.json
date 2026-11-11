@@ -67,7 +67,7 @@
   ],
   "areas": [
     {
-      "pattern": "src/askVault/retirementNativeContract.ts",
+      "pattern": "src/askVault/retirement/retirementNativeContract.ts",
       "specs": ["ask_vault", "feature305_", "transaction_qa", "dashboard_order", "financial_snapshot"],
       "reason": "Ask the Vault native reply contract: the TypeScript side of a Rust-to-TypeScript boundary.",
       "requires": ["cargo test -p budget_core -- --test-threads=1 (run through npm run access)", "cargo test -p vaultspend --lib commands:: -- --test-threads=1 (run through npm run access)"]

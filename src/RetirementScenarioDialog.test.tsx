@@ -9,13 +9,13 @@ import { RetirementScenarioDialog } from "./RetirementScenarioDialog";
 import {
   FORBIDDEN_RETIREMENT_WORDING, RETIREMENT_ANNOUNCEMENTS, RETIREMENT_COPY, RETIREMENT_FIELDS, RETIREMENT_INVALID_SCREEN_MESSAGE, RETIREMENT_PROBLEMS, retirementUnsupportedMessage,
   validateRetirementChoicesEvent,
-} from "./askVault/retirementScreenContract";
-import type { PreviewCalculation, RetirementChoicesEvent, RetirementDialogProps, RetirementReview, RetirementScreen } from "./askVault/retirementScreenContract";
-import { calculateRetirementScenario } from "./askVault/retirementScenarioMath";
-import { retirementContractExamples } from "./askVault/retirementScenarioContractExamples";
-import { UNSUPPORTED_CODES } from "./askVault/retirementCorpus";
-import { validateConfirmedRetirementScenario } from "./askVault/retirementScenarioContract";
-import type { ConfirmedRetirementScenario, RetirementDraft, RetirementParseContext } from "./askVault/retirementScenarioContract";
+} from "./askVault/retirement/retirementScreenContract";
+import type { PreviewCalculation, RetirementChoicesEvent, RetirementDialogProps, RetirementReview, RetirementScreen } from "./askVault/retirement/retirementScreenContract";
+import { calculateRetirementScenario } from "./askVault/retirement/retirementScenarioMath";
+import { retirementContractExamples } from "./askVault/retirement/retirementScenarioContractExamples";
+import { UNSUPPORTED_CODES } from "./askVault/retirement/retirementCorpus";
+import { validateConfirmedRetirementScenario } from "./askVault/retirement/retirementScenarioContract";
+import type { ConfirmedRetirementScenario, RetirementDraft, RetirementParseContext } from "./askVault/retirement/retirementScenarioContract";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

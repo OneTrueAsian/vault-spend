@@ -1,4 +1,4 @@
-import type { ForecastEvent, ForecastPoint } from "../../shared/lib/types";
+import type { ForecastEvent } from "../../shared/lib/types";
 import { sumMoney } from "../../shared/lib/money";
 
 export type SafeToSpend = {
@@ -53,15 +53,4 @@ export function safeToSpend({
   const daysUntilPayday = nextIncome ? daysBetween(today, nextIncome.date) : null;
   const perDay = daysUntilPayday !== null && daysUntilPayday > 0 && amount > 0 ? amount / daysUntilPayday : null;
   return { amount, nextIncome, bills, daysUntilPayday, perDay };
-}
-
-/** The forecast's low point — the day balance bottoms out, so a coming
- * squeeze is visible even when the end of the window looks fine. */
-export function lowestPoint(points: ForecastPoint[]): { date: string; balance: number } | null {
-  let lowest: { date: string; balance: number } | null = null;
-  for (const p of points) {
-    const balance = parseFloat(p.balance);
-    if (lowest === null || balance < lowest.balance) lowest = { date: p.date, balance };
-  }
-  return lowest;
 }

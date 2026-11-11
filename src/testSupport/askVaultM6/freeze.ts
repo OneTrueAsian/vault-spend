@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { canonical } from "./counting";
 import type { CorpusCase } from "./manifest";
 import { preparedCaseGroups, preparedRoutingCases } from "./preparedPackages";
+import { relocatedSourcePath } from "./sourcePaths";
 
 /**
  * VP-19 scoring-freeze contents (Validation-Plan.md). Test-only. A freeze fixes WHICH bytes are scored: every file below, the population labels,
@@ -33,7 +34,7 @@ export const FREEZE_FILES = [...inventory(), ...[
   "familyResolution.test.ts", "familyResolutionRoute.test.tsx", "amendmentReferences.test.ts", "legacyHandoffRoute.test.tsx", "storeTypoLaterWord.test.tsx",
   // Added by freeze version 13 (Task 7, owner direction D-8, 22 October 2026): the reviewed realistic-error list is counted instead of raw tags.
   "realisticErrors.test.ts",
-].map(name => `../../askVault/${name}`)].sort();
+].map(name => relocatedSourcePath(`src/askVault/${name}`).replace(/^src\//, "../../"))].sort();
 const sha = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
 export const fileHash = (name: string) => sha(readFileSync(`${DIR}/${name}`));
 

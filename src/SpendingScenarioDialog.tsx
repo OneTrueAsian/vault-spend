@@ -1,4 +1,4 @@
-import { CHANGED_HEADING } from "./askVault/changedState";
+import { CHANGED_HEADING } from "./askVault/common/changedState";
 import { useId, useLayoutEffect, useRef, useState, type ComponentProps } from "react";
 import { ModalShell } from "./shared/ui/Modal";
 import "./SpendingScenarioDialog.css";
@@ -6,8 +6,8 @@ import { date as isDate } from "./shared/native/contractChecks";
 import { DateField } from "./shared/ui/DateField";
 import { useFieldValidity } from "./shared/ui/calendar/useFieldValidity";
 import { dateOutOfRange, DATE_RANGE_PROBLEM } from "./shared/lib/dateRange";
-import { scenarioBaselineProblem } from "./askVault/spendingScenarioMath";
-import type { ScenarioBaseline, SpendingScenarioCalculation, SpendingScenarioDraft, SpendingScenarioIntent } from "./askVault/spendingScenarioContract";
+import { scenarioBaselineProblem } from "./askVault/spending/spendingScenarioMath";
+import type { ScenarioBaseline, SpendingScenarioCalculation, SpendingScenarioDraft, SpendingScenarioIntent } from "./askVault/spending/spendingScenarioContract";
 import {
   ROUNDING_NOTE,
   assumptionText,
@@ -25,7 +25,7 @@ import {
   typedDollars,
   usualMonthText,
   wholeMonthsOnly,
-} from "./askVault/spendingScenarioView";
+} from "./askVault/spending/spendingScenarioView";
 
 /** A complete, explicit schedule. The dialog never hands back an open or defaulted date. */
 export type ScenarioRange = { kind: "prospective" | "full-year-hypothetical"; from: string; to: string };

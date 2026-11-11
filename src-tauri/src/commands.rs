@@ -77,7 +77,7 @@ struct ValidatedProtectedPackage {
 fn validate_protected_package(
     package_dir: &std::path::Path,
     password: &str,
-    sessions: &crate::protection_session::Sessions,
+    sessions: &crate::protection::session::Sessions,
 ) -> Result<ValidatedProtectedPackage, String> {
     use budget_core::protection::package::{sha256_file, DATABASE_FILENAME, MANIFEST_FILENAME};
     use budget_core::protection::PACKAGE_FORMAT;

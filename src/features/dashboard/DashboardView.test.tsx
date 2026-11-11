@@ -24,7 +24,7 @@ vi.mock("../../AskVaultCard", async importOriginal => {
 });
 
 import { DashboardView } from "./DashboardView";
-import * as vendor from "../../askVault/vendor";
+import * as vendor from "../../askVault/common/vendor";
 import { DEFAULT_LAYOUT, type WidgetId } from "../../shared/lib/dashboardLayout";
 import type { Account } from "../../shared/lib/types";
 

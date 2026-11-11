@@ -1,9 +1,9 @@
-import { CORPUS_CONTEXTS, RETIREMENT_CORPUS, retirementExecutionExpectation, type CorpusCase as M5Case } from "../../askVault/retirementCorpus";
+import { CORPUS_CONTEXTS, RETIREMENT_CORPUS, retirementExecutionExpectation, type CorpusCase as M5Case } from "../../askVault/retirement/retirementCorpus";
 import type { CorpusCase } from "./manifest";
 import { m5Result } from "./m5Model";
 
 /**
- * Task-4 item 6, M5 conversion (owner instruction of 21 October 2026): the 28 completing cases of the frozen M5 corpus (src/askVault/retirementCorpus.ts, owner-approved gold)
+ * Task-4 item 6, M5 conversion (owner instruction of 21 October 2026): the 28 completing cases of the frozen M5 corpus (src/askVault/retirement/retirementCorpus.ts, owner-approved gold)
  * become M6 P-CORE cases with
  *  - a FULL intended request, fixed from the gold draft and the consent path the review offers (not from parser output);
  *  - a separate exact expected result per seed, computed by the independent exact model (m5Model.ts, JavaScript) from the seed's native retirement context;

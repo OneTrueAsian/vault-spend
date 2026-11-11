@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { CATEGORY_COLORS, categoryColor } from "./categoryPalette";
-import { readCssWithImports } from "../lib/cssTestUtils";
+import { readCssWithImports } from "../../testSupport/cssTestUtils";
 
 const css = readCssWithImports(new URL("./App.css", import.meta.url));
 

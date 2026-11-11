@@ -12,7 +12,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { TransferReviewDialog } from "../../shared/ui/Modal";
+import { TransferReviewDialog } from "./TransferReviewDialog";
 import type { Transaction } from "../../shared/lib/types";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

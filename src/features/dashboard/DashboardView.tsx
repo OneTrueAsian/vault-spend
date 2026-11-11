@@ -2,9 +2,8 @@ import { hiddenAccountCount } from "../../shared/lib/hiddenAccounts";
 import "./DashboardCards.css";
 import "./FirstRunChecklist.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MenuSelect } from "../../shared/ui/MenuSelect";
-import { Check, Info, Leaf, LineChart as LineChartIcon } from "lucide-react";
-import { CategoryIcon, BudgetGroupIcon, AccountTypeIcon, BucketIcon, IconEntryGlyph, flatIconEntry } from "../../shared/ui/icons";
+import { Info, Leaf } from "lucide-react";
+import { CategoryIcon, BudgetGroupIcon, IconEntryGlyph, flatIconEntry } from "../../shared/ui/icons";
 import type {
   BillAwareForecast,
   Account,
@@ -28,25 +27,21 @@ import { StatDetailPanel } from "../../shared/ui/StatDetailPanel";
 import { formatAmount, formatDisplayDate, toLocalIsoDate } from "../../shared/lib/format";
 import { groupOf, isOverdrawn, netWorthContribution, owedAmount } from "../../shared/lib/accountGroups";
 import { netWorthByMember } from "../../shared/lib/memberBreakdowns";
-import { daysLeft } from "../budgets/BucketsView";
 import {
-  LAYOUT_PRESETS,
-  LAYOUT_PRESET_LABELS,
-  loadCustomLayoutPresets,
   matchingLayoutPreset,
   parseWidgetId,
-  saveCustomLayoutPresets,
   type FixedWidgetId,
-  type LayoutPresetKey,
-  type SavedLayoutPreset,
   type WidgetId,
 } from "../../shared/lib/dashboardLayout";
 import { answerTransactionQuestion } from "../../transactionQa";
 import { AskVaultCard } from "../../AskVaultCard";
-import { prepareVendors } from "../../askVault/vendor";
-import type { ParseContext } from "../../askVault/types";
-import { ledgerSignature } from "../../askVault/ledgerSignature";
-import { ensureUiStateMigrated } from "../../shared/lib/profileUiState";
+import { prepareVendors } from "../../askVault/common/vendor";
+import type { ParseContext } from "../../askVault/common/types";
+import { ledgerSignature } from "../../askVault/common/ledgerSignature";
+import { AccountWidget, BucketWidget, InvestmentWidget } from "./PinnedWidgets";
+import { useDashboardLayoutCustomization } from "./useDashboardLayoutCustomization";
+import { DashboardLayoutToolbar } from "./DashboardLayoutToolbar";
+import { FirstRunChecklist } from "./FirstRunChecklist";
 import { attentionItems, type AttentionKind } from "./needsAttention";
 import { effectiveBudget, monthElapsed } from "../../shared/lib/budgetPlan";
 import { budgetGroupFillClass } from "../budgets/colourStatus";
@@ -57,23 +52,6 @@ import { sumMoney } from "../../shared/lib/money";
 import { describeBudgetAlerts, isUsedInFull } from "../budgets/budgetAlertText";
 import { HelpLink } from "../../shared/ui/HelpLink";
 import type { Tab } from "../../shared/native/appTypes";
-
-// "meadow-" is the app's earliest name, kept so a dismissed checklist stays dismissed (see themeBootstrap.ts).
-const CHECKLIST_DISMISSED_KEY = "meadow-checklist-dismissed";
-
-/** The Layout menu's last entry: turns Customize on or off. Not a layout, so never saved as one. */
-const CUSTOMIZE_OPTION = "__customize__";
-
-/** Same try/parse/catch-fallback shape as `loadNavOrder`/`theme` in
- * App.tsx — a per-viewer UI preference, not app data, so it lives in
- * localStorage rather than the database. */
-function loadChecklistDismissed(): boolean {
-  try {
-    return localStorage.getItem(CHECKLIST_DISMISSED_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
 
 const GROUP_ORDER = ["income", "fixed", "flexible", "nonmonthly"] as const;
 const GROUP_LABELS: Record<string, string> = {
@@ -240,66 +218,15 @@ export function DashboardView({
   const [selectedSpendCategory, setSelectedSpendCategory] = useState<string | null>(null);
   useEffect(() => setSelectedSpendCategory(null), [spendingThisMonth]);
   const [showBudgetAlerts, setShowBudgetAlerts] = useState(false);
-  const [checklistDismissed, setChecklistDismissed] = useState(loadChecklistDismissed);
-  const [customizeMode, setCustomizeMode] = useState(false);
-  const [dragWidgetId, setDragWidgetId] = useState<WidgetId | null>(null);
-  const [customPresets, setCustomPresets] = useState<SavedLayoutPreset[]>([]);
-  const [savingLayout, setSavingLayout] = useState(false);
-  const [newLayoutName, setNewLayoutName] = useState("");
 
-  // DashboardView remounts fresh whenever App does (a profile switch/lock changes App's own React
-  // `key`), so this load can never hand one profile's presets to another. React fires child effects
-  // before parent effects, so this can run before App's own migration effect — `ensureUiStateMigrated`
-  // is safe to call from more than one place at once (see profileUiState.ts), and calling it here too
-  // is what makes a first-launch-after-upgrade legacy preset show up on this very render instead of
-  // only after the next reload.
-  useEffect(() => {
-    let cancelled = false;
-    ensureUiStateMigrated()
-      .catch(() => {}) // best effort — the same treatment every browser-storage read/write here already gets
-      .then(() => loadCustomLayoutPresets())
-      .then((presets) => {
-        if (!cancelled) setCustomPresets(presets);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  function saveCurrentLayout() {
-    const name = newLayoutName.trim();
-    if (!name) return;
-    const snapshot: SavedLayoutPreset = { name, widgets: layoutWidgets };
-    // Saving under a name that's already in use replaces it, rather than
-    // accumulating duplicates — same rule as the Transactions tab's saved filters.
-    const next = [...customPresets.filter((p) => p.name !== name), snapshot];
-    setCustomPresets(next);
-    saveCustomLayoutPresets(next);
-    setNewLayoutName("");
-    setSavingLayout(false);
-  }
-
-  function deleteCustomLayout(name: string) {
-    const next = customPresets.filter((p) => p.name !== name);
-    setCustomPresets(next);
-    saveCustomLayoutPresets(next);
-  }
-
-  function dismissChecklist() {
-    setChecklistDismissed(true);
-    try {
-      localStorage.setItem(CHECKLIST_DISMISSED_KEY, "1");
-    } catch {
-      // per-viewer preference only — fine to skip if storage is unavailable
-    }
-  }
+  const layout = useDashboardLayoutCustomization(layoutWidgets);
+  const { customizeMode, dragWidgetId, setDragWidgetId, customPresets } = layout;
 
   const checklistSteps = [
     { done: accounts.length > 0, label: "Add an account", detail: "Checking, savings, credit card — whatever you track.", onClick: onOpenTransactions },
     { done: transactions.length > 0, label: "Import or add transactions", detail: "Import a CSV from your bank, or add one by hand.", onClick: onOpenTransactions },
     { done: (report?.budget_actuals.length ?? 0) > 0, label: "Set up your budget", detail: "Give at least one category a monthly amount.", onClick: onOpenBudget },
   ];
-  const showChecklist = !checklistDismissed && checklistSteps.some((s) => !s.done);
 
   const netWorth = netWorthHistory.length ? parseFloat(netWorthHistory[netWorthHistory.length - 1].value) : 0;
   // The trend delta stays purely history-based (comparing two points on the
@@ -1046,94 +973,19 @@ export function DashboardView({
   function renderAccountWidget(targetId: number): React.ReactNode {
     const account = accounts.find((a) => a.id === targetId);
     if (!account) return null;
-    const group = groupOf(account.account_type);
-    const isDebt = group === "credit" || group === "loan";
-    const amount = isDebt ? owedAmount(account) : netWorthContribution(account);
-    // A debt account is not by itself a problem (s4), so its tile and badge stay neutral.
-    const tint = isDebt ? "tint-neutral" : group === "investment" ? "tint-purple" : "tint-blue";
-    const badgeColor = isDebt ? "neutral" : group === "investment" ? "purple" : "blue";
-    return (
-      <div className={`stat stat-hero ${tint}`}>
-        <div className="stat-top">
-          <span className={`mini-ico ${badgeColor}`}>
-            <AccountTypeIcon accountType={account.account_type} iconKey={account.icon_key} />
-          </span>
-          <span className="stat-label">{account.name}</span>
-        </div>
-        <span className="stat-value">{formatAmount(amount)}</span>
-        <span className="stat-delta">
-          {isDebt ? "Owed" : "Balance"}
-          {(account.institution || account.mask) &&
-            ` · ${[account.institution, account.mask ? `••${account.mask}` : null].filter(Boolean).join(" ")}`}
-        </span>
-        <div className="clickable-row" onClick={onOpenAccounts} title="Go to the Accounts tab">
-          <span className="category-link">View in Accounts →</span>
-        </div>
-      </div>
-    );
+    return <AccountWidget account={account} onOpenAccounts={onOpenAccounts} />;
   }
 
   function renderBucketWidget(targetId: number): React.ReactNode {
     const bucket = buckets.find((b) => b.id === targetId);
     if (!bucket) return null;
-    const saved = parseFloat(bucket.saved_amount);
-    const target = bucket.target_amount ? parseFloat(bucket.target_amount) : null;
-    const pct = target && target > 0 ? Math.min(100, Math.max(0, (saved / target) * 100)) : null;
-    // A goal's own picked color (BucketsView's color picker) takes over the
-    // badge/card tint when set, same way it already colors that goal's
-    // border and progress bar on the Goals page — falls back to the
-    // standard purple tint used everywhere else on the Dashboard.
-    const badgeStyle = bucket.color
-      ? { background: `linear-gradient(135deg, color-mix(in srgb, ${bucket.color} 65%, black), ${bucket.color})` }
-      : undefined;
-    const cardStyle = bucket.color
-      ? { background: `linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, ${bucket.color} 8%, var(--surface)) 100%)` }
-      : undefined;
-    return (
-      <div className="stat stat-hero tint-purple" style={cardStyle}>
-        <div className="stat-top">
-          <span className="mini-ico purple" style={badgeStyle}>
-            <BucketIcon name={bucket.name} iconKey={bucket.icon_key} />
-          </span>
-          <span className="stat-label">{bucket.name}</span>
-        </div>
-        <span className="stat-value">{formatAmount(bucket.saved_amount)}</span>
-        <span className="stat-delta">
-          {bucket.target_amount
-            ? `of ${formatAmount(bucket.target_amount)}${pct !== null ? ` (${Math.round(pct)}%)` : ""}`
-            : "No target set"}
-          {bucket.target_date && ` · ${daysLeft(bucket.target_date)}d left`}
-        </span>
-        <div className="clickable-row" onClick={onOpenBuckets} title="Go to the Goals tab">
-          <span className="category-link">View in Goals →</span>
-        </div>
-      </div>
-    );
+    return <BucketWidget bucket={bucket} onOpenBuckets={onOpenBuckets} />;
   }
 
   function renderInvestmentWidget(accountName: string): React.ReactNode {
     const accountHoldings = holdings.filter((h) => h.account_name === accountName);
     if (accountHoldings.length === 0) return null;
-    const totalValue = sumMoney(accountHoldings.map((h) => h.value));
-    const totalGain = sumMoney(accountHoldings.map((h) => h.gain_loss));
-    return (
-      <div className="stat stat-hero tint-purple">
-        <div className="stat-top">
-          <span className="mini-ico purple">
-            <LineChartIcon aria-hidden="true" />
-          </span>
-          <span className="stat-label">{accountName}</span>
-        </div>
-        <span className="stat-value">{formatAmount(totalValue.toFixed(2))}</span>
-        <span className={totalGain < 0 ? "stat-delta down" : "stat-delta up"}>
-          {totalGain > 0 ? "+" : ""}
-          {formatAmount(totalGain.toFixed(2))} gain/loss
-        </span>
-        <div className="clickable-row" onClick={onOpenInvestments} title="Go to the Investments tab">
-          <span className="category-link">View in Investments →</span>
-        </div>
-      </div>
-    );
+    return <InvestmentWidget accountName={accountName} accountHoldings={accountHoldings} onOpenInvestments={onOpenInvestments} />;
   }
 
   function renderWidget(id: WidgetId): React.ReactNode {
@@ -1233,110 +1085,14 @@ export function DashboardView({
         onOpenTransactions={onOpenLedgerFiltered}
       />
 
-      <div className="dashboard-toolbar">
-        <MenuSelect
-          ariaLabel="Layout"
-          showName
-          triggerClassName="layout-select-toggle"
-          value={presetKey}
-          options={[
-            ...(Object.keys(LAYOUT_PRESETS) as LayoutPresetKey[]).map((key) => ({ value: key, label: LAYOUT_PRESET_LABELS[key] })),
-            ...customPresets.map((p) => ({ value: `custom:${p.name}`, label: p.name })),
-            ...(presetKey === "custom" ? [{ value: "custom", label: "Custom (unsaved)", disabled: true }] : []),
-            { value: CUSTOMIZE_OPTION, label: customizeMode ? "Done customizing" : "Customize" },
-          ]}
-          onChange={(value) => {
-            // Customize is an action, not a layout: it never changes the arrangement.
-            if (value === CUSTOMIZE_OPTION) {
-              setCustomizeMode((v) => !v);
-            } else if (value.startsWith("custom:")) {
-              const found = customPresets.find((p) => p.name === value.slice("custom:".length));
-              if (found) onSetLayoutWidgets([...found.widgets]);
-            } else {
-              onSetLayoutWidgets([...LAYOUT_PRESETS[value as LayoutPresetKey]]);
-            }
-          }}
-        />
-        {presetKey === "custom" &&
-          (savingLayout ? (
-            <form
-              className="saved-filter-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                saveCurrentLayout();
-              }}
-            >
-              <input
-                autoFocus
-                value={newLayoutName}
-                onChange={(e) => setNewLayoutName(e.target.value)}
-                placeholder='e.g. "Weekly check-in"'
-              />
-              <button type="submit" className="btn-sm" disabled={!newLayoutName.trim()}>
-                Save
-              </button>
-              <button
-                type="button"
-                className="modal-secondary btn-sm"
-                onClick={() => {
-                  setSavingLayout(false);
-                  setNewLayoutName("");
-                }}
-              >
-                Cancel
-              </button>
-            </form>
-          ) : (
-            <button type="button" className="modal-secondary btn-sm" onClick={() => setSavingLayout(true)}>
-              + Save as
-            </button>
-          ))}
-        {presetKey.startsWith("custom:") && (
-          <button
-            type="button"
-            className="modal-secondary btn-sm"
-            title="Delete this saved layout"
-            onClick={() => deleteCustomLayout(presetKey.slice("custom:".length))}
-          >
-            Delete
-          </button>
-        )}
-        {customizeMode && (
-          <>
-            <button type="button" className="modal-secondary btn-sm" onClick={onOpenAddWidget}>
-              + Add widget
-            </button>
-            {/* Only while customizing: a visible way out (the Layout menu's "Done customizing" too). */}
-            <button type="button" className="btn-sm" data-customize-done onClick={() => setCustomizeMode(false)}>
-              Done
-            </button>
-          </>
-        )}
-      </div>
+      <DashboardLayoutToolbar
+        onSetLayoutWidgets={onSetLayoutWidgets}
+        onOpenAddWidget={onOpenAddWidget}
+        presetKey={presetKey}
+        layout={layout}
+      />
 
-      {showChecklist && (
-        <div className="card checklist-card">
-          <div className="card-head">
-            <span className="reports-section-title">Get started</span>
-            <button type="button" className="status-dismiss" onClick={dismissChecklist} aria-label="Dismiss checklist">
-              ×
-            </button>
-          </div>
-          <ul className="checklist-list">
-            {checklistSteps.map((step) => (
-              <li key={step.label} className={step.done ? "checklist-step checklist-step-done" : "checklist-step"}>
-                <button type="button" className="checklist-step-btn" onClick={step.onClick} disabled={step.done}>
-                  <span className="checklist-step-check" aria-hidden="true">{step.done ? <Check /> : null}</span>
-                  <span className="checklist-step-text">
-                    <span className="checklist-step-label">{step.label}</span>
-                    <span className="checklist-step-detail">{step.detail}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <FirstRunChecklist steps={checklistSteps} />
 
       {layoutRows.map((row) =>
         row.isCompactRow ? (

@@ -3,8 +3,8 @@
 // at once. Tauri's own bridge object is read-only, so this is the one place every call passes through.
 import { invoke as nativeInvoke } from "../../../node_modules/@tauri-apps/api/core.js";
 import type { InvokeArgs, InvokeOptions } from "../../../node_modules/@tauri-apps/api/core.js";
-import { RELEVANT_WRITE_COMMANDS, notifyDataWrite, writeApplied } from "../../askVault/dataWriteEvents";
-import { beginStageSample, finishStageSample, stageProblems, traceInvoke, traceValidate, type NativeStageSnapshot } from "../../askVault/retirementStageTrace";
+import { RELEVANT_WRITE_COMMANDS, notifyDataWrite, writeApplied } from "../../askVault/common/dataWriteEvents";
+import { beginStageSample, finishStageSample, stageProblems, traceInvoke, traceValidate, type NativeStageSnapshot } from "../../askVault/retirement/retirementStageTrace";
 
 export * from "../../../node_modules/@tauri-apps/api/core.js";
 

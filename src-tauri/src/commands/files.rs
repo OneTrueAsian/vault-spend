@@ -283,7 +283,7 @@ pub fn restore_backup(
     paths: tauri::State<crate::config::AppPaths>,
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
-    sessions: tauri::State<crate::protection_session::Sessions>,
+    sessions: tauri::State<crate::protection::session::Sessions>,
 ) -> Result<(), String> {
     if std::path::Path::new(&filename).file_name().and_then(|n| n.to_str()) != Some(filename.as_str())
         || !crate::backups::is_our_backup_filename(&filename)

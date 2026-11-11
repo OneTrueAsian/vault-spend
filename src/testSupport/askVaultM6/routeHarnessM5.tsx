@@ -2,11 +2,11 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { vi } from "vitest";
 import { AskVaultCard } from "../../AskVaultCard";
-import { CORPUS_CONTEXTS, RETIREMENT_CORPUS } from "../../askVault/retirementCorpus";
-import { validateRetirementContextReply, validateRetirementRosterReply } from "../../askVault/retirementNativeContract";
-import { retirementChoicePrompts } from "../../askVault/retirementScreenContract";
-import type { RetirementDraft } from "../../askVault/retirementScenarioContract";
-import type { ParseContext } from "../../askVault/types";
+import { CORPUS_CONTEXTS, RETIREMENT_CORPUS } from "../../askVault/retirement/retirementCorpus";
+import { validateRetirementContextReply, validateRetirementRosterReply } from "../../askVault/retirement/retirementNativeContract";
+import { retirementChoicePrompts } from "../../askVault/retirement/retirementScreenContract";
+import type { RetirementDraft } from "../../askVault/retirement/retirementScenarioContract";
+import type { ParseContext } from "../../askVault/common/types";
 import { M5_TODAY, m5FixtureId, type M5Fixture } from "./m5Scenario";
 import type { CorpusCase, Observation, Requirement } from "./manifest";
 

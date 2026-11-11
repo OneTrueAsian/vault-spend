@@ -14,7 +14,8 @@ vi.mock("../../features/profiles/ProfileProtectionSection", () => ({ ProfileProt
 vi.mock("../../features/profiles/ProtectionLeftovers", () => ({ ProtectionLeftovers: () => null }));
 
 import { QuickSettingsContext, SettingStar, cardAttr, settingAttr } from "./SettingStar";
-import { AppearanceSection, SettingsView } from "../../features/settings/SettingsView";
+import { SettingsView } from "../../features/settings/SettingsView";
+import { AppearanceSection } from "../../features/settings/AppearanceSection";
 import { SETTING_ENTRIES } from "../lib/settingsIndex";
 import { DEFAULT_APPEARANCE_PREFS } from "../lib/themeBootstrap";
 

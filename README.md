@@ -140,7 +140,7 @@ Support evidence is version-specific. The owner confirmed pairing and functional
 
 ## Learn more
 
-For source development, start with the [architecture and invariants guide](docs/ARCHITECTURE.md)
+For source development, start with the [architecture and invariants guide](Architecture.md)
 and [build instructions](docs/BUILDING.md).
 
 Open the **Help** tab inside the app for full guidance on every feature

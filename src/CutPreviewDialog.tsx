@@ -1,15 +1,15 @@
-import { CHANGED_HEADING } from "./askVault/changedState";
-import type { ConfirmedCutPreview, CutPreviewCalculation, CutPreviewDraft, CutPreviewIntent } from "./askVault/cutPreviewContract";
+import { CHANGED_HEADING } from "./askVault/common/changedState";
+import type { ConfirmedCutPreview, CutPreviewCalculation, CutPreviewDraft, CutPreviewIntent } from "./askVault/cutPreview/cutPreviewContract";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { ModalShell } from "./shared/ui/Modal";
 import { MenuSelect } from "./shared/ui/MenuSelect";
 import { DateField } from "./shared/ui/DateField";
 import { useFieldValidity } from "./shared/ui/calendar/useFieldValidity";
-import { validateCutPreviewIntent } from "./askVault/cutPreviewContract";
-import { baselineRows, countedMonths, datesText, longDate, partMonths, wholeMonthsOnly, typedDollars } from "./askVault/spendingScenarioView";
-import { scenarioBaselineProblem, scenarioMoneyToCents, scenarioMonthlyBaseline } from "./askVault/spendingScenarioMath";
-import { sameScenarioSource } from "./askVault/spendingScenarioBaseline";
-import type { ScenarioBaseline, SpendingScenarioIntent } from "./askVault/spendingScenarioContract";
+import { validateCutPreviewIntent } from "./askVault/cutPreview/cutPreviewContract";
+import { baselineRows, countedMonths, datesText, longDate, partMonths, wholeMonthsOnly, typedDollars } from "./askVault/spending/spendingScenarioView";
+import { scenarioBaselineProblem, scenarioMoneyToCents, scenarioMonthlyBaseline } from "./askVault/spending/spendingScenarioMath";
+import { sameScenarioSource } from "./askVault/spending/spendingScenarioBaseline";
+import type { ScenarioBaseline, SpendingScenarioIntent } from "./askVault/spending/spendingScenarioContract";
 import "./SpendingScenarioDialog.css";
 import "./CutPreviewDialog.css";
 

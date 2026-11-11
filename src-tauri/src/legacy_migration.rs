@@ -149,14 +149,14 @@ mod tests {
         std::fs::write(legacy_dir.join("pennyworth.db"), b"fake db content").unwrap();
         std::fs::write(
             legacy_dir.join("profiles.json"),
-            br#"{"profiles":[{"id":"default","name":"Joey","db_path":"X"}]}"#,
+            br#"{"profiles":[{"id":"default","name":"Sample","db_path":"X"}]}"#,
         )
         .unwrap();
 
         migrate_if_needed(&new_default_dir, "vaultspend.db").unwrap();
 
         let content = std::fs::read_to_string(new_default_dir.join("profiles.json")).unwrap();
-        assert!(content.contains("Joey"), "got: {content}");
+        assert!(content.contains("Sample"), "got: {content}");
     }
 
     #[test]

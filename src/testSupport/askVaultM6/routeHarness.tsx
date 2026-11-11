@@ -2,7 +2,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { vi } from "vitest";
 import { AskVaultCard } from "../../AskVaultCard";
-import type { ParseContext } from "../../askVault/types";
+import type { ParseContext } from "../../askVault/common/types";
 import { canonical } from "./counting";
 import { expectedTables, readTables, rowProblems, summaryProblems, type ReplyValue } from "./displayCheck";
 import type { CorpusCase, Observation, Requirement, ResolutionObservation } from "./manifest";
@@ -38,7 +38,7 @@ export function buildReplyIndex(env: Pick<RouteEnv, "requests" | "references">):
 
 /**
  * `app` (default) mounts the card the way the shipped Dashboard does: the parse context always carries a family list, possibly empty (src/DashboardView.tsx:321-322),
- * which the parser reads as the M2 context (src/askVault/parser.ts:994). `frozen` uses the stored context unchanged; the stored M1-era contexts have no family list,
+ * which the parser reads as the M2 context (src/askVault/ordinary/parser.ts:994). `frozen` uses the stored context unchanged; the stored M1-era contexts have no family list,
  * a context the shipped app never builds, and the parser keeps its deliberate M1-mode refusals there (for example a threshold inside a comparison).
  * `choose` picks one of the offered choice labels (or none) after a first clarification.
  */

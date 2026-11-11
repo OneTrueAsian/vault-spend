@@ -9,14 +9,14 @@ import {
   buildExploreConfirmation, buildRetirementConfirmation, retirementAccountLabels, retirementChoicePrompts, retirementChoicesIntro, retirementCompleteEvent, retirementDepositsOnlyContent, retirementDraftWithAnswers,
   retirementExploreContent, retirementMonthUsable, retirementReadingMessage, retirementResultContent, retirementReviewChoices, retirementReviewContent, retirementSavedMonthLimitMessage, retirementUsePlanMonth, validateRetirementChoicesEvent,
   validateRetirementScreen, withRetirementMonth,
-} from "./askVault/retirementScreenContract";
-import type { ResultRow, RetirementChoicesEvent, RetirementDialogProps, RetirementReviewAction, RetirementReviewForm, RetirementScreen } from "./askVault/retirementScreenContract";
-import { validateRetirementDraft } from "./askVault/retirementScenarioContract";
-import { traceReviewCommit } from "./askVault/retirementStageTrace";
+} from "./askVault/retirement/retirementScreenContract";
+import type { ResultRow, RetirementChoicesEvent, RetirementDialogProps, RetirementReviewAction, RetirementReviewForm, RetirementScreen } from "./askVault/retirement/retirementScreenContract";
+import { validateRetirementDraft } from "./askVault/retirement/retirementScenarioContract";
+import { traceReviewCommit } from "./askVault/retirement/retirementStageTrace";
 
 /**
  * The M5 answer screen. It renders one validated screen at a time and reports what the person did through the callbacks of RetirementDialogProps. It calculates nothing, reads and writes nothing,
- * and has no wording of its own: every sentence, label and rule comes from the screen contract (src/askVault/retirementScreenContract.ts), and consent leaves only through onConfirm carrying a
+ * and has no wording of its own: every sentence, label and rule comes from the screen contract (src/askVault/retirement/retirementScreenContract.ts), and consent leaves only through onConfirm carrying a
  * scenario built by the contract's builders. Mounting it, reading accounts, freshness, cancellation and lifecycle belong to the controller, not to this file.
  */
 

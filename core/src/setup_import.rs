@@ -596,7 +596,7 @@ mod tests {
         let result = load_from_str(
             "Holdings,,,,,,\n\
              Account,Symbol,Name,Shares,Price,Cost Basis,Asset Class\n\
-             Joey-IRA,AAAU,\"GOLDMAN SACHS\nPHYSICAL GOLD ETF\",45,42.46,1910.5,US Stocks\n",
+             Sample-IRA,AAAU,\"GOLDMAN SACHS\nPHYSICAL GOLD ETF\",45,42.46,1910.5,US Stocks\n",
         );
 
         assert!(result.errors.is_empty(), "unexpected errors: {:?}", result.errors);

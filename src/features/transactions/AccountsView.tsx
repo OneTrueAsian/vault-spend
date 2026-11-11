@@ -6,7 +6,7 @@ import { PropertyAssetsSection } from "../investments/PropertyAssets";
 import { StatDetailPanel } from "../../shared/ui/StatDetailPanel";
 import { formatAmount } from "../../shared/lib/format";
 import { accountTypeLabel, GROUP_LABELS, GROUP_ORDER, groupOf, isOverdrawn, netWorthContribution } from "../../shared/lib/accountGroups";
-import { AccountEditDialog } from "../../shared/ui/Modal";
+import { AccountEditDialog } from "./AccountEditDialog";
 import { AccountTypeIcon, ACCOUNT_ICON_OPTIONS, isAccountIconKey, IconPicker, useDismissOnEscape, type AccountIconKey } from "../../shared/ui/icons";
 import { HelpLink } from "../../shared/ui/HelpLink";
 import type { Tab } from "../../shared/native/appTypes";
