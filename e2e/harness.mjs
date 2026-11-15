@@ -86,6 +86,24 @@ const LAUNCH_ATTEMPTS = 2;
  * No healthy command takes anywhere near 25 s; a spec's longer waits poll with short commands. */
 export const DRIVER_REQUEST_OPTIONS = Object.freeze({ connectionRetryTimeout: 25_000, connectionRetryCount: 0 });
 
+/** The environment tauri-driver (and so the app) is started with for one launch.
+ * - The legal notice would stop every spec at its screen. The app honours the skip only alongside
+ *   VAULTSPEND_DB_DIR, so a real install cannot be affected. feature139 passes showLegalNotice.
+ * - Update checks stay off only for the disposable test data folder.
+ * - WEBVIEW2_USER_DATA_FOLDER (VS-32): msedgedriver used to give each session its own WebView2 profile through
+ *   WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS, which WebView2 now ignores. Without this every launch would share the real
+ *   app's WebView2 folder, and parallel launches would share one browser. WebView2 still honours this variable. */
+export function appLaunchEnv({ launchTempDir, testDbDir, showLegalNotice }, base = process.env) {
+  return {
+    ...base,
+    ...isolatedTempEnv(launchTempDir),
+    WEBVIEW2_USER_DATA_FOLDER: launchTempDir,
+    VAULTSPEND_DB_DIR: testDbDir,
+    VAULTSPEND_SKIP_LEGAL_NOTICE: showLegalNotice ? "0" : "1",
+    VAULTSPEND_SKIP_UPDATE_CHECK: "1",
+  };
+}
+
 /** Whether an error is a WebDriver command that got no answer in time (see DRIVER_REQUEST_OPTIONS), as
  * opposed to a command that failed or a waitUntil that ran out. */
 export function isCommandTimeout(error) {
@@ -550,16 +568,7 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
     ["--port", String(PORT), "--native-port", String(NATIVE_PORT), "--native-driver", MSEDGEDRIVER],
     {
       stdio: ["ignore", "pipe", "pipe"],
-      // The legal notice would stop every spec at its screen. The app honours the skip only alongside
-      // VAULTSPEND_DB_DIR, so a real install cannot be affected. feature139 passes showLegalNotice.
-      // Keep update checks off only for the disposable test data folder.
-      env: {
-        ...process.env,
-        ...isolatedTempEnv(launchTempDir),
-        VAULTSPEND_DB_DIR: testDbDir,
-        VAULTSPEND_SKIP_LEGAL_NOTICE: showLegalNotice ? "0" : "1",
-        VAULTSPEND_SKIP_UPDATE_CHECK: "1",
-      },
+      env: appLaunchEnv({ launchTempDir, testDbDir, showLegalNotice }),
     },
   );
   let driverLog = "";

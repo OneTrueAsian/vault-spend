@@ -30,7 +30,7 @@ describe.each(["release-windows.yml", "prepare-signed-installers.yml", "windows-
     expect(buildStep()).toMatch(/^\s+run: npm run build:app\s*$/m);
     expect(workflow.indexOf("      - name: Build current desktop test app")).toBeLessThan(workflow.indexOf("      - name: Desktop WebDriver smoke preflight"));
     expect(workflow.indexOf("      - name: Desktop WebDriver smoke preflight")).toBeLessThan(workflow.indexOf("      - name: Full desktop E2E release gate"));
-    expect(fs.readFileSync("e2e/build-app.mjs", "utf8")).toContain('["tauri", "build", "--debug", "--no-bundle"]');
+    expect(fs.readFileSync("e2e/build-app.mjs", "utf8")).toContain('["tauri", "build", "--debug", "--no-bundle", "--config", "src-tauri/tauri.e2e.conf.json"]');
     expect(profile(buildStep())).toBe("1");
   });
   it.each(["smoke", "full"])("preserves compiled profile identity at the %s gate", async gate => {

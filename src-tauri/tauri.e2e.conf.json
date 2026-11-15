@@ -1,0 +1,17 @@
+{
+  "app": {
+    "windows": [
+      {
+        "title": "Vault Spend",
+        "width": 1200,
+        "height": 780,
+        "minWidth": 720,
+        "minHeight": 520,
+        "center": true,
+        "dragDropEnabled": false,
+        "visible": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=0"
+      }
+    ]
+  }
+}
