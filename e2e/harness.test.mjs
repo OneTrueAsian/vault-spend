@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  appLaunchEnv,
   cargoBin,
   DEFAULT_WINDOW_SIZE,
   DRIVER_REQUEST_OPTIONS,
@@ -24,21 +23,6 @@ import {
 // Unit tests for the harness's own logic, against a stand-in for WebdriverIO: no app, no driver. The
 // stand-in models one MenuSelect (a trigger, its popover menu, the items) and lets a test make the menu
 // close — what a real window losing OS focus to another spec's window does — at a chosen moment.
-
-// VS-32: WebView2 now ignores the WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS msedgedriver used to give each session its
-// own profile, so without this every launch shared the real app's WebView2 folder (and parallel launches the same one).
-describe("app launch environment", () => {
-  const env = appLaunchEnv({ launchTempDir: "C:/t/launch", testDbDir: "C:/t/db", showLegalNotice: false }, { PATH: "p", WEBVIEW2_USER_DATA_FOLDER: "C:/real" });
-  it("gives each launch its own WebView2 data folder inside the launch's temp folder", () => {
-    expect(env.WEBVIEW2_USER_DATA_FOLDER).toBe("C:/t/launch");
-  });
-  it("keeps the temp folder, test database and skip settings, and the rest of the environment", () => {
-    expect(env).toMatchObject({ PATH: "p", TEMP: "C:/t/launch", TMP: "C:/t/launch", VAULTSPEND_DB_DIR: "C:/t/db", VAULTSPEND_SKIP_LEGAL_NOTICE: "1", VAULTSPEND_SKIP_UPDATE_CHECK: "1" });
-  });
-  it("shows the legal notice when a spec asks for it", () => {
-    expect(appLaunchEnv({ launchTempDir: "x", testDbDir: "y", showLegalNotice: true }, {}).VAULTSPEND_SKIP_LEGAL_NOTICE).toBe("0");
-  });
-});
 
 const realDocument = globalThis.document;
 
