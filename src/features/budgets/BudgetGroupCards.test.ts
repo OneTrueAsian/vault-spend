@@ -12,3 +12,16 @@ describe("Budget category name wrapping", () => {
     expect(rule![1]).not.toMatch(/anywhere|break-all|break-word/);
   });
 });
+
+describe("Spending against the plan styles (VS-31 stream B)", () => {
+  const css = readFileSync(new URL("./BudgetGroupCards.css", import.meta.url), "utf8");
+  const block = css.slice(css.indexOf("/* VS-31 stream B"));
+
+  it("lets a category name wrap between words: the global button rule is nowrap", () => {
+    expect(block).toMatch(/\.budget-plan \.category-bars-select[^{]*\{[^}]*white-space:\s*normal/);
+  });
+
+  it("uses theme variables, never a hex or rgb colour", () => {
+    expect(block).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
+  });
+});

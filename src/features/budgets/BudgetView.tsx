@@ -5,8 +5,10 @@ import type { BudgetAlert, BudgetSuggestions, CashFlow, ReportBudgetLine } from 
 import { formatAmount } from "../../shared/lib/format";
 import { useAutoCancelDelete } from "../../shared/hooks/useAutoCancelDelete";
 import { Sparkline } from "../../shared/ui/charts";
+import { CategoryBars, type CategoryBarRow } from "../../shared/ui/CategoryBars";
 import { budgetAllocation, effectiveBudget, monthElapsed } from "../../shared/lib/budgetPlan";
 import { budgetNetSummary } from "./budgetNet";
+import { planBarRows } from "./budgetSummary";
 import { BudgetSuggestDialog, type AppliedSuggestion } from "./BudgetSuggestDialog";
 import { getCurrentGeneration, getProfileUiState, setProfileUiState } from "../../shared/lib/profileUiState";
 import { MenuSelect } from "../../shared/ui/MenuSelect";
@@ -724,6 +726,33 @@ export function BudgetView({
       }
     : null;
 
+  // "Spending against the plan": one bar per spending category on one dollar scale (see planBarRows).
+  const plan = planBarRows(budgetActuals);
+  const incomeSummary = groupSummaries.find((g) => g.group === "income");
+  const planRows: CategoryBarRow[] = plan.rows.map((r) => ({
+    key: r.category,
+    label: r.category,
+    icon: <CategoryIcon category={r.category} className="category-legend-icon" />,
+    amount: r.spent,
+    plan: r.plan,
+    note:
+      r.over > 0 ? (
+        <>
+          <span aria-hidden="true">!</span> {formatAmount(r.over.toFixed(2))} over
+        </>
+      ) : (
+        `${formatAmount(Math.max(0, r.plan - r.spent).toFixed(2))} left`
+      ),
+    noteTone: r.over > 0 ? "bad" : undefined,
+  }));
+  const allocationText = allocation
+    ? allocation.status === "unallocated"
+      ? `${formatAmount(allocation.unallocated.toFixed(2))} of your planned income isn't given a job yet.`
+      : allocation.status === "balanced"
+        ? "Every dollar of your planned income has a job."
+        : `Planned spending is ${formatAmount(Math.abs(allocation.unallocated).toFixed(2))} more than your planned income.`
+    : null;
+
   return (
     <div className="budget-view">
       <div className="page-top">
@@ -758,67 +787,77 @@ export function BudgetView({
 
       <FinancialReadState label="Budget totals" initial={!readReady} loading={readLoading} error={readError} onRetry={onRetryRead} />
       {readReady && <>
-      {/* One strip for the month's totals (s2). The two money-left breakdowns stay as the net
-          cell's tooltip and as the small line under the strip, so nothing they said is lost. */}
-      <section className="card budget-summary" data-budget-summary aria-label="This month's budget">
-        <div className="budget-summary-grid">
-          <div className="budget-summary-cell">
-            <span className="stat-label">Planned spending</span>
-            <span className="stat-value">{formatAmount(totalBudgeted.toFixed(2))}</span>
-          </div>
-          <div className="budget-summary-cell">
-            <span className="stat-label">Spent so far</span>
-            <span className="stat-value">{formatAmount(totalActual.toFixed(2))}</span>
-          </div>
-          <div className="budget-summary-cell">
-            <span className="stat-label">Left to spend</span>
-            <span className={totalRemaining < 0 ? "stat-value report-over-budget" : "stat-value"}>
-              {formatAmount(totalRemaining.toFixed(2))}
+      {/* VS-31 stream B: "Spending against the plan" replaces the old summary strip. Every figure the strip
+          showed is still here: planned, spent and left (or over) in the corner, money left after income in the
+          note, and the income allocation message in the income line at the bottom. */}
+      <section className="card budget-plan" data-budget-summary aria-label="Spending against the plan">
+        <div className="card-head">
+          <span className="reports-section-title">Spending against the plan</span>
+          {planRows.length > 0 && (
+            <span className="account-col" data-plan-total>
+              {formatAmount(totalActual.toFixed(2))} of {formatAmount(totalBudgeted.toFixed(2))} planned,{" "}
+              {totalRemaining < 0 ? (
+                <b className="report-over-budget">{formatAmount(Math.abs(totalRemaining).toFixed(2))} over</b>
+              ) : (
+                `${formatAmount(totalRemaining.toFixed(2))} left`
+              )}
             </span>
-          </div>
-          <div
-            className="budget-summary-cell"
-            title={
-              netBreakdown
-                ? `Planned: ${netBreakdown.planned}\n${actualLabel}: ${netBreakdown.actual}\nThis is how much this month's income and spending change your money, not an account balance.`
-                : undefined
-            }
-          >
-            <span className="stat-label">Money left after income</span>
-            {netSummary ? (
-              <>
-                <span
-                  className={netTone(parseFloat(netSummary.plannedNet), viewed) === "bad" ? "stat-value report-over-budget" : "stat-value"}
-                  data-planned-net
-                >
-                  {formatAmount(netSummary.plannedNet)}
-                </span>
-                <span className="budget-summary-sub">
-                  {actualLabel}:{" "}
-                  <span className={netTone(parseFloat(netSummary.actualNet), viewed) === "bad" ? "report-over-budget" : undefined} data-actual-net>
-                    {formatAmount(netSummary.actualNet)}
-                  </span>
-                </span>
-              </>
-            ) : (
-              <span className="budget-summary-sub">Loading…</span>
-            )}
-          </div>
+          )}
         </div>
-        {netBreakdown && (
-          <p className="budget-summary-note" data-budget-summary-note>
-            Planned: {netBreakdown.planned} · {actualLabel}: {netBreakdown.actual} · Not an account balance
-          </p>
+        <p className="modal-message-secondary budget-plan-sub">
+          {monthLabel}
+          {elapsed && elapsed.fraction < 1 ? `, ${Math.round(elapsed.fraction * 100)}% of the month gone` : ""}
+        </p>
+        {planRows.length > 0 ? (
+          <>
+            <CategoryBars
+              rows={planRows}
+              caption="Spending so far by category against each plan, overspending first"
+              onSelect={onCategoryClick}
+            />
+            {plan.more && (
+              <p className="modal-message-secondary budget-plan-more" data-plan-more>
+                {plan.more.count} more {plan.more.count === 1 ? "category" : "categories"}: {formatAmount(plan.more.spent.toFixed(2))} spent of{" "}
+                {formatAmount(plan.more.plan.toFixed(2))} planned.
+              </p>
+            )}
+            <p className="modal-message-secondary budget-plan-key">
+              One dollar scale for every category. The outline is the plan, the fill is what has been spent, and the red striped part is spending past the plan.
+            </p>
+          </>
+        ) : (
+          <p className="empty-state">Nothing is planned for spending in {monthLabel} yet.</p>
         )}
-        {allocation && (
-          <p className={`budget-allocation budget-allocation-${allocation.status}`} data-allocation={allocation.status}>
-            {allocation.status === "unallocated" &&
-              `${formatAmount(allocation.unallocated.toFixed(2))} of your ${formatAmount(allocation.income.toFixed(2))} budgeted income isn't assigned to any expense yet.`}
-            {allocation.status === "balanced" && `Every dollar of your ${formatAmount(allocation.income.toFixed(2))} budgeted income is assigned.`}
-            {allocation.status === "over" &&
-              `Your expenses are budgeted ${formatAmount(Math.abs(allocation.unallocated).toFixed(2))} past your ${formatAmount(allocation.income.toFixed(2))} budgeted income.`}
-          </p>
-        )}
+        <div className="budget-plan-foot">
+          {incomeSummary && (
+            <p className="budget-plan-income" data-budget-income-line>
+              Income so far is {formatAmount(incomeSummary.groupActual)} of {formatAmount(incomeSummary.groupBudgeted)} planned.
+              {allocation && allocationText && (
+                <>
+                  {" "}
+                  <span className={`budget-allocation budget-allocation-${allocation.status}`} data-allocation={allocation.status}>
+                    {allocationText}
+                  </span>
+                </>
+              )}
+            </p>
+          )}
+          {netSummary && netBreakdown ? (
+            <p className="budget-summary-note" data-budget-summary-note>
+              Money left after income. Planned:{" "}
+              <span className={netTone(parseFloat(netSummary.plannedNet), viewed) === "bad" ? "report-over-budget" : undefined} data-planned-net>
+                {formatAmount(netSummary.plannedNet)}
+              </span>{" "}
+              ({netBreakdown.planned}). {actualLabel}:{" "}
+              <span className={netTone(parseFloat(netSummary.actualNet), viewed) === "bad" ? "report-over-budget" : undefined} data-actual-net>
+                {formatAmount(netSummary.actualNet)}
+              </span>{" "}
+              ({netBreakdown.actual}). Not an account balance.
+            </p>
+          ) : (
+            <p className="budget-summary-note">Money left after income: Loading…</p>
+          )}
+        </div>
       </section>
 
       <div className="budget-group-cards">
