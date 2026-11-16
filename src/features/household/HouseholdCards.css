@@ -14,7 +14,7 @@
 .household-remove-confirm { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; }
 .household-remove-confirm > span { width: 100%; }
 .household-table-scroll { overflow-x: auto; }
-.household-view [data-budget-by-person] .ledger { min-width: 540px; }
+.household-view [data-budget-by-person] .ledger { min-width: 780px; table-layout: auto; }
 .household-view .ledger th, .household-view .ledger td { white-space: normal; overflow-wrap: anywhere; }
 .household-person-value { display: flex; gap: 12px; align-items: center; justify-content: flex-end; }
 .household-person-value > span:last-child { white-space: nowrap; }
@@ -23,3 +23,15 @@
 @media (max-width: 1150px) {
   .household-view .household-cards { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Keep the budget's names and numeric/bar columns readable; only its own region scrolls. */
+.household-view [data-budget-by-person] .ledger th,
+.household-view [data-budget-by-person] .ledger td { overflow-wrap: normal; word-break: normal; }
+.household-view [data-budget-by-person] .ledger th:first-child,
+.household-view [data-budget-by-person] .ledger td:first-child { min-width: 180px; }
+.household-view [data-budget-by-person] .ledger th:nth-child(2),
+.household-view [data-budget-by-person] .ledger td:nth-child(2) { min-width: 112px; }
+.household-view [data-budget-by-person] .ledger th:nth-child(n+3),
+.household-view [data-budget-by-person] .ledger td:nth-child(n+3) { min-width: 160px; }
+.household-view [data-budget-by-person] .ledger .amount-col { white-space: nowrap; }
+.household-view [data-budget-by-person] .household-person-bar { flex-shrink: 0; }

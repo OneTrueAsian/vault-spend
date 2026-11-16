@@ -113,3 +113,84 @@ try {
 
   console.log('FEATURE 333 PASSED: Household refund, split, transfer, unassigned and viewed-month semantics match hand calculations.');
 } finally { await app.close(); }
+
+
+// The household budget must retain word boundaries and distinct numeric/bar columns at 720px.
+const layoutDb = await seedFixture(`
+import datetime
+day=datetime.date.today().replace(day=1).isoformat()
+period=day[:7]
+cur.execute("INSERT INTO family_members(id,name) VALUES (701,'Jordan'),(702,'Riley M.')")
+cur.execute("INSERT INTO accounts(id,name,account_type,starting_balance) VALUES (701,'Layout Checking','checking','10000.00')")
+rows=[('Entertainment','120.00','-35.43',702,'flexible'),('Groceries','650.00','-196.50',702,'flexible'),('Income','4400.00','4400.00',701,'income'),('Rent','1850.00','-1850.00',701,'fixed'),('Subscriptions','75.00','-62.99',701,'fixed'),('Kids activities and sports camps','140.00','-96.00',702,'flexible')]
+for index,(category,planned,actual,member,group) in enumerate(rows):
+    cur.execute("INSERT OR IGNORE INTO categories(name) VALUES (?)",(category,))
+    cur.execute("INSERT INTO budgets(category,period,monthly_amount,budget_group) VALUES (?,?,?,?)",(category,period,planned,group))
+    cur.execute("INSERT INTO transactions(account_id,date,description,amount,category,category_source,member_id,fingerprint) VALUES (701,?,'Household layout fixture',?,?,'user',?,?)",(day,actual,category,member,'household-layout-'+str(index)))
+`);
+const layoutApp = await launchApp({dbDir: layoutDb, windowSize: {width: 1440, height: 1000}});
+const layoutBrowser = layoutApp.browser;
+async function checkHouseholdBudgetLayout(width, theme) {
+  const result = await layoutBrowser.execute(() => {
+    const rows = [...document.querySelectorAll('[data-budget-by-person] tbody tr')];
+    const issues = [];
+    const rect = el => {
+      const r=el.getBoundingClientRect();
+      return {left:r.left,right:r.right,top:r.top,bottom:r.bottom};
+    };
+    const textRect = el => { const range=document.createRange(); range.selectNodeContents(el); return rect(range); };
+    const measurements = rows.map(row => {
+      const cells=[...row.cells];
+      const category=cells[0].textContent;
+      const nameNode=[...cells[0].querySelector('.cell-with-icon').childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+      const brokenWords=[];
+      for (const match of nameNode.textContent.matchAll(/\S+/g)) {
+        const range=document.createRange(); range.setStart(nameNode,match.index); range.setEnd(nameNode,match.index+match[0].length);
+        if (new Set([...range.getClientRects()].map(r=>Math.round(r.top))).size > 1) brokenWords.push(match[0]);
+      }
+      if (brokenWords.length) issues.push({category,kind:'split words',words:brokenWords});
+      const planned=textRect(cells[1]); const plannedCell=rect(cells[1]);
+      if (planned.left < plannedCell.left-1 || planned.right > plannedCell.right+1) issues.push({category,kind:'planned text outside cell',planned,plannedCell});
+      const people=cells.slice(2).map((cell,index) => {
+        const bar=rect(cell.querySelector('.household-person-bar'));
+        const amount=textRect(cell.querySelector('.household-person-value > span:last-child'));
+        const bounds=rect(cell);
+        if (bar.left < bounds.left-1 || amount.right > bounds.right+1 || bar.right+4 > amount.left) issues.push({category,kind:'person contents overlap or escape',person:index,bar,amount,bounds});
+        if (index === 0 && planned.right+4 > bar.left) issues.push({category,kind:'planned amount overlaps first person bar',planned,bar});
+        return {bar,amount,bounds};
+      });
+      return {category,plannedText:cells[1].textContent,brokenWords,planned,plannedCell,people};
+    });
+    const main=document.querySelector('.main');
+    return {issues,measurements,pageOverflow:main.scrollWidth-main.clientWidth};
+  });
+  assert.ok(result.measurements.length === 6, `${theme}/${width}: all layout fixture rows loaded`);
+  assert.equal(result.measurements.find(row=>row.category==='Income')?.plannedText,'$4,400.00');
+  assert.equal(result.measurements.find(row=>row.category==='Rent')?.plannedText,'$1,850.00');
+  console.log(`Household budget geometry ${theme}/${width}: ${JSON.stringify(result)}`);
+  assert.deepEqual(result.issues,[],`${theme}/${width}: whole words and separate Planned/bar/amount columns`);
+  assert.ok(result.pageOverflow<=1,`${theme}/${width}: table scrolling stays inside its region`);
+}
+try {
+  for (const theme of ['light','dark']) {
+    await layoutBrowser.setWindowSize(1440,1000);
+    await chooseStyle(layoutBrowser,'Default','transparent');
+    await layoutBrowser.execute(t=>[...document.querySelectorAll('.theme-toggle[aria-label="Theme"] button')].find(el=>el.textContent.trim().toLowerCase()===t).click(),theme);
+    await layoutBrowser.$('.nav-item[data-tab="household"]').click();
+    await waitUntilOrDiagnose(layoutBrowser,()=>layoutBrowser.execute(()=>document.querySelectorAll('[data-budget-by-person] tbody tr').length===6),{timeoutMsg:'Household budget layout fixture loads'});
+    await dismissStatusMessages(layoutBrowser);
+    await layoutBrowser.executeAsync(done=>document.fonts.ready.then(()=>done()));
+    for (const width of [1440,720]) {
+      await layoutBrowser.setWindowSize(width,1000);
+      await layoutBrowser.$('[data-budget-by-person]').scrollIntoView({block:'start'});
+      await layoutBrowser.saveScreenshot(path.join(shots,`household-${theme}-${width}-budget.png`));
+      await checkHouseholdBudgetLayout(width,theme);
+      if (width===720) {
+        await layoutBrowser.execute(()=>{const region=document.querySelector('.household-table-scroll');region.scrollLeft=region.scrollWidth;});
+        await layoutBrowser.saveScreenshot(path.join(shots,`household-${theme}-720-budget-people.png`));
+        await checkHouseholdBudgetLayout(width,theme);
+      }
+    }
+  }
+  console.log('FEATURE 333 HOUSEHOLD LAYOUT PASSED: intact words, bounded Planned amounts and separated person bars at 1440/720 light/dark.');
+} finally { await layoutApp.close(); }

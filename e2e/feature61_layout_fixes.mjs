@@ -81,7 +81,7 @@ try {
 
   // 5. Household: the empty state offers the action itself.
   await nav("Household");
-  const addButton = await browser.$("button*=Add family member");
+  const addButton = await browser.$("button*=Add person");
   await addButton.waitForExist({ timeout: 10000 });
   await addButton.click();
   // The dialog animates open, so its text is empty for the first few
