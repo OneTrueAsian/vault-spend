@@ -188,10 +188,10 @@ describe("BudgetView groups", () => {
     const heads = [...container.querySelectorAll<HTMLElement>(".budget-group-head")];
     const fixed = heads.find((h) => h.textContent?.includes("Fixed"))!;
     expect(fixed.textContent).toContain("$1,690.00 of $1,720.00");
-    expect(fixed.textContent).toContain("98% used");
-    expect(fixed.querySelector(".progress-track")).not.toBeNull();
+    expect(fixed.textContent).not.toContain("98% used");
+    expect(fixed.querySelector(".progress-track")).toBeNull();
     const income = heads.find((h) => h.textContent?.includes("Income"))!;
-    expect(income.textContent).toContain("$5,000.00 of $5,200.00 received");
+    expect(income.textContent).toContain("$5,000.00 of $5,200.00");
   });
 
   it("labels each group's columns once, and the rows carry no trailing words", async () => {
@@ -203,13 +203,13 @@ describe("BudgetView groups", () => {
       expect(heads).toHaveLength(1);
       const head = heads[0].textContent ?? "";
       expect(head).toContain("Category");
-      expect(head).toContain("Budget");
+      expect(head).toContain("Planned");
       const isIncome = list.closest("[data-budget-group]")?.getAttribute("data-budget-group") === "income";
       if (isIncome) {
         expect(head).toContain("Received");
-        expect(head).toContain("Difference");
+        expect(head).toContain("Still expected");
       } else {
-        expect(head.match(/Budget/g)).toHaveLength(1);
+        expect(head.match(/Planned/g)).toHaveLength(1);
         expect(head.match(/Spent/g)).toHaveLength(1);
         expect(head.match(/Left/g)).toHaveLength(1);
       }
@@ -250,7 +250,7 @@ describe("BudgetRow budget field", () => {
       input.focus();
       setInputValue(input, "1650");
     });
-    act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    await act(async () => { input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
     act(() => input.blur());
     expect(p.onSetBudget).toHaveBeenCalledTimes(1);
     expect(p.onSetBudget).toHaveBeenCalledWith("Mortgage", "1650", "fixed");
@@ -260,7 +260,7 @@ describe("BudgetRow budget field", () => {
       other.focus();
       setInputValue(other, "125.50");
     });
-    act(() => other.blur());
+    await act(async () => { other.blur(); });
     expect(p.onSetBudget).toHaveBeenLastCalledWith("Insurance", "125.50", "fixed");
   });
 
@@ -377,7 +377,7 @@ describe("BudgetRow budget field", () => {
     expect(input).not.toBeNull();
     expect(input.value).toBe("1600.00");
     act(() => setInputValue(input, "1500"));
-    act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    await act(async () => { input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
     expect(p.onSetBudget).toHaveBeenCalledWith("Mortgage", "1500", "fixed");
     expect(row.querySelector("input")).toBeNull();
   });
@@ -493,8 +493,6 @@ describe("BudgetRow settings menu", () => {
 // s4: red only for what needs you. Income that hasn't arrived yet early in the month, and a
 // negative "money left" before the month is over, are normal and stay neutral.
 describe("BudgetView colours", () => {
-  const incomeHeadFill = () =>
-    container.querySelector<HTMLElement>("[data-budget-group='income'] .budget-group-track .progress-fill")!;
   const rowFill = (category: string) => rowFor(category).querySelector<HTMLElement>(".cat-row-bar .progress-fill")!;
   const lowIncome = [
     line({ category: "Mortgage" }),
@@ -513,25 +511,22 @@ describe("BudgetView colours", () => {
   it("keeps early-month income neutral in the current month (4 October, 30% in)", async () => {
     today(2026, 10, 4);
     await render(props({ budgetActuals: lowIncome, year: 2026, month: 10, monthLabel: "October 2026" }));
-    expect(incomeHeadFill().className).toBe("progress-fill neutral");
     expect(rowFill("Paycheck").className).toBe("progress-fill neutral");
     // The shortfall is shown as it is, but not in red.
     const diff = [...rowFor("Paycheck").querySelectorAll(".cat-amt")][2];
-    expect(diff.textContent).toBe("-$3,500.00");
+    expect(diff.textContent).toBe("$3,500.00");
     expect(diff.classList.contains("neg")).toBe(false);
   });
 
   it("warns late in the current month when under 80% of income is in", async () => {
     today(2026, 10, 28);
     await render(props({ budgetActuals: lowIncome, year: 2026, month: 10, monthLabel: "October 2026" }));
-    expect(incomeHeadFill().className).toBe("progress-fill warn");
     expect(rowFill("Paycheck").className).toBe("progress-fill warn");
   });
 
   it("warns about a past month whose income fell short, never in red", async () => {
     today(2026, 10, 4);
     await render(props()); // March 2026: $5,000 of $5,200 received
-    expect(incomeHeadFill().className).toBe("progress-fill warn");
     expect(rowFill("Paycheck").className).toBe("progress-fill warn");
     expect(container.querySelector("[data-budget-group='income'] .progress-fill.over")).toBeNull();
   });
@@ -545,14 +540,14 @@ describe("BudgetView colours", () => {
         month: 10,
       }),
     );
-    expect(incomeHeadFill().className).toBe("progress-fill");
     expect(rowFill("Paycheck").className).toBe("progress-fill");
   });
 
-  it("keeps expense groups red only past 100%", async () => {
+  it("keeps expense rows red only past 100%", async () => {
     today(2026, 10, 4);
     await render(
       props({
+        budgetAlerts: [{category: "Mortgage", level: "warning"}, {category: "Groceries", level: "over"}] as Props["budgetAlerts"],
         budgetActuals: [
           line({ category: "Mortgage", budgeted: "1000.00", actual: "900.00" }),
           line({ category: "Groceries", budget_group: "flexible", budgeted: "100.00", actual: "120.00" }),
@@ -561,7 +556,7 @@ describe("BudgetView colours", () => {
         month: 10,
       }),
     );
-    const fill = (g: string) => container.querySelector<HTMLElement>(`[data-budget-group='${g}'] .budget-group-track .progress-fill`)!;
+    const fill = (g: string) => container.querySelector<HTMLElement>(`[data-budget-group='${g}'] .cat-row-bar .progress-fill`)!;
     expect(fill("fixed").className).toBe("progress-fill warn");
     expect(fill("flexible").className).toBe("progress-fill over");
   });
@@ -596,7 +591,7 @@ describe("BudgetView colours", () => {
     expect(container.querySelector("[data-actual-net]")!.classList.contains("report-over-budget")).toBe(true);
   });
 
-  it("calls a budget used exactly in full 'Used in full', in a neutral badge", async () => {
+  it("calls a budget used exactly in full 'All used', in a neutral badge", async () => {
     await render(
       props({
         budgetActuals: [line({ category: "Groceries", budget_group: "flexible", budgeted: "400.00", actual: "400.00" })],
@@ -606,7 +601,7 @@ describe("BudgetView colours", () => {
       }),
     );
     const badge = rowFor("Groceries").querySelector<HTMLElement>(".budget-alert-badge")!;
-    expect(badge.textContent).toBe("Used in full");
+    expect(badge.textContent).toBe("All used");
     expect(badge.className).toBe("budget-alert-badge budget-alert-done");
     expect(rowFill("Groceries").className).toBe("progress-fill");
   });
@@ -643,9 +638,28 @@ describe("BudgetView colours", () => {
         ],
       }),
     );
-    expect(rowFor("Gifts").querySelector(".budget-alert-badge")!.textContent).toBe("Used in full");
+    expect(rowFor("Gifts").querySelector(".budget-alert-badge")!.textContent).toBe("All used");
     expect(rowFor("Gifts").querySelector(".budget-alert-badge")!.className).toBe("budget-alert-badge budget-alert-done");
-    expect(rowFor("Pets").querySelector(".budget-alert-badge")!.textContent).toBe("80%+");
+    expect(rowFor("Pets").querySelector(".budget-alert-badge")!.textContent).toBe("Close to limit");
     expect(rowFor("Pets").querySelector(".budget-alert-badge")!.className).toBe("budget-alert-badge budget-alert-warning");
+  });
+});
+
+
+describe("v9 group cards", () => {
+  it("shows planned/actual/left/progress columns, text totals and no group bar", async () => {
+    await render(props({ budgetActuals: [line({}), line({ category: "Pay", budget_group: "income", budgeted: "5000", actual: "1000" }), line({category: "Food", budget_group: "flexible"}), line({category: "Car", budget_group: "nonmonthly"})] }));
+    expect([...container.querySelectorAll('.budget-group h2')].map(e => e.textContent)).toEqual(["Income", "Fixed", "Flexible", "Non-monthly (saved for over time)"]);
+    expect([...container.querySelector('[data-budget-group="income"] .cat-list-head')!.children].map(e => e.textContent)).toEqual(["Category", "Planned", "Received", "Still expected", "Progress", "Settings"]);
+    expect(rowFor("Pay").querySelector('[data-label="Still expected"]')?.textContent).toContain("$4,000.00");
+    expect(container.querySelector('.budget-group-track')).toBeNull();
+    expect(container.querySelector('[data-budget-group="fixed"] [data-group-progress]')?.textContent).toBe("$1,600.00 of $1,600.00");
+  });
+  it("shows All used, Close to limit and ! Over beneath names while retaining row bars", async () => {
+    await render(props({ budgetActuals: [line({}), line({category: "Near", actual: "1450"}), line({category: "Past", actual: "1700"})], budgetAlerts: [{category: "Mortgage", level: "warning"}, {category: "Near", level: "warning"}, {category: "Past", level: "over"}] as Props["budgetAlerts"] }));
+    expect(rowFor("Mortgage").textContent).toContain("All used");
+    expect(rowFor("Near").textContent).toContain("Close to limit");
+    expect(rowFor("Past").textContent).toContain("! Over");
+    expect(container.querySelectorAll('.cat-row-bar')).toHaveLength(3);
   });
 });

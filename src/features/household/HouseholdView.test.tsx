@@ -5,13 +5,13 @@ import { HouseholdView } from "./HouseholdView";
 const props = {
   transactions: [], accounts: [], assets: [], familyMembers: [{ id: 1, name: "Fixture member" }],
   memberBudgetActuals: [], monthLabel: "October 2026", year: 2026, month: 10,
-  onPrevMonth: () => {}, onNextMonth: () => {}, onManageMembers: () => {},
+  onPrevMonth: () => {}, onNextMonth: () => {}, onManageMembers: () => {}, onRenameMember: () => {}, onRemoveMember: () => {}, onSetYear: () => {}, onSetMonth: () => {},
 };
 describe("Household budget read readiness", () => {
   it("does not imply no budgeted spending before a valid snapshot", () => {
     const html = renderToStaticMarkup(<HouseholdView {...props} budgetReadReady={false} />);
     expect(html).not.toContain("No budgeted spending yet");
-    expect(html).not.toContain("Budget, by category and person");
+    expect(html).not.toContain("Budget by person,");
     expect(html).toContain("Previous month");
     expect(html).toContain("Net worth by person");
   });
@@ -29,7 +29,7 @@ describe("Household spending by person (QA-FUNC-007)", () => {
   });
   const render = (transactions: unknown[]) =>
     renderToStaticMarkup(<HouseholdView {...props} transactions={transactions as never} budgetReadReady />);
-  const spendingCard = (html: string) => html.slice(html.indexOf("Spending by person"), html.indexOf("Income by person"));
+  const spendingCard = (html: string) => html.slice(html.indexOf("Spending by person"), html.indexOf('class="household-cards"'));
 
   it("lists an Unassigned line with this month's unattributed spending", () => {
     const card = spendingCard(render([txn(1, "2026-10-03", "-30.00", "Fixture member"), txn(2, "2026-10-04", "-12.25", null), txn(3, "2026-10-09", "-7.75", null)]));

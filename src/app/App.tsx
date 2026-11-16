@@ -2590,6 +2590,10 @@ function App({
                 onPrevMonth={handlePrevBudgetMonth}
                 onNextMonth={handleNextBudgetMonth}
                 onManageMembers={openManageFamilyMembers}
+                onRenameMember={handleRenameFamilyMember}
+                onRemoveMember={handleDeleteFamilyMember}
+                onSetYear={setBudgetYear}
+                onSetMonth={setBudgetMonthNum}
               />
             </Suspense>
           )}

@@ -65,7 +65,7 @@ try {
   }
 
   // "Recent transactions" rows drill into the Ledger tab.
-  const recentRow = await app.browser.$("//tr[td[contains(.,'Fancy Steakhouse')]]");
+  const recentRow = await app.browser.$("//button[contains(@class,'recent-transaction')][contains(.,'Fancy Steakhouse')]");
   await recentRow.waitForExist({ timeout: 5000 });
   await recentRow.click();
   const importTransactionsBtn = await app.browser.$("button*=Import transactions");

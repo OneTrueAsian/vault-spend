@@ -5,7 +5,7 @@ import type { Account, AccountContributionDelta, Asset, FamilyMember, NetWorthPo
 import { PropertyAssetsSection } from "../investments/PropertyAssets";
 import { StatDetailPanel } from "../../shared/ui/StatDetailPanel";
 import { formatAmount } from "../../shared/lib/format";
-import { accountTypeLabel, GROUP_LABELS, GROUP_ORDER, groupOf, isOverdrawn, netWorthContribution } from "../../shared/lib/accountGroups";
+import { accountTypeLabel, groupOf, isOverdrawn, netWorthContribution } from "../../shared/lib/accountGroups";
 import { AccountEditDialog } from "./AccountEditDialog";
 import { AccountTypeIcon, ACCOUNT_ICON_OPTIONS, isAccountIconKey, IconPicker, useDismissOnEscape, type AccountIconKey } from "../../shared/ui/icons";
 import { HelpLink } from "../../shared/ui/HelpLink";
@@ -231,10 +231,19 @@ function AccountCard({
               title="Click to set the credit limit"
               onClick={() => setEditing({ id: a.id, value: a.starting_balance, mode: "limit" })}
             >
-              {parseFloat(a.starting_balance) > 0 ? `${formatAmount(a.current_balance)} available` : "Set credit limit"}
+              {parseFloat(a.starting_balance) > 0 ? `${formatAmount(a.current_balance)} free of ${formatAmount(a.starting_balance)}` : "Set credit limit"}
             </button>
           ))}
       </div>
+      {isCredit && Number(a.starting_balance) > 0 && (
+        <div className="credit-availability progress-track" aria-hidden="true">
+          <div className="progress-fill" style={{ width: `${Math.max(0, Math.min(100, (1 - Number(a.current_balance) / Number(a.starting_balance)) * 100))}%` }} />
+        </div>
+      )}
+      <span className="account-row-links">
+        <button type="button" onClick={() => onOpenDetail(a.id)}>Activity</button>
+        <button type="button" onClick={() => onEdit(a.id)}>Edit</button>
+      </span>
       <RowMenu label={`Actions for ${a.name}`} items={[
         { label: "Details", onSelect: () => onOpenDetail(a.id) },
         { label: "Edit", onSelect: () => onEdit(a.id) },
@@ -393,7 +402,7 @@ export function AccountsView({
   const accountBeingEdited = accounts.find((a) => a.id === editingAccountId) ?? null;
 
   return (
-    <div className="reports-view">
+    <div className="reports-view accounts-view">
       <div className="page-top">
         <div>
           <div className="view-title-row">
@@ -462,19 +471,27 @@ export function AccountsView({
 
       {/* One card per group, as in the UI mockup: its name and total on top, then one row per account,
           the biggest balance first. A card or loan group's total is the amount owed. */}
-      {GROUP_ORDER.map((group) => {
-        const inGroup = accounts.filter((a) => groupOf(a.account_type) === group);
+      <div className="accounts-groups">
+      {([
+        [
+          { id: "cash", label: "Cash", groups: ["cash"] },
+          { id: "borrowing", label: "Borrowing", groups: ["credit", "loan"] },
+        ],
+        [{ id: "investments", label: "Investments and other", groups: ["investment", "other"] }],
+      ] as const).map((column, columnIndex) => <div className="accounts-column" key={columnIndex}>
+      {column.map(({ id, label, groups }) => {
+        const inGroup = accounts.filter((a) => (groups as readonly string[]).includes(groupOf(a.account_type)));
         // Hidden accounts leave the rows (they are in the Hidden accounts section) but not the total.
         const groupAccounts = inGroup
           .filter((a) => !a.hidden)
           .sort((a, b) => Math.abs(netWorthContribution(b)) - Math.abs(netWorthContribution(a)) || a.name.localeCompare(b.name));
         if (groupAccounts.length === 0) return null;
         const subtotal = inGroup.reduce((s, a) => s + netWorthContribution(a), 0);
-        const owedGroup = group === "credit" || group === "loan";
+        const owedGroup = id === "borrowing";
         return (
-          <section key={group} className="account-group">
+          <section key={id} className={`account-group account-group-${id}`}>
             <div className="account-group-head">
-              <h2>{GROUP_LABELS[group]}</h2>
+              <h2>{label}</h2>
               <span className="account-group-total">{owedGroup ? `${formatAmount(-subtotal)} owed` : formatAmount(subtotal)}</span>
             </div>
             <div className="account-cards">
@@ -485,6 +502,16 @@ export function AccountsView({
           </section>
         );
       })}
+      {columnIndex === 1 && <PropertyAssetsSection
+        assets={assets}
+        familyMembers={familyMembers}
+        onCreate={onCreateAsset}
+        onUpdateValue={onUpdateAssetValue}
+        onSetMember={onSetAssetMember}
+        onDelete={onDeleteAsset}
+      />}
+      </div>)}
+      </div>
       {accounts.length === 0 && <p className="empty-state">No accounts yet.</p>}
 
       {hiddenCount > 0 && (
@@ -508,15 +535,6 @@ export function AccountsView({
           )}
         </section>
       )}
-
-      <PropertyAssetsSection
-        assets={assets}
-        familyMembers={familyMembers}
-        onCreate={onCreateAsset}
-        onUpdateValue={onUpdateAssetValue}
-        onSetMember={onSetAssetMember}
-        onDelete={onDeleteAsset}
-      />
 
       {accountBeingEdited && (
         <AccountEditDialog

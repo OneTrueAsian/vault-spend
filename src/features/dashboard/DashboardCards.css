@@ -454,3 +454,19 @@
   opacity: 1;
   background: rgba(127, 127, 127, 0.18);
 }
+
+/* Recent activity uses one keyboard-accessible link per row. */
+.recent-transactions { list-style: none; margin: 0; padding: 0; }
+.recent-transactions li + li { border-top: 1px solid var(--border); }
+.recent-transaction { display: grid; grid-template-columns: 30px minmax(0, 1fr) minmax(0, auto) auto; align-items: center; gap: 10px; width: 100%; padding: 14px 0; border: 0; border-radius: 0; background: transparent; color: var(--text); text-align: left; box-shadow: none; font-weight: 400; }
+.recent-transaction:hover { background: var(--surface-2); }
+.recent-transaction-info { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.recent-transaction-detail, .recent-transaction-category { font-size: 12px; color: var(--text-muted); }
+.recent-transaction-category { text-align: right; }
+.recent-transaction-category.needs-category { color: var(--warning); font-weight: 600; }
+.recent-see-all { background: transparent; border: 0; box-shadow: none; color: var(--text); text-decoration: underline; padding: 4px; font-size: 12px; }
+@media (max-width: 800px) {
+  .recent-transaction { grid-template-columns: 26px minmax(0, 1fr) auto; }
+  .recent-transaction-category { grid-column: 2; grid-row: 2; text-align: left; }
+  .recent-transaction > .amount-col { grid-column: 3; grid-row: 1 / 3; }
+}

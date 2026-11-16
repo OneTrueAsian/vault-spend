@@ -495,3 +495,33 @@ describe('Pinned Net worth by member table', () => {
     expect(cell.className).toBe('member-name-cell');
   });
 });
+
+
+describe("v9 recent transactions", () => {
+  it("shows a compact accessible list with account, category fallback and See all navigation", async () => {
+    const onOpenTransactions = vi.fn();
+    await render(props({ layoutWidgets: ["recent_transactions"], onOpenTransactions,
+      transactions: [{ id: 91, date: "2026-11-14", description: "Local market", amount: "-12.00", category: null,
+        account_id: 1, account_name: "Everyday checking", tags: [], split_count: 0, transfer_counterpart_id: null, category_source: "user", confidence: null, applied_to_debt: null, principal_amount: null, member_id: null, member_name: null, notes: null }],
+    }));
+    const widget = container.querySelector('[data-widget-id="recent_transactions"]')!;
+    expect(widget.querySelector("table")).toBeNull();
+    const row = widget.querySelector<HTMLButtonElement>(".recent-transaction")!;
+    expect(row?.textContent).toContain("Local market");
+    expect(row?.textContent).toContain("Everyday checking");
+    expect(row?.querySelector(".recent-transaction-detail")?.textContent).toContain(" \u00b7 Everyday checking");
+    expect(row?.textContent).toContain("Needs a category");
+    expect(row?.textContent).toContain("$12.00");
+    expect(row?.querySelector("svg")).not.toBeNull();
+    act(() => row.click());
+    const seeAll = [...widget.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === "See all")!;
+    act(() => seeAll.click());
+    expect(onOpenTransactions).toHaveBeenCalledTimes(2);
+  });
+  it("preserves the empty state and link when no transactions exist", async () => {
+    await render(props({ layoutWidgets: ["recent_transactions"] }));
+    const widget = container.querySelector('[data-widget-id="recent_transactions"]')!;
+    expect(widget.textContent).toContain("No transactions yet");
+    expect(widget.textContent).toContain("See all");
+  });
+});

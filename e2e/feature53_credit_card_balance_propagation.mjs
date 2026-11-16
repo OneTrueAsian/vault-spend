@@ -93,7 +93,7 @@ try {
   let { owed, available } = await visaOwedAndAvailable(app);
   console.log("baseline:", { owed, available });
   if (owed !== "Owed $0.00") throw new Error(`expected a fresh card to owe $0.00, got "${owed}"`);
-  if (available !== "$2,000.00 available") throw new Error(`expected $2,000.00 available, got "${available}"`);
+  if (available !== "$2,000.00 free of $2,000.00") throw new Error(`expected $2,000.00 free of $2,000.00, got "${available}"`);
 
   let netWorth = await statValue(app, "Net worth");
   if (netWorth !== "$5,000.00") throw new Error(`expected baseline Net Worth $5,000.00 (unused credit contributes $0), got ${netWorth}`);
@@ -123,7 +123,7 @@ try {
   ({ owed, available } = await visaOwedAndAvailable(app));
   console.log("after $300 charge:", { owed, available });
   if (owed !== "Owed $300.00") throw new Error(`expected $300.00 owed after the charge, got "${owed}"`);
-  if (available !== "$1,700.00 available") throw new Error(`expected $1,700.00 available after the charge, got "${available}"`);
+  if (available !== "$1,700.00 free of $2,000.00") throw new Error(`expected $1,700.00 free of $2,000.00 after the charge, got "${available}"`);
 
   netWorth = await statValue(app, "Net worth");
   if (netWorth !== "$4,700.00") throw new Error(`expected Net Worth $4,700.00 after the $300 charge, got ${netWorth}`);
@@ -150,7 +150,7 @@ try {
   ({ owed, available } = await visaOwedAndAvailable(app));
   console.log("after $150 payment:", { owed, available });
   if (owed !== "Owed $150.00") throw new Error(`expected $150.00 owed after the payment, got "${owed}"`);
-  if (available !== "$1,850.00 available") throw new Error(`expected $1,850.00 available after the payment, got "${available}"`);
+  if (available !== "$1,850.00 free of $2,000.00") throw new Error(`expected $1,850.00 free of $2,000.00 after the payment, got "${available}"`);
 
   netWorth = await statValue(app, "Net worth");
   if (netWorth !== "$4,850.00") throw new Error(`expected Net Worth $4,850.00 after the payment, got ${netWorth}`);
@@ -178,7 +178,7 @@ try {
   ({ owed, available } = await visaOwedAndAvailable(app));
   console.log("after deleting the charge:", { owed, available });
   if (owed !== "Owed -$150.00") throw new Error(`expected an overpaid $-150.00 owed, got "${owed}"`);
-  if (available !== "$2,150.00 available") throw new Error(`expected $2,150.00 available, got "${available}"`);
+  if (available !== "$2,150.00 free of $2,000.00") throw new Error(`expected $2,150.00 free of $2,000.00, got "${available}"`);
 
   netWorth = await statValue(app, "Net worth");
   if (netWorth !== "$5,150.00") throw new Error(`expected Net Worth $5,150.00 (checking $5,000 + $150 overpayment), got ${netWorth}`);

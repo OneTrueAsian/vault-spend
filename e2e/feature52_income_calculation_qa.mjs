@@ -143,11 +143,11 @@ try {
 
   const householdNav = await app.browser.$("button*=Household");
   await householdNav.click();
-  const incomeCard = await app.browser.$("//h2[contains(.,'Income by person')]/parent::div");
+  const incomeCard = await app.browser.$("[data-month-by-person]");
   await incomeCard.waitForExist({ timeout: 10000 });
-  const incomeText = await incomeCard.getText();
+  const incomeText = await app.browser.execute(() => [...document.querySelectorAll('[data-month-by-person] tbody tr')].map(tr => `${tr.cells[0].textContent}: ${tr.cells[1].textContent}`).join("\n"));
   if (!incomeText.includes("4,000.00")) throw new Error(`expected Joint's $4,000.00 income, got:\n${incomeText}`);
-  if (incomeText.includes("Alex")) throw new Error(`Alex has no income this month and must not appear, got:\n${incomeText}`);
+  if (!incomeText.includes("Alex: $0.00")) throw new Error(`Alex has no income this month and must show zero, got:\n${incomeText}`);
 
   const spendingCard = await app.browser.$("//h2[contains(.,'Spending by person')]/parent::div");
   const spendingText = await spendingCard.getText();
