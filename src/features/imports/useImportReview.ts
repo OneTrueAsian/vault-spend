@@ -63,6 +63,7 @@ export function useImportReview({
     columns: { inspection: ColumnInspection; source: ColumnMapSource } | null,
   ): Promise<string | null> {
     try {
+      const categories = await call<string[]>("list_categories");
       const preview = await call<ImportPreview>("preview_import", {
         path,
         invertAmounts,
@@ -80,7 +81,7 @@ export function useImportReview({
       // user still sees exactly what will happen and can change it.
       // Unmatched file names use the selected default account; imports never create accounts.
       setAccountOverrides(seedAccountOverrides(preview, accounts, accountId));
-      setImportCategoryChoices(defaultCategoryChoices(preview.unmatched_categories));
+      setImportCategoryChoices(defaultCategoryChoices(preview.unmatched_categories, categories));
       setImportRowChoices(new Map());
       setNotice(null);
       setPendingImport({ path, invertAmounts, defaultAccountId: accountId, columnMap, columns: columnMap ? columns : null, preview });

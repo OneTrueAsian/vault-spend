@@ -48,6 +48,16 @@ describe("useImportReview column map", () => {
     return () => api;
   }
 
+  it("seeds only remembered mappings whose destination still exists", async () => {
+    const call = vi.fn(async (command: string) => command === "list_categories" ? ["Food"] : {
+      ...PREVIEW,
+      unmatched_categories: [{ name: "BANK FOOD", count: 1, remembered_category: "Food" }, { name: "BANK OLD", count: 1, remembered_category: "Deleted" }],
+    });
+    const api = mount(call);
+    await act(async () => api().begin("C:/bank.csv", false, 7));
+    expect(api().importCategoryChoices).toEqual({ "BANK FOOD": { action: "map_to", category: "Food" }, "BANK OLD": { action: "skip" } });
+  });
+
   it("sends the column map with the first preview, the retry preview and the commit", async () => {
     let commits = 0;
     const call = vi.fn(async (command: string, _args?: Record<string, unknown>) => {

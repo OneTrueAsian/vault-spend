@@ -4,6 +4,7 @@
 // Worked out here so changing a panel choice or a checkbox needs no call to the backend.
 import { describe, expect, it } from "vitest";
 import {
+  splitBankCategories,
   carryOverReview,
   isSure,
   leaveRestUncategorized,
@@ -234,5 +235,20 @@ describe("carryOverReview", () => {
       merchandise: { action: "map_to", category: "Shopping" },
       Fuel: { action: "map_to", category: "Dining" },
     });
+  });
+});
+
+
+describe("splitBankCategories", () => {
+  it("keeps only exact, still-existing remembered destinations, preserving file order in both lists", () => {
+    const fresh = { name: "NEW", count: 1 };
+    const remembered = { name: "MERCHANDISE", count: 2, remembered_category: "Shopping" };
+    const deleted = { name: "OLD", count: 3, remembered_category: "Gone" };
+    const next = { name: "GAS", count: 1, remembered_category: "Fuel" };
+    expect(splitBankCategories([fresh, remembered, deleted, next], ["Shopping", "Fuel"])).toEqual({
+      ask: [fresh, deleted], remembered: [remembered, next],
+    });
+    expect(splitBankCategories([remembered], ["shopping"])).toEqual({ ask: [remembered], remembered: [] });
+    expect(splitBankCategories([], [])).toEqual({ ask: [], remembered: [] });
   });
 });

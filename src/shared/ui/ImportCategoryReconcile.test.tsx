@@ -39,7 +39,7 @@ describe("ImportCategoryReconcile", () => {
     container.remove();
   });
 
-  function show(choices: Record<string, CategoryChoice> = defaultCategoryChoices(unmatched), list = unmatched) {
+  function show(choices: Record<string, CategoryChoice> = defaultCategoryChoices(unmatched, mine), list = unmatched) {
     act(() => {
       root.render(<ImportCategoryReconcile unmatched={list} categories={mine} choices={choices} onChange={onChange} onSetAll={onSetAll} />);
     });
@@ -88,8 +88,12 @@ describe("ImportCategoryReconcile", () => {
     expect(selects()[0].getAttribute("aria-label")).toContain("Merchandise");
   });
 
+  it("starts a deleted remembered destination on Let the app guess", () => {
+    expect(defaultCategoryChoices([{ name: "MERCHANDISE", count: 1, remembered_category: "Shopping" }], mine)).toEqual({ MERCHANDISE: { action: "skip" } });
+  });
+
   it("defaults every category to not being used", () => {
-    expect(defaultCategoryChoices(unmatched)).toEqual({
+    expect(defaultCategoryChoices(unmatched, mine)).toEqual({
       Merchandise: { action: "skip" },
       "Gas/Automotive": { action: "skip" },
     });
@@ -125,11 +129,11 @@ describe("ImportCategoryReconcile", () => {
 
   it("fills in a choice remembered from an earlier import, and says so", () => {
     const withMemory = [{ name: "Merchandise", count: 12, remembered_category: "Groceries" }, { name: "Gas/Automotive", count: 1 }];
-    expect(defaultCategoryChoices(withMemory)).toEqual({
+    expect(defaultCategoryChoices(withMemory, mine)).toEqual({
       Merchandise: { action: "map_to", category: "Groceries" },
       "Gas/Automotive": { action: "skip" },
     });
-    show(defaultCategoryChoices(withMemory), withMemory);
+    show(defaultCategoryChoices(withMemory, mine), withMemory);
     expect(selects().map(menuValue)).toEqual(["map:Groceries", "skip"]);
     const rows = [...container.querySelectorAll(".import-category-row")];
     expect(rows[0].textContent).toContain("Your choice from last time");
@@ -145,7 +149,7 @@ describe("ImportCategoryReconcile", () => {
   it("locks every control while the import is being saved", () => {
     act(() => {
       root.render(
-        <ImportCategoryReconcile unmatched={unmatched} categories={mine} choices={defaultCategoryChoices(unmatched)} onChange={onChange} onSetAll={onSetAll} disabled />,
+        <ImportCategoryReconcile unmatched={unmatched} categories={mine} choices={defaultCategoryChoices(unmatched, mine)} onChange={onChange} onSetAll={onSetAll} disabled />,
       );
     });
     expect(selects().every((b) => b.disabled)).toBe(true);
@@ -180,7 +184,7 @@ describe("ImportCategoryReconcile", () => {
               { name: "Gas/Automotive", count: 1 },
             ]}
             categories={mine}
-            choices={defaultCategoryChoices(unmatched)}
+            choices={defaultCategoryChoices(unmatched, mine)}
             onChange={onChange}
             onSetAll={onSetAll}
             rows={rows}

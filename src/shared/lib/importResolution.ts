@@ -164,10 +164,20 @@ export function seedAccountOverrides(
 
 /** A file category's starting choice: the person's earlier choice when it is still one of their
  * categories, else "Let the app guess". */
-function defaultPanelChoice(u: UnmatchedCategory, categories: string[]): CategoryChoice {
+export function defaultPanelChoice(u: UnmatchedCategory, categories: string[]): CategoryChoice {
   return u.remembered_category && categories.includes(u.remembered_category)
     ? { action: "map_to", category: u.remembered_category }
     : { action: "skip" };
+}
+
+/** Only remembered destinations that still exist can settle a bank category without asking. */
+export function splitBankCategories(unmatched: UnmatchedCategory[], categories: string[]): { ask: UnmatchedCategory[]; remembered: UnmatchedCategory[] } {
+  const ask: UnmatchedCategory[] = [];
+  const remembered: UnmatchedCategory[] = [];
+  for (const category of unmatched) {
+    (defaultPanelChoice(category, categories).action === "map_to" ? remembered : ask).push(category);
+  }
+  return { ask, remembered };
 }
 
 export type ReviewChoices = {

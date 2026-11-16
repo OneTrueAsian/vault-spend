@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import { formatAmount, formatDisplayDate } from "../lib/format";
 import { InfoTip } from "./InfoTip";
 import { MenuSelect } from "./MenuSelect";
-import type { ImportRow, UnmatchedCategory } from "../lib/importResolution";
+import { defaultPanelChoice, type ImportRow, type UnmatchedCategory } from "../lib/importResolution";
 export type { UnmatchedCategory } from "../lib/importResolution";
 /** What to do with a category an import file uses that the person doesn't have. Sent to
  * `commit_import` as-is (`action` is what the backend reads). Nothing is added to their
@@ -12,13 +12,8 @@ export type CategoryChoice = { action: "skip" } | { action: "create" } | { actio
 /** A name the person mapped on an earlier import starts on that choice; every other one starts as
  * "Let the app guess" — the choice that adds nothing to their list and lets their own rules and
  * the auto-categorizer have a go at those rows. */
-export function defaultCategoryChoices(unmatched: UnmatchedCategory[]): Record<string, CategoryChoice> {
-  return Object.fromEntries(
-    unmatched.map((u) => [
-      u.name,
-      u.remembered_category ? ({ action: "map_to", category: u.remembered_category } as CategoryChoice) : ({ action: "skip" } as CategoryChoice),
-    ]),
-  );
+export function defaultCategoryChoices(unmatched: UnmatchedCategory[], categories: string[]): Record<string, CategoryChoice> {
+  return Object.fromEntries(unmatched.map((u) => [u.name, defaultPanelChoice(u, categories)]));
 }
 
 function toValue(choice: CategoryChoice | undefined): string {
