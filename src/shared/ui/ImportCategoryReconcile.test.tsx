@@ -6,6 +6,7 @@
 // those rows uncategorized. Nothing is added unless they choose to.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
+import { readFileSync } from "node:fs";
 import { createRoot, type Root } from "react-dom/client";
 import { ImportCategoryReconcile, defaultCategoryChoices, type CategoryChoice } from "./ImportCategoryReconcile";
 import { formatAmount, formatDisplayDate } from "../lib/format";
@@ -48,6 +49,12 @@ describe("ImportCategoryReconcile", () => {
   const selects = () => [...container.querySelectorAll<HTMLButtonElement>("button[data-import-category-choice]")];
 
   const pick = pickMenuOption;
+
+  it("lets the dialog body scroll instead of putting a height limit on the list", () => {
+    const css = readFileSync("src/features/transactions/Transactions.css", "utf8");
+    const rule = css.match(/\.import-category-list\s*\{([^}]+)\}/)![1];
+    expect(rule).not.toMatch(/max-height|overflow-y:\s*auto/);
+  });
 
   it("shows nothing when the file brings no category the person lacks", () => {
     show({}, []);

@@ -2307,16 +2307,6 @@ table.ledger.recurring-table .actions-col {
   /* minmax(0, …) lets a long category name wrap instead of stretching the column past the card */
   grid-template-columns: minmax(0, 1fr);
   gap: 8px;
-  max-height: 260px;
-  overflow-y: auto;
-  /* Names wrap, so nothing is meant to run sideways; a line that fits to the last pixel must not add a scrollbar. */
-  overflow-x: hidden;
-}
-
-/* With a transaction list open the panel grows with the dialog, which already scrolls, instead of
-   scrolling inside it. */
-.import-category-list[data-has-open] {
-  max-height: none;
 }
 
 .import-category-row {
