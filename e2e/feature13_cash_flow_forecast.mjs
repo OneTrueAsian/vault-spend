@@ -19,9 +19,9 @@ try {
   const cashFlowNav = await app.browser.$("button*=Cash Flow");
   await cashFlowNav.click();
 
-  // Forecast now lives behind its own sub-tab (Overview/Forecast/Debt
-  // Payoff), rather than always being visible on one long scroll.
-  const forecastSubTab = await app.browser.$("button=Forecast");
+  // Forecast lives behind its own Cash Flow tab (the one the page opens on
+  // since VS-31), rather than always being visible on one long scroll.
+  const forecastSubTab = await app.browser.$("#cashflow-tab-forecast");
   await forecastSubTab.waitForExist({ timeout: 10000 });
   await forecastSubTab.click();
 
@@ -60,29 +60,34 @@ try {
     { timeout: 10000, timeoutMsg: "expected the forecast chart to gain points after switching to 60 days" },
   );
 
-  // Sub-tabs actually gate content, not just decorate it: Overview
-  // shouldn't show the Forecast card, and Debt Payoff should show its own
-  // section instead.
-  const overviewSubTab = await app.browser.$("button=Overview");
+  // Tabs actually gate content, not just decorate it: Month by month
+  // shouldn't show the Forecast card, and Debt payoff should show its own
+  // section instead. A tab's panel stays mounted once opened (hidden), so
+  // "gone" here means not displayed.
+  const overviewSubTab = await app.browser.$("#cashflow-tab-by-month");
   await overviewSubTab.click();
-  await app.browser.waitUntil(async () => !(await forecastCard.isExisting()), {
+  await app.browser.waitUntil(async () => !(await forecastCard.isDisplayed()), {
     timeout: 5000,
-    timeoutMsg: "expected the Forecast card to disappear when switching to the Overview sub-tab",
+    timeoutMsg: "expected the Forecast card to disappear when switching to the Month by month tab",
   });
   const barChartTitle = await app.browser.$("//span[contains(@class,'reports-section-title')][text()='Income vs. expenses']");
-  await barChartTitle.waitForExist({ timeout: 5000 });
+  await barChartTitle.waitForDisplayed({ timeout: 5000 });
 
   // This fixture has no loan/credit accounts, so DebtPayoffPlannerSection
-  // correctly renders nothing at all on that sub-tab (pre-existing,
-  // unrelated behavior — see its own `if (debtAccounts.length === 0)
-  // return null`) — just confirm the Forecast card stays hidden here too,
-  // proving each sub-tab only shows its own content.
-  const debtSubTab = await app.browser.$("button=Debt Payoff");
+  // renders nothing (its own `if (debtAccounts.length === 0) return null`)
+  // and the tab says so in words instead. Confirm the Forecast card stays
+  // hidden here too, proving each tab only shows its own content.
+  const debtSubTab = await app.browser.$("#cashflow-tab-debt");
   await debtSubTab.click();
-  if (await forecastCard.isExisting()) {
-    throw new Error("expected the Forecast card to stay hidden on the Debt Payoff sub-tab");
+  await (await app.browser.$("#cashflow-panel-debt")).waitForDisplayed({ timeout: 5000 });
+  if (await forecastCard.isDisplayed()) {
+    throw new Error("expected the Forecast card to stay hidden on the Debt payoff tab");
   }
-  console.log("sub-tabs correctly gate Overview/Forecast/Debt Payoff content");
+  const debtText = await (await app.browser.$("#cashflow-panel-debt")).getText();
+  if (!debtText.includes("No credit cards or loans with money owed.")) {
+    throw new Error(`expected the Debt payoff tab to explain there is no debt, got:\n${debtText}`);
+  }
+  console.log("tabs correctly gate Month by month/Forecast/Debt payoff content");
 
   console.log("FEATURE 13 E2E TEST PASSED");
 } finally {

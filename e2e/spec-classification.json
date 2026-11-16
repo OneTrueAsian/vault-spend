@@ -338,6 +338,7 @@
     "feature385_recurring_calendar_original_day.mjs": "not reviewed for parallel execution; exclusive until approved",
     "feature386_ask_show_all_layout.mjs": "drives menus that close when the window loses focus; uses the shared pointer (hover); uses the shared keyboard; lib\\askRetirement.mjs: depends on which window has OS focus; lib\\askReady.mjs: uses the shared keyboard",
     "feature387_import_category_transactions.mjs": "drives menus that close when the window loses focus; uses the shared pointer (hover); uses the shared keyboard; lib\\importAccount.mjs: drives menus that close when the window loses focus",
+    "feature388_cashflow_six_months_and_tabs.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared keyboard",
     "feature389_investments_mix_and_tabs.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared keyboard",
     "feature397_accounts_own_owe_bar.mjs": "drives menus that close when the window loses focus"
   }
