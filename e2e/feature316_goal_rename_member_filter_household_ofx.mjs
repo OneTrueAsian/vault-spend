@@ -151,12 +151,13 @@ try {
   assert.match(await memberToggle().getText(), /All members/);
   await browser.keys("Escape");
 
-  // 3. Household unassigned spending
+  // 3. Household spending by person: unattributed spending is Shared (the chart's row; it used to be an "Unassigned" list line)
   await nav("Household");
   await browser.$("//h2[contains(.,'Spending by person')]").waitForExist({ timeout: 15000 });
   const spending = await browser.$("//div[contains(@class,'card')][.//h2[contains(.,'Spending by person')]]").getText();
   assert.match(spending, /Alex\s*\$30\.00/);
-  assert.match(spending, /Unassigned\s*\$20\.00/, "12.25 + 7.75 of unassigned spending");
+  assert.match(spending, /Shared\s*\$20\.00/, "12.25 + 7.75 of spending nobody was named for");
+  assert.ok(!spending.includes("Unassigned"), "the chart says Shared, never Unassigned");
 
   // 4. Compact OFX through the real chooser, and an unreadable file
   await nav("Transactions");

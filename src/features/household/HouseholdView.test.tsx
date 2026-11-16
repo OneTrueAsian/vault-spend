@@ -31,11 +31,12 @@ describe("Household spending by person (QA-FUNC-007)", () => {
     renderToStaticMarkup(<HouseholdView {...props} transactions={transactions as never} budgetReadReady />);
   const spendingCard = (html: string) => html.slice(html.indexOf("Spending by person"), html.indexOf('class="household-cards"'));
 
-  it("lists an Unassigned line with this month's unattributed spending", () => {
+  it("lists a Shared row with this month's unattributed spending (it used to be called Unassigned here)", () => {
     const card = spendingCard(render([txn(1, "2026-10-03", "-30.00", "Fixture member"), txn(2, "2026-10-04", "-12.25", null), txn(3, "2026-10-09", "-7.75", null)]));
     expect(card).toContain("Fixture member");
     expect(card).toContain("$30.00");
-    expect(card).toMatch(/Unassigned<\/span><span>\$20\.00/);
+    expect(card).toMatch(/stacked-rows-label">Shared<\/span>.*?stacked-rows-total">\$20\.00/);
+    expect(card).not.toContain("Unassigned");
   });
 
   it("only counts the viewed month, and leaves transfers and money in out", () => {
@@ -47,7 +48,7 @@ describe("Household spending by person (QA-FUNC-007)", () => {
         txn(4, "2026-10-06", "-8.00", null),
       ]),
     );
-    expect(card).toMatch(/Unassigned<\/span><span>\$8\.00/);
+    expect(card).toMatch(/stacked-rows-label">Shared<\/span>.*?stacked-rows-total">\$8\.00/);
     expect(card).not.toContain("$99.00");
   });
 

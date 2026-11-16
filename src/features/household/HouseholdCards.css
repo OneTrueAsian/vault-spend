@@ -13,6 +13,11 @@
 .household-people-list input { min-width: 0; width: 100%; }
 .household-remove-confirm { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; }
 .household-remove-confirm > span { width: 100%; }
+/* A long name wraps inside its own column (between words, and anywhere for one unbroken word) so the bar keeps its room. */
+.household-view .stacked-rows-row { grid-template-columns: minmax(3em, 12em) 1fr auto; }
+.household-view .stacked-rows-label { white-space: normal; overflow-wrap: anywhere; }
+.household-spending-notes { margin: 12px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--text-muted); }
+.household-spending-notes li { padding: 3px 0; overflow-wrap: anywhere; }
 .household-table-scroll { overflow-x: auto; }
 .household-view [data-budget-by-person] .ledger { min-width: 780px; table-layout: auto; }
 .household-view .ledger th, .household-view .ledger td { white-space: normal; overflow-wrap: anywhere; }
