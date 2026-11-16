@@ -794,41 +794,28 @@ export function DashboardView({
       <div className="card">
         <div className="card-head">
           <span className="reports-section-title">Recent transactions</span>
+          <button type="button" className="recent-see-all" onClick={onOpenTransactions}>See all</button>
         </div>
-        <table className="ledger">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Description</th>
-              <th className="amount-col">Amount</th>
-              <th>Category</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recent.map((t) => (
-              <tr key={t.id} className="clickable-row" onClick={onOpenTransactions} title="Go to the Transactions tab">
-                <td className="date-cell">{formatDisplayDate(t.date)}</td>
-                <td>
-                  <span className="cell-with-icon">
-                    <span className="row-icon-badge">
-                      <CategoryIcon category={t.category} iconKey={t.category ? categoryIconMap[t.category] : null} />
-                    </span>
-                    {t.description}
-                  </span>
-                </td>
-                <td className="amount-col">{formatAmount(t.amount)}</td>
-                <td>{t.category ?? "Uncategorized"}</td>
-              </tr>
-            ))}
-            {recent.length === 0 && (
-              <tr>
-                <td colSpan={4} className="empty-state">
-                  No transactions yet — import a CSV to get started.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <ul className="recent-transactions">
+          {recent.map((t) => (
+            <li key={t.id}>
+              <button type="button" className="recent-transaction" onClick={onOpenTransactions} title="Go to the Transactions tab">
+                <span className="row-icon-badge">
+                  <CategoryIcon category={t.category} iconKey={t.category ? categoryIconMap[t.category] : null} />
+                </span>
+                <span className="recent-transaction-info">
+                  <span>{t.description}</span>
+                  <span className="recent-transaction-detail">{formatDisplayDate(t.date)} · {t.account_name}</span>
+                </span>
+                <span className={t.category ? "recent-transaction-category" : "recent-transaction-category needs-category"}>
+                  {t.category || "Needs a category"}
+                </span>
+                <span className="amount-col">{formatAmount(t.amount)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        {recent.length === 0 && <p className="empty-state">No transactions yet — import a CSV to get started.</p>}
       </div>
     ),
 

@@ -45,9 +45,9 @@ try {
   const householdNav = await app.browser.$("button*=Household");
   await householdNav.click();
 
-  const incomeCard = await app.browser.$("//h2[contains(.,'Income by person')]/parent::div");
+  const incomeCard = await app.browser.$("[data-month-by-person]");
   await incomeCard.waitForExist({ timeout: 10000 });
-  const incomeText = await incomeCard.getText();
+  const incomeText = await app.browser.execute(() => [...document.querySelectorAll('[data-month-by-person] tbody tr')].map(tr => `${tr.cells[0].textContent}: ${tr.cells[1].textContent}`).join("\n"));
   console.log("income by person card:", incomeText);
   if (!incomeText.includes("147.70")) {
     throw new Error(`expected Joint's real $147.70 interest income, got:\n${incomeText}`);

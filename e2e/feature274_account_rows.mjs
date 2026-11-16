@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { launchApp, chooseStyle, chooseRowAction, withFocusRetry, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, chooseStyle, dismissStatusMessages, chooseRowAction, withFocusRetry, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
 const shots = process.env.VS_T10_SHOTS ?? makeTempDir("vault-task10-shots-");
@@ -35,13 +35,13 @@ try {
       heads: [...document.querySelectorAll('.account-group > .account-group-head')].map((h) => [h.querySelector('h2').textContent, h.querySelector('.account-group-total').textContent]),
       tiles: [...document.querySelectorAll('.stats .stat')].map((t) => t.firstElementChild.textContent),
       sub: document.querySelector('.view-sub')?.textContent,
-      firstLoan: [...document.querySelectorAll('.account-group')].find((g) => g.querySelector('h2').textContent === 'Loans')?.querySelector('.account-card-open')?.textContent,
+      firstLoan: [...document.querySelectorAll('.account-group')].find((g) => g.querySelector('h2').textContent === 'Borrowing')?.querySelector('.account-card-open')?.textContent,
     }));
-    return layout.heads.length === 6;
+    return layout.heads.length === 4;
   }, { timeoutMsg: 'every group should be a card with a header', extra: () => layout });
   const names = layout.heads.map(([n]) => n).join(' | ');
-  if (names !== 'Cash | Credit cards | Loans | Investments | Other assets | Property and valuables') throw new Error(`group cards in order: ${names}`);
-  if (!layout.heads.filter(([n]) => n === 'Credit cards' || n === 'Loans').every(([, total]) => / owed$/.test(total))) throw new Error(`debt groups total what is owed: ${JSON.stringify(layout.heads)}`);
+  if (names !== 'Cash | Borrowing | Investments and other | Property and valuables') throw new Error(`group cards in order: ${names}`);
+  if (!layout.heads.filter(([n]) => n === 'Borrowing').every(([, total]) => / owed$/.test(total))) throw new Error(`debt groups total what is owed: ${JSON.stringify(layout.heads)}`);
   if (layout.tiles.join(' | ') !== 'What you own | What you owe | Net worth') throw new Error(`tile labels come first: ${layout.tiles}`);
   if (layout.sub !== '10 accounts and 2 things you own') throw new Error(`the page says what it holds: ${layout.sub}`);
   if (layout.firstLoan !== 'Family account 7') throw new Error(`the bigger loan comes first: ${layout.firstLoan}`);
@@ -50,7 +50,8 @@ try {
     for (const theme of ['light','dark']) {
       await browser.execute(t => [...document.querySelectorAll('.theme-toggle button')].find(b => b.textContent === t).click(), theme === 'light' ? 'Light' : 'Dark');
       await accounts();
-      for (const width of [1440,1280,800]) {
+      await dismissStatusMessages(browser);
+      for (const width of [1440,1280,800,720]) {
         await browser.setWindowSize(width, 1000);
         await browser.executeAsync(done => document.fonts.ready.then(() => done()));
         await waitUntilOrDiagnose(browser, () => browser.execute(w => innerWidth <= w && innerWidth >= w - 40, width), { timeoutMsg: 'Requested viewport has applied' });
@@ -70,12 +71,13 @@ try {
                 });
             });
           }) && document.documentElement.scrollWidth <= innerWidth + 1;
-        }), { timeoutMsg: `${palette}/${theme}/${width}: rows and balances align without overflow` });
+        }), { timeoutMsg: `${palette}/${theme}/${width}: rows and balances align without overflow`, extra: () => browser.execute(() => [...document.querySelectorAll('.account-cards')].map(group => [...group.querySelectorAll('.account-card')].map(row => ({ name: row.querySelector('.account-name-cell').textContent, overflow: row.scrollWidth-row.clientWidth, balanceRight: row.querySelector('.bal').getBoundingClientRect().right, targets: [...row.querySelectorAll('button.amount-editable')].map(button => ({width:button.getBoundingClientRect().width,height:button.getBoundingClientRect().height})) })))) });
         // Property and valuables: its two rows have their own ⋯ menu, like the account rows.
         await waitUntilOrDiagnose(browser, () => browser.execute(() => {
           const rows = [...document.querySelectorAll("[data-property-assets] .account-card")];
           return rows.length === 2 && rows.every((r) => !!r.querySelector("[data-row-menu]"));
         }), { timeoutMsg: `${palette}/${theme}/${width}: property rows each have a ⋯ menu` });
+        await browser.saveScreenshot(path.join(shots, `accounts-${palette}-${theme}-${width}.png`));
       }
       await browser.saveScreenshot(path.join(shots, `${palette}-${theme}-800.png`));
       const row = '.account-card[data-account-id="1"]';
@@ -98,5 +100,10 @@ try {
       await browser.$('[data-account-detail="1"]').waitForDisplayed({ timeout: 5000 });
     }
   }
+  await accounts();
+  await browser.$('[data-privacy-toggle]').click();
+  await waitUntilOrDiagnose(browser, () => browser.execute(() => document.documentElement.dataset.privacy === "on" && !/\$[\d,]+\.\d{2}/.test(document.querySelector('.accounts-view').textContent)), {timeoutMsg: "account balances, credit limits and free credit are masked"});
+  await browser.saveScreenshot(path.join(shots, "accounts-amounts-hidden.png"));
+  await browser.$('[data-privacy-toggle]').click();
   console.log(`Task 10 screenshots: ${shots}`);
 } finally { await app.close(); }

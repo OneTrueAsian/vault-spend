@@ -1,6 +1,12 @@
+import "./HouseholdCards.css";
+import { MonthField } from "../../shared/ui/MonthField";
+import { CategoryIcon } from "../../shared/ui/icons";
+import { PeopleCard } from "./PeopleCard";
+import { isIncomeTransaction, netWorthContribution } from "../../shared/lib/accountGroups";
+import { isTransferTransaction } from "../../shared/lib/transfers";
 import type { Account, Asset, FamilyMember, MemberBudgetActual, Transaction } from "../../shared/lib/types";
 import { formatAmount } from "../../shared/lib/format";
-import { incomeByMember, netWorthByMember, spendingByMember } from "../../shared/lib/memberBreakdowns";
+import { spendingByMember } from "../../shared/lib/memberBreakdowns";
 import { HelpLink } from "../../shared/ui/HelpLink";
 import type { Tab } from "../../shared/native/appTypes";
 
@@ -26,6 +32,10 @@ export function HouseholdView({
   onPrevMonth,
   onNextMonth,
   onManageMembers,
+  onRenameMember,
+  onRemoveMember,
+  onSetYear,
+  onSetMonth,
   onOpenHelp,
 }: {
   transactions: Transaction[];
@@ -47,38 +57,31 @@ export function HouseholdView({
    * "⋯" menu does, so the empty state below is one click from fixed
    * instead of a scavenger hunt through another tab. */
   onManageMembers: () => void;
+  onRenameMember: (id: number, name: string) => void;
+  onRemoveMember: (id: number) => void;
+  onSetYear: (year: number) => void;
+  onSetMonth: (month: number) => void;
   /** Opens Help at this page's section (the ? beside the title). */
   onOpenHelp?: (tab: Tab) => void;
 }) {
-  if (familyMembers.length === 0) {
-    return (
-      <div className="reports-view">
-        <div className="page-top">
-          <div>
-            <div className="view-title-row">
-              <h1 className="view-title">Household</h1>
-              {onOpenHelp && <HelpLink tab="household" onOpen={onOpenHelp} />}
-            </div>
-            <p className="view-sub">Net worth, income, and spending by family member.</p>
-          </div>
-        </div>
-        <div className="card">
-          <p className="modal-message-secondary">
-            Add a family member to see spending and budgets broken down by person.
-          </p>
-          <button type="button" onClick={onManageMembers}>
-            Add family member
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const monthKey = `${year}-${String(month).padStart(2, "0")}`;
   const transactionsThisMonth = transactions.filter((t) => t.date.startsWith(monthKey));
   const spending = spendingByMember(transactionsThisMonth, { includeUnassigned: true });
-  const income = incomeByMember(transactionsThisMonth, accounts);
-  const netWorth = netWorthByMember(accounts, assets);
+  const people: { id: number | null; name: string }[] = [...familyMembers];
+  // Keep historical figures visible even if a snapshot contains a member outside the current roster.
+  for (const row of [...transactionsThisMonth, ...accounts, ...assets, ...memberBudgetActuals]) {
+    if (row.member_id !== null && row.member_name && !people.some(p => p.id === row.member_id)) {
+      people.push({ id: row.member_id, name: row.member_name });
+    }
+  }
+  people.push({ id: null, name: "Shared" });
+  const personTotals = people.map(person => ({
+    ...person,
+    income: transactionsThisMonth.filter(t => t.member_id === person.id && isIncomeTransaction(t, accounts)).reduce((n, t) => n + Number(t.amount), 0),
+    spending: transactionsThisMonth.filter(t => t.member_id === person.id && Number(t.amount) < 0 && !isTransferTransaction(t)).reduce((n, t) => n - Number(t.amount), 0),
+    netWorth: accounts.filter(a => a.member_id === person.id).reduce((n, a) => n + netWorthContribution(a), 0)
+      + assets.filter(a => a.member_id === person.id).reduce((n, a) => n + Number(a.value), 0),
+  }));
 
   // Group this month's per-member actuals by category, preserving the
   // order categories first appear in (already sorted by category from the
@@ -94,7 +97,7 @@ export function HouseholdView({
   }
 
   return (
-    <div className="reports-view">
+    <div className="reports-view household-view">
       <div className="page-top">
         <div>
           <div className="view-title-row">
@@ -103,15 +106,23 @@ export function HouseholdView({
           </div>
           <p className="view-sub">{monthLabel}, by family member.</p>
         </div>
-      </div>
-      <div className="month-nav">
-        <button type="button" className="modal-secondary" onClick={onPrevMonth} aria-label="Previous month">
-          ‹
-        </button>
-        <span className="month-label">{monthLabel}</span>
-        <button type="button" className="modal-secondary" onClick={onNextMonth} aria-label="Next month">
-          ›
-        </button>
+        <div className="page-actions">
+          <div className="month-nav">
+            <button type="button" className="modal-secondary" onClick={onPrevMonth} aria-label="Previous month">
+              ‹
+            </button>
+            <MonthField aria-label="Household month" value={monthKey} onChange={value => {
+              if (!value) return;
+              const [selectedYear, selectedMonth] = value.split("-").map(Number);
+              onSetYear(selectedYear);
+              onSetMonth(selectedMonth);
+            }} />
+            <button type="button" className="modal-secondary" onClick={onNextMonth} aria-label="Next month">
+              ›
+            </button>
+          </div>
+          <button type="button" onClick={onManageMembers}>Add person</button>
+        </div>
       </div>
 
       <div className="card">
@@ -130,37 +141,28 @@ export function HouseholdView({
         )}
       </div>
 
-      <div className="card">
-        <h2 className="reports-section-title">Income by person ({monthLabel})</h2>
-        {income.length === 0 ? (
-          <p className="modal-message-secondary">No income attributed to a specific person this month.</p>
-        ) : (
-          <ul className="breakdown-list">
-            {income.map((row) => (
-              <li key={row.name}>
-                <span>{row.name}</span>
-                <span>{formatAmount(row.amount.toFixed(2))}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+      <div className="household-cards">
+        <PeopleCard members={familyMembers} onRename={onRenameMember} onRemove={onRemoveMember} />
+        <section className="card" data-month-by-person>
+          <h2 className="reports-section-title">{monthLabel} by person</h2>
+          <table className="ledger">
+            <thead><tr><th>Person</th><th className="amount-col">Income</th><th className="amount-col">Spending</th></tr></thead>
+            <tbody>{personTotals.map(person => <tr key={person.id ?? "shared"}>
+              <td>{person.name}</td><td className="amount-col">{formatAmount(person.income)}</td><td className="amount-col">{formatAmount(person.spending)}</td>
+            </tr>)}</tbody>
+          </table>
+        </section>
+        <section className="card">
+          <h2 className="reports-section-title">Net worth by person</h2>
+          <p className="modal-message-secondary">Today's values, whatever month is chosen.</p>
+          <ul className="breakdown-list">{personTotals.map(person => <li key={person.id ?? "shared"}>
+            <span>{person.name}</span><span>{formatAmount(person.netWorth)}</span>
+          </li>)}</ul>
+        </section>
       </div>
 
-      <div className="card">
-        <h2 className="reports-section-title">Net worth by person</h2>
-        <p className="modal-message-secondary">Always as of today — net worth isn't a monthly figure like the cards above.</p>
-        <ul className="breakdown-list">
-          {netWorth.map((row) => (
-            <li key={row.name}>
-              <span>{row.name}</span>
-              <span>{formatAmount(row.amount.toFixed(2))}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {budgetReadReady && <div className="card">
-        <h2 className="reports-section-title">Budget, by category and person</h2>
+      {budgetReadReady && <div className="card" data-budget-by-person>
+        <h2 className="reports-section-title">Budget by person, {monthLabel}</h2>
         <p className="modal-message-secondary">
           Budgets are shared per category — there's no separate target per person, just each person's share of what's
           already been spent.
@@ -168,28 +170,28 @@ export function HouseholdView({
         {categoryOrder.length === 0 ? (
           <p className="empty-state">No budgeted spending yet this month.</p>
         ) : (
+          <div className="household-table-scroll" role="region" aria-label="Budget by person" tabIndex={0}>
           <table className="ledger">
-            <thead>
-              <tr>
-                <th>Category</th>
-                <th>Person</th>
-                <th className="amount-col">Spent</th>
-                <th className="amount-col">Budgeted</th>
-              </tr>
-            </thead>
-            <tbody>
-              {categoryOrder.map((category) =>
-                byCategory.get(category)!.map((row, i) => (
-                  <tr key={`${category}-${row.member_id ?? "unassigned"}`}>
-                    <td>{i === 0 ? category : ""}</td>
-                    <td>{row.member_name ?? "Unassigned"}</td>
-                    <td className="amount-col">{formatAmount(row.actual)}</td>
-                    <td className="amount-col">{i === 0 ? formatAmount(row.budgeted) : ""}</td>
-                  </tr>
-                )),
-              )}
-            </tbody>
+            <thead><tr>
+              <th>Category</th><th className="amount-col">Planned</th>
+              {people.map(person => <th key={person.id ?? "shared"} className="amount-col">{person.name}</th>)}
+            </tr></thead>
+            <tbody>{categoryOrder.map(category => {
+              const rows = byCategory.get(category)!;
+              const amounts = people.map(person => rows.filter(row => row.member_id === person.id).reduce((n, row) => n + Number(row.actual), 0));
+              const scale = amounts.reduce((n, amount) => n + Math.max(0, amount), 0);
+              return <tr key={category}>
+                <td><span className="cell-with-icon"><span className="row-icon-badge"><CategoryIcon category={category} /></span>{category}</span></td><td className="amount-col">{formatAmount(rows[0].budgeted)}</td>
+                {people.map((person, i) => <td key={person.id ?? "shared"} className="amount-col">
+                  <span className="household-person-value">
+                    <span className="household-person-bar" aria-hidden="true"><span style={{width: `${scale > 0 ? Math.max(0, amounts[i]) / scale * 100 : 0}%`}} /></span>
+                    <span>{formatAmount(amounts[i])}</span>
+                  </span>
+                </td>)}
+              </tr>;
+            })}</tbody>
           </table>
+          </div>
         )}
       </div>}
     </div>

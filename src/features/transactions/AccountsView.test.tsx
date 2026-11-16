@@ -20,12 +20,12 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); host.remove(); });
 const card = () => host.querySelector(".account-card")!;
 describe("account rows", () => {
-  it("has one named open button instead of separate Details/Edit buttons", () => {
+  it("keeps the named open button alongside Activity and Edit", () => {
     const button = card().querySelector<HTMLButtonElement>(".account-card-open")!;
     expect(button?.textContent).toBe(account.name);
     expect(button.getAttribute("title")).toBe(`Open details for ${account.name}`);
     expect(card().querySelectorAll(".account-card-open")).toHaveLength(1);
-    expect([...card().querySelectorAll("button")].some(b => b.textContent === "Details" || b.textContent === "Edit")).toBe(false);
+    expect([...card().querySelectorAll(".account-row-links button")].map(b => b.textContent)).toEqual(["Activity", "Edit"]);
     act(() => button.click()); expect(open).toHaveBeenCalledWith(7);
   });
   it("offers Details, Edit, Reconcile and Delete in the row menu", () => {
@@ -109,7 +109,7 @@ describe("the Accounts page, as in the UI mockup (UAT s7.1)", () => {
   it("puts each group in one card with its name and total, debts as an amount owed", () => {
     show({ accounts: [account, card2, visa, loan] });
     const heads = [...host.querySelectorAll(".account-group-head")].map(h => [...h.children].map(c => c.textContent));
-    expect(heads).toEqual([["Cash", "$1,023.45"], ["Credit cards", "$1,341.93 owed"], ["Loans", "$15,333.53 owed"], ["Property and valuables", "$0.00"]]);
+    expect(heads).toEqual([["Cash", "$1,023.45"], ["Borrowing", "$16,675.46 owed"], ["Property and valuables", "$0.00"]]);
     const cash = host.querySelector(".account-group")!;
     expect(cash.querySelectorAll(".account-card")).toHaveLength(2);
   });
@@ -124,7 +124,7 @@ describe("the Accounts page, as in the UI mockup (UAT s7.1)", () => {
     const visaRow = rows.find(r => r.textContent?.includes("Visa Rewards"))!;
     expect(visaRow.querySelector(".bal")?.textContent).toBe("Owed $1,341.93");
     expect(visaRow.querySelector(".owed-tag")?.textContent).toBe("Owed");
-    expect(visaRow.querySelector(".sub.amount-editable")?.textContent).toBe("$10,658.07 available");
+    expect(visaRow.querySelector(".sub.amount-editable")?.textContent).toBe("$10,658.07 free of $12,000.00");
   });
   it("tints each icon by what the account is", () => {
     show({ accounts: [card2, visa, { ...account, id: 11, name: "Brokerage", account_type: "investment" }] });
@@ -238,5 +238,23 @@ describe("hiding accounts", () => {
     show({ accounts: [old] });
     expect(host.textContent).not.toContain("No accounts yet.");
     expect(hiddenToggle()).toBeDefined();
+  });
+});
+
+
+describe("v9 grouped accounts", () => {
+  it("combines borrowing and investments/other, with working Activity and Edit links", () => {
+    act(() => root.render(<AccountsView {...props} accounts={[account, visa, loan, { ...account, id: 30, name: "Other", account_type: "other" }, { ...account, id: 31, name: "Invested", account_type: "investment" }]} />));
+    expect([...host.querySelectorAll(".account-group-head h2")].map(e => e.textContent)).toEqual(["Cash", "Borrowing", "Investments and other", "Property and valuables"]);
+    const row = host.querySelector('[data-account-id="7"]')!;
+    act(() => [...row.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === "Activity")!.click());
+    expect(open).toHaveBeenCalledWith(7);
+    act(() => [...row.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === "Edit")!.click());
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Edit Everyday Checking");
+  });
+  it("shows free credit out of the known limit and clamps the bar for overpaid cards", () => {
+    act(() => root.render(<AccountsView {...props} accounts={[{ ...visa, current_balance: "13000.00" }]} />));
+    expect(host.querySelector('.sub.amount-editable')?.textContent).toBe("$13,000.00 free of $12,000.00");
+    expect((host.querySelector('.credit-availability .progress-fill') as HTMLElement)?.style.width).toBe("0%");
   });
 });

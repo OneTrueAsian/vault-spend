@@ -1,4 +1,5 @@
 import "./BudgetAndGoals.css";
+import "./BudgetGroupCards.css";
 import { DragEvent, FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { BudgetAlert, BudgetSuggestions, CashFlow, ReportBudgetLine } from "../../shared/lib/types";
 import { formatAmount } from "../../shared/lib/format";
@@ -10,9 +11,9 @@ import { BudgetSuggestDialog, type AppliedSuggestion } from "./BudgetSuggestDial
 import { getCurrentGeneration, getProfileUiState, setProfileUiState } from "../../shared/lib/profileUiState";
 import { MenuSelect } from "../../shared/ui/MenuSelect";
 import { sumMoney } from "../../shared/lib/money";
+import { CategoryIcon } from "../../shared/ui/icons";
 import { RowMenu, type RowMenuItem } from "../../shared/ui/RowMenu";
-import { groupProgressLabel } from "./budgetSummary";
-import { budgetGroupFillClass, incomeProgressTone, netTone, toneFillClass, usedInFull as isUsedInFull, viewedMonth, type ViewedMonth } from "./colourStatus";
+import { incomeProgressTone, netTone, toneFillClass, usedInFull as isUsedInFull, viewedMonth, type ViewedMonth } from "./colourStatus";
 import { HelpLink } from "../../shared/ui/HelpLink";
 import { FinancialReadState } from "../../shared/native/FinancialReadState";
 import type { Tab } from "../../shared/native/appTypes";
@@ -50,9 +51,9 @@ const GROUP_ORDER = ["income", "fixed", "flexible", "nonmonthly"] as const;
 type Group = (typeof GROUP_ORDER)[number];
 const GROUP_LABELS: Record<Group, string> = {
   income: "Income",
-  fixed: "Fixed Expenses",
-  flexible: "Flexible Spending",
-  nonmonthly: "Non-Monthly",
+  fixed: "Fixed",
+  flexible: "Flexible",
+  nonmonthly: "Non-monthly (saved for over time)",
 };
 /** The shorter names a row's "Move to …" menu items use. */
 const GROUP_SHORT_LABELS: Record<Group, string> = {
@@ -66,8 +67,8 @@ const GROUP_SHORT_LABELS: Record<Group, string> = {
  * narrow (stacked) layout prints in front of each amount once the heading row is hidden. Income
  * is coming in, not going out, so its columns say what was received and how far that is from the
  * plan. */
-const EXPENSE_COLUMNS = ["Budget", "Spent", "Left"] as const;
-const INCOME_COLUMNS = ["Budget", "Received", "Difference"] as const;
+const EXPENSE_COLUMNS = ["Planned", "Spent", "Left"] as const;
+const INCOME_COLUMNS = ["Planned", "Received", "Still expected"] as const;
 
 /** A per-profile display preference (same mechanism as saved filters — see
  * profileUiState.ts) — one flat list covering every category ever manually
@@ -253,15 +254,15 @@ function BudgetRow({
   const budgeted = effectiveBudget(line);
   const rolledIn = parseFloat(line.rollover) || 0;
   const actual = parseFloat(line.actual);
-  const remaining = isIncome ? actual - budgeted : budgeted - actual;
+  const remaining = isIncome ? Math.max(0, budgeted - actual) : budgeted - actual;
   const showsRolledIn = rolloverEnabled && rolledIn > 0;
   // The consumption bar mirrors the same alert classification as the
   // badge, so a row flagged "Over"/"80%+" also reads red/amber at a
   // glance, not just via the badge text.
-  const pct = budgeted > 0 ? Math.min(100, (actual / budgeted) * 100) : actual > 0 ? 100 : 0;
+  const pct = budgeted > 0 ? Math.max(0, Math.min(100, (actual / budgeted) * 100)) : actual > 0 ? 100 : 0;
   // Exactly at the budget is "used in full", not a warning (s4: red and amber only for what needs you).
   // `budgeted` includes rollover, as the backend's alert does, so this agrees with the Dashboard banner.
-  const usedInFull = !isIncome && alertLevel === "warning" && isUsedInFull(budgeted, actual);
+  const usedInFull = !isIncome && isUsedInFull(budgeted, actual);
   // Income uses the month-aware tone: money not in yet early in the month is normal, not a warning.
   const fillClass = isIncome
     ? toneFillClass(incomeProgressTone(actual, budgeted, elapsed?.fraction ?? 0, viewed))
@@ -405,6 +406,7 @@ function BudgetRow({
         <span className="drag-handle" onMouseDown={() => setDragArmed(true)} title="Drag to reorder (or use Move up / Move down in the ⋯ menu)" aria-hidden="true">
           ⠿
         </span>
+        <span className="row-icon-badge"><CategoryIcon category={line.category} /></span>
         <span className="cat-row-name-stack">
           <span
             className="category-link"
@@ -415,7 +417,7 @@ function BudgetRow({
           </span>
           {/* Second line, not inline beside the name, so none of these squeeze the name. The
               markers keep the ⋯ menu's settings visible at a glance. */}
-          {(trend || alertLevel || showsRolledIn || showsRollover || showsCap) && (
+          {(trend || usedInFull || alertLevel || showsRolledIn || showsRollover || showsCap) && (
             <span className="cat-row-meta">
               {trend && (
                 <Sparkline
@@ -426,7 +428,7 @@ function BudgetRow({
                   title={describeTrend(line.category, trend)}
                 />
               )}
-              {alertLevel && (
+              {!isIncome && (alertLevel || usedInFull) && (
                 <span
                   className={
                     alertLevel === "over"
@@ -443,7 +445,7 @@ function BudgetRow({
                         : `Approaching its monthly budget (${effectiveCap ? "90%+" : "80%+"})`
                   }
                 >
-                  {alertLevel === "over" ? "Over" : usedInFull ? "Used in full" : effectiveCap ? "90%+" : "80%+"}
+                  {alertLevel === "over" ? "! Over" : usedInFull ? "All used" : "Close to limit"}
                 </span>
               )}
               {showsRolledIn && (
@@ -472,10 +474,6 @@ function BudgetRow({
             </span>
           )}
         </span>
-      </div>
-      <div className="progress-track cat-row-bar">
-        <div className={fillClass} style={{ width: `${pct}%` }} />
-        {!isIncome && <PaceMarker elapsed={elapsed} />}
       </div>
       <span className="cat-amt cat-amt-budget" data-label={columns[0]}>
         {!amountsHidden ? (
@@ -526,6 +524,10 @@ function BudgetRow({
       <span className={!isIncome && remaining < 0 ? "cat-amt neg" : "cat-amt"} data-label={columns[2]}>
         {formatAmount(remaining.toFixed(2))}
       </span>
+      <div className="progress-track cat-row-bar">
+        <div className={fillClass} style={{ width: `${pct}%` }} />
+        {!isIncome && <PaceMarker elapsed={elapsed} />}
+      </div>
       <span className="cat-row-actions">
         {confirming ? (
           <span className="row-delete-confirm">
@@ -819,32 +821,29 @@ export function BudgetView({
         )}
       </section>
 
-      {groupSummaries.map(({ group, groupLines, groupBudgeted, groupActual }) => {
+      <div className="budget-group-cards">
+      {([["income", "fixed"], ["flexible", "nonmonthly"]] as const).map((column, index) => (
+      <div className="budget-group-column" key={index}>
+      {groupSummaries.filter(({ group }) => (column as readonly string[]).includes(group)).map(({ group, groupLines, groupBudgeted, groupActual }) => {
         const isIncome = group === "income";
         const columns = isIncome ? INCOME_COLUMNS : EXPENSE_COLUMNS;
-        const pct = groupBudgeted > 0 ? (groupActual / groupBudgeted) * 100 : 0;
-        const fillClass = budgetGroupFillClass(group, groupActual, groupBudgeted, elapsed?.fraction ?? 0, viewed);
         return (
           <section key={group} className="budget-group" data-budget-group={group}>
             <div className="budget-group-head">
               <div className="budget-group-head-line">
                 <h2 className="reports-section-title">{GROUP_LABELS[group]}</h2>
                 <span className="budget-group-progress" data-group-progress>
-                  {groupProgressLabel(group, groupActual, groupBudgeted)}
+                  {formatAmount(groupActual)} of {formatAmount(groupBudgeted)}
                 </span>
-              </div>
-              <div className="progress-track budget-group-track">
-                <div className={fillClass} style={{ width: `${Math.min(pct, 100)}%` }}></div>
-                {!isIncome && <PaceMarker elapsed={elapsed} />}
               </div>
             </div>
             <div className="cat-list">
               <div className="cat-list-head">
                 <span>Category</span>
-                <span aria-hidden="true"></span>
                 <span>{columns[0]}</span>
                 <span>{columns[1]}</span>
                 <span>{columns[2]}</span>
+                <span>Progress</span>
                 <span className="sr-only">Settings</span>
               </div>
               {groupLines.map((line, i) => (
@@ -896,6 +895,9 @@ export function BudgetView({
           </section>
         );
       })}
+      </div>
+      ))}
+      </div>
       {budgetActuals.length === 0 && <p className="empty-state">No budget lines yet.</p>}
 
       <NewBudgetLineForm availableCategories={availableCategories} onSet={onSetBudget} />
