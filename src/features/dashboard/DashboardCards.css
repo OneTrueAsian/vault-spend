@@ -470,3 +470,52 @@
   .recent-transaction-category { grid-column: 2; grid-row: 2; text-align: left; }
   .recent-transaction > .amount-col { grid-column: 3; grid-row: 1 / 3; }
 }
+
+/* VS-31 stream D: "Spending in <month> so far" card. Names may wrap between words (never inside one);
+   the card is its own container so its rows restack when the card, not the window, is narrow. */
+.dashboard-spending { container-type: inline-size; }
+.dashboard-spending .card-head { justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+.dashboard-spending-sub { margin: 0 0 10px; }
+.dashboard-spending-big { margin: 12px 0 0; overflow-wrap: break-word; }
+.dashboard-spending .category-bars-name,
+.dashboard-spending .category-bars-select { white-space: normal; text-align: left; }
+.dashboard-spending .category-bars-bar { width: 38%; }
+@container (max-width: 520px) {
+  .dashboard-spending .category-bars,
+  .dashboard-spending .category-bars tbody { display: block; }
+  .dashboard-spending .category-bars tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "name amount" "bar note";
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 4px;
+    padding: 6px 0;
+  }
+  .dashboard-spending .category-bars th,
+  .dashboard-spending .category-bars td { padding: 0 !important; }
+  .dashboard-spending .category-bars-name { grid-area: name; }
+  .dashboard-spending .category-bars-amount { grid-area: amount; }
+  .dashboard-spending .category-bars-bar { grid-area: bar; width: auto; }
+  .dashboard-spending .category-bars-note-cell { grid-area: note; }
+}
+
+/* Savings goals card. */
+.dashboard-goal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.dashboard-goal { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 12px; }
+.dashboard-goal-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; color: var(--on-accent); background: linear-gradient(135deg, var(--accent-strong), var(--accent)); flex: none; }
+.dashboard-goal-icon svg, .dashboard-goal-icon img { width: 18px; height: 18px; }
+.dashboard-goal-icon img { filter: brightness(0) invert(1); }
+.dashboard-goal-body { display: grid; gap: 6px; min-width: 0; }
+.dashboard-goal-line { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 12px; font-size: 12.5px; }
+.dashboard-goal-name { min-width: 0; overflow-wrap: break-word; }
+.dashboard-goal-amount { white-space: nowrap; }
+.dashboard-goals .empty-state { margin-bottom: 10px; }
+
+/* Recent transactions beside Savings goals: each card is half the row, so the category sits under the
+   payee (the same arrangement the list already uses on a narrow window). */
+.dashboard-pair-row { align-items: start; }
+.dashboard-pair-row .recent-transaction { white-space: normal; }
+.dashboard-pair-row .recent-transaction { grid-template-columns: 26px minmax(0, 1fr) auto; }
+.dashboard-pair-row .recent-transaction-category { grid-column: 2; grid-row: 2; text-align: left; overflow-wrap: break-word; }
+.dashboard-pair-row .recent-transaction > .amount-col { grid-column: 3; grid-row: 1 / 3; }

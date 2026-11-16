@@ -1,7 +1,7 @@
 // E2E test for Phase 1 item 1a: money moved between the household's own
 // accounts (category "Transfer") was already excluded from income/expense
 // totals, but still leaked into every other spend-shaped view — the
-// Dashboard's "Spending by category" donut, Cash Flow's Top categories/Top
+// Dashboard's "Spending in <month> so far" card, Cash Flow's Top categories/Top
 // merchants, and Recurring's "Suggested" list (a monthly savings transfer
 // looked exactly like a bill).
 //
@@ -44,7 +44,7 @@ try {
   const dashboardNav = await app.browser.$("button*=Dashboard");
   await dashboardNav.click();
 
-  const donutCard = await app.browser.$("//span[contains(.,'Spending by category')]/ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' card ')][1]");
+  const donutCard = await app.browser.$("//span[contains(.,'Spending in') and contains(.,'so far')]/ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' card ')][1]");
   await donutCard.waitForExist({ timeout: 10000 });
   // The card renders before the month's data loads (reading it once caught "No spending yet this month."
   // under a loaded machine), so wait for the real spend before checking what else it shows.

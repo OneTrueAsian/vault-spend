@@ -56,7 +56,7 @@ const transferRows = () => browser.$$("tr.ledger-row-transfer");
 const dataRows = () => browser.$$("table.ledger tbody tr");
 async function spendingCardText() {
   await nav("Dashboard");
-  const card = await browser.$("//span[contains(.,'Spending by category')]/ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' card ')][1]");
+  const card = await browser.$("//span[contains(.,'Spending in') and contains(.,'so far')]/ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' card ')][1]");
   await card.waitForExist({ timeout: 10000 });
   await browser.waitUntil(async () => (await card.getText()).includes("Groceries"), { timeout: 10000 });
   return card.getText();
