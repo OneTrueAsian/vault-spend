@@ -187,6 +187,49 @@ try {
     }
   }
 
+  // ---- Owner decision 17.12: a group card shows its whole Left figure ("-$1,140.00" for Car upkeep, 1,240% of its plan),
+  // and the two-column cards still fit the page, at 1440 and 720, light and dark.
+  const groupCardIssues = () => b.execute(() => {
+    const issues = [];
+    const main = document.querySelector(".main");
+    if (main.scrollWidth - main.clientWidth > 1) issues.push({ kind: "page scrolls sideways", by: main.scrollWidth - main.clientWidth });
+    const lefts = [];
+    for (const card of document.querySelectorAll(".budget-view .budget-group")) {
+      const cardBox = card.getBoundingClientRect();
+      if (card.scrollWidth - card.clientWidth > 1) issues.push({ kind: "group card overflows", card: card.querySelector(".reports-section-title, h2, h3")?.textContent, by: card.scrollWidth - card.clientWidth });
+      if (cardBox.right > innerWidth + 1) issues.push({ kind: "group card past the window", right: cardBox.right });
+      for (const row of card.querySelectorAll(".cat-row")) {
+        if (row.scrollWidth - row.clientWidth > 1) issues.push({ kind: "row overflows its card", row: row.querySelector(".category-link")?.textContent, by: row.scrollWidth - row.clientWidth });
+        for (const cell of row.querySelectorAll(".cat-amt:not(.cat-amt-budget)")) {
+          const text = cell.textContent.trim();
+          const clipped = cell.scrollWidth - cell.clientWidth > 0 || cell.getBoundingClientRect().right > cardBox.right + 1;
+          if (clipped) issues.push({ kind: "figure clipped", figure: text, row: row.querySelector(".category-link")?.textContent, scroll: cell.scrollWidth, client: cell.clientWidth });
+          if (row.querySelector(".category-link")?.textContent === "Car upkeep") lefts.push(text);
+        }
+      }
+    }
+    if (!lefts.some(text => text.includes("1,140.00"))) issues.push({ kind: "Car upkeep's Left figure is not on the page", lefts });
+    return issues;
+  });
+  for (const theme of ["light", "dark"]) {
+    await b.setWindowSize(1440, 1000);
+    await chooseStyle(b, "Default", "transparent");
+    await b.execute(t => [...document.querySelectorAll('.theme-toggle[aria-label="Theme"] button')].find(el => el.textContent.trim().toLowerCase() === t).click(), theme);
+    await nav("Budget");
+    await waitUntilOrDiagnose(b, async () => (await readCard())?.rows.length === 8, { timeout: 10000, timeoutMsg: `${theme}: Budget loaded for the group-card check` });
+    await dismissStatusMessages(b);
+    await b.executeAsync(done => document.fonts.ready.then(() => done()));
+    for (const width of [1440, 720]) {
+      await b.setWindowSize(width, width === 720 ? 900 : 1000);
+      await b.$(".budget-group").waitForExist({ timeout: 10000 });
+      await b.execute(() => document.querySelector(".budget-group").scrollIntoView({ block: "start" }));
+      await b.saveScreenshot(path.join(shots, `budget-groups-${theme}-${width}.png`));
+      const issues = await groupCardIssues();
+      assert.deepEqual(issues, [], `${theme} ${width}px: group cards show every Left figure whole and fit the page`);
+    }
+  }
+  await b.setWindowSize(1440, 1000);
+
   // ---- Hide amounts: every figure on the card masked, with none in an attribute.
   await b.setWindowSize(1440, 1000);
   await b.execute(() => document.querySelector(".main").scrollTo(0, 0));

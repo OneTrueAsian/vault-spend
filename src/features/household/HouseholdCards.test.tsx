@@ -2,6 +2,7 @@
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { HouseholdView } from "./HouseholdView";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let host: HTMLDivElement;
@@ -88,4 +89,31 @@ it("keeps the selected month while the month field is cleared or incomplete", ()
 it("contains category artwork in the existing icon badge", () => {
   show({memberBudgetActuals: [{category:"Food", budget_group:"flexible", budgeted:"100", actual:"25", member_id:1, member_name:"Alex"}]});
   expect(host.querySelector('[data-budget-by-person] .cell-with-icon > .row-icon-badge')).not.toBeNull();
+});
+
+// VS-31 step 3 (owner decision 17.4): the "(month) by person" table broke a long name in the middle of a word
+// ("Montgomer-y-"). It now follows Budget by person: a name wraps only between words, the amounts stay whole, and
+// a table too narrow for its names scrolls inside its own region.
+it("keeps the month-by-person table in a keyboard-reachable scroll region of its own", () => {
+  show();
+  const region = host.querySelector<HTMLElement>("[data-month-by-person] .household-table-scroll")!;
+  expect(region).not.toBeNull();
+  expect(region.getAttribute("role")).toBe("region");
+  expect(region.getAttribute("aria-label")).toBe("November 2026 by person");
+  expect(region.tabIndex).toBe(0);
+  expect(region.querySelector("table")).not.toBeNull();
+});
+
+it("styles the month-by-person names to wrap between words only, and keeps its amounts whole", () => {
+  const css = readFileSync("src/features/household/HouseholdCards.css", "utf8");
+  const rule = (selector: string) => {
+    const at = css.indexOf(selector);
+    expect(at, selector).toBeGreaterThan(-1);
+    return css.slice(css.indexOf("{", at) + 1, css.indexOf("}", at));
+  };
+  const cells = rule("[data-month-by-person] .ledger td");
+  expect(cells).toMatch(/overflow-wrap:\s*normal/);
+  expect(cells).toMatch(/word-break:\s*normal/);
+  expect(rule("[data-month-by-person] .ledger .amount-col")).toMatch(/white-space:\s*nowrap/);
+  expect(rule("[data-month-by-person] .ledger td:first-child")).toMatch(/min-width:\s*\d+px/);
 });

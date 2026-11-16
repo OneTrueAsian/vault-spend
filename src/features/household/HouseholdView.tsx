@@ -148,12 +148,14 @@ export function HouseholdView({
         <PeopleCard members={familyMembers} onRename={onRenameMember} onRemove={onRemoveMember} />
         <section className="card" data-month-by-person>
           <h2 className="reports-section-title">{monthLabel} by person</h2>
+          <div className="household-table-scroll" role="region" aria-label={`${monthLabel} by person`} tabIndex={0}>
           <table className="ledger">
             <thead><tr><th>Person</th><th className="amount-col">Income</th><th className="amount-col">Spending</th></tr></thead>
             <tbody>{personTotals.map(person => <tr key={person.id ?? "shared"}>
               <td>{person.name}</td><td className="amount-col">{formatAmount(person.income)}</td><td className="amount-col">{formatAmount(person.spending)}</td>
             </tr>)}</tbody>
           </table>
+          </div>
         </section>
         <section className="card">
           <h2 className="reports-section-title">Net worth by person</h2>

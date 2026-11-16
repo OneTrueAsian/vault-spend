@@ -5,7 +5,7 @@
 .budget-view .budget-group-head-line { flex-wrap: wrap; }
 .budget-view .budget-group-progress { font-size: 12px; }
 .budget-view .budget-group .cat-list { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
-.budget-view .cat-row, .budget-view .cat-list-head { display: grid; grid-template-columns: minmax(168px, 2fr) minmax(65px, .8fr) minmax(65px, .8fr) minmax(65px, .8fr) minmax(65px, 1fr) 28px; gap: 8px; padding: 12px 0; }
+.budget-view .cat-row, .budget-view .cat-list-head { display: grid; grid-template-columns: minmax(150px, 2fr) minmax(70px, .8fr) minmax(70px, .8fr) minmax(78px, .9fr) minmax(48px, 1fr) 28px; gap: 8px; padding: 12px 0; }
 .budget-view .cat-list-head > :nth-child(n+2):nth-child(-n+4) { text-align: right; }
 .budget-view .cat-list-head > :nth-child(5) { text-align: left; }
 .budget-view .cat-row-bar { width: 100%; min-width: 0; }

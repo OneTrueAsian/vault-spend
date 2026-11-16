@@ -196,3 +196,67 @@ try {
   }
   console.log('FEATURE 333 HOUSEHOLD LAYOUT PASSED: intact words, bounded Planned amounts and separated person bars at 1440/720 light/dark.');
 } finally { await layoutApp.close(); }
+
+// Owner decision 17.4: the "(month) by person" table keeps a long name whole (it may wrap between words, or after a hyphen)
+// and keeps its amounts whole, at 1440px and 720px, light and dark.
+const monthDb = await seedFixture(`
+import datetime
+day=datetime.date.today().replace(day=1).isoformat()
+cur.execute("INSERT INTO family_members(id,name) VALUES (801,'Bartholomew-Montgomery'),(802,'Alexandria Montgomery-Featherstone'),(803,'Christopherson')")
+cur.execute("INSERT INTO accounts(id,name,account_type,starting_balance) VALUES (801,'Name Checking','checking','10000.00')")
+rows=[('Pay','12345.67',801),('Pay','8123.45',802),('Pay','4400.00',803),('Rent','-1850.00',801),('Groceries','-1196.50',802),('Fun','-96.00',803)]
+for index,(description,amount,member) in enumerate(rows):
+    cur.execute("INSERT INTO transactions(account_id,date,description,amount,category,category_source,member_id,fingerprint) VALUES (801,?,?,?,?,'user',?,?)",(day,'Name fixture '+description,amount,'Income' if float(amount)>0 else description,member,'household-name-'+str(index)))
+`);
+const monthApp = await launchApp({dbDir: monthDb, windowSize: {width: 1440, height: 1000}});
+const monthBrowser = monthApp.browser;
+async function checkMonthTableLayout(width, theme) {
+  const result = await monthBrowser.execute(() => {
+    const issues = [];
+    const table = document.querySelector('[data-month-by-person] table');
+    const region = document.querySelector('[data-month-by-person] .household-table-scroll');
+    if (!region) issues.push({kind: 'the table is not in a scroll region'});
+    const rows = [...table.querySelectorAll('tbody tr')];
+    const textRect = el => { const range=document.createRange(); range.selectNodeContents(el); const r=range.getBoundingClientRect(); return {left:r.left,right:r.right}; };
+    const names = rows.map(row => {
+      const cell = row.cells[0];
+      const node = [...cell.childNodes].find(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+      const broken = [];
+      // A piece ends at a space or just after a hyphen: breaking there is normal wrapping. Breaking inside a piece is not.
+      for (const match of node.textContent.matchAll(/[^\s-]+-?/g)) {
+        const range = document.createRange(); range.setStart(node, match.index); range.setEnd(node, match.index + match[0].length);
+        if (new Set([...range.getClientRects()].map(r => Math.round(r.top))).size > 1) broken.push(match[0]);
+      }
+      if (broken.length) issues.push({name: cell.textContent, kind: 'name split inside a word', broken});
+      for (const amount of [row.cells[1], row.cells[2]]) {
+        const range = document.createRange(); range.selectNodeContents(amount);
+        if (new Set([...range.getClientRects()].map(r => Math.round(r.top))).size > 1) issues.push({name: cell.textContent, kind: 'amount split over lines', amount: amount.textContent});
+      }
+      return cell.textContent;
+    });
+    const main = document.querySelector('.main');
+    return {issues, names, regionOverflow: region ? region.scrollWidth - region.clientWidth : null, pageOverflow: main.scrollWidth - main.clientWidth};
+  });
+  assert.equal(result.names.length, 4, `${theme}/${width}: three people and Shared are listed`);
+  console.log(`Household month table geometry ${theme}/${width}: ${JSON.stringify(result)}`);
+  assert.deepEqual(result.issues, [], `${theme}/${width}: whole names and whole amounts`);
+  assert.ok(result.pageOverflow <= 1, `${theme}/${width}: a narrow table scrolls inside its own region, not the page`);
+}
+try {
+  for (const theme of ['light','dark']) {
+    await monthBrowser.setWindowSize(1440,1000);
+    await chooseStyle(monthBrowser,'Default','transparent');
+    await monthBrowser.execute(t=>[...document.querySelectorAll('.theme-toggle[aria-label="Theme"] button')].find(el=>el.textContent.trim().toLowerCase()===t).click(),theme);
+    await monthBrowser.$('.nav-item[data-tab="household"]').click();
+    await waitUntilOrDiagnose(monthBrowser,()=>monthBrowser.execute(()=>document.querySelectorAll('[data-month-by-person] tbody tr').length===4),{timeoutMsg:'Household month-by-person fixture loads'});
+    await dismissStatusMessages(monthBrowser);
+    await monthBrowser.executeAsync(done=>document.fonts.ready.then(()=>done()));
+    for (const width of [1440,720]) {
+      await monthBrowser.setWindowSize(width,1000);
+      await monthBrowser.$('[data-month-by-person]').scrollIntoView({block:'start'});
+      await monthBrowser.saveScreenshot(path.join(shots,`household-${theme}-${width}-month-table.png`));
+      await checkMonthTableLayout(width,theme);
+    }
+  }
+  console.log('FEATURE 333 HOUSEHOLD MONTH TABLE PASSED: long names stay whole and amounts stay whole at 1440/720 light/dark.');
+} finally { await monthApp.close(); }

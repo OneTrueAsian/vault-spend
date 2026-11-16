@@ -40,3 +40,11 @@
 .household-view [data-budget-by-person] .ledger td:nth-child(n+3) { min-width: 160px; }
 .household-view [data-budget-by-person] .ledger .amount-col { white-space: nowrap; }
 .household-view [data-budget-by-person] .household-person-bar { flex-shrink: 0; }
+
+/* VS-31 step 3: the month's table keeps a person's name whole (it wraps between words, as Budget by person does)
+   and its amounts whole; a table too narrow for its names scrolls inside its own region. */
+.household-view [data-month-by-person] .ledger th,
+.household-view [data-month-by-person] .ledger td { overflow-wrap: normal; word-break: normal; }
+.household-view [data-month-by-person] .ledger th:first-child,
+.household-view [data-month-by-person] .ledger td:first-child { min-width: 120px; }
+.household-view [data-month-by-person] .ledger .amount-col { white-space: nowrap; }
