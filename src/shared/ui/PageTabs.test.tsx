@@ -3,7 +3,7 @@
 // VS-31 step 0 (F1): the tab strip Reports uses, shared so Cash Flow and Investments can use it too.
 // Same behavior as Reports' own strip: roving tab stop, arrow/Home/End keys, a panel mounts the first
 // time it is opened and then stays mounted (hidden) so it keeps its state.
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { PageTabs } from "./PageTabs";
@@ -140,5 +140,30 @@ describe("PageTabs", () => {
     show();
     press(tab("Forecast"), "a");
     expect(tab("Forecast").getAttribute("aria-selected")).toBe("true");
+  });
+});
+
+
+describe("controlled PageTabs", () => {
+  it("uses the parent's selection, requests click/key changes, and mounts each panel only when selected", () => {
+    const onSelect = vi.fn();
+    const controlled = (selected: Id) => act(() => root.render(
+      <PageTabs tabs={TABS} initial="forecast" selected={selected} onSelect={onSelect} idPrefix="cashflow" label="Sections" render={(id, active) => <Panel id={id} active={active} />} />,
+    ));
+    controlled("months");
+    expect(panel("Month by month").hidden).toBe(false);
+    expect(mounts).toEqual({ months: 1 });
+    act(() => tab("Debt payoff").click());
+    expect(onSelect).toHaveBeenLastCalledWith("debt");
+    expect(panel("Month by month").hidden).toBe(false);
+    expect(mounts.debt).toBeUndefined();
+    press(tab("Month by month"), "ArrowRight");
+    expect(onSelect).toHaveBeenLastCalledWith("debt");
+    expect(panel("Month by month").hidden).toBe(false);
+    controlled("debt");
+    expect(panel("Debt payoff").hidden).toBe(false);
+    expect(mounts).toEqual({ months: 1, debt: 1 });
+    controlled("months");
+    expect(mounts).toEqual({ months: 1, debt: 1 });
   });
 });
