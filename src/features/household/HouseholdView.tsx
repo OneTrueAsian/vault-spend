@@ -6,7 +6,8 @@ import { isIncomeTransaction, netWorthContribution } from "../../shared/lib/acco
 import { isTransferTransaction } from "../../shared/lib/transfers";
 import type { Account, Asset, FamilyMember, MemberBudgetActual, Transaction } from "../../shared/lib/types";
 import { formatAmount } from "../../shared/lib/format";
-import { spendingByMember } from "../../shared/lib/memberBreakdowns";
+import { StackedRows } from "../../shared/ui/StackedRows";
+import { biggestOneOffNotes, spendingByPersonRows } from "./spendingByPerson";
 import { HelpLink } from "../../shared/ui/HelpLink";
 import type { Tab } from "../../shared/native/appTypes";
 
@@ -66,7 +67,6 @@ export function HouseholdView({
 }) {
   const monthKey = `${year}-${String(month).padStart(2, "0")}`;
   const transactionsThisMonth = transactions.filter((t) => t.date.startsWith(monthKey));
-  const spending = spendingByMember(transactionsThisMonth, { includeUnassigned: true });
   const people: { id: number | null; name: string }[] = [...familyMembers];
   // Keep historical figures visible even if a snapshot contains a member outside the current roster.
   for (const row of [...transactionsThisMonth, ...accounts, ...assets, ...memberBudgetActuals]) {
@@ -83,12 +83,16 @@ export function HouseholdView({
       + assets.filter(a => a.member_id === person.id).reduce((n, a) => n + Number(a.value), 0),
   }));
 
+  const spendingRows = spendingByPersonRows(people, transactionsThisMonth, accounts);
+  const oneOffNotes = biggestOneOffNotes(people, transactionsThisMonth, transactions);
+
   // Group this month's per-member actuals by category, preserving the
   // order categories first appear in (already sorted by category from the
   // backend) so the table reads top-to-bottom the same way every time.
   const categoryOrder: string[] = [];
   const byCategory = new Map<string, MemberBudgetActual[]>();
   for (const row of memberBudgetActuals) {
+    if (row.budget_group === "income") continue; // spending categories only; income is not budgeted per person here
     if (!byCategory.has(row.category)) {
       categoryOrder.push(row.category);
       byCategory.set(row.category, []);
@@ -126,15 +130,14 @@ export function HouseholdView({
       </div>
 
       <div className="card">
-        <h2 className="reports-section-title">Spending by person ({monthLabel})</h2>
-        {spending.length === 0 ? (
-          <p className="modal-message-secondary">No spending this month.</p>
-        ) : (
-          <ul className="breakdown-list">
-            {spending.map((row) => (
-              <li key={row.unassigned ? "unassigned-row" : `person:${row.name}`}>
-                <span>{row.name}</span>
-                <span>{formatAmount(row.amount.toFixed(2))}</span>
+        <h2 className="reports-section-title">Spending by person</h2>
+        <p className="modal-message-secondary">{monthLabel}, by category. The tick is what each person earned.</p>
+        <StackedRows rows={spendingRows} caption="Spending by person and category" tickLabel="What they earned" emptyText="No spending this month." />
+        {oneOffNotes.length > 0 && (
+          <ul className="household-spending-notes">
+            {oneOffNotes.map((note) => (
+              <li key={note.name} data-spending-note>
+                {note.name}'s biggest one-off cost: {note.description}, {formatAmount(note.amount.toFixed(2))}
               </li>
             ))}
           </ul>
