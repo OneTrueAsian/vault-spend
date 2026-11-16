@@ -289,7 +289,7 @@ describe("What you own and owe (VS-31 stream A)", () => {
     expect(tile(2)).toBe("$404,347.99");
   });
 
-  it("names every kind with its amount in a key, since the bar names only the wide segments", () => {
+  it("names every kind with its amount in a key, since nothing is written inside the bar", () => {
     show(everything);
     expect(key()).toEqual(["Investments and other $5,000.00", "Cash and savings $1,023.45", "Property and valuables $415,000.00", "Cards and loans $16,675.46"]);
   });

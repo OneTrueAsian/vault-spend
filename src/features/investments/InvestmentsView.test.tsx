@@ -159,8 +159,8 @@ describe("What your investments are in", () => {
     expect(m.compareDocumentPosition(host.querySelector('[role="tablist"]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(m.textContent).toContain("What your investments are in");
     expect(m.textContent).toContain("Every holding, grouped by kind");
-    // As in v9, only a kind of at least 15% is named inside the bar (Cash is 2%); the key below names every kind.
-    expect(texts(".segment-bar-seg-name", m)).toEqual(["US stocks", "International stocks", "Bonds"]);
+    // Owner, UAT of step 3: nothing is written inside the bar; the key below names every kind.
+    expect([...m.querySelectorAll(".segment-bar-seg")].map((s) => s.textContent)).toEqual(["", "", "", ""]);
     expect(texts(".segment-bar-total", m)).toEqual(["$25,879.00"]);
     // Allocation's donut uses the same colors in the same order.
     openTab("mix");

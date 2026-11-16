@@ -24,14 +24,6 @@ describe("ChartPieces.css colors", () => {
     expect(hover).toMatch(/color:\s*inherit/);
   });
 
-  // Investments' run 1 failed feature156: --surface is see-through in the Transparent style, so the muted amount
-  // on a segment label read against the bar's colour (3.0 to 4.3:1). --bg is solid in every style.
-  it("puts segment labels on the solid page background, and hides a label that was cut short", () => {
-    const rule = (selector: string) => css.match(new RegExp(`${selector.replace(/[.:]/g, (c) => `\\${c}`)}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
-    expect(rule(".segment-bar-seg-text")).toMatch(/background:\s*var\(--bg\)/);
-    expect(rule(".segment-bar-seg-text.is-cut")).toMatch(/visibility:\s*hidden/);
-  });
-
   it("uses only theme variables that App.css defines", () => {
     const appCss = readFileSync(new URL("./App.css", import.meta.url), "utf8");
     const used = new Set([...css.matchAll(/var\((--[a-z0-9-]+)/g)].map((m) => m[1]));

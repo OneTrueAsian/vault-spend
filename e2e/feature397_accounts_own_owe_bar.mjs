@@ -1,6 +1,6 @@
 // VS-31 step 2 (A): the Accounts page's "What you own and owe" bar and its key, above the grouped cards.
 // Native geometry at 1440, 1180 and 720px in three styles, light and dark: no page-level sideways scroll, no
-// segment label clipped or cut short (a label too long for its segment is hidden whole, the key names it), no
+// text inside the bar (owner, UAT of step 3; the key names every kind), no
 // overlapping text, every segment inside its track, the key inside the card with no word split across lines, and
 // the bar agreeing with the three tiles to the cent.
 // Fixture: cash 2,100.00 (checking 1,200 + savings 900) plus a hidden savings account of 500.00 (hidden accounts
@@ -41,8 +41,7 @@ const readBar = () => b.execute(() => {
     key: [...card.querySelectorAll("[data-own-owe-key] li")].map(li => li.textContent.replace(/\s+/g, " ").trim()),
     net: card.querySelector("[data-own-owe-net]")?.textContent ?? null,
     tiles: [...document.querySelectorAll(".stats .stat .stat-value")].map(e => e.textContent),
-    named: [...card.querySelectorAll(".segment-bar-seg-text:not(.is-cut) .segment-bar-seg-name")].map(e => e.textContent),
-    cut: [...card.querySelectorAll(".segment-bar-seg-text.is-cut .segment-bar-seg-name")].map(e => e.textContent),
+    inBar: [...card.querySelectorAll(".segment-bar-seg")].map(e => e.textContent),
   };
 });
 
@@ -72,8 +71,6 @@ const layoutIssues = () => b.execute(() => {
   const box = card.getBoundingClientRect();
   for (const el of card.querySelectorAll("*")) {
     if (!visible(el) || el.closest("svg")) continue;
-    // A label hidden whole (is-cut) is allowed to overflow its own box; every visible label must fit it.
-    if (el.closest(".segment-bar-seg-text.is-cut")) continue;
     if (el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 0 && getComputedStyle(el).display !== "inline") issues.push({ kind: "content wider than its box", el: el.className || el.tagName, text: el.textContent.slice(0, 40), scrollWidth: el.scrollWidth, clientWidth: el.clientWidth });
     if (el.children.length === 0 && el.textContent.trim()) {
       const r = textRect(el);
@@ -82,14 +79,6 @@ const layoutIssues = () => b.execute(() => {
       if (words.length) issues.push({ kind: "word split across lines", text: el.textContent.slice(0, 60), words });
     }
   }
-  // A visible segment label must fit inside its own segment and not touch another label.
-  const labels = [...card.querySelectorAll(".segment-bar-seg-text:not(.is-cut)")];
-  for (const t of labels) {
-    const seg = t.closest(".segment-bar-seg").getBoundingClientRect();
-    const r = textRect(t);
-    if (r.right > seg.right + 0.5 || r.left < seg.left - 0.5) issues.push({ kind: "segment label cut short", text: t.textContent });
-  }
-  for (let i = 0; i < labels.length; i++) for (let j = i + 1; j < labels.length; j++) if (overlap(textRect(labels[i]), textRect(labels[j]))) issues.push({ kind: "segment labels overlap", a: labels[i].textContent, b: labels[j].textContent });
   for (const row of card.querySelectorAll(".segment-bar-row")) {
     const track = row.querySelector(".segment-bar-track").getBoundingClientRect();
     const total = textRect(row.querySelector(".segment-bar-total"));
@@ -126,6 +115,8 @@ try {
   assert.equal(bar.tiles[2], "$85,924.54", "Net worth");
   assert.equal(bar.net, "Net worth $85,924.54");
   assert.deepEqual(bar.key, ["Investments and other $40,000.00", "Cash and savings $2,600.00", "Property and valuables $60,000.00", "Cards and loans $16,675.46"]);
+  // Owner, UAT of step 3: nothing is written inside the bar; the key names every kind.
+  assert.deepEqual(bar.inBar, ["", "", "", ""], "no text inside the bar");
   console.log("own and owe:", JSON.stringify(bar));
 
   // ---- The tiles keep opening their detail panel.
@@ -165,5 +156,5 @@ try {
   await (await b.$("[data-privacy-toggle]")).click();
 
   console.log(`screenshots: ${shots}`);
-  console.log("FEATURE 397 PASSED: What you own and owe agrees with the tiles to the cent (hidden accounts counted), names every kind in its key, never cuts a segment label short or lets text overlap, and fits in three styles, light and dark, at 1440, 1180 and 720; Hide amounts masks it.");
+  console.log("FEATURE 397 PASSED: What you own and owe agrees with the tiles to the cent (hidden accounts counted), names every kind in its key, writes nothing inside the bar, never lets text overlap, and fits in three styles, light and dark, at 1440, 1180 and 720; Hide amounts masks it.");
 } finally { await app.close(); }

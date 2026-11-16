@@ -320,7 +320,7 @@
 .accounts-view .accounts-column { display: grid; gap: 18px; min-width: 0; align-content: start; }
 .accounts-view .accounts-column > .account-group { margin: 0; }
 
-/* VS-31 stream A: "What you own and owe". The bar names only segments wide enough for a label, so the key
+/* VS-31 stream A: "What you own and owe". Nothing is written inside the bar, so the key
    under it names every kind with its amount. Theme variables only. */
 .own-owe { margin-bottom: 18px; }
 .own-owe .own-owe-key { list-style: none; padding: 0; margin: 12px 0 0; }

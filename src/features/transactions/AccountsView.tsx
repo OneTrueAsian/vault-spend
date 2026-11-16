@@ -483,7 +483,7 @@ export function AccountsView({
       />
 
       {/* VS-31 stream A: the three tiles above give the totals; this card shows how they split by kind, with
-          a key naming every kind (the bar names only the wide ones). */}
+          a key naming every kind (nothing is written inside the bar). */}
       <section className="card own-owe" data-own-owe>
         <div className="card-head">
           <span className="reports-section-title">What you own and owe</span>

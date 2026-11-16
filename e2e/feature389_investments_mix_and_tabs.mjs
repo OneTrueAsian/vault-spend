@@ -1,7 +1,7 @@
 // VS-31 step 2 (I): Investments' "What your investments are in" bar above the page tabs, and the tabs themselves.
 // Fixture: one investment account with US stocks 14,427.00, International stocks 6,535.00, Bonds 4,277.00, Cash 640.00 and
-// one holding with no kind (50.00, shown as Other): total 25,929.00. Cash and Other are narrow, so their names are cut
-// short inside the bar; the key under the bar must still show every kind in full, with its share.
+// one holding with no kind (50.00, shown as Other): total 25,929.00. Nothing is written inside
+// the bar (owner, UAT of step 3); the key under the bar must still show every kind in full, with its share.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -32,7 +32,7 @@ const readMix = () => b.execute(() => {
   if (!card) return null;
   return {
     key: [...card.querySelectorAll("[data-investments-mix-key] li")].map((li) => li.textContent),
-    names: [...card.querySelectorAll(".segment-bar-seg-name")].map((e) => e.textContent),
+    inBar: [...card.querySelectorAll(".segment-bar-seg")].map((e) => e.textContent),
     total: card.querySelector(".segment-bar-total")?.textContent ?? null,
     text: card.innerText,
   };
@@ -67,14 +67,6 @@ const layoutIssues = () => b.execute(() => {
   for (const seg of card.querySelectorAll(".segment-bar-seg")) {
     const s = seg.getBoundingClientRect();
     if (s.right > track.right + 0.5 || s.left < track.left - 0.5) issues.push({ kind: "segment outside the bar" });
-    const tag = seg.querySelector(".segment-bar-seg-text");
-    // A tag is clipped to its own segment (never drawn over a neighbour).
-    if (tag && getComputedStyle(seg).overflow !== "hidden") issues.push({ kind: "segment label can spill", text: tag.textContent });
-    // A label that shows is shown whole: never cut short ("International stoc", "C $"). One that doesn't fit is hidden; the key names it.
-    if (tag && getComputedStyle(tag).visibility !== "hidden" && tag.getClientRects().length) {
-      const t = tag.getBoundingClientRect();
-      if (tag.scrollWidth > tag.clientWidth + 1 || t.right > s.right + 0.5) issues.push({ kind: "segment label cut short", text: tag.textContent });
-    }
   }
   for (const li of card.querySelectorAll("[data-investments-mix-key] li")) {
     const r = li.getBoundingClientRect();
@@ -100,8 +92,8 @@ try {
   assert.ok(mix.text.includes("What your investments are in") && mix.text.includes("Every holding, grouped by kind"), mix.text);
   assert.equal(mix.total, "$25,929.00", "the total invested");
   assert.deepEqual([...mix.key].sort(), ["Bonds 16%", "Cash 2%", "International stocks 25%", "Other under 1%", "US stocks 56%"].sort(), "every kind with its share; a holding with no kind counts as Other");
-  // As in v9, only kinds of at least 15% are named inside the bar; the key above names every kind.
-  assert.deepEqual([...mix.names].sort(), ["Bonds", "International stocks", "US stocks"].sort());
+  // Owner, UAT of step 3: nothing is written inside the bar; the key above names every kind.
+  assert.deepEqual(mix.inBar, ["", "", "", "", ""], "no text inside the bar");
   // The bar draws the Allocation card's own figures: open Mix and targets and compare the donut's legend.
   await (await b.$("#investments-tab-mix")).click();
   const allocation = await b.execute(() => [...document.querySelectorAll("#investments-panel-mix .chart-legend-item")].map((e) => e.textContent.replace(/\s+/g, " ").trim()));

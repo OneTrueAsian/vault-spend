@@ -202,7 +202,7 @@ export const TAB_HELP: TabHelp[] = [
       },
     ],
     more: [
-      <>At the top, <strong>What you own and owe</strong> shows two bars: what you own, split into cash, investments and other accounts, and property and valuables, and what you owe, split into credit cards and loans. A kind too small to name inside its bar is listed in the key under it. Hidden accounts count in these bars, as they do in the three totals.</>,
+      <>At the top, <strong>What you own and owe</strong> shows two bars: what you own, split into cash, investments and other accounts, and property and valuables, and what you owe, split into credit cards and loans. The key under the bars names each kind with its amount. Hidden accounts count in these bars, as they do in the three totals.</>,
       <>Accounts are grouped as <strong>Cash</strong>, <strong>Borrowing</strong> (credit cards and loans), <strong>Investments and other</strong> and <strong>Property and valuables</strong>, each group in one box with its total; the biggest balance comes first.</>,
     ],
     tags: [
@@ -524,7 +524,7 @@ export const TAB_HELP: TabHelp[] = [
       },
     ],
     more: [
-      <>The bar above the tabs, <strong>What your investments are in</strong>, splits your total by kind of investment. A kind too small to name inside the bar is listed in the key under it. <strong>Money put in</strong> shows what you have added to each investment account over time.</>,
+      <>The bar above the tabs, <strong>What your investments are in</strong>, splits your total by kind of investment. The key under the bar names each kind with its share. <strong>Money put in</strong> shows what you have added to each investment account over time.</>,
       <>Each holding shows its computed value and gain or loss.</>,
       <>Vault Spend records your portfolio's value each day you open it or refresh prices, so the <strong>Portfolio value over time</strong> chart builds up.</>,
     ],
