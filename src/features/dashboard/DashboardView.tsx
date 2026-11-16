@@ -3,7 +3,7 @@ import "./DashboardCards.css";
 import "./FirstRunChecklist.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Info, Leaf } from "lucide-react";
-import { CategoryIcon, BudgetGroupIcon, IconEntryGlyph, flatIconEntry } from "../../shared/ui/icons";
+import { CategoryIcon, BucketIcon, BudgetGroupIcon, IconEntryGlyph, flatIconEntry } from "../../shared/ui/icons";
 import type {
   BillAwareForecast,
   Account,
@@ -23,6 +23,7 @@ import type {
   Transaction,
 } from "../../shared/lib/types";
 import { DonutChart, LineChart, ProgressRing, Sparkline, fmtMoneyShort } from "../../shared/ui/charts";
+import { CategoryBars, type CategoryBarRow } from "../../shared/ui/CategoryBars";
 import { StatDetailPanel } from "../../shared/ui/StatDetailPanel";
 import { formatAmount, formatDisplayDate, toLocalIsoDate } from "../../shared/lib/format";
 import { groupOf, isOverdrawn, netWorthContribution, owedAmount } from "../../shared/lib/accountGroups";
@@ -47,7 +48,8 @@ import { effectiveBudget, monthElapsed } from "../../shared/lib/budgetPlan";
 import { budgetGroupFillClass } from "../budgets/colourStatus";
 import { SafeToSpendCard } from "./SafeToSpendCard";
 import { CategorySpendDialog } from "../../shared/ui/CategorySpendDialog";
-import { CATEGORY_COLORS } from "../../shared/ui/categoryPalette";
+import { CATEGORY_COLORS, categoryColor } from "../../shared/ui/categoryPalette";
+import { EVERYTHING_ELSE_KEY, biggestOneOff, foldSmallest, spendingSoFar } from "./spendingSoFar";
 import { sumMoney } from "../../shared/lib/money";
 import { describeBudgetAlerts, isUsedInFull } from "../budgets/budgetAlertText";
 import { HelpLink } from "../../shared/ui/HelpLink";
@@ -85,6 +87,18 @@ const STAT_KEY_BY_WIDGET: Partial<Record<WidgetId, StatKey>> = {
 function isCompactWidget(id: WidgetId): boolean {
   return id in STAT_KEY_BY_WIDGET || id.startsWith("account:") || id.startsWith("bucket:") || id.startsWith("investment:");
 }
+
+/** Recent transactions and Savings goals are half-width cards. When they sit next to each other in the
+ * layout they share one row (as in v9), so the transaction list doesn't stretch across the whole page. */
+function isPairWidget(id: WidgetId): boolean {
+  return id === "recent_transactions" || id === "goals_overview";
+}
+
+/** "$1,500" for a figure on the spending and goals cards: whole dollars read better in a narrow row. */
+const wholeDollars = (amount: number) => {
+  const dollars = Math.round(amount);
+  return `${dollars < 0 ? "-" : ""}$${Math.abs(dollars).toLocaleString("en-US")}`;
+};
 
 export function DashboardView({
   accounts,
@@ -217,6 +231,8 @@ export function DashboardView({
   const [expandedStat, setExpandedStat] = useState<StatKey | null>(null);
   const [selectedSpendCategory, setSelectedSpendCategory] = useState<string | null>(null);
   useEffect(() => setSelectedSpendCategory(null), [spendingThisMonth]);
+  // "Everything else (n)" opens the folded rows in place.
+  const [showAllSpending, setShowAllSpending] = useState(false);
   const [showBudgetAlerts, setShowBudgetAlerts] = useState(false);
 
   const layout = useDashboardLayoutCustomization(layoutWidgets);
@@ -376,17 +392,37 @@ export function DashboardView({
     setExpandedStat((prev) => (prev === key ? null : key));
   }
 
-  const donutData = useMemo(
-    () =>
-      spendingThisMonth.map((c, i) => ({
-        label: c.category,
-        value: parseFloat(c.amount),
-        color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
-      })),
-    [spendingThisMonth],
-  );
-  // The ring and center both represent the full categorized spend.
-  const donutTotal = donutData.reduce((s, d) => s + d.value, 0);
+  // "Spending in <month> so far": this month's rows are the backend's own figures; the same days of last
+  // month and the biggest one-off charge come from the transaction list (see spendingSoFar.ts).
+  const spending = useMemo(() => {
+    const today = new Date();
+    const so = spendingSoFar({ spendingThisMonth, transactions, today });
+    return { ...so, biggest: biggestOneOff({ transactions, recurring, today }) };
+  }, [spendingThisMonth, transactions, recurring]);
+  const spendingRows: CategoryBarRow[] = useMemo(() => {
+    const shown = showAllSpending ? spending.rows : foldSmallest(spending.rows);
+    return shown.map((r, i) => {
+      const change = r.amount - r.previous;
+      const folded = r.key === EVERYTHING_ELSE_KEY;
+      return {
+        key: r.key,
+        label: r.label,
+        amount: r.amount,
+        color: folded ? "var(--text-muted)" : categoryColor(i),
+        icon: folded ? <span className="category-legend-icon" aria-hidden="true" /> : <CategoryIcon category={r.key} iconKey={categoryIconMap[r.key] ?? null} className="category-legend-icon" />,
+        note:
+          Math.abs(change) < 1 ? (
+            "same"
+          ) : (
+            <>
+              <span aria-hidden="true">{change > 0 ? "▲" : "▼"}</span>
+              <span className="sr-only">{change > 0 ? "up " : "down "}</span> {wholeDollars(Math.abs(change))}
+            </>
+          ),
+        noteTone: Math.abs(change) < 1 ? undefined : change > 0 ? "bad" : "good",
+      } satisfies CategoryBarRow;
+    });
+  }, [spending.rows, showAllSpending, categoryIconMap]);
 
   const upcoming = useMemo(
     () =>
@@ -685,31 +721,32 @@ export function DashboardView({
             </p>
           )}
         </div>
-        <div className="card">
+        <div className="card dashboard-spending" data-spending-so-far>
           <div className="card-head">
-            <span className="reports-section-title">Spending by category</span>
+            <span className="reports-section-title">{spending.title}</span>
+            {spending.total > 0 && <span className="account-col">{wholeDollars(spending.total)} spent</span>}
           </div>
-          {donutData.length > 0 ? (
-            <div className="donut-with-legend">
-              <DonutChart
-                data={donutData}
-                size={132}
-                center={{ value: fmtMoneyShort(donutTotal), label: "this month" }}
-                onSelect={setSelectedSpendCategory}
+          <p className="modal-message-secondary dashboard-spending-sub">{spending.subtitle}</p>
+          {spending.rows.length > 0 ? (
+            <>
+              <CategoryBars
+                rows={spendingRows}
+                caption="Spending this month by category, largest first"
+                format={wholeDollars}
+                onSelect={(key) => (key === EVERYTHING_ELSE_KEY ? setShowAllSpending(true) : setSelectedSpendCategory(key))}
               />
-              <div>
-                {donutData.map((d) => (
-                  <button type="button" className="chart-legend-item chart-legend-button" key={d.label} style={{ marginBottom: 8 }} onClick={() => setSelectedSpendCategory(d.label)} aria-label={`Show ${d.label} spending, ${formatAmount(d.value.toFixed(2))}`}>
-                    <CategoryIcon category={d.label} iconKey={categoryIconMap[d.label] ?? null} className="category-legend-icon" />
-                    <span className="chart-legend-swatch" style={{ background: d.color }}></span>
-                    {d.label}
-                    <span className="account-col" style={{ marginLeft: "auto" }}>
-                      {fmtMoneyShort(d.value)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
+              {showAllSpending && spending.rows.length > 8 && (
+                <button type="button" className="recent-see-all" onClick={() => setShowAllSpending(false)}>
+                  Show fewer
+                </button>
+              )}
+              {spending.biggest && (
+                <p className="modal-message-secondary dashboard-spending-big" data-biggest-one-off>
+                  Biggest one-off cost: <b>{spending.biggest.description}</b>, {wholeDollars(spending.biggest.amount)} on {formatDisplayDate(spending.biggest.date)}
+                  {spending.biggest.category ? ` (${spending.biggest.category})` : ""}.
+                </p>
+              )}
+            </>
           ) : (
             <p className="empty-state">No spending yet this month.</p>
           )}
@@ -819,8 +856,54 @@ export function DashboardView({
       </div>
     ),
 
-    // VS-31 F6 adds the id; the Savings goals card itself comes with step 2 stream D.
-    goals_overview: null,
+    goals_overview: (
+      <div className="card dashboard-goals" data-savings-goals>
+        <div className="card-head">
+          <span className="reports-section-title">Savings goals</span>
+          {buckets.length > 0 && (
+            <button type="button" className="recent-see-all" onClick={onOpenBuckets}>
+              All goals
+            </button>
+          )}
+        </div>
+        {buckets.length > 0 ? (
+          <ul className="dashboard-goal-list">
+            {buckets.map((b) => {
+              const saved = parseFloat(b.saved_amount);
+              const target = b.target_amount ? parseFloat(b.target_amount) : null;
+              const pct = target && target > 0 ? Math.min(100, Math.max(0, (saved / target) * 100)) : null;
+              return (
+                <li key={b.id} className="dashboard-goal">
+                  <span className="dashboard-goal-icon" style={b.color ? { color: "white", background: `linear-gradient(135deg, color-mix(in srgb, ${b.color} 65%, black), ${b.color})` } : undefined}>
+                    <BucketIcon name={b.name} iconKey={b.icon_key} />
+                  </span>
+                  <div className="dashboard-goal-body">
+                    <div className="dashboard-goal-line">
+                      <b className="dashboard-goal-name">{b.name}</b>
+                      <span className="account-col dashboard-goal-amount">
+                        {target !== null ? `${wholeDollars(saved)} of ${wholeDollars(target)}` : wholeDollars(saved)}
+                      </span>
+                    </div>
+                    {pct !== null && (
+                      <div className="progress-track" aria-hidden="true">
+                        <div className="progress-fill" style={{ width: `${pct}%`, background: b.color ?? undefined }} />
+                      </div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <>
+            <p className="empty-state">No savings goals yet.</p>
+            <button type="button" className="modal-secondary" onClick={onOpenBuckets}>
+              Add a goal
+            </button>
+          </>
+        )}
+      </div>
+    ),
 
     top_merchants: (
       <div className="card">
@@ -1022,7 +1105,7 @@ export function DashboardView({
   // instead of each stretching to the full Dashboard width, in the common
   // case where they haven't been split apart by another widget dragged in
   // between them.
-  type LayoutRow = { key: WidgetId; ids: WidgetId[]; startIndex: number; isCompactRow: boolean };
+  type LayoutRow = { key: WidgetId; ids: WidgetId[]; startIndex: number; isCompactRow: boolean; isPairRow: boolean };
   const layoutRows = useMemo(() => {
     const rows: LayoutRow[] = [];
     layoutWidgets.forEach((id, index) => {
@@ -1031,12 +1114,58 @@ export function DashboardView({
       const last = rows[rows.length - 1];
       if (compact && last?.isCompactRow) {
         last.ids.push(id);
+      } else if (isPairWidget(id) && last?.isPairRow && last.ids.length === 1) {
+        last.ids.push(id);
       } else {
-        rows.push({ key: id, ids: [id], startIndex: index, isCompactRow: compact });
+        rows.push({ key: id, ids: [id], startIndex: index, isCompactRow: compact, isPairRow: isPairWidget(id) });
       }
     });
     return rows;
   }, [layoutWidgets, safeToSpendEnabled]);
+
+  // One widget that shares a row with others (a compact card, or one of the Recent transactions / Savings
+  // goals pair), with its own drag handle and Customize controls.
+  function renderRowItem(id: WidgetId, index: number, wrapClass: string) {
+    return (
+      <div
+        key={id}
+        data-widget-id={id}
+        className={customizeMode ? wrapClass : undefined}
+        draggable={customizeMode}
+        onDragStart={() => setDragWidgetId(id)}
+        onDragOver={(e) => customizeMode && e.preventDefault()}
+        onDrop={() => handleWidgetDrop(id)}
+        onDragEnd={() => setDragWidgetId(null)}
+      >
+        {customizeMode && (
+          <div className="dashboard-widget-controls">
+            <button
+              type="button"
+              className="modal-secondary"
+              onClick={() => moveWidget(index, -1)}
+              disabled={index === 0}
+              aria-label="Move up"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className="modal-secondary"
+              onClick={() => moveWidget(index, 1)}
+              disabled={index === layoutWidgets.length - 1}
+              aria-label="Move down"
+            >
+              ↓
+            </button>
+            <button type="button" className="modal-secondary" onClick={() => removeWidget(id)} aria-label="Remove widget">
+              ✕
+            </button>
+          </div>
+        )}
+        {renderWidget(id)}
+      </div>
+    );
+  }
 
   return (
     <div className="reports-view">
@@ -1088,48 +1217,7 @@ export function DashboardView({
         row.isCompactRow ? (
           <div key={row.key} className={customizeMode ? "dashboard-widget-customizing" : undefined}>
             <div className="stats dashboard-stat-row">
-              {row.ids.map((id, offset) => {
-                const index = row.startIndex + offset;
-                return (
-                  <div
-                    key={id}
-                    data-widget-id={id}
-                    className={customizeMode ? "dashboard-stat-wrap" : undefined}
-                    draggable={customizeMode}
-                    onDragStart={() => setDragWidgetId(id)}
-                    onDragOver={(e) => customizeMode && e.preventDefault()}
-                    onDrop={() => handleWidgetDrop(id)}
-                    onDragEnd={() => setDragWidgetId(null)}
-                  >
-                    {customizeMode && (
-                      <div className="dashboard-widget-controls">
-                        <button
-                          type="button"
-                          className="modal-secondary"
-                          onClick={() => moveWidget(index, -1)}
-                          disabled={index === 0}
-                          aria-label="Move up"
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          className="modal-secondary"
-                          onClick={() => moveWidget(index, 1)}
-                          disabled={index === layoutWidgets.length - 1}
-                          aria-label="Move down"
-                        >
-                          ↓
-                        </button>
-                        <button type="button" className="modal-secondary" onClick={() => removeWidget(id)} aria-label="Remove widget">
-                          ✕
-                        </button>
-                      </div>
-                    )}
-                    {renderWidget(id)}
-                  </div>
-                );
-              })}
+              {row.ids.map((id, offset) => renderRowItem(id, row.startIndex + offset, "dashboard-stat-wrap"))}
             </div>
             {hiddenCount > 0 && (
               <p className="field-hint hidden-accounts-note">
@@ -1146,6 +1234,12 @@ export function DashboardView({
               emptyMessage="No accounts contribute to this yet."
               onClose={() => setExpandedStat(null)}
             />
+          </div>
+        ) : row.isPairRow && row.ids.length === 2 ? (
+          <div key={row.key} className={customizeMode ? "dashboard-widget-customizing" : undefined}>
+            <div className="grid-2 dashboard-pair-row">
+              {row.ids.map((id, offset) => renderRowItem(id, row.startIndex + offset, "dashboard-stat-wrap"))}
+            </div>
           </div>
         ) : (
           <div
