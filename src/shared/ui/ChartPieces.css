@@ -142,13 +142,17 @@
   max-width: calc(100% - 12px);
   padding: 2px 6px;
   border-radius: 3px;
-  background: var(--surface);
+  /* Solid in every style: --surface is see-through in Transparent, so the muted amount read against the bar. */
+  background: var(--bg);
   color: var(--text);
   font-size: 0.8em;
   line-height: 1.35;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+/* SegmentBar measures each label; one too long for its segment is hidden whole and the page's key names it. */
+.segment-bar-seg-text.is-cut {
+  visibility: hidden;
 }
 .segment-bar-seg-name {
   font-weight: 600;

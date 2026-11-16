@@ -2,7 +2,7 @@
 //
 // VS-31 step 0 (F3): a labelled segment bar, one or more rows on one scale. Accounts uses it for
 // "What you own and owe" (an Own row and an Owe row); Investments for "What your investments are in".
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { SegmentBar, type SegmentRow } from "./SegmentBar";
@@ -110,6 +110,59 @@ describe("SegmentBar", () => {
     for (const el of host.querySelectorAll("*")) {
       for (const attr of el.attributes) expect(attr.value, `${el.tagName} ${attr.name}`).not.toMatch(/\$\s?\d/);
     }
+  });
+
+  it("names a segment inside the bar only when it is at least 15% of its row, as in v9; the table still has every part", () => {
+    const rows: SegmentRow[] = [{ segments: [
+      { label: "US stocks", amount: 8000, color: "var(--cat-1)" },
+      { label: "Bonds", amount: 1500, color: "var(--cat-2)" },
+      { label: "Cash", amount: 500, color: "var(--cat-3)" },
+    ] }];
+    act(() => root.render(<SegmentBar rows={rows} caption="Mix" />));
+    expect(segs(visualRows()[0]).map((s) => s.querySelector(".segment-bar-seg-text")?.textContent ?? null)).toEqual(["US stocks$8,000.00", "Bonds$1,500.00", null]);
+    expect(tableRows()).toContainEqual(["", "Cash", "$500.00"]);
+  });
+
+  describe("a label too long for its segment", () => {
+    let resize: () => void = () => {};
+    let wide = true;
+    const isTag = (el: HTMLElement) => el.classList.contains("segment-bar-seg-text");
+    beforeEach(() => {
+      wide = true;
+      vi.stubGlobal("ResizeObserver", class {
+        constructor(callback: ResizeObserverCallback) { resize = () => callback([], this as unknown as ResizeObserver); }
+        observe() {}
+        disconnect() {}
+      });
+      // jsdom has no layout: the "International stocks" tag is wider than it may be until `wide` turns off.
+      vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (this: HTMLElement) {
+        return isTag(this) && wide && this.textContent?.startsWith("International") ? 160 : 90;
+      });
+      vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (this: HTMLElement) {
+        return isTag(this) ? 90 : 0;
+      });
+    });
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    });
+    const tags = () => [...host.querySelectorAll<HTMLElement>(".segment-bar-seg-text")];
+    const rows: SegmentRow[] = [{ segments: [
+      { label: "US stocks", amount: 6000, color: "var(--cat-1)" },
+      { label: "International stocks", amount: 4000, color: "var(--cat-2)" },
+    ] }];
+
+    it("is hidden whole rather than cut short (\"International stoc\"), and the others stay", () => {
+      act(() => root.render(<SegmentBar rows={rows} caption="Mix" />));
+      expect(tags().map((t) => t.classList.contains("is-cut"))).toEqual([false, true]);
+    });
+
+    it("comes back once the window is wide enough for it", () => {
+      act(() => root.render(<SegmentBar rows={rows} caption="Mix" />));
+      wide = false;
+      act(() => resize());
+      expect(tags().map((t) => t.classList.contains("is-cut"))).toEqual([false, false]);
+    });
   });
 
   it("has every amount hidden when amounts are hidden", () => {
