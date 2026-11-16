@@ -62,6 +62,8 @@ try {
   if (vtiShare !== "70.0%" || bndShare !== "30.0%") throw new Error(`holdings should be 70.0% / 30.0% of the portfolio, got ${vtiShare} / ${bndShare}`);
 
   // --- targets and drift ---------------------------------------------------------
+  // Target allocation is in Investments' "Mix and targets" tab (VS-31).
+  await (await browser.$("#investments-tab-mix")).click();
   await setTarget("US Stocks", "60");
   await setTarget("Bonds", "40");
   await saveTargets();
@@ -86,6 +88,8 @@ try {
   await saveTargets();
 
   // --- save the projection as a goal ------------------------------------------------
+  // The projection calculator is in the "Growth calculator" tab (VS-31).
+  await (await browser.$("#investments-tab-growth")).click();
   await (await browser.$("[data-projection-save-as-goal]")).click();
   const name = await browser.$("[data-projection-goal-name]");
   await name.waitForExist({ timeout: 5000 });

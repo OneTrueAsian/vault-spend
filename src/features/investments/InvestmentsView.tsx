@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { Account, AllocationTarget, Holding, PortfolioPoint } from "../../shared/lib/types";
 import { allocationRows, driftStatus, targetsTotal } from "./allocation";
 import { DonutChart, LineChart, fmtMoneyShort } from "../../shared/ui/charts";
@@ -15,9 +15,25 @@ import { categoryColor } from "../../shared/ui/categoryPalette";
 import { sumMoney } from "../../shared/lib/money";
 import { HelpLink } from "../../shared/ui/HelpLink";
 import type { Tab } from "../../shared/native/appTypes";
+import { PageTabs } from "../../shared/ui/PageTabs";
+import { SegmentBar } from "../../shared/ui/SegmentBar";
 
 
 const PROJECTION_YEAR_OPTIONS = [5, 10, 15, 20, 25, 30, 40];
+
+export type InvestmentsTab = "holdings" | "mix" | "growth" | "money-in";
+
+/** v9's Investments tabs, in v9's order. v9's "Retirement plan" tab is left out: production has no such feature (VS-31). */
+const INVESTMENTS_TABS: { id: InvestmentsTab; label: string }[] = [
+  { id: "holdings", label: "Holdings" },
+  { id: "mix", label: "Mix and targets" },
+  { id: "growth", label: "Growth calculator" },
+  { id: "money-in", label: "Money put in" },
+];
+
+/** Set when an account's Details page is opened from Money put in. That page's "← Investments" shows this page
+ * again from scratch, so the next visit opens on Money put in (once) instead of Holdings. */
+let returnToTab: InvestmentsTab | null = null;
 
 function GoalProjectionCalculator({
   currentTotal,
@@ -455,6 +471,7 @@ export function InvestmentsView({
   onSaveProjectionAsGoal,
   onOpenAccountDetail,
   onOpenHelp,
+  initialTab = "holdings",
 }: {
   portfolioHistory: PortfolioPoint[];
   allocationTargets: AllocationTarget[];
@@ -482,7 +499,13 @@ export function InvestmentsView({
   onPinWidget: (id: WidgetId) => void;
   /** Opens Help at this page's section (the ? beside the title). */
   onOpenHelp?: (tab: Tab) => void;
+  /** The tab the page opens on (Holdings unless a link asks for another). */
+  initialTab?: InvestmentsTab;
 }) {
+  const [startTab] = useState(() => returnToTab ?? initialTab);
+  useEffect(() => {
+    returnToTab = null;
+  }, []);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
@@ -547,20 +570,44 @@ export function InvestmentsView({
     byAccount.set(h.account_name, list);
   }
 
-  return (
-    <div className="buckets-view">
-      <div className="page-top">
-        <div>
-          <div className="view-title-row">
-            <h1 className="view-title">Investments</h1>
-            {onOpenHelp && <HelpLink tab="investments" onOpen={onOpenHelp} />}
-          </div>
-          <p className="view-sub">
-            {byAccount.size} account{byAccount.size === 1 ? "" : "s"}, {holdings.length} holding
-            {holdings.length === 1 ? "" : "s"}.
-          </p>
-        </div>
+  // "What your investments are in": the Allocation card's own per-class totals, order and colors, as one bar.
+  const investedTotal = donutData.reduce((s, d) => s + d.value, 0);
+  const mixCard = (
+    <div className="card" data-investments-mix>
+      <div className="card-head">
+        <span className="reports-section-title">What your investments are in</span>
       </div>
+      <p className="modal-message-secondary">Every holding, grouped by kind</p>
+      {holdings.length === 0 ? (
+        <p className="empty-state">No holdings yet. Add one under Holdings to see what your investments are in.</p>
+      ) : investedTotal <= 0 ? (
+        <p className="empty-state">Your holdings don't have prices yet, so there's nothing to add up.</p>
+      ) : (
+        <>
+          <SegmentBar
+            rows={[{ segments: donutData.filter((d) => d.value > 0).map((d) => ({ label: d.label, amount: d.value, color: d.color })) }]}
+            caption="Your investments, grouped by kind"
+          />
+          {/* The bar names only kinds wide enough for a label, so every kind is also listed here with its share. */}
+          <ul className="chart-legend" style={{ listStyle: "none", padding: 0, margin: "12px 0 0" }} data-investments-mix-key>
+            {donutData.map((d) => (
+              <li className="chart-legend-item" key={d.label}>
+                <span className="chart-legend-swatch" style={{ background: d.color }}></span>
+                {d.label} <strong>{d.value > 0 && d.value / investedTotal < 0.005 ? "under 1%" : `${((d.value / investedTotal) * 100).toFixed(0)}%`}</strong>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+
+  const hasInvestmentAccount = accounts.some((a) => a.account_type === "investment");
+
+  const panel = (tab: InvestmentsTab) => (
+    <>
+      {tab === "holdings" && (
+        <>
       <div className="stats">
         <div className="stat tint-accent">
           <span className="stat-value">{formatAmount(totalValue.toFixed(2))}</span>
@@ -620,7 +667,11 @@ export function InvestmentsView({
         onClose={() => setExpandedGainStat(null)}
       />
 
-      {donutData.length > 0 && (
+        </>
+      )}
+
+      {/* The sections keep the old page's order; each shows only in its own tab. */}
+      {tab === "mix" && donutData.length > 0 && (
         <div className="card">
           <div className="card-head">
             <span className="reports-section-title">Allocation</span>
@@ -643,6 +694,7 @@ export function InvestmentsView({
         </div>
       )}
 
+      {tab === "holdings" && (
       <div className="card" data-portfolio-history={portfolioHistory.length}>
         <div className="card-head">
           <span className="reports-section-title">Portfolio value over time</span>
@@ -656,13 +708,28 @@ export function InvestmentsView({
           </p>
         )}
       </div>
+      )}
 
-      <TargetAllocationCard holdings={holdings} targets={allocationTargets} onSave={onSetAllocationTargets} />
+      {tab === "mix" && <TargetAllocationCard holdings={holdings} targets={allocationTargets} onSave={onSetAllocationTargets} />}
 
-      <GoalProjectionCalculator currentTotal={totalValue} onSaveAsGoal={onSaveProjectionAsGoal} />
+      {tab === "growth" && <GoalProjectionCalculator currentTotal={totalValue} onSaveAsGoal={onSaveProjectionAsGoal} />}
 
-      <AccumulationSummaryCard accounts={accounts} onOpenAccount={onOpenAccountDetail} />
+      {/* The summary draws nothing without an investment account, so the tab says why instead of standing empty. */}
+      {tab === "money-in" &&
+        (hasInvestmentAccount ? (
+          <AccumulationSummaryCard
+            accounts={accounts}
+            onOpenAccount={(id) => {
+              returnToTab = "money-in";
+              onOpenAccountDetail(id);
+            }}
+          />
+        ) : (
+          <p className="empty-state">No investment accounts yet. Add one on Accounts to see what you've put in and where it could grow.</p>
+        ))}
 
+      {tab === "holdings" && (
+        <>
       {Array.from(byAccount.entries()).map(([accountName, accountHoldings]) => (
         <div key={accountName}>
           <h2 className="reports-section-title">{accountName}</h2>
@@ -776,6 +843,27 @@ export function InvestmentsView({
         livePricesEnabled={livePricesEnabled}
         onFetchQuote={onFetchQuote}
       />
+        </>
+      )}
+    </>
+  );
+
+  return (
+    <div className="buckets-view">
+      <div className="page-top">
+        <div>
+          <div className="view-title-row">
+            <h1 className="view-title">Investments</h1>
+            {onOpenHelp && <HelpLink tab="investments" onOpen={onOpenHelp} />}
+          </div>
+          <p className="view-sub">
+            {byAccount.size} account{byAccount.size === 1 ? "" : "s"}, {holdings.length} holding
+            {holdings.length === 1 ? "" : "s"}.
+          </p>
+        </div>
+      </div>
+      {mixCard}
+      <PageTabs tabs={INVESTMENTS_TABS} initial={startTab} idPrefix="investments" label="Investment sections" render={panel} />
     </div>
   );
 }

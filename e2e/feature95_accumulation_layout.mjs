@@ -161,6 +161,8 @@ try {
   await shot("details-privacy");
   // ...and the Investments summary.
   await nav(browser, "Investments");
+  // The money-put-in summary is in Investments' "Money put in" tab (VS-31).
+  await (await browser.$("#investments-tab-money-in")).click();
   await browser.$("[data-acc-summary]").waitForExist({ timeout: 15000 });
   await browser.pause(400);
   const summaryText = await browser.execute(() => document.querySelector("[data-acc-summary]").innerText);
@@ -179,6 +181,8 @@ try {
     // Navigate at full size (the sidebar changes shape in a narrow window), then narrow the window on the page.
     await browser.setWindowSize(1440, 1600);
     await nav(browser, "Investments");
+    // The money-put-in summary is in Investments' "Money put in" tab (VS-31).
+    await (await browser.$("#investments-tab-money-in")).click();
     await browser.$("[data-acc-summary]").waitForExist({ timeout: 15000 });
     await browser.setWindowSize(width, 1600);
     await browser.pause(400);
@@ -241,6 +245,8 @@ try {
       else if (tooltipAlpha < 1) contrastProblems.push(`${label} ${mode}: the chart tooltip's background is see-through (opacity ${tooltipAlpha}), so lines show through its text`);
       await browser.keys("Escape");
       await nav(browser, "Investments");
+      // The money-put-in summary is in Investments' "Money put in" tab (VS-31).
+      await (await browser.$("#investments-tab-money-in")).click();
       await browser.$("[data-acc-summary]").waitForExist({ timeout: 15000 });
       await shot(`summary-${label.toLowerCase()}-${mode}`, "[data-acc-summary]");
     }
