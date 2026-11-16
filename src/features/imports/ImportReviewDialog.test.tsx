@@ -4,6 +4,8 @@
 // scrolled, the review is in front of them, and Cancel / Import stay pinned at its foot.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
+import { readFileSync } from "node:fs";
+import { pickMenuOption } from "../../shared/ui/menuSelectTestUtils";
 import { createRoot, type Root } from "react-dom/client";
 import { ImportReviewDialog } from "./ImportReviewDialog";
 import type { ImportReview } from "./useImportReview";
@@ -236,7 +238,7 @@ describe("ImportReviewDialog", () => {
       const names = rowBoxes().map((b) => b.getAttribute("aria-label"));
       expect(names).toHaveLength(2);
       expect(names[0]).toContain("CORNER SHOP");
-      expect(names[0]).toContain("4.50");
+      expect(names[0]).not.toContain("4.50");
       expect(names[1]).toContain("CAFE");
       expect(new Set(names).size).toBe(2);
     });
@@ -283,4 +285,127 @@ describe("ImportReviewDialog", () => {
     expect(r.cancelPendingImport).not.toHaveBeenCalled();
     expect(importButton().textContent).toBe("Importing…");
   });
+
+  describe("VS-35 import sections", () => {
+    const tabs = () => [...dialog()!.querySelectorAll<HTMLButtonElement>("[role=tab]")];
+    const selected = () => tabs().find(t => t.getAttribute("aria-selected") === "true")?.dataset.importReviewTab;
+    const choose = (id: string) => act(() => dialog()!.querySelector<HTMLButtonElement>(`[data-import-review-tab="${id}"]`)!.click());
+    const shownPanel = () => dialog()!.querySelector<HTMLElement>("[role=tabpanel]:not([hidden])")!;
+    const bankReview = (allRemembered = false) => {
+      const r = review([unsure(0), row(1)]);
+      r.pendingImport!.preview.unmatched_categories = [
+        { name: "MERCHANDISE", count: 1, remembered_category: "Shopping" },
+        { name: "OTHER BANK", count: 1, ...(allRemembered ? { remembered_category: "Groceries" } : {}) },
+      ];
+      r.importCategoryChoices = { MERCHANDISE: { action: "map_to", category: "Shopping" }, "OTHER BANK": allRemembered ? { action: "map_to", category: "Groceries" } : { action: "skip" } };
+      return r;
+    };
+
+    it("orders bank, needs, transactions, opens bank and counts only asked names", () => {
+      show(bankReview());
+      expect(tabs().map(t => t.textContent)).toEqual(["Bank categories (1)", "Needs a category (1)", "Transactions (2)"]);
+      expect(selected()).toBe("bank");
+      expect(shownPanel().querySelectorAll("[data-import-category-name]")).toHaveLength(1);
+      expect(shownPanel().textContent).toContain("Your bank uses 1 category you don't have");
+      expect(shownPanel().textContent).not.toContain("MERCHANDISE");
+      expect(dialog()!.textContent).toContain("Using your choices from last time for 1 bank category.");
+    });
+
+    it("opens needs when no bank category is asked, otherwise transactions", () => {
+      show(review([unsure(0)]));
+      expect(selected()).toBe("needs");
+      const r = review([row(0)]); r.pendingImport!.preview.review_token = "other";
+      show(r);
+      expect(selected()).toBe("rows");
+      expect(tabs().map(t => t.textContent)).toEqual(["Transactions (1)"]);
+    });
+
+    it("hides all remembered names until Change adds and selects bank in original file order", () => {
+      const r = bankReview(true);
+      show(r);
+      expect(tabs().map(t => t.dataset.importReviewTab)).toEqual(["needs", "rows"]);
+      expect(dialog()!.textContent).toContain("Using your choices from last time for 2 bank categories.");
+      const change = dialog()!.querySelector<HTMLButtonElement>('[aria-label="Change your choices from last time"]')!;
+      expect(change.textContent).toBe("Change");
+      act(() => change.click());
+      expect(selected()).toBe("bank");
+      expect([...shownPanel().querySelectorAll<HTMLElement>("[data-import-category-name]")].map(el => el.dataset.importCategoryName)).toEqual(["MERCHANDISE", "OTHER BANK"]);
+      expect(shownPanel().textContent?.match(/Your choice from last time/g)).toHaveLength(2);
+      expect(dialog()!.querySelector('[aria-label="Change your choices from last time"]')).toBeNull();
+    });
+
+    it.each(["Let the app guess for all", "Add all as new categories"])("%s changes only listed names, preserving hidden remembered mappings", label => {
+      const r = bankReview(); show(r);
+      act(() => [...shownPanel().querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === label)!.click());
+      expect(r.updateImportCategoryChoices).toHaveBeenCalledWith({ MERCHANDISE: { action: "map_to", category: "Shopping" }, "OTHER BANK": { action: label.startsWith("Let") ? "skip" : "create" } });
+    });
+
+    it("keeps needs selected after its last choice, with count 0, completion text and enabled Import", () => {
+      const r = review([unsure(0)]); show(r);
+      pickMenuOption(shownPanel().querySelector("[data-import-row-choice]")!, "cat:Groceries");
+      const update = vi.mocked(r.setImportRowChoices).mock.calls[0][0] as (prev: Map<number,string|null>) => Map<number,string|null>;
+      r.importRowChoices = update(r.importRowChoices);
+      show(r);
+      expect(selected()).toBe("needs");
+      expect(tabs().map(t => t.textContent)).toEqual(["Needs a category (0)", "Transactions (1)"]);
+      expect(shownPanel().textContent).toContain("Every row has a category now.");
+      expect(importButton().disabled).toBe(false);
+    });
+
+    it("recomputes sticky tabs and remembered split on a replacement preview, retaining selection only if available", () => {
+      const r = bankReview(); show(r); choose("rows");
+      r.pendingImport = { ...r.pendingImport!, preview: { ...r.pendingImport!.preview, review_token: "reread" } };
+      show(r); expect(selected()).toBe("rows");
+      // A Change columns preview has no bank category or uncertain row: old sticky tabs reset.
+      r.pendingImport = { ...r.pendingImport, preview: { ...r.pendingImport.preview, review_token: "columns", rows: [row(0)], unmatched_categories: [] } };
+      show(r); expect(tabs().map(t => t.dataset.importReviewTab)).toEqual(["rows"]);
+      expect(dialog()!.textContent).not.toContain("Using your choices from last time");
+      // When the selected bank tab disappears on reread, choose the first tab that needs the person.
+      r.pendingImport = bankReview().pendingImport; show(r); choose("bank");
+      r.pendingImport = { ...r.pendingImport!, preview: { ...r.pendingImport!.preview, review_token: "no-bank", unmatched_categories: [] } };
+      show(r); expect(selected()).toBe("needs");
+    });
+
+    it("resets revealed remembered names for a new preview and for the next review", () => {
+      const r=bankReview(true); show(r);
+      act(()=>dialog()!.querySelector<HTMLButtonElement>('[aria-label="Change your choices from last time"]')!.click());
+      r.pendingImport={...r.pendingImport!, preview:{...r.pendingImport!.preview,review_token:"new"}};
+      show(r); expect(tabs().map(t=>t.dataset.importReviewTab)).toEqual(["needs","rows"]);
+      expect(selected()).toBe("needs");
+      show(review([], {pendingImport:null})); show(bankReview(true));
+      expect(tabs().map(t=>t.dataset.importReviewTab)).toEqual(["needs","rows"]);
+    });
+
+    it("shows no tabs even if a zero-row preview has unmatched names", () => {
+      const r=bankReview(); r.pendingImport!.preview.rows=[]; show(r);
+      expect(dialog()!.querySelector("[role=tablist]")).toBeNull();
+      expect(dialog()!.querySelector("table")).toBeNull();
+      expect(dialog()!.textContent).toContain("No transactions were found");
+    });
+
+    it("keeps Select all, per-row account and CSV metadata in transactions, and Leave rest in needs", () => {
+      const r=review([unsure(0), row(1,{account_name:"CSV account"})]); show(r);
+      act(()=>[...shownPanel().querySelectorAll<HTMLButtonElement>("button")].find(b=>b.textContent==="Leave the rest uncategorized")!.click());
+      expect(r.leaveRestOfRowsUncategorized).toHaveBeenCalledOnce();
+      choose("rows");
+      act(()=>shownPanel().querySelector<HTMLInputElement>('[aria-label="Select all"]')!.click());
+      expect(r.toggleSelectAllImportRows).toHaveBeenCalledOnce();
+      expect(shownPanel().textContent).toContain("CSV: CSV account");
+      pickMenuOption(shownPanel().querySelector('[aria-label^="Account for"]')!,"1");
+      expect(r.setImportRowAccount).toHaveBeenCalledWith(0,1);
+    });
+
+    it("contains no amount in any attribute, including checkbox names", () => {
+      show(review([row(0,{amount:"-1234.56"}),row(1,{amount:"-12.34"})]));
+      const attributes=[...dialog()!.querySelectorAll("*")].flatMap(el=>[...el.attributes].map(a=>a.value));
+      expect(attributes.some(value=>/1,?234\.56|12\.34/.test(value))).toBe(false);
+    });
+
+    it("removes vertical height limits from the table and expanded category transactions", () => {
+      const css=readFileSync("src/features/transactions/Transactions.css","utf8");
+      expect(css.match(/\.import-review-dialog \.dup-review-table-scroll\s*\{([^}]+)\}/)?.[1]).toMatch(/max-height:\s*none/);
+      expect(css.match(/\.import-category-transactions\s*\{([^}]+)\}/)![1]).not.toMatch(/max-height|overflow-y:\s*auto/);
+    });
+  });
+
 });

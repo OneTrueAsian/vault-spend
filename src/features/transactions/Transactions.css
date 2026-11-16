@@ -2370,8 +2370,6 @@ table.ledger.recurring-table .actions-col {
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 8px;
-  max-height: 140px;
-  overflow-y: auto;
 }
 
 .import-category-transactions li {
@@ -2462,4 +2460,37 @@ table.ledger.recurring-table .actions-col {
   gap: 12px;
   margin: 0 0 10px;
   font-size: 13px;
+}
+
+
+/* Import panels share the modal body's vertical scroll; the table can still scroll sideways. */
+.import-review-dialog .dup-review-table-scroll {
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.import-review-tabs {
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.import-review-tabs button {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.import-review-remembered {
+  color: var(--text-muted);
+}
+
+.import-review-remembered button {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-left: 6px;
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
