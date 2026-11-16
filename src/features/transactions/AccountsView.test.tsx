@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountsView } from "./AccountsView";
 import type { Account } from "../../shared/lib/types";
+import { startPrivacyMask } from "../../shared/lib/privacy";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(() => Promise.resolve([])) }));
 const account: Account = { id: 7, name: "Everyday Checking", account_type: "checking", starting_balance: "100", current_balance: "123.45", institution: "Local bank", mask: "1234", interest_rate: null, excluded_from_debt_payoff: false, member_id: null, member_name: null, checkpoint_date: null, icon_key: null, import_flip_signs: null, hidden: false };
@@ -256,5 +257,88 @@ describe("v9 grouped accounts", () => {
     act(() => root.render(<AccountsView {...props} accounts={[{ ...visa, current_balance: "13000.00" }]} />));
     expect(host.querySelector('.sub.amount-editable')?.textContent).toBe("$13,000.00 free of $12,000.00");
     expect((host.querySelector('.credit-availability .progress-fill') as HTMLElement)?.style.width).toBe("0%");
+  });
+});
+
+describe("What you own and owe (VS-31 stream A)", () => {
+  const show = (over: Partial<ComponentProps<typeof AccountsView>>) => act(() => root.render(<AccountsView {...props} {...over} />));
+  const invest: Account = { ...account, id: 11, name: "Brokerage", account_type: "investment", starting_balance: "0", current_balance: "5000.00" };
+  const bar = () => host.querySelector<HTMLElement>("[data-own-owe]")!;
+  const key = () => [...bar().querySelectorAll("[data-own-owe-key] li")].map(li => li.textContent!.replace(/\s+/g, " ").trim());
+  const rowTotals = () => [...bar().querySelectorAll(".segment-bar-row")].map(r => [r.querySelector(".segment-bar-label")?.textContent, r.querySelector(".segment-bar-total")?.textContent]);
+  const tile = (n: number) => host.querySelectorAll(".stats .stat")[n].querySelector(".stat-value")!.textContent;
+  const house = { id: 1, name: "Our House", asset_type: "real_estate", value: "415000.00", valued_on: "2026-10-04", notes: null, member_id: null, member_name: null };
+  const everything = { accounts: [account, card2, visa, loan, invest], assets: [house], manualAssetsTotal: 415000 };
+
+  it("sits between the three tiles and the grouped cards, titled What you own and owe", () => {
+    show(everything);
+    expect(bar().querySelector(".reports-section-title")?.textContent).toBe("What you own and owe");
+    const tiles = host.querySelector(".stats")!;
+    const groups = host.querySelector(".accounts-groups")!;
+    expect(tiles.compareDocumentPosition(bar()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(bar().compareDocumentPosition(groups) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect([...host.querySelectorAll(".stats .stat-label")].map(l => l.textContent)).toEqual(["What you own", "What you owe", "Net worth"]);
+  });
+
+  it("draws Own (invested, cash, property) and Owe (cards and loans) on one scale and agrees with the tiles to the cent", () => {
+    show(everything);
+    expect(rowTotals()).toEqual([["Own", tile(0)], ["Owe", tile(1)]]);
+    expect(tile(0)).toBe("$421,023.45");
+    expect(tile(1)).toBe("$16,675.46");
+    expect(bar().querySelector("[data-own-owe-net]")?.textContent).toBe(`Net worth ${tile(2)}`);
+    expect(tile(2)).toBe("$404,347.99");
+  });
+
+  it("names every kind with its amount in a key, since the bar names only the wide segments", () => {
+    show(everything);
+    expect(key()).toEqual(["Investments and other $5,000.00", "Cash and savings $1,023.45", "Property and valuables $415,000.00", "Cards and loans $16,675.46"]);
+  });
+
+  it("counts hidden accounts, as the tiles do", () => {
+    show({ ...everything, accounts: [account, { ...card2, hidden: true }, visa, loan, invest] });
+    expect(key()).toContain("Cash and savings $1,023.45");
+    expect(rowTotals()[0][1]).toBe(tile(0));
+  });
+
+  it("gives an overpaid card no width but keeps its real figure in the total and the key", () => {
+    const overpaid: Account = { ...visa, starting_balance: "1000.00", current_balance: "1200.00" };
+    show({ accounts: [account, overpaid], assets: [], manualAssetsTotal: 0 });
+    expect(tile(1)).toBe("-$200.00");
+    expect(rowTotals()[1]).toEqual(["Owe", "-$200.00"]);
+    expect(key()).toContain("Cards and loans -$200.00");
+    const owe = bar().querySelectorAll<HTMLElement>(".segment-bar-row")[1].querySelector<HTMLElement>(".segment-bar-seg")!;
+    expect(owe.style.width).toBe("0%");
+  });
+
+  it("reads $0.00 on the Owe row when nothing is owed, rather than dropping it", () => {
+    show({ accounts: [account], assets: [], manualAssetsTotal: 0 });
+    expect(rowTotals()).toEqual([["Own", "$123.45"], ["Owe", "$0.00"]]);
+    expect(key()).toEqual(["Cash and savings $123.45", "Cards and loans $0.00"]);
+  });
+
+  it("says so in words when there is nothing yet", () => {
+    show({ accounts: [], assets: [], manualAssetsTotal: 0 });
+    expect(bar().textContent).toContain("Add an account to see what you own and owe.");
+    expect(bar().querySelector(".segment-bar")).toBeNull();
+  });
+
+  it("hides every figure, and keeps amounts out of every attribute", () => {
+    show(everything);
+    const stop = startPrivacyMask(host);
+    try {
+      expect(bar().textContent).not.toMatch(/\$\s?\d/);
+      expect(bar().textContent).toContain("••••");
+    } finally {
+      stop();
+    }
+    for (const el of [bar(), ...bar().querySelectorAll("*")]) {
+      for (const attr of el.getAttributeNames()) expect(`${attr}=${el.getAttribute(attr)}`).not.toMatch(/\$\s?\d/);
+    }
+  });
+
+  it("leaves the tiles clickable, with their detail panel", () => {
+    show(everything);
+    act(() => host.querySelectorAll<HTMLElement>(".stats .stat")[1].click());
+    expect(host.textContent).toContain("Car Loan");
   });
 });

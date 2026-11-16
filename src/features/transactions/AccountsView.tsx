@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Account, AccountContributionDelta, Asset, FamilyMember, NetWorthPoint } from "../../shared/lib/types";
 import { PropertyAssetsSection } from "../investments/PropertyAssets";
 import { StatDetailPanel } from "../../shared/ui/StatDetailPanel";
+import { SegmentBar, type Segment } from "../../shared/ui/SegmentBar";
 import { formatAmount } from "../../shared/lib/format";
 import { accountTypeLabel, groupOf, isOverdrawn, netWorthContribution } from "../../shared/lib/accountGroups";
 import { AccountEditDialog } from "./AccountEditDialog";
@@ -334,6 +335,18 @@ export function AccountsView({
   const liabilities = liabilityAccounts.reduce((s, a) => s + netWorthContribution(a), 0);
   const netWorth = assetsTotal + liabilities;
 
+  // "What you own and owe": the same figures the three tiles use, split by kind. Hidden accounts count here
+  // exactly as they do in the tiles. An overpaid card makes the owed figure negative: it keeps its real
+  // figure in the total, the key and the table, and the bar gives it no width.
+  const contributionOf = (groups: string[]) =>
+    accounts.filter((a) => groups.includes(groupOf(a.account_type))).reduce((s, a) => s + netWorthContribution(a), 0);
+  const ownKinds = [
+    { label: "Investments and other", amount: contributionOf(["investment", "other"]), color: "var(--cat-1)" },
+    { label: "Cash and savings", amount: contributionOf(["cash"]), color: "var(--cat-2)" },
+    { label: "Property and valuables", amount: manualAssetsTotal, color: "var(--cat-3)" },
+  ].filter((k) => k.amount !== 0);
+  const oweKind: Segment = { label: "Cards and loans", amount: -liabilities, color: "var(--cat-5)" };
+
   const manualAssetsRow = manualAssetsTotal !== 0 ? [{ name: "Property and valuables", amount: manualAssetsTotal }] : [];
   // Red only for a balance below zero (s4), not for what's owed on a card or loan.
   const breakdownRow = (a: Account) => ({ name: a.name, amount: netWorthContribution(a), flag: isOverdrawn(a) });
@@ -468,6 +481,38 @@ export function AccountsView({
         emptyMessage="No accounts contribute to this yet."
         onClose={() => expandedStat && toggleStat(expandedStat)}
       />
+
+      {/* VS-31 stream A: the three tiles above give the totals; this card shows how they split by kind, with
+          a key naming every kind (the bar names only the wide ones). */}
+      <section className="card own-owe" data-own-owe>
+        <div className="card-head">
+          <span className="reports-section-title">What you own and owe</span>
+        </div>
+        {accounts.length === 0 && manualAssetsTotal === 0 ? (
+          <p className="empty-state">Add an account to see what you own and owe.</p>
+        ) : (
+          <>
+            <SegmentBar
+              rows={[
+                { label: "Own", segments: ownKinds },
+                { label: "Owe", segments: [oweKind] },
+              ]}
+              caption="What you own and what you owe, by kind of money"
+            />
+            <ul className="chart-legend own-owe-key" data-own-owe-key>
+              {[...ownKinds, oweKind].map((k) => (
+                <li className="chart-legend-item" key={k.label}>
+                  <span className="chart-legend-swatch" style={{ background: k.color }}></span>
+                  {k.label} <strong>{formatAmount(k.amount)}</strong>
+                </li>
+              ))}
+            </ul>
+            <p className="own-owe-net" data-own-owe-net>
+              Net worth {formatAmount(netWorth)}
+            </p>
+          </>
+        )}
+      </section>
 
       {/* One card per group, as in the UI mockup: its name and total on top, then one row per account,
           the biggest balance first. A card or loan group's total is the amount owed. */}
