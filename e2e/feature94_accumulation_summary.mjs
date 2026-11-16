@@ -28,6 +28,8 @@ const fail = (message) => {
 try {
   await browser.setWindowSize(1440, 2000);
   await nav(browser, "Investments");
+  // The money-put-in summary is in Investments' "Money put in" tab (VS-31).
+  await (await browser.$("#investments-tab-money-in")).click();
   await browser.$("[data-acc-summary]").waitForExist({ timeout: 20000, timeoutMsg: "the Investments tab should have an Accumulation & projection card" });
 
   // ---- 19.11: one row per investment account ------------------------------------------
@@ -130,6 +132,9 @@ try {
   await clickUntilShown(browser, "[data-account-back]", "[data-acc-summary]", { timeoutMsg: "Back should return to the Investments tab" });
 
   // ---- 19.15: the Goal projection what-if card is unchanged ----------------------------------------------
+  // It is in Investments' "Growth calculator" tab (VS-31).
+  await (await browser.$("#investments-tab-growth")).click();
+  await browser.$("[data-projection-save-as-goal]").waitForDisplayed({ timeout: 10000 });
   const goal = await browser.execute(() => {
     const stat = [...document.querySelectorAll(".stat")].find((s) => s.querySelector(".stat-label")?.textContent.trim() === "Projected in 20 years");
     return stat ? stat.querySelector(".stat-value").textContent.trim() : null;

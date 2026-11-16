@@ -23,6 +23,9 @@ const app = await launchApp({ dbDir });
 try {
   const investmentsNav = await app.browser.$("button*=Investments");
   await investmentsNav.click();
+  // The goal projection is in Investments' "Growth calculator" tab (VS-31).
+  await (await app.browser.$("#investments-tab-growth")).waitForDisplayed({ timeout: 10000 });
+  await (await app.browser.$("#investments-tab-growth")).click();
 
   const startingBalanceInput = await app.browser.$(
     "//label[span[text()='Starting balance']]/input",
