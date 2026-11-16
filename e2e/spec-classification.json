@@ -337,6 +337,7 @@
     "feature384_transaction_import_existing_accounts.mjs": "drives menus that close when the window loses focus; lib\\importAccount.mjs: drives menus that close when the window loses focus",
     "feature385_recurring_calendar_original_day.mjs": "not reviewed for parallel execution; exclusive until approved",
     "feature386_ask_show_all_layout.mjs": "drives menus that close when the window loses focus; uses the shared pointer (hover); uses the shared keyboard; lib\\askRetirement.mjs: depends on which window has OS focus; lib\\askReady.mjs: uses the shared keyboard",
-    "feature387_import_category_transactions.mjs": "drives menus that close when the window loses focus; uses the shared pointer (hover); uses the shared keyboard; lib\\importAccount.mjs: drives menus that close when the window loses focus"
+    "feature387_import_category_transactions.mjs": "drives menus that close when the window loses focus; uses the shared pointer (hover); uses the shared keyboard; lib\\importAccount.mjs: drives menus that close when the window loses focus",
+    "feature410_reports_tabs_and_print.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared keyboard"
   }
 }

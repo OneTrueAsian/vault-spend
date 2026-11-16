@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { openReportsTab } from "./lib/reportsTabs.mjs";
 
 const TOKEN = "QA" + "Unbroken".repeat(10);
 const LONG = "QA Extraordinarily Long Family Member Name For The Household Table";
@@ -28,6 +29,7 @@ const read = () => b.execute(() => {
 try {
   await b.setWindowSize(1280, 900);
   await (await b.$('.nav-item[aria-label="Reports"]')).click();
+  await openReportsTab(b, 'people');
   const pin = await b.$("//div[contains(@class,'card')][.//h2[contains(.,'Net Worth by Member')]]//button[contains(.,'Pin')]");
   await pin.waitForDisplayed({ timeout: 10000 });
   await pin.click();
@@ -57,6 +59,7 @@ try {
   }, TOKEN);
   for (const page of ['Household', 'Reports', 'Accounts']) {
     await (await b.$(`.nav-item[aria-label="${page}"]`)).click();
+    if (page === 'Reports') await openReportsTab(b, 'people');
     await waitUntilOrDiagnose(b, async () => (await contained()).out.length > 0, { timeout: 10000, timeoutMsg: `${page}: the long member name is shown` });
     const { out, pageOverflow } = await contained();
     for (const hit of out) assert.ok(hit.over <= 1, `${page}: the long member name runs ${hit.over}px past its ${hit.where}`);

@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { launchApp, waitUntilOrDiagnose, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { openReportsTab } from "./lib/reportsTabs.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -63,6 +64,7 @@ try {
   assert.deepEqual(find(0), ['Income: $0', 'Expenses: $100'], JSON.stringify(bars));
 
   await nav('Reports');
+  await openReportsTab(b, 'savings');
   const trend = await card('Savings rate trend');
   await trend.waitForDisplayed({ timeout: 10000 });
   const rates = await tooltips('Savings rate trend');

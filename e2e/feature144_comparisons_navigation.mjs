@@ -37,8 +37,8 @@ try {
   await browser.$("[data-reports-hub]").waitForExist({ timeout: 15000 });
   assert.equal((await browser.$$(".page h1")).length, 1, "Reports has exactly one h1");
   assert.equal(await (await browser.$(".page h1")).getText(), "Reports");
-  const overviewTab = await browser.$("[data-reports-tab='overview']");
-  assert.equal(await overviewTab.getAttribute("aria-selected"), "true", "Overview is selected first");
+  const overviewTab = await browser.$("[data-reports-tab='income']");
+  assert.equal(await overviewTab.getAttribute("aria-selected"), "true", "Where income went is selected first");
   assert.equal(await (await browser.$("[role='tablist']")).isDisplayed(), true);
   await browser.$("[data-report-summary]").waitForExist({ timeout: 15000, timeoutMsg: "the familiar report summary is intact" });
   assert.ok((await (await browser.$("[data-reports-hub]")).getText()).includes("Export CSV"), "the report page keeps its export controls");
@@ -51,14 +51,14 @@ try {
   // Keyboard: the roving tab stop and arrow keys.
   await reclaimWindowFocus(browser);
   await overviewTab.click();
-  await browser.keys("ArrowRight");
-  await browser.waitUntil(async () => (await (await browser.$("[data-reports-tab='comparisons']")).getAttribute("aria-selected")) === "true", { timeout: 5000, timeoutMsg: "ArrowRight should select Comparisons" });
-  assert.equal(await (await browser.$("[data-reports-tab='overview']")).getAttribute("tabindex"), "-1");
+  await browser.keys("ArrowLeft");
+  await browser.waitUntil(async () => (await (await browser.$("[data-reports-tab='comparisons']")).getAttribute("aria-selected")) === "true", { timeout: 5000, timeoutMsg: "ArrowLeft from the first tab wraps to Comparisons" });
+  assert.equal(await (await browser.$("[data-reports-tab='income']")).getAttribute("tabindex"), "-1");
   assert.equal(await (await browser.$("[data-reports-tab='comparisons']")).getAttribute("tabindex"), "0");
   assert.equal(await browser.execute(() => document.activeElement?.getAttribute("data-reports-tab")), "comparisons", "focus follows the selection");
-  assert.equal(await (await browser.$("[data-reports-hub]")).isDisplayed(), false, "Overview is hidden, not shown beside Comparisons");
+  assert.equal(await (await browser.$("[data-reports-controls]")).isDisplayed(), false, "the report's range, summary and output buttons are hidden, not shown above Comparisons");
   await browser.keys("Home");
-  await browser.waitUntil(async () => (await (await browser.$("[data-reports-tab='overview']")).getAttribute("aria-selected")) === "true", { timeout: 5000 });
+  await browser.waitUntil(async () => (await (await browser.$("[data-reports-tab='income']")).getAttribute("aria-selected")) === "true", { timeout: 5000 });
   await browser.keys("End");
   await browser.waitUntil(async () => (await (await browser.$("[data-reports-tab='comparisons']")).getAttribute("aria-selected")) === "true", { timeout: 5000 });
 
@@ -71,7 +71,7 @@ try {
   assert.equal(navActive, "Reports", "Reports stays the active sidebar item");
 
   // Overview kept its range while hidden.
-  await (await browser.$("[data-reports-tab='overview']")).click();
+  await (await browser.$("[data-reports-tab='income']")).click();
   assert.equal(await (await browser.$("[data-reports-hub]")).getAttribute("data-report-range"), rangeBefore);
   assert.ok((await (await browser.$("[data-range-preset='current_month']")).getAttribute("class")).includes("view-toggle-active"));
 
@@ -127,14 +127,14 @@ try {
   await browser.$("[data-comparisons-page] [data-metric='income']").waitForExist({ timeout: 20000, timeoutMsg: "the income card appears once its input exists" });
   assert.ok((await (await browser.$("[data-metric='income'] [data-cmp-local]")).getText()).includes("$85,000"));
 
-  // Persistence: a restart keeps the setup (no first-use prompt) and Reports starts on Overview again.
+  // Persistence: a restart keeps the setup (no first-use prompt) and Reports starts on Where income went again.
   await app.close();
   app = await launchApp({ dbDir });
   browser = app.browser;
   await browser.setWindowSize(1440, 1400);
   await nav(browser, "Reports");
   await browser.$("[data-reports-hub]").waitForExist({ timeout: 15000 });
-  assert.equal(await (await browser.$("[data-reports-tab='overview']")).getAttribute("aria-selected"), "true", "the tab is not remembered across restarts");
+  assert.equal(await (await browser.$("[data-reports-tab='income']")).getAttribute("aria-selected"), "true", "the tab is not remembered across restarts");
   await (await browser.$("[data-reports-tab='comparisons']")).click();
   await browser.$("[data-comparisons-page] [data-metric='income']").waitForExist({ timeout: 20000 });
   assert.equal((await browser.$$("[data-cmp-unconfigured]")).length, 0);

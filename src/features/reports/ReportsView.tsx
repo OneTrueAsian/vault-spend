@@ -1,25 +1,18 @@
 import { type ComponentProps } from "react";
-import { PageTabs } from "../../shared/ui/PageTabs";
-import { ReportsOverview } from "./ReportsOverview";
+import { ReportsOverview, type ReportsTab } from "./ReportsOverview";
 import { ComparisonsView } from "../comparisons/ComparisonsView";
 import { HelpLink } from "../../shared/ui/HelpLink";
 import type { Tab } from "../../shared/native/appTypes";
 
-type ReportsTab = "overview" | "comparisons";
+type OverviewProps = Omit<ComponentProps<typeof ReportsOverview>, "renderComparisons">;
 
-const TABS: { id: ReportsTab; label: string }[] = [
-  { id: "overview", label: "Overview" },
-  { id: "comparisons", label: "Comparisons" },
-];
-
-type OverviewProps = ComponentProps<typeof ReportsOverview>;
-
-/** Reports: the familiar report page under "Overview" and age-based financial comparisons under
- * "Comparisons". Each panel mounts the first time it is opened and then stays mounted (hidden), so
- * Overview keeps its date range and loaded data while someone looks at Comparisons. The selected
- * tab lives only in this component, so a profile switch (which remounts the app) starts fresh. */
+/** Reports: the report's sections in tabs (Where income went, Categories by month, Daily spending, Tags and people,
+ * Savings rate, Year by year) and age-based financial comparisons under "Comparisons". The range, summary and output
+ * buttons sit above the tabs and are the hub's (ReportsOverview). Each panel mounts the first time it is opened and then
+ * stays mounted (hidden), so a tab keeps its state while someone looks at another. The selected tab lives only in the
+ * hub, so a profile switch (which remounts the app) starts fresh. */
 export function ReportsView({
-  initialTab = "overview",
+  initialTab = "income",
   onOpenHelp,
   ...overviewProps
 }: OverviewProps & {
@@ -36,26 +29,18 @@ export function ReportsView({
         </div>
       </div>
 
-      <PageTabs
-        tabs={TABS}
-        initial={initialTab}
-        idPrefix="reports"
-        label="Report sections"
-        className="reports-tabs no-print"
-        panelClassName="reports-panel"
-        render={(id, active) =>
-          id === "overview" ? (
-            <ReportsOverview {...overviewProps} />
-          ) : (
-            <ComparisonsView
-              active={active}
-              accounts={overviewProps.accounts}
-              transactions={overviewProps.transactions}
-              assets={overviewProps.assets}
-              familyMembers={overviewProps.familyMembers}
-            />
-          )
-        }
+      <ReportsOverview
+        {...overviewProps}
+        initialTab={initialTab}
+        renderComparisons={(active) => (
+          <ComparisonsView
+            active={active}
+            accounts={overviewProps.accounts}
+            transactions={overviewProps.transactions}
+            assets={overviewProps.assets}
+            familyMembers={overviewProps.familyMembers}
+          />
+        )}
       />
     </div>
   );

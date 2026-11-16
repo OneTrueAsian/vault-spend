@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { useFinancialRead } from "../../shared/hooks/useFinancialRead";
 import { FinancialReadState } from "../../shared/native/FinancialReadState";
 import type { ReportSnapshot } from "../../shared/native/financialContracts";
@@ -25,6 +26,8 @@ import {
 import { buildSankeyData, layoutSankey, sankeyRibbonPath, spreadLabelPositions, type SankeyNode } from "../../shared/lib/sankey";
 import { buildHeatmapWeeks, heatmapBucket, heatmapNeighbor, heatmapScaleMax, type DailyAmount } from "../../shared/ui/heatmap";
 import { ScrollRegion } from "../../shared/ui/ScrollRegion";
+import { PageTabs } from "../../shared/ui/PageTabs";
+import "./ReportsTabs.css";
 import { CATEGORY_COLORS } from "../../shared/ui/categoryPalette";
 
 /** Savings rate — (income − expenses) ÷ income — trended over every month
@@ -55,17 +58,21 @@ function SavingsRateTrendSection({ transactions, accounts }: { transactions: Tra
       value: income > 0 ? ((income - expense) / income) * 100 : 0,
     }));
 
-  if (points.length === 0) return null;
-
   return (
-    <div className="card">
+    <div className="card" data-report-savings>
       <div className="card-head">
         <span className="reports-section-title">Savings rate trend</span>
       </div>
-      <p className="modal-message-secondary">
-        (Income − expenses) ÷ income, by month — a rate can go negative in a month spending outpaced income.
-      </p>
-      <LineChart points={points} height={180} formatValue={(v) => `${v.toFixed(0)}%`} caption="Savings rate by month" />
+      {points.length === 0 ? (
+        <p className="empty-state">No transactions yet, so there is no savings rate to show.</p>
+      ) : (
+        <>
+          <p className="modal-message-secondary">
+            (Income − expenses) ÷ income, by month — a rate can go negative in a month spending outpaced income.
+          </p>
+          <LineChart points={points} height={180} formatValue={(v) => `${v.toFixed(0)}%`} caption="Savings rate by month" />
+        </>
+      )}
     </div>
   );
 }
@@ -301,7 +308,7 @@ const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
  * text node in an `aria-live` status line, and every day's figure is also
  * listed in a visually-hidden table for a screen-reader user who'd rather
  * scan than tab through ~180 buttons one at a time. */
-function DailySpendHeatmapSection({ daily, from, to, loading }: { daily: DailyAmount[]; from: string; to: string; loading: boolean }) {
+function DailySpendHeatmapSection({ daily, from, to, loading, active }: { daily: DailyAmount[]; from: string; to: string; loading: boolean; active: boolean }) {
   const [focused, setFocused] = useState<{ date: string; amount: number } | null>(null);
   const [stop, setStop] = useState<string | null>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -322,11 +329,12 @@ function DailySpendHeatmapSection({ daily, from, to, loading }: { daily: DailyAm
   };
 
   // A long range is wider than the card and scrolls inside it; the newest weeks
-  // matter most, so it opens scrolled to them (like a contribution graph).
+  // matter most, so it opens scrolled to them (like a contribution graph). A hidden tab has no
+  // width to scroll, so this runs again when the tab becomes the one showing.
   useEffect(() => {
     const frame = frameRef.current;
-    if (frame) frame.scrollLeft = frame.scrollWidth;
-  }, [from, to, loading, hasSpending, weeks.length]);
+    if (frame && active) frame.scrollLeft = frame.scrollWidth;
+  }, [from, to, loading, hasSpending, weeks.length, active]);
 
   return (
     <div className="card" data-report-heatmap>
@@ -416,10 +424,34 @@ function DailySpendHeatmapSection({ daily, from, to, loading }: { daily: DailyAm
   );
 }
 
-/** Reports > Overview: one date range drives everything on the page — the summary, a
- * category-by-month table, a year-by-year summary, and spending cut by family
- * member and by tag. (Property & Valuables lives on Accounts and data
- * import/export in Settings; this page is for reading your numbers.) */
+export type ReportsTab = "income" | "categories" | "daily" | "people" | "savings" | "years" | "comparisons";
+
+const REPORT_TABS: { id: ReportsTab; label: string }[] = [
+  { id: "income", label: "Where income went" },
+  { id: "categories", label: "Categories by month" },
+  { id: "daily", label: "Daily spending" },
+  { id: "people", label: "Tags and people" },
+  { id: "savings", label: "Savings rate" },
+  { id: "years", label: "Year by year" },
+  { id: "comparisons", label: "Comparisons" },
+];
+
+/** The tabs that hold report sections, in the order they print. Comparisons is its own page. */
+const SECTION_TABS = ["income", "categories", "daily", "people", "savings", "years"] as const;
+
+/** Tells the hub which tab is showing (PageTabs keeps that to itself), so the report's controls can step aside for Comparisons. */
+function ReportsTabWatch({ id, active, onActive, children }: { id: ReportsTab; active: boolean; onActive: (id: ReportsTab) => void; children: ReactNode }) {
+  useEffect(() => {
+    if (active) onActive(id);
+  }, [active, id, onActive]);
+  return <>{children}</>;
+}
+
+/** Reports: one date range drives everything on the page. The range, the summary and the output buttons sit above the
+ * tabs; each section of the report is in one tab (Comparisons is its own page). A tab's sections mount when it is first
+ * opened, so Print and Save as PDF mount every section for the length of the print (`reports-print-all`), whichever tabs
+ * were opened. (Property & Valuables lives on Accounts and data import/export in Settings; this page is for reading
+ * your numbers.) */
 export function ReportsOverview({
   accounts,
   transactions,
@@ -432,6 +464,8 @@ export function ReportsOverview({
   onOpenBudget,
   layoutWidgets,
   onPinWidget,
+  initialTab = "income",
+  renderComparisons,
 }: {
   accounts: Account[];
   transactions: Transaction[];
@@ -439,14 +473,19 @@ export function ReportsOverview({
   familyMembers: FamilyMember[];
   onExportCsv: () => void;
   dataRevision?: string;
-  onPrint: () => void;
+  onPrint: () => void | Promise<void>;
   /** Present where the app can write the PDF itself (Windows); see ReportPrintActions. */
-  onSavePdf?: () => void;
+  onSavePdf?: () => void | Promise<void>;
   onOpenBudget: () => void;
   layoutWidgets: WidgetId[];
   onPinWidget: (id: WidgetId) => void;
+  initialTab?: ReportsTab;
+  /** The Comparisons tab's page; `active` is whether it is showing. */
+  renderComparisons: (active: boolean) => ReactNode;
 }) {
   const [preset, setPreset] = useState<RangePreset>("last_6");
+  const [tab, setTab] = useState<ReportsTab>(initialTab);
+  const [printing, setPrinting] = useState(false);
   const { from, to } = presetRange(preset, new Date());
   const months = monthKeys(from, to);
   const rangeKey = `${months[0]}..${months[months.length - 1]}`;
@@ -464,6 +503,42 @@ export function ReportsOverview({
     // Range endpoints are determined by rangeKey; revision additionally refreshes live edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeKey, dataRevision, loadReport]);
+
+  // Ctrl+P and the system print window raise `beforeprint`; the buttons below cover the save-to-PDF path, which prints
+  // without raising it. Either way the sections are mounted before the page is laid out for paper.
+  const tabNow = useRef(tab);
+  useEffect(() => {
+    tabNow.current = tab;
+  }, [tab]);
+  useEffect(() => {
+    const before = () => {
+      if (tabNow.current !== "comparisons") flushSync(() => setPrinting(true));
+    };
+    const after = () => setPrinting(false);
+    window.addEventListener("beforeprint", before);
+    window.addEventListener("afterprint", after);
+    return () => {
+      window.removeEventListener("beforeprint", before);
+      window.removeEventListener("afterprint", after);
+    };
+  }, []);
+  /** Runs a print action with every section mounted, and unmounts them when it finishes (a save finishes later). */
+  function withEverySection(action: () => void | Promise<void>) {
+    flushSync(() => setPrinting(true));
+    let result: void | Promise<void>;
+    try {
+      result = action();
+    } catch (error) {
+      setPrinting(false);
+      throw error;
+    }
+    if (result && typeof result.then === "function") {
+      const done = () => setPrinting(false);
+      void result.then(done, done);
+    } else {
+      setPrinting(false);
+    }
+  }
 
   const income = flow ? parseFloat(flow.total_income) : 0;
   const spending = flow ? parseFloat(flow.total_expense) : 0;
@@ -492,210 +567,261 @@ export function ReportsOverview({
 
   const netWorthByMemberRows = netWorthByMember(accounts, assets);
 
-  return (
-    <div className="reports-view" data-reports-hub data-report-range={rangeKey}>
-      <div className="page-top">
-        <div>
-          <p className="view-sub" style={{ marginTop: 0 }}>
-            {PRESET_LABELS[preset]}: {monthHeading(months[0], true)} – {monthHeading(months[months.length - 1], true)}.
-          </p>
-        </div>
-        <ReportPrintActions onExportCsv={onExportCsv} onPrint={onPrint} onSavePdf={onSavePdf} />
-      </div>
-
-      <div className="view-toggle no-print" role="group" aria-label="Report range">
-        {(Object.keys(PRESET_LABELS) as RangePreset[]).map((p) => (
-          <button
-            key={p}
-            type="button"
-            className={preset === p ? "view-toggle-active" : ""}
-            onClick={() => setPreset(p)}
-            data-range-preset={p}
-          >
-            {PRESET_LABELS[p]}
-          </button>
-        ))}
-      </div>
-      <FinancialReadState label="Report totals" initial={!snapshot} loading={reportRead.state?.key === rangeKey ? reportRead.state.loading : !snapshot} error={reportRead.state?.key === rangeKey ? reportRead.state.error?.message ?? null : null} onRetry={() => void refreshRange().catch(() => {})} />
-
-      {snapshot && <>
-      <div className="stats" data-report-summary style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-        <div className="stat tint-blue">
-          <span className="stat-value" data-summary-income>
-            {loading ? "…" : formatAmount(income.toFixed(2))}
-          </span>
-          <span className="stat-label">Income</span>
-        </div>
-        <div className="stat tint-red">
-          <span className="stat-value" data-summary-spending>
-            {loading ? "…" : formatAmount(spending.toFixed(2))}
-          </span>
-          <span className="stat-label">Spending</span>
-        </div>
-        <div className="stat tint-accent">
-          <span className={net < 0 ? "stat-value report-over-budget" : "stat-value"} data-summary-net>
-            {loading ? "…" : formatAmount(net.toFixed(2))}
-          </span>
-          <span className="stat-label">Net</span>
-        </div>
-        <div className="stat tint-teal">
-          <span className="stat-value" data-summary-rate>
-            {loading ? "…" : savingsRate === null ? "—" : `${savingsRate.toFixed(0)}%`}
-          </span>
-          <span className="stat-label">Savings rate</span>
-        </div>
-      </div>
-
-      <SankeySection income={income} categoryTotals={categoryTotals} loading={loading} />
-
-      <div className="card" data-report-table>
-        <div className="card-head">
-          <span className="reports-section-title">Where the money went, by category and month</span>
-        </div>
-        <ScrollRegion className="report-table-scroll" label="Spending by category and month table">
-          <table className="ledger report-table">
-            <thead>
-              <tr>
-                <th>Category</th>
-                {months.map((m) => (
-                  <th key={m} className="amount-col">
-                    {monthHeading(m, showYear)}
-                  </th>
-                ))}
-                <th className="amount-col">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {table.rows.map((r) => (
-                <tr key={r.category} data-report-category={r.category}>
-                  <td>{r.category}</td>
-                  {r.byMonth.map((v, i) => (
-                    <td key={months[i]} className="amount-col">
-                      {v > 0 ? formatAmount(v.toFixed(2)) : <span className="account-col">—</span>}
-                    </td>
+  /** One tab's sections. The tab and the print block draw from this one place, so a section can't be in one and not the other. */
+  const sectionsFor = (id: (typeof SECTION_TABS)[number], active: boolean): ReactNode => {
+    switch (id) {
+      case "income":
+        return <SankeySection income={income} categoryTotals={categoryTotals} loading={loading} />;
+      case "categories":
+        return (
+          <div className="card" data-report-table>
+            <div className="card-head">
+              <span className="reports-section-title">Where the money went, by category and month</span>
+            </div>
+            <ScrollRegion className="report-table-scroll" label="Spending by category and month table">
+              <table className={months.length > 6 ? "ledger report-table report-table-wide" : "ledger report-table"}>
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    {months.map((m) => (
+                      <th key={m} className="amount-col">
+                        {monthHeading(m, showYear)}
+                      </th>
+                    ))}
+                    <th className="amount-col">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {table.rows.map((r) => (
+                    <tr key={r.category} data-report-category={r.category}>
+                      <td>{r.category}</td>
+                      {r.byMonth.map((v, i) => (
+                        <td key={months[i]} className="amount-col">
+                          {v > 0 ? formatAmount(v.toFixed(2)) : <span className="account-col">—</span>}
+                        </td>
+                      ))}
+                      <td className="amount-col report-table-total" data-category-total>
+                        {formatAmount(r.total.toFixed(2))}
+                      </td>
+                    </tr>
                   ))}
-                  <td className="amount-col report-table-total" data-category-total>
-                    {formatAmount(r.total.toFixed(2))}
-                  </td>
-                </tr>
-              ))}
-              {table.rows.length === 0 && (
-                <tr>
-                  <td colSpan={months.length + 2} className="empty-state">
-                    {loading ? "Loading…" : "No spending in this range."}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            {table.rows.length > 0 && (
-              <tfoot>
-                <tr className="report-table-foot" data-report-totals>
-                  <td>Total</td>
-                  {table.monthTotals.map((v, i) => (
-                    <td key={months[i]} className="amount-col">
-                      {formatAmount(v.toFixed(2))}
-                    </td>
-                  ))}
-                  <td className="amount-col" data-grand-total>
-                    {formatAmount(table.grandTotal.toFixed(2))}
-                  </td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </ScrollRegion>
-      </div>
-
-      <DailySpendHeatmapSection daily={daily} from={heatmapFrom} to={heatmapTo} loading={loading} />
-
-      <div className="card" data-report-years>
-        <div className="card-head">
-          <span className="reports-section-title">Year by year</span>
-        </div>
-        <table className="ledger">
-          <thead>
-            <tr>
-              <th>Year</th>
-              <th className="amount-col">Income</th>
-              <th className="amount-col">Spending</th>
-              <th className="amount-col">Net</th>
-              <th className="amount-col">Savings rate</th>
-            </tr>
-          </thead>
-          <tbody>
-            {years.map((y) => (
-              <tr key={y.year} data-report-year={y.year}>
-                <td>{y.year}</td>
-                <td className="amount-col">{formatAmount(y.income.toFixed(2))}</td>
-                <td className="amount-col">{formatAmount(y.expense.toFixed(2))}</td>
-                <td className={y.net < 0 ? "amount-col report-over-budget" : "amount-col"}>{formatAmount(y.net.toFixed(2))}</td>
-                <td className="amount-col">{y.savingsRate === null ? "—" : `${y.savingsRate.toFixed(0)}%`}</td>
-              </tr>
-            ))}
-            {years.length === 0 && (
-              <tr>
-                <td colSpan={5} className="empty-state">
-                  {loading ? "Loading…" : "Nothing in this range."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="report-pair">
-        <BreakdownTable
-          title="Spending by member"
-          dataKey="report-members"
-          rows={memberRows}
-          emptyMessage={familyMembers.length === 0 ? "Add family members (Household) to see this." : "No spending attributed to a member in this range."}
-        />
-        <BreakdownTable
-          title="Spending by tag"
-          dataKey="report-tags"
-          rows={tagRows}
-          emptyMessage="No tags used in this range — add some from Transactions."
-        />
-      </div>
-
-      <SavingsRateTrendSection transactions={transactions} accounts={accounts} />
-
-      {familyMembers.length > 0 && (
-        <div>
-          <div className="card-head">
-            <h2 className="reports-section-title">Net Worth by Member</h2>
-            <PinToDashboardButton widgetId="net_worth_by_member" layoutWidgets={layoutWidgets} onPin={onPinWidget} />
+                  {table.rows.length === 0 && (
+                    <tr>
+                      <td colSpan={months.length + 2} className="empty-state">
+                        {loading ? "Loading…" : "No spending in this range."}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                {table.rows.length > 0 && (
+                  <tfoot>
+                    <tr className="report-table-foot" data-report-totals>
+                      <td>Total</td>
+                      {table.monthTotals.map((v, i) => (
+                        <td key={months[i]} className="amount-col">
+                          {formatAmount(v.toFixed(2))}
+                        </td>
+                      ))}
+                      <td className="amount-col" data-grand-total>
+                        {formatAmount(table.grandTotal.toFixed(2))}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </ScrollRegion>
           </div>
-          <table className="ledger">
-            <thead>
-              <tr>
-                <th>Member</th>
-                <th className="amount-col">Net Worth</th>
-              </tr>
-            </thead>
-            <tbody>
-              {netWorthByMemberRows.map((row) => (
-                <tr key={row.name}>
-                  <td className="member-name-cell">{row.name}</td>
-                  <td className="amount-col">{formatAmount(row.amount)}</td>
-                </tr>
-              ))}
-              {netWorthByMemberRows.length === 0 && (
+        );
+      case "daily":
+        return <DailySpendHeatmapSection daily={daily} from={heatmapFrom} to={heatmapTo} loading={loading} active={active} />;
+      case "people":
+        return (
+          <>
+            <div className="report-pair">
+              <BreakdownTable
+                title="Spending by member"
+                dataKey="report-members"
+                rows={memberRows}
+                emptyMessage={familyMembers.length === 0 ? "Add family members (Household) to see this." : "No spending attributed to a member in this range."}
+              />
+              <BreakdownTable
+                title="Spending by tag"
+                dataKey="report-tags"
+                rows={tagRows}
+                emptyMessage="No tags used in this range — add some from Transactions."
+              />
+            </div>
+            {familyMembers.length > 0 && (
+              <div>
+                <div className="card-head">
+                  <h2 className="reports-section-title">Net Worth by Member</h2>
+                  <span className="no-print">
+                    <PinToDashboardButton widgetId="net_worth_by_member" layoutWidgets={layoutWidgets} onPin={onPinWidget} />
+                  </span>
+                </div>
+                <table className="ledger">
+                  <thead>
+                    <tr>
+                      <th>Member</th>
+                      <th className="amount-col">Net Worth</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {netWorthByMemberRows.map((row) => (
+                      <tr key={row.name}>
+                        <td className="member-name-cell">{row.name}</td>
+                        <td className="amount-col">{formatAmount(row.amount)}</td>
+                      </tr>
+                    ))}
+                    {netWorthByMemberRows.length === 0 && (
+                      <tr>
+                        <td colSpan={2} className="empty-state">
+                          Nothing to show yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        );
+      case "savings":
+        return <SavingsRateTrendSection transactions={transactions} accounts={accounts} />;
+      case "years":
+        return (
+          <div className="card" data-report-years>
+            <div className="card-head">
+              <span className="reports-section-title">Year by year</span>
+            </div>
+            <table className="ledger">
+              <thead>
                 <tr>
-                  <td colSpan={2} className="empty-state">
-                    Nothing to show yet.
-                  </td>
+                  <th>Year</th>
+                  <th className="amount-col">Income</th>
+                  <th className="amount-col">Spending</th>
+                  <th className="amount-col">Net</th>
+                  <th className="amount-col">Savings rate</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {years.map((y) => (
+                  <tr key={y.year} data-report-year={y.year}>
+                    <td>{y.year}</td>
+                    <td className="amount-col">{formatAmount(y.income.toFixed(2))}</td>
+                    <td className="amount-col">{formatAmount(y.expense.toFixed(2))}</td>
+                    <td className={y.net < 0 ? "amount-col report-over-budget" : "amount-col"}>{formatAmount(y.net.toFixed(2))}</td>
+                    <td className="amount-col">{y.savingsRate === null ? "—" : `${y.savingsRate.toFixed(0)}%`}</td>
+                  </tr>
+                ))}
+                {years.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="empty-state">
+                      {loading ? "Loading…" : "Nothing in this range."}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        );
+    }
+  };
+
+  const showTab = useCallback((id: ReportsTab) => setTab(id), []);
+
+  return (
+    <div className="reports-view" data-reports-hub data-report-range={rangeKey} data-printing={printing ? "" : undefined}>
+      <div hidden={tab === "comparisons"} data-reports-controls>
+        <div className="page-top">
+          <div>
+            <p className="view-sub" style={{ marginTop: 0 }}>
+              {PRESET_LABELS[preset]}: {monthHeading(months[0], true)} – {monthHeading(months[months.length - 1], true)}.
+            </p>
+          </div>
+          <ReportPrintActions
+            onExportCsv={onExportCsv}
+            onPrint={() => withEverySection(onPrint)}
+            onSavePdf={onSavePdf ? () => withEverySection(onSavePdf) : undefined}
+          />
+        </div>
+
+        <div className="view-toggle no-print" role="group" aria-label="Report range">
+          {(Object.keys(PRESET_LABELS) as RangePreset[]).map((p) => (
+            <button
+              key={p}
+              type="button"
+              className={preset === p ? "view-toggle-active" : ""}
+              onClick={() => setPreset(p)}
+              data-range-preset={p}
+            >
+              {PRESET_LABELS[p]}
+            </button>
+          ))}
+        </div>
+        <FinancialReadState label="Report totals" initial={!snapshot} loading={reportRead.state?.key === rangeKey ? reportRead.state.loading : !snapshot} error={reportRead.state?.key === rangeKey ? reportRead.state.error?.message ?? null : null} onRetry={() => void refreshRange().catch(() => {})} />
+
+        {snapshot && (
+          <div className="stats" data-report-summary style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+            <div className="stat tint-blue">
+              <span className="stat-value" data-summary-income>
+                {loading ? "…" : formatAmount(income.toFixed(2))}
+              </span>
+              <span className="stat-label">Income</span>
+            </div>
+            <div className="stat tint-red">
+              <span className="stat-value" data-summary-spending>
+                {loading ? "…" : formatAmount(spending.toFixed(2))}
+              </span>
+              <span className="stat-label">Spending</span>
+            </div>
+            <div className="stat tint-accent">
+              <span className={net < 0 ? "stat-value report-over-budget" : "stat-value"} data-summary-net>
+                {loading ? "…" : formatAmount(net.toFixed(2))}
+              </span>
+              <span className="stat-label">Net</span>
+            </div>
+            <div className="stat tint-teal">
+              <span className="stat-value" data-summary-rate>
+                {loading ? "…" : savingsRate === null ? "—" : `${savingsRate.toFixed(0)}%`}
+              </span>
+              <span className="stat-label">Savings rate</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <PageTabs
+        tabs={REPORT_TABS}
+        initial={initialTab}
+        idPrefix="reports"
+        label="Report sections"
+        className="reports-tabs no-print"
+        panelClassName="reports-panel"
+        render={(id, active) => (
+          <ReportsTabWatch id={id} active={active} onActive={showTab}>
+            {id === "comparisons" ? renderComparisons(active) : snapshot ? sectionsFor(id, active) : null}
+          </ReportsTabWatch>
+        )}
+      />
+
+      {printing && snapshot && (
+        <div className="reports-print-all">
+          {SECTION_TABS.map((id) => (
+            <div key={id} className="reports-print-section">
+              {sectionsFor(id, true)}
+            </div>
+          ))}
         </div>
       )}
 
-      <div className="card clickable-row" onClick={onOpenBudget} title="Go to the Budget tab">
-        <span className="category-link">This month's budget →</span>
-      </div>
-      </>}
+      {snapshot && (
+        <div hidden={tab === "comparisons"}>
+          <div className="card clickable-row" onClick={onOpenBudget} title="Go to the Budget tab">
+            <span className="category-link">This month's budget →</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

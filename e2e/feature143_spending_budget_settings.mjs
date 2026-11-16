@@ -2,6 +2,7 @@
 // per-profile Safe to spend switch in a real compiled Tauri app.
 import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { openReportsTab } from "./lib/reportsTabs.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -77,6 +78,7 @@ try {
   await (await browser.$("[data-range-preset='current_month']")).click();
   await browser.waitUntil(async () => (await text("[data-summary-spending]")) === "$155.00", { timeout: 15000 });
   if ((await text("[data-summary-income]")) !== "$1,800.00") throw new Error("Current month income was wrong");
+  await openReportsTab(browser, "categories");
   if ((await browser.$$("[data-report-table] thead th")).length !== 3) throw new Error("Current month must have one table month");
 
   await nav("Budget");

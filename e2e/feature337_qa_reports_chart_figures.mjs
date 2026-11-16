@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { openReportsTab } from "./lib/reportsTabs.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -44,6 +45,8 @@ const read = () => b.execute(() => {
 try {
   await b.setWindowSize(1280, 900);
   await (await b.$('.nav-item[aria-label="Reports"]')).click();
+  // Each tab's sections are on the page once the tab has been opened.
+  for (const id of ['income', 'categories', 'daily', 'years']) await openReportsTab(b, id);
   await waitUntilOrDiagnose(b, async () => { const r = await read(); return r.sankey?.length === 3 && (r.daily?.length ?? 0) > 0 && r.years?.length > 0; }, { timeout: 15000, timeoutMsg: 'Reports charts and tables load' });
   const r = await read();
   assert.deepEqual(r.sankey, [['Income', '$1,600.00'], ['Groceries', '$1,180.00'], ['Left over', '$420.00']], 'Sankey: income 1,600, one spending category 1,180, left over 420');

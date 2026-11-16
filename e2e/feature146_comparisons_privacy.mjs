@@ -140,7 +140,7 @@ try {
   await browser.$(".brand-word").waitForExist({ timeout: 30000 });
   await nav(browser, "Reports");
   await browser.$("[data-reports-hub]").waitForExist({ timeout: 20000 });
-  assert.equal(await (await browser.$("[data-reports-tab='overview']")).getAttribute("aria-selected"), "true");
+  assert.equal(await (await browser.$("[data-reports-tab='income']")).getAttribute("aria-selected"), "true");
   await (await browser.$("[data-reports-tab='comparisons']")).click();
   await browser.waitUntil(async () => (await pageText(browser)).includes("$100,000"), { timeout: 20000, timeoutMsg: "comparisons return after unlocking" });
 

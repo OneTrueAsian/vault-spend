@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
+import { openReportsTab } from "./lib/reportsTabs.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '5000.00')")
@@ -22,6 +23,7 @@ try {
   for (const b of await browser.$$("nav button")) if ((await b.getText()).trim() === "Reports") { await b.click(); break; }
   await browser.$("[data-reports-hub]").waitForExist({ timeout: 10000 });
   await (await browser.$("[data-range-preset='last_month']")).click();
+  await openReportsTab(browser, "daily");
   await browser.$("[data-report-heatmap] [data-heatmap-day]").waitForExist({ timeout: 10000 });
 
   // One Tab stop: exactly one day in the grid is reachable with Tab, and it is the newest day.
