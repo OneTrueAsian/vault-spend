@@ -221,9 +221,16 @@ describe("HelpView", () => {
     expect(text).toContain("Change columns");
   });
 
+  it("names the import tabs, skips matched bank categories, and explains Change", () => {
+    const text = container.textContent ?? "";
+    for (const tab of ["Bank categories", "Needs a category", "Transactions"]) expect(text).toContain(tab);
+    expect(text).toContain("isn't asked again");
+    expect(text).toContain("Change on the import screen");
+  });
+
   it("explains that unsure import rows wait for a choice and that file category choices are remembered", () => {
     const text = container.textContent ?? "";
-    expect(text).toContain("Pick a category");
+    expect(text).toContain("Needs a category");
     expect(text).toContain("opens in a window");
     expect(text).toContain("Leave the rest uncategorized");
     expect(text).toContain("remembers that choice for your next import");

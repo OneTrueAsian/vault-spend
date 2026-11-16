@@ -33,6 +33,7 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
       "Household shows Spending by person as a stacked chart with a tick for what each person earned, and a People card where you can add, rename or remove people.",
     ],
     Enhancements: [
+      "The import screen now has Bank categories, Needs a category and Transactions tabs. Bank categories you already matched to one of your own aren't asked again; choose Change on the import screen to see and change your remembered choices.",
       "Links on Dashboard cards now open the right tab: Top merchants opens Look at one month, Open payoff planner opens Debt payoff, Allocation opens Mix and targets, and Net worth by member opens Tags and people.",
       "Print and Save as PDF on Reports include every section of the report, whichever tab you have open.",
       "Help names the new cards and tabs on each page.",
@@ -41,6 +42,7 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
       "On the import review, a small info icon now sits beside \"The app will remember it next time.\" It explains that if you choose \"Let the app guess\" for a bank category, the app does not remember that choice and will ask you about that category again on a later import. Picking one of your own categories is what the app remembers. The Help page says the same.",
     ],
     "Bug fixes": [
+      "An import is no longer refused when a remembered category was deleted. That bank category starts on Let the app guess so you can choose again.",
       "Household: names in the (month) by person table no longer break in the middle of a word on a narrow window.",
       "Budget: the Left amount in a group card is shown in full, even when a category is far over its plan.",
       "Reports: a status message that happens to be showing is no longer printed on the report. This now applies to every printout from the app.",

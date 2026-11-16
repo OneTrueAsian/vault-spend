@@ -36,6 +36,14 @@ describe("grouped release notes", () => {
     for (const part of [/Six months at a glance/, /What your investments are in/, /What you own and owe/, /Spending against the plan/, /Savings goals/, /Tags and people/, /Debt payoff/, /by person/]) expect(text).toMatch(part);
   });
 
+  it("puts VS-35 tabs and remembered choices under Enhancements, and deleted-category recovery under Bug fixes", () => {
+    const sections = changelogSections(CHANGELOG["1.3.3"]);
+    const enhancements = sections.find(s => s.heading === "Enhancements")!.notes.join(" ");
+    expect(enhancements).toMatch(/Bank categories, Needs a category and Transactions/);
+    expect(enhancements).toMatch(/already matched.*aren't asked again/);
+    expect(sections.find(s => s.heading === "Bug fixes")!.notes.join(" ")).toMatch(/import is no longer refused.*remembered category was deleted/);
+  });
+
   it("includes the import account-routing fix in the grouped 1.3.2 release notes", () => {
     const entry = CHANGELOG["1.3.2"];
     expect(changelogSections(entry).map((s) => s.heading)).toEqual(["New features", "Enhancements", "Bug fixes"]);

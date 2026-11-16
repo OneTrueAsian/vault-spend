@@ -718,7 +718,7 @@ const IMPORTING_ENTRY: HelpEntry = {
           The preview also sorts out categories before anything is saved.
           Each row is filed by your rules and past choices where the app is
           at least half sure. Any row it isn't sure about appears under{" "}
-          <strong>Pick a category</strong>: pick a category for it, or
+          <strong>Needs a category</strong>: pick a category for it, or
           choose "Leave uncategorized." <strong>"Leave the rest
           uncategorized"</strong> does that for every row still waiting.
           The import button stays off until every checked row has a choice.
@@ -735,6 +735,17 @@ const IMPORTING_ENTRY: HelpEntry = {
           under <strong>Review transactions</strong> on the Transactions tab.
         </li>
       </ol>
+      <p>
+        The import review has three tabs: <strong>Bank categories</strong>,{" "}
+        <strong>Needs a category</strong> and <strong>Transactions</strong>.
+        It opens on the first one that needs your choice. Bank categories you
+        matched to one of your own are used next time: a matched bank category
+        isn't asked again while your category still exists. Use{" "}
+        <strong>Change on the import screen</strong> to see those remembered
+        choices and change them. If the category you matched to was deleted,
+        the bank category is asked about again. Transactions has every row's
+        checkbox and account menu; Cancel saves nothing.
+      </p>
       <h3>Importing a file with unfamiliar headers</h3>
       <p>
         If a CSV's column names aren't ones Vault Spend knows, a{" "}
