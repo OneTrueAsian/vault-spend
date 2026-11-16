@@ -10,6 +10,7 @@
 
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { openReportsTab } from "./lib/reportsTabs.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -52,6 +53,7 @@ async function cellText(selector) {
   return (await (await browser.$(selector)).getText()).trim();
 }
 async function waitForTable() {
+  await openReportsTab(browser, "categories");
   await browser.waitUntil(async () => (await browser.$$("[data-report-category]")).length > 0, { timeout: 10000, timeoutMsg: "the category table never filled in" });
 }
 
@@ -83,11 +85,13 @@ try {
   if (rentTotal !== "$3,600.00" || groceriesTotal !== "$950.00") throw new Error(`row totals off: Rent ${rentTotal}, Groceries ${groceriesTotal}`);
   if ((await cellText("[data-grand-total]")) !== "$4,650.00") throw new Error("the grand total should match the summary's spending");
 
+  await openReportsTab(browser, "years");
   // Year by year: one row for this year (or two across New Year).
   const years = await browser.$$("[data-report-year]");
   if (years.length < 1) throw new Error("the year-by-year table should have a row");
 
   // By member and by tag (last month's groceries carried both).
+  await openReportsTab(browser, "people");
   const member = await browser.$("[data-report-members] [data-breakdown-row='Alex']");
   await member.waitForExist({ timeout: 5000, timeoutMsg: "Alex should appear under spending by member" });
   if (!(await member.getText()).includes("$450.00")) throw new Error(`Alex spent $450.00: ${await member.getText()}`);
@@ -102,6 +106,7 @@ try {
     timeoutMsg: `last month's spending should be $1,750.00 (1200 rent + 450 groceries + 100 dining), got ${await cellText("[data-summary-spending]")}`,
   });
   if ((await cellText("[data-summary-income]")) !== "$3,000.00") throw new Error("last month's income is $3,000.00");
+  await openReportsTab(browser, "categories");
   const monthColumns = await browser.$$("[data-report-table] thead th");
   if (monthColumns.length !== 3) throw new Error(`one month should give Category + 1 month + Total = 3 columns, got ${monthColumns.length}`);
 

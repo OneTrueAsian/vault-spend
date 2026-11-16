@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { openReportsTab } from "./lib/reportsTabs.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -57,6 +58,7 @@ try {
   assert.deepEqual(monthRows(0).map(r => r.slice(1)), [['Income', '$0.00'], ['Expenses', '$100.00']], JSON.stringify(flow.rows));
 
   await nav('Reports');
+  await openReportsTab(b, 'savings');
   await waitUntilOrDiagnose(b, async () => (await hiddenTable('Savings rate trend'))?.rows.length === 3, { timeout: 10000, timeoutMsg: 'the savings-rate chart lists three months' });
   const rates = await hiddenTable('Savings rate trend');
   assert.equal(rates.inTree, true);

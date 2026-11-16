@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { launchApp, waitUntilOrDiagnose, withFocusRetry } from './harness.mjs';
 import { seedFixture } from './lib/seed.mjs';
+import { openReportsTab } from "./lib/reportsTabs.mjs";
 const dbDir = await seedFixture(`
 import datetime
 today=datetime.date.today()
@@ -37,6 +38,7 @@ try {
   assert.equal(await b.$('[data-summary-spending]').getText(),'$250.00');
   assert.equal(await b.$('[data-summary-net]').getText(),'$250.00');
   assert.equal(await b.$('[data-summary-rate]').getText(),'50%');
+  await openReportsTab(b,'savings');
   const rateCard=()=>b.$('//div[contains(@class,"card")][.//span[text()="Savings rate trend"]]');
   const hit=await (await rateCard()).$$('svg rect[fill="transparent"]');
   assert.equal(hit.length,2,'old zero-activity month and current month');
@@ -53,6 +55,7 @@ try {
   assert.equal(await b.$('[data-summary-spending]').getText(),'$0.00');
   assert.equal(await b.$('[data-summary-net]').getText(),'$0.00');
   assert.equal(await b.$('[data-summary-rate]').getText(),'—');
+  await openReportsTab(b,'income');
   assert.ok((await page()).includes('No income or spending in this range.'));
   console.log('FEATURE 322 PASSED: mixed-account/Accounts totals, quiet-account notice, savings rate0/50%, populated-profile empty period.');
 }finally{await app.close();}
