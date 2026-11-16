@@ -6,7 +6,7 @@ import { BarChart, DonutChart, LineChart, fmtMoneyShort } from "../../shared/ui/
 import { formatAmount, formatDisplayDate } from "../../shared/lib/format";
 import { forecastHint } from "./forecastNotes";
 import { forecastChartPoints } from "./forecastChart";
-import { DebtPayoffPlannerSection } from "./ReportsOverview";
+import { DebtPayoffPlannerSection } from "./DebtPayoffPlanner";
 import { PinToDashboardButton } from "../../shared/ui/PinToDashboardButton";
 import type { WidgetId } from "../../shared/lib/dashboardLayout";
 import { MenuSelect } from "../../shared/ui/MenuSelect";

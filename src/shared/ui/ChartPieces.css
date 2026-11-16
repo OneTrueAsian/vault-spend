@@ -1,0 +1,235 @@
+/* VS-31: shared chart pieces (CategoryBars, SegmentBar, StackedRows). Theme variables only, so every
+   style and both light and dark follow automatically. */
+
+/* ---------- CategoryBars ---------- */
+.category-bars {
+  width: 100%;
+  border-collapse: collapse;
+}
+.category-bars th,
+.category-bars td {
+  padding: 6px 0;
+  vertical-align: middle;
+  font-weight: normal;
+  text-align: left;
+}
+.category-bars-name {
+  white-space: nowrap;
+  padding-right: 16px !important;
+  color: var(--text);
+}
+.category-bars .category-bars-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  box-shadow: none;
+  cursor: pointer;
+}
+/* Beats the global button:hover fill and Retro's raised button look: a category name stays text. */
+.category-bars .category-bars-select:hover {
+  background: none;
+  border-color: transparent;
+  box-shadow: none;
+  color: inherit;
+}
+.category-bars-icon {
+  display: inline-flex;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.category-bars-select .category-bars-icon {
+  margin-right: 0;
+}
+.category-bars-bar {
+  width: 55%;
+  padding-right: 16px !important;
+}
+.category-bars-track {
+  position: relative;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+.category-bars-plan {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border: 1px solid var(--text-muted);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+.category-bars-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 4px;
+  background: var(--accent);
+}
+.category-bars-over {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 0 4px 4px 0;
+  background: repeating-linear-gradient(-45deg, var(--negative) 0 4px, var(--negative-soft) 4px 8px);
+}
+.category-bars-amount {
+  white-space: nowrap;
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.category-bars-note-cell {
+  white-space: nowrap;
+  text-align: right !important;
+  padding-left: 16px !important;
+}
+.category-bars-note {
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+.category-bars-note-bad {
+  color: var(--negative);
+  font-weight: 600;
+}
+.category-bars-note-warn {
+  color: var(--warning);
+}
+.category-bars-note-good {
+  color: var(--positive);
+}
+
+/* ---------- SegmentBar ---------- */
+.segment-bar {
+  display: grid;
+  gap: 8px;
+}
+.segment-bar-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+.segment-bar-row:not(:has(.segment-bar-label)) {
+  grid-template-columns: 1fr auto;
+}
+.segment-bar-label {
+  min-width: 3em;
+  color: var(--text);
+  font-weight: 600;
+}
+.segment-bar-track {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  height: 48px;
+}
+.segment-bar-seg {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 4px;
+}
+.segment-bar-seg-text {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: grid;
+  max-width: calc(100% - 12px);
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.8em;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.segment-bar-seg-name {
+  font-weight: 600;
+}
+.segment-bar-seg-amount {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.segment-bar-total {
+  min-width: 6em;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* ---------- StackedRows ---------- */
+.stacked-rows {
+  display: grid;
+  gap: 6px;
+}
+.stacked-rows-row {
+  display: grid;
+  grid-template-columns: minmax(3em, auto) 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+.stacked-rows-label {
+  color: var(--text);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.stacked-rows-track {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  height: 20px;
+}
+.stacked-rows-seg {
+  min-width: 0;
+  border-radius: 3px;
+}
+.stacked-rows-tick {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 3px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--text);
+}
+.stacked-rows-total {
+  min-width: 6em;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.stacked-rows-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: 0.85em;
+}
+.stacked-rows-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.stacked-rows-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.stacked-rows-swatch-tick {
+  width: 3px;
+  height: 12px;
+  background: var(--text);
+}
