@@ -1,7 +1,7 @@
 // E2E test: a simpler Budget page (UI review s2), on the tidy two-person household data.
 //
-// - The month's totals are one strip, so at 1440x1000 the first category row starts less than
-//   420px below the page title (the review measured about 700px of totals above it).
+// - The month's totals are one "Spending against the plan" card (VS-31), and at 1440x1000 the first
+//   category row starts less than 160px below it (it used to be a strip, with the row 420px below the title).
 // - Each group has one column-heading row; the amounts line up on the right.
 // - Typing 250 into Groceries' budget field and pressing Tab saves it: it's still 250.00 after
 //   the window reloads.
@@ -88,7 +88,7 @@ try {
   // ---- 1. One summary strip, so the categories start near the top -------------------------------
   const readLayout = () =>
     browser.execute(() => {
-      const title = document.querySelector(".view-title").getBoundingClientRect().top;
+      const title = document.querySelector("[data-budget-summary]").getBoundingClientRect().bottom;
       const firstRow = document.querySelector(".cat-row").getBoundingClientRect().top;
       const heads = [...document.querySelectorAll(".cat-list-head")].map((h) =>
         [...h.children].map((c) => c.textContent.trim()).filter(Boolean).join(" "),
@@ -115,7 +115,7 @@ try {
     readLayout,
     (l) =>
       l.clippedNames.length === 0 &&
-      l.gap < 420 &&
+      l.gap < 160 &&
       l.summaries === 1 &&
       l.tiles === 0 &&
       l.heads.length === l.groups &&
@@ -123,9 +123,9 @@ try {
       l.spreads.every((d) => d <= 1) &&
       l.sideways <= 1 &&
       l.balanceNote.includes("Not an account balance"),
-    "at 1440x1000: one summary strip (saying it's not an account balance), no group tiles, one heading row per group, the first category row less than 420px below the title, amounts lined up on the right and nothing scrolling sideways",
+    "at 1440x1000: one Spending against the plan card (saying it's not an account balance), no group tiles, one heading row per group, the first category row less than 160px below that card (its group heading and column headings sit between), amounts lined up on the right and nothing scrolling sideways",
   );
-  console.log(`first category row sits ${layout.gap.toFixed(0)}px below the title; headings: ${JSON.stringify(layout.heads)}`);
+  console.log(`first category row sits ${layout.gap.toFixed(0)}px below the plan card; headings: ${JSON.stringify(layout.heads)}`);
   await browser.saveScreenshot(path.join(shotsDir, "budget-top-1440.png"));
 
   // No row's menu starts, ends or doubles a divider: Groceries has its two settings, Income has none.

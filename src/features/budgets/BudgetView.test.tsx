@@ -16,6 +16,7 @@ const invokeMock = vi.hoisted(() =>
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 
 import { BudgetView } from "./BudgetView";
+import { startPrivacyMask } from "../../shared/lib/privacy";
 import type { CashFlow, ReportBudgetLine } from "../../shared/lib/types";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -139,45 +140,140 @@ describe("Budget read state", () => {
   });
 });
 
-describe("BudgetView summary", () => {
-  it("shows one summary strip with all four totals and keeps both money-left figures", async () => {
-    await render(props());
-    const strips = container.querySelectorAll("[data-budget-summary]");
-    expect(strips).toHaveLength(1);
-    const strip = strips[0] as HTMLElement;
-    for (const label of ["Planned spending", "Spent so far", "Left to spend", "Money left after income"]) {
-      expect(strip.textContent).toContain(label);
+describe("BudgetView Spending against the plan", () => {
+  const card = () => container.querySelector<HTMLElement>("[data-budget-summary]")!;
+  const rows = () => [...card().querySelectorAll(".category-bars tr")].map((tr) => tr.textContent!.replace(/\s+/g, " ").trim());
+  const noAmountInAttributes = (el: HTMLElement) => {
+    for (const child of [el, ...el.querySelectorAll<HTMLElement>("*")]) {
+      for (const attr of child.getAttributeNames()) expect(`${attr}=${child.getAttribute(attr)}`).not.toMatch(/\$\s?\d/);
     }
-    expect(strip.querySelector("[data-planned-net]")?.textContent).toBe("$3,480.00");
-    expect(strip.querySelector("[data-actual-net]")?.textContent).toBe("$3,310.00");
-    expect(strip.textContent).toContain("$1,720.00");
-    expect(strip.textContent).toContain("$1,690.00");
-    expect(strip.textContent).toContain("$30.00");
-    // The old second block of stat cards and the separate net card are gone.
-    expect(container.querySelector("[data-budget-net-summary]")).toBeNull();
+  };
+
+  it("replaces the summary strip with one card of bars, a plan outline behind each spent fill", async () => {
+    await render(props());
+    expect(container.querySelectorAll("[data-budget-summary]")).toHaveLength(1);
+    expect(card().querySelector(".reports-section-title")?.textContent).toBe("Spending against the plan");
+    expect(container.querySelector(".budget-summary-grid")).toBeNull();
     expect(container.querySelectorAll(".stats")).toHaveLength(0);
+    expect(container.querySelector("[data-budget-net-summary]")).toBeNull();
+    expect(card().querySelectorAll(".category-bars-plan")).toHaveLength(2);
+    expect(rows()).toHaveLength(2);
+    expect(rows()[0]).toContain("Mortgage");
+    expect(rows()[0]).toContain("$1,600.00 of $1,600.00");
+    expect(rows()[0]).toContain("$0.00 left");
+    expect(rows()[1]).toContain("Insurance");
+    expect(rows()[1]).toContain("$90.00 of $120.00");
+    expect(rows()[1]).toContain("$30.00 left");
   });
 
-  it("keeps the income-minus-spending breakdown as a tooltip and a small line", async () => {
+  it("still shows every figure the old strip did: planned, spent, left to spend, and money left after income both ways", async () => {
     await render(props());
-    const strip = container.querySelector<HTMLElement>("[data-budget-summary]")!;
-    const netCell = strip.querySelector("[data-planned-net]")!.closest<HTMLElement>("[title]")!;
-    expect(netCell.title).toContain("$5,200.00 budgeted income − $1,720.00 budgeted spending");
-    expect(netCell.title).toContain("$5,000.00 recorded income − $1,690.00 recorded spending");
-    const note = strip.querySelector<HTMLElement>("[data-budget-summary-note]")!;
+    const corner = card().querySelector<HTMLElement>("[data-plan-total]")!;
+    expect(corner.textContent).toContain("$1,690.00 of $1,720.00 planned");
+    expect(corner.textContent).toContain("$30.00 left");
+    expect(card().querySelector("[data-planned-net]")?.textContent).toBe("$3,480.00");
+    expect(card().querySelector("[data-actual-net]")?.textContent).toBe("$3,310.00");
+  });
+
+  it("says in the corner how far over the plan the month is", async () => {
+    await render(props({ budgetActuals: [line({ category: "Mortgage", budgeted: "100.00", actual: "160.00" })] }));
+    const corner = card().querySelector<HTMLElement>("[data-plan-total]")!;
+    expect(corner.textContent).toContain("$160.00 of $100.00 planned");
+    expect(corner.textContent).toContain("$60.00 over");
+    expect(rows()[0]).toContain("$60.00 over");
+    expect(card().querySelector(".category-bars-note-bad")?.textContent).toContain("over");
+  });
+
+  it("keeps the income-minus-spending breakdown in words on the page, with no amount in a tooltip", async () => {
+    await render(props());
+    const note = card().querySelector<HTMLElement>("[data-budget-summary-note]")!;
     expect(note.textContent).toContain("$5,200.00 budgeted income − $1,720.00 budgeted spending");
     expect(note.textContent).toContain("$5,000.00 recorded income − $1,690.00 recorded spending");
-    // Still said on the page, not only on hover.
     expect(note.textContent).toContain("Not an account balance");
-    expect(netCell.title).toContain("not an account balance");
+    noAmountInAttributes(card());
   });
 
-  it("puts the income allocation note inside the summary as its last line", async () => {
+  it("puts the income line at the bottom, carrying the allocation message", async () => {
     await render(props());
-    const strip = container.querySelector<HTMLElement>("[data-budget-summary]")!;
-    const allocation = strip.querySelector("[data-allocation]");
-    expect(allocation).not.toBeNull();
-    expect(strip.lastElementChild).toBe(allocation);
+    const income = card().querySelector<HTMLElement>("[data-budget-income-line]")!;
+    expect(income.textContent).toContain("Income so far is $5,000.00 of $5,200.00 planned.");
+    const allocation = income.querySelector("[data-allocation]")!;
+    expect(allocation.getAttribute("data-allocation")).toBe("unallocated");
+    expect(allocation.textContent).toBe("$3,480.00 of your planned income isn't given a job yet.");
+    expect(card().querySelector(".category-bars")!.compareDocumentPosition(income) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("says when every dollar has a job, and when spending is planned past income", async () => {
+    await render(props({ budgetActuals: [line({ category: "Mortgage", budgeted: "5200.00", actual: "100.00" }), line({ category: "Paycheck", budget_group: "income", budgeted: "5200.00", actual: "5000.00" })] }));
+    expect(card().querySelector("[data-allocation]")!.getAttribute("data-allocation")).toBe("balanced");
+    expect(card().querySelector("[data-allocation]")!.textContent).toBe("Every dollar of your planned income has a job.");
+    await render(props({ budgetActuals: [line({ category: "Mortgage", budgeted: "6000.00", actual: "100.00" }), line({ category: "Paycheck", budget_group: "income", budgeted: "5200.00", actual: "5000.00" })] }));
+    expect(card().querySelector("[data-allocation]")!.getAttribute("data-allocation")).toBe("over");
+    expect(card().querySelector("[data-allocation]")!.textContent).toBe("Planned spending is $800.00 more than your planned income.");
+  });
+
+  it("keeps a category far over its plan inside the card: the over part ends where the scale ends", async () => {
+    await render(
+      props({
+        budgetActuals: [line({ category: "Car upkeep", budget_group: "flexible", budgeted: "100.00", actual: "1340.00" }), line({ category: "Groceries", budget_group: "flexible", budgeted: "400.00", actual: "100.00" })],
+      }),
+    );
+    expect(rows()[0]).toContain("Car upkeep");
+    expect(rows()[0]).toContain("$1,340.00 of $100.00");
+    expect(rows()[0]).toContain("$1,240.00 over");
+    const over = card().querySelector<HTMLElement>(".category-bars-over")!;
+    expect(parseFloat(over.style.left) + parseFloat(over.style.width)).toBeLessThanOrEqual(100.001);
+    for (const el of card().querySelectorAll<HTMLElement>(".category-bars-fill, .category-bars-plan")) expect(parseFloat(el.style.width)).toBeLessThanOrEqual(100);
+  });
+
+  it("shows eight rows and counts the rest in words", async () => {
+    const many = Array.from({ length: 10 }, (_, i) => line({ category: `Cat${i}`, budget_group: "flexible", budgeted: `${100 + i}.00`, actual: "10.00" }));
+    await render(props({ budgetActuals: many }));
+    expect(rows()).toHaveLength(8);
+    const more = card().querySelector<HTMLElement>("[data-plan-more]")!;
+    expect(more.textContent).toBe("2 more categories: $20.00 spent of $201.00 planned.");
+  });
+
+  it("opens a category's transactions when its name is clicked", async () => {
+    const onCategoryClick = vi.fn();
+    await render(props({ onCategoryClick }));
+    const name = [...card().querySelectorAll<HTMLButtonElement>(".category-bars-select")].find((b) => b.textContent!.includes("Insurance"))!;
+    act(() => name.click());
+    expect(onCategoryClick).toHaveBeenCalledWith("Insurance");
+  });
+
+  it("says so in words when the month has no budget", async () => {
+    await render(props({ budgetActuals: [], monthFlow: { ...monthFlow, total_income: "0.00", total_expense: "0.00" } }));
+    expect(card().textContent).toContain("Nothing is planned for spending in March 2026 yet.");
+    expect(card().querySelector(".category-bars")).toBeNull();
+    expect(card().querySelector("[data-plan-total]")).toBeNull();
+    expect(card().querySelector("[data-allocation]")).toBeNull();
+    expect(container.textContent).toContain("No budget lines yet.");
+  });
+
+  it("hides every figure, and keeps amounts out of every attribute", async () => {
+    await render(props({ amountsHidden: true }));
+    const stop = startPrivacyMask(container);
+    try {
+      expect(card().textContent).not.toMatch(/\$\s?\d/);
+      expect(card().textContent).toContain("••••");
+    } finally {
+      stop();
+    }
+    noAmountInAttributes(card());
+  });
+
+  it("names the month and how much of it has gone", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 2, 15, 12));
+    try {
+      await render(props());
+      expect(card().querySelector(".budget-plan-sub")!.textContent).toBe("March 2026, 48% of the month gone");
+    } finally {
+      vi.useRealTimers();
+    }
+    await render(props({ month: 4, monthLabel: "April 2026" }));
+    expect(card().querySelector(".budget-plan-sub")!.textContent).toBe("April 2026");
   });
 });
 
