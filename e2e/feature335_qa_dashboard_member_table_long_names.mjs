@@ -53,6 +53,14 @@ try {
       if (!n.textContent.includes(token)) continue;
       const card = n.parentElement.closest('.card, .account-card') ?? document.querySelector('[role="main"]');
       const c = card.getBoundingClientRect(), r = document.createRange(); r.selectNodeContents(n);
+      // A name inside Household's scroll region (VS-31 step 3: the month table keeps a name whole and scrolls) stays inside
+      // its card when the region does; the region itself must fit the card.
+      const region = n.parentElement.closest('.household-table-scroll');
+      if (region) {
+        const g = region.getBoundingClientRect();
+        out.push({ where: card.className + ' (scroll region)', over: Math.round((g.right - c.right) * 10) / 10 });
+        continue;
+      }
       for (const x of r.getClientRects()) out.push({ where: card.className, over: Math.round((x.right - c.right) * 10) / 10 });
     }
     return { out, pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };

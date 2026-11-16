@@ -41,8 +41,8 @@ async function nav(label) {
   throw new Error(`missing nav button: ${label}`);
 }
 async function text(selector) { return (await browser.$(selector)).getText(); }
-async function openGroceries() {
-  const buttons = await browser.$$(".chart-legend-button");
+async function openGroceries(selector = ".chart-legend-button") {
+  const buttons = await browser.$$(selector);
   for (const button of buttons) {
     if ((await button.getText()).includes("Groceries")) return button.click();
   }
@@ -52,8 +52,9 @@ async function openGroceries() {
 try {
   await browser.setWindowSize(1440, 1050);
   await nav("Dashboard");
-  await browser.$(".chart-legend-button").waitForExist({ timeout: 15000 });
-  await openGroceries();
+  // The Dashboard's spending card (VS-31) lists categories as buttons in its category bars; the donut legend is gone.
+  await browser.$("[data-spending-so-far] .category-bars-select").waitForExist({ timeout: 15000 });
+  await openGroceries("[data-spending-so-far] .category-bars-select");
   await browser.$("[data-category-spend-detail]").waitForExist({ timeout: 10000 });
   await browser.waitUntil(async () => (await text("[data-category-spend-detail]")).includes("Costco"), {
     timeout: 10000, timeoutMsg: "Dashboard category detail never loaded Costco",
