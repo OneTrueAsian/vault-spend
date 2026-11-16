@@ -59,7 +59,10 @@ try {
 
   const cashFlowNav = await app.browser.$("button*=Cash Flow");
   await cashFlowNav.click();
-  const legend = await app.browser.$(".chart-legend");
+  // Income vs. expenses is in Cash Flow's "Month by month" tab (VS-31).
+  await (await app.browser.$("#cashflow-tab-by-month")).waitForDisplayed({ timeout: 10000 });
+  await (await app.browser.$("#cashflow-tab-by-month")).click();
+  const legend = await app.browser.$("#cashflow-panel-by-month .chart-legend");
   await legend.waitForExist({ timeout: 10000 });
   const legendText = await legend.getText();
   console.log("cash flow legend:", legendText);

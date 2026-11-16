@@ -64,6 +64,9 @@ try {
   await (await browser.$("[data-category-spend-detail] .modal-actions button")).click();
 
   await nav("Cash Flow");
+  // Top categories is in Cash Flow's "Look at one month" tab (VS-31).
+  await (await browser.$("#cashflow-tab-one-month")).waitForDisplayed({ timeout: 15000 });
+  await (await browser.$("#cashflow-tab-one-month")).click();
   await browser.$(".cashflow-category-body .chart-legend-button").waitForExist({ timeout: 15000 });
   await openGroceries();
   await browser.$("[data-category-spend-detail]").waitForExist({ timeout: 10000 });

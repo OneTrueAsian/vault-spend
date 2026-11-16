@@ -35,7 +35,9 @@ const expected = { 30: [247, 30], 60: [-231, 60], 90: [-905, 90] };
 try {
   await b.setWindowSize(1280, 900);
   await (await b.$('.nav-item[aria-label="Cash Flow"]')).click();
-  await clickTab('Forecast');
+  // Forecast is a Cash Flow page tab (VS-31), not a .tab-btn; the 30/60/90-day buttons still are.
+  await (await b.$('#cashflow-tab-forecast')).waitForDisplayed({ timeout: 10000 });
+  await (await b.$('#cashflow-tab-forecast')).click();
   for (const days of [30, 60, 90]) {
     await clickTab(`${days} days`);
     const [balance, lastDay] = expected[days];

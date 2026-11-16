@@ -43,6 +43,9 @@ const hiddenTable = title => b.execute(titleText => {
 try {
   await b.setWindowSize(1280, 900);
   await nav('Cash Flow');
+  // Income vs. expenses is in Cash Flow's "Month by month" tab (VS-31).
+  await (await b.$('#cashflow-tab-by-month')).waitForDisplayed({ timeout: 10000 });
+  await (await b.$('#cashflow-tab-by-month')).click();
   await waitUntilOrDiagnose(b, async () => (await hiddenTable('Income vs. expenses'))?.rows.length === 6, { timeout: 10000, timeoutMsg: 'the Cash Flow chart lists three months of income and expenses' });
   const flow = await hiddenTable('Income vs. expenses');
   assert.equal(flow.inTree, true, 'the table is reachable by assistive technology, not display:none or aria-hidden');

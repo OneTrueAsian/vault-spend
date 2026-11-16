@@ -50,6 +50,9 @@ const tooltips = async title => {
 try {
   await b.setWindowSize(1280, 900);
   await nav('Cash Flow');
+  // Income vs. expenses is in Cash Flow's "Month by month" tab (VS-31).
+  await (await b.$('#cashflow-tab-by-month')).waitForDisplayed({ timeout: 10000 });
+  await (await b.$('#cashflow-tab-by-month')).click();
   const c = await card('Income vs. expenses');
   await c.waitForDisplayed({ timeout: 10000 });
   await waitUntilOrDiagnose(b, async () => (await (await card('Income vs. expenses')).getText()).includes('Income · $1,600.00'), { timeout: 10000, timeoutMsg: 'legend income is 800 + 800' });

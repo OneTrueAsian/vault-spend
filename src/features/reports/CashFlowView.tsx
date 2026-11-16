@@ -1,5 +1,5 @@
 import "./CashFlowCharts.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Account, BillAwareForecast, CashFlow, CategoryAmount, DebtPayoffPlan, YoyCashFlow } from "../../shared/lib/types";
 import { lowestPoint } from "./lowestPoint";
 import { BarChart, DonutChart, LineChart, fmtMoneyShort } from "../../shared/ui/charts";
@@ -14,8 +14,116 @@ import { CategorySpendDialog } from "../../shared/ui/CategorySpendDialog";
 import { CATEGORY_COLORS } from "../../shared/ui/categoryPalette";
 import { HelpLink } from "../../shared/ui/HelpLink";
 import type { Tab } from "../../shared/native/appTypes";
+import { PageTabs } from "../../shared/ui/PageTabs";
+import { StackedRows, type StackedRow } from "../../shared/ui/StackedRows";
+import { useFinancialRead } from "../../shared/hooks/useFinancialRead";
+import { FinancialReadState } from "../../shared/native/FinancialReadState";
+import type { ReportSnapshot } from "../../shared/native/financialContracts";
+import { groupOf, owedAmount } from "../../shared/lib/accountGroups";
 
 const FORECAST_DAY_OPTIONS = [30, 60, 90];
+
+export type CashFlowTab = "forecast" | "by-month" | "one-month" | "last-year" | "debt";
+
+/** v9's Cash Flow tabs, in v9's order, plus the debt planner the owner kept on this page (VS-31). */
+const CASH_FLOW_TABS: { id: CashFlowTab; label: string }[] = [
+  { id: "forecast", label: "Forecast" },
+  { id: "by-month", label: "Month by month" },
+  { id: "one-month", label: "Look at one month" },
+  { id: "last-year", label: "Compared with last year" },
+  { id: "debt", label: "Debt payoff" },
+];
+
+const monthName = (year: number, month: number, style: "short" | "long") =>
+  new Date(year, month - 1, 1).toLocaleDateString("en-US", { month: style });
+const monthKey = (m: { year: number; month: number }) => `${m.year}-${String(m.month).padStart(2, "0")}`;
+
+/** The six calendar months ending with this one. */
+function lastSixMonths(today: Date) {
+  const to = { year: today.getFullYear(), month: today.getMonth() + 1 };
+  const first = new Date(to.year, to.month - 6, 1);
+  const from = { year: first.getFullYear(), month: first.getMonth() + 1 };
+  return { from, to, key: `${monthKey(from)}..${monthKey(to)}` };
+}
+
+/** A row for every month in the report, even one with no spending: its segments are that month's
+ * category cells, and its tick is what came in (the same income figure Month by month draws). Every
+ * row stacks its categories in one order, largest over the six months first, as the legend lists them. */
+function sixMonthRows(snapshot: ReportSnapshot): StackedRow[] {
+  const totals = new Map<string, number>();
+  for (const c of snapshot.cells) totals.set(c.category, (totals.get(c.category) ?? 0) + parseFloat(c.amount));
+  const rank = (category: string) => totals.get(category) ?? 0;
+  return snapshot.flow.months.map((m) => {
+    const income = parseFloat(m.income);
+    return {
+      label: monthName(m.year, m.month, "short"),
+      segments: snapshot.cells
+        .filter((c) => c.month === monthKey(m))
+        .map((c) => ({ category: c.category, amount: parseFloat(c.amount) }))
+        .sort((a, b) => rank(b.category) - rank(a.category)),
+      tick: income > 0 ? income : undefined,
+    };
+  });
+}
+
+/** "Six months at a glance": the same report read Reports uses, for the last six months. It reads
+ * again whenever `refreshKey` changes; the page passes its own month figures, which App refetches
+ * after every edit, so this card refreshes along with Month by month. */
+function SixMonthsAtAGlance({ refreshKey }: { refreshKey: unknown }) {
+  const { from, to, key } = lastSixMonths(new Date());
+  const reportRead = useFinancialRead<ReportSnapshot>();
+  const loadReport = reportRead.refresh;
+  const reload = () => loadReport(key, (client) => client.report(from.year, from.month, to.year, to.month));
+  useEffect(() => {
+    void reload().catch(() => {});
+    // The range is determined by key; refreshKey additionally refreshes live edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, refreshKey, loadReport]);
+  const snapshot = reportRead.data?.key === key ? reportRead.data.value : null;
+  const state = reportRead.state?.key === key ? reportRead.state : null;
+
+  return (
+    <div className="card cashflow-six-months" data-cashflow-six-months>
+      <div className="card-head">
+        <span className="reports-section-title">Six months at a glance</span>
+      </div>
+      <p className="cashflow-six-months-sub">
+        Each row is a month's spending; the tick is what came in. {monthName(to.year, to.month, "long")} isn't over yet.
+      </p>
+      {/* A refresh behind figures already showing stays quiet: App re-reads on every window, month or tab
+          change, and a status line coming and going would push the tabs below up and down. */}
+      <FinancialReadState
+        label="Six-month totals"
+        initial={!snapshot}
+        loading={!snapshot && (state ? state.loading : true)}
+        error={state?.error?.message ?? null}
+        onRetry={() => void reload().catch(() => {})}
+      />
+      {snapshot && (
+        <StackedRows
+          rows={sixMonthRows(snapshot)}
+          caption="Spending by category in each of the last six months, with what came in marked"
+          tickLabel="What came in"
+          emptyText="No income or spending in the last six months yet."
+        />
+      )}
+    </div>
+  );
+}
+
+/** The Compared with last year tab. App only loads last year's figures while its compare flag is on,
+ * so the first time this tab opens it turns the flag on (once, even if effects run twice) and
+ * leaves it on. */
+function TurnOnLastYear({ on, onToggle, children }: { on: boolean; onToggle: () => void; children: ReactNode }) {
+  const asked = useRef(false);
+  useEffect(() => {
+    if (!on && !asked.current) {
+      asked.current = true;
+      onToggle();
+    }
+  }, [on, onToggle]);
+  return <>{children}</>;
+}
 
 export function CashFlowView({
   cashFlow,
@@ -39,6 +147,7 @@ export function CashFlowView({
   layoutWidgets,
   onPinWidget,
   onOpenHelp,
+  initialTab = "forecast",
 }: {
   cashFlow: CashFlow | null;
   range: number;
@@ -80,14 +189,9 @@ export function CashFlowView({
   onPinWidget: (id: WidgetId) => void;
   /** Opens Help at this page's section (the ? beside the title). */
   onOpenHelp?: (tab: Tab) => void;
+  /** The tab the page opens on (Forecast unless a link asks for another). */
+  initialTab?: CashFlowTab;
 }) {
-  // Local to this view (like `expandedStat`/`showBudgetAlerts` on the
-  // Dashboard) rather than lifted to App.tsx — a per-view UI concern, not
-  // app-wide state. Splits what used to be 5 sections stacked vertically
-  // (the densest single tab in the app) into 3 sub-tabs using the exact
-  // same tab-btn/tab-btn-active pattern already on this page for the
-  // 3/6-month toggle below.
-  const [subTab, setSubTab] = useState<"overview" | "forecast" | "debt">("overview");
   const [selectedSpendCategory, setSelectedSpendCategory] = useState<string | null>(null);
   useEffect(() => setSelectedSpendCategory(null), [topCategoriesData]);
 
@@ -100,37 +204,35 @@ export function CashFlowView({
   const net = totalIncome - totalExpense;
   const savingsRate = totalIncome ? (net / totalIncome) * 100 : 0;
 
-  // Kept index-aligned with barData so a click on bar `i` can resolve back
-  // to the real calendar month behind it (a "Jan"-style label alone can't
-  // disambiguate which year, and in compare mode the click should always
-  // drill into "this year"'s side of the pair).
-  const barMonths = compareLastYear && yoyCashFlow ? yoyCashFlow.current : cashFlow.months;
+  // Each chart's bars stay index-aligned with its months, so a click on bar
+  // `i` can resolve back to the real calendar month behind it (a "Jan"-style
+  // label alone can't disambiguate which year, and in the comparison the
+  // click always drills into "this year"'s side of the pair).
+  const barData = cashFlow.months.map((m) => ({
+    label: m.month_label,
+    values: [
+      { value: parseFloat(m.income), color: "var(--positive)", name: "Income" },
+      { value: parseFloat(m.expense), color: "var(--negative)", name: "Expenses" },
+    ],
+  }));
+  const yoyBarData = (yoyCashFlow?.current ?? []).map((m, i) => {
+    const prior = yoyCashFlow?.prior_year[i];
+    return {
+      label: m.month_label,
+      values: [
+        { value: parseFloat(m.income) - parseFloat(m.expense), color: "var(--positive)", name: "This year" },
+        {
+          value: prior ? parseFloat(prior.income) - parseFloat(prior.expense) : 0,
+          color: "var(--accent)",
+          name: "Last year",
+        },
+      ],
+    };
+  });
 
-  const barData =
-    compareLastYear && yoyCashFlow
-      ? yoyCashFlow.current.map((m, i) => {
-          const prior = yoyCashFlow.prior_year[i];
-          return {
-            label: m.month_label,
-            values: [
-              { value: parseFloat(m.income) - parseFloat(m.expense), color: "var(--positive)", name: "This year" },
-              {
-                value: prior ? parseFloat(prior.income) - parseFloat(prior.expense) : 0,
-                color: "var(--accent)",
-                name: "Last year",
-              },
-            ],
-          };
-        })
-      : cashFlow.months.map((m) => ({
-          label: m.month_label,
-          values: [
-            { value: parseFloat(m.income), color: "var(--positive)", name: "Income" },
-            { value: parseFloat(m.expense), color: "var(--negative)", name: "Expenses" },
-          ],
-        }));
-
-  const hasBarActivity = barData.some((month) => month.values.some((value) => value.value !== 0));
+  const hasActivity = (data: typeof barData) => data.some((month) => month.values.some((value) => value.value !== 0));
+  const hasBarActivity = hasActivity(barData);
+  const hasYoyActivity = hasActivity(yoyBarData);
 
   // Month-over-month trend per displayed category — "New" when it had no
   // spend at all the prior month (a percent change would be either
@@ -173,70 +275,85 @@ export function CashFlowView({
   // selection read-only rather than duplicating a second control.
   const selectedMonthLabel = monthOptions.find((o) => o.month === topCategoriesMonth.month)?.label ?? "";
 
-  return (
-    <div className="reports-view">
-      <div className="page-top">
-        <div>
-          <div className="view-title-row">
-            <h1 className="view-title">Cash Flow</h1>
-            {onOpenHelp && <HelpLink tab="cashflow" onOpen={onOpenHelp} />}
-          </div>
-          <p className="view-sub">Income vs. expenses, forecast, and payoff planning.</p>
-        </div>
-      </div>
-      <div className="tabs">
-        {(
-          [
-            ["overview", "Overview"],
-            ["forecast", "Forecast"],
-            ["debt", "Debt Payoff"],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            className={subTab === key ? "tab-btn tab-btn-active" : "tab-btn"}
-            onClick={() => setSubTab(key)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+  // The 3/6-month window is one setting shared by Month by month and Compared with last year.
+  const rangePicker = (
+    <div className="tabs">
+      {[3, 6].map((m) => (
+        <button
+          key={m}
+          className={range === m ? "tab-btn tab-btn-active" : "tab-btn"}
+          onClick={() => onSetRange(m)}
+        >
+          {m} months
+        </button>
+      ))}
+    </div>
+  );
 
-      {subTab === "overview" && (
+  const panel = (tab: CashFlowTab) => (
+    <>
+      {tab === "by-month" && (
         <>
-          <div className="tabs">
-            {[3, 6].map((m) => (
-              <button
-                key={m}
-                className={range === m ? "tab-btn tab-btn-active" : "tab-btn"}
-                onClick={() => onSetRange(m)}
-              >
-                {m} months
-              </button>
-            ))}
-            <label className="compare-last-year-toggle">
-              <input type="checkbox" checked={compareLastYear} onChange={onToggleCompareLastYear} />
-              Compare to last year
-            </label>
-          </div>
+          {rangePicker}
 
           <div className="card">
             <div className="card-head">
-              <span className="reports-section-title">
-                {compareLastYear ? "Net cash flow — this year vs. last year" : "Income vs. expenses"}
-              </span>
+              <span className="reports-section-title">Income vs. expenses</span>
             </div>
             {hasBarActivity ? <BarChart
               data={barData}
               height={240}
-              caption={compareLastYear ? "Net cash flow by month, this year and last year" : "Income and expenses by month"}
+              caption="Income and expenses by month"
               onBarClick={(i) => {
-                const m = barMonths[i];
+                const m = cashFlow.months[i];
                 if (m) onMonthClick(m.year, m.month);
               }}
             /> : <p className="empty-state" role="status">No income or spending in this period.</p>}
             {hasBarActivity && <p className="chart-hint">Click a bar to see where that month's expenses went.</p>}
-            {compareLastYear && yoyCashFlow ? (
+            <div className="chart-legend">
+              <div className="chart-legend-item">
+                <span className="chart-legend-swatch" style={{ background: "var(--positive)" }}></span>
+                Income · {formatAmount(cashFlow.total_income)}
+              </div>
+              <div className="chart-legend-item">
+                <span className="chart-legend-swatch" style={{ background: "var(--negative)" }}></span>
+                Expenses · {formatAmount(cashFlow.total_expense)}
+              </div>
+              <div className="chart-legend-item" style={{ marginLeft: "auto", fontWeight: 700 }}>
+                Net {formatAmount(net.toFixed(2))} ({savingsRate.toFixed(0)}% savings rate)
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {tab === "last-year" && (
+        <TurnOnLastYear on={compareLastYear} onToggle={onToggleCompareLastYear}>
+          {rangePicker}
+
+          <div className="card">
+            <div className="card-head">
+              <span className="reports-section-title">Net cash flow — this year vs. last year</span>
+            </div>
+            {!compareLastYear || !yoyCashFlow ? (
+              <p className="empty-state">Loading…</p>
+            ) : hasYoyActivity ? (
+              <>
+                <BarChart
+                  data={yoyBarData}
+                  height={240}
+                  caption="Net cash flow by month, this year and last year"
+                  onBarClick={(i) => {
+                    const m = yoyCashFlow.current[i];
+                    if (m) onMonthClick(m.year, m.month);
+                  }}
+                />
+                <p className="chart-hint">Click a bar to see where that month's expenses went.</p>
+              </>
+            ) : (
+              <p className="empty-state" role="status">No income or spending in this period.</p>
+            )}
+            {compareLastYear && yoyCashFlow && (
               <div className="chart-legend">
                 <div className="chart-legend-item">
                   <span className="chart-legend-swatch" style={{ background: "var(--positive)" }}></span>
@@ -247,23 +364,12 @@ export function CashFlowView({
                   Last year
                 </div>
               </div>
-            ) : (
-              <div className="chart-legend">
-                <div className="chart-legend-item">
-                  <span className="chart-legend-swatch" style={{ background: "var(--positive)" }}></span>
-                  Income · {formatAmount(cashFlow.total_income)}
-                </div>
-                <div className="chart-legend-item">
-                  <span className="chart-legend-swatch" style={{ background: "var(--negative)" }}></span>
-                  Expenses · {formatAmount(cashFlow.total_expense)}
-                </div>
-                <div className="chart-legend-item" style={{ marginLeft: "auto", fontWeight: 700 }}>
-                  Net {formatAmount(net.toFixed(2))} ({savingsRate.toFixed(0)}% savings rate)
-                </div>
-              </div>
             )}
           </div>
+        </TurnOnLastYear>
+      )}
 
+      {tab === "one-month" && (
           <div className="grid-2">
             <div className="card cashflow-category-card">
               <div className="card-head">
@@ -357,10 +463,9 @@ export function CashFlowView({
               )}
             </div>
           </div>
-        </>
       )}
 
-      {subTab === "forecast" && (
+      {tab === "forecast" && (
         <div className="card">
           <div className="card-head">
             <span className="reports-section-title">Forecast</span>
@@ -416,7 +521,11 @@ export function CashFlowView({
         </div>
       )}
 
-      {subTab === "debt" && (
+      {/* The planner draws nothing without a debt, so the tab says why instead of standing empty. */}
+      {tab === "debt" && !accounts.some((a) => ["credit", "loan"].includes(groupOf(a.account_type)) && owedAmount(a) > 0) && (
+        <p className="empty-state">No credit cards or loans with money owed. Add one on Accounts to plan paying it off.</p>
+      )}
+      {tab === "debt" && (
         <DebtPayoffPlannerSection
           accounts={accounts}
           onSetAccountInterestRate={onSetAccountInterestRate}
@@ -426,6 +535,22 @@ export function CashFlowView({
           onPinWidget={onPinWidget}
         />
       )}
+    </>
+  );
+
+  return (
+    <div className="reports-view">
+      <div className="page-top">
+        <div>
+          <div className="view-title-row">
+            <h1 className="view-title">Cash Flow</h1>
+            {onOpenHelp && <HelpLink tab="cashflow" onOpen={onOpenHelp} />}
+          </div>
+          <p className="view-sub">Income vs. expenses, forecast, and payoff planning.</p>
+        </div>
+      </div>
+      <SixMonthsAtAGlance refreshKey={cashFlow} />
+      <PageTabs tabs={CASH_FLOW_TABS} initial={initialTab} idPrefix="cashflow" label="Cash Flow sections" render={panel} />
     </div>
   );
 }

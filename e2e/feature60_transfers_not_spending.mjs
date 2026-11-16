@@ -64,7 +64,10 @@ try {
 
   const cashFlowNav = await app.browser.$("button*=Cash Flow");
   await cashFlowNav.click();
-  const merchantsCard = await app.browser.$("//span[contains(.,'Top merchants')]/ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' card ')][1]");
+  // Top merchants and Top categories are in Cash Flow's "Look at one month" tab (VS-31).
+  await (await app.browser.$("#cashflow-tab-one-month")).waitForDisplayed({ timeout: 10000 });
+  await (await app.browser.$("#cashflow-tab-one-month")).click();
+  const merchantsCard =await app.browser.$("//span[contains(.,'Top merchants')]/ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' card ')][1]");
   await merchantsCard.waitForExist({ timeout: 10000 });
   await waitUntilOrDiagnose(app.browser, async () => (await merchantsCard.getText()).includes("Green Leaf Grocers"), {
     timeout: 15000,

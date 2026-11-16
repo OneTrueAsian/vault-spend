@@ -7,6 +7,13 @@
   display: block;
 }
 
+/* Cash Flow "Six months at a glance" (VS-31): the line under the card's title. */
+.cashflow-six-months-sub {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
 /* --------------------------- Phase 3 / 11: Sankey + daily heatmap --------------------------- */
 
 /* Visually hidden but still in the accessibility tree and in real DOM text
