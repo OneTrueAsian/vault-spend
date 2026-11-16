@@ -305,6 +305,12 @@ describe("Dashboard order and tiles", () => {
     const row = container.querySelector(".stats.dashboard-stat-row")!;
     expect(row.querySelectorAll(".stat-hero")).toHaveLength(4);
   });
+
+  it("gives the Savings goals card its own place at the end of the default layout (VS-31 F6)", async () => {
+    await render(props());
+
+    expect(widgetOrder().slice(-2)).toEqual(["recent_transactions", "goals_overview"]);
+  });
 });
 
 describe("Runway ring", () => {

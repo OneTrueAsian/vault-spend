@@ -819,6 +819,9 @@ export function DashboardView({
       </div>
     ),
 
+    // VS-31 F6 adds the id; the Savings goals card itself comes with step 2 stream D.
+    goals_overview: null,
+
     top_merchants: (
       <div className="card">
         <div className="card-head">

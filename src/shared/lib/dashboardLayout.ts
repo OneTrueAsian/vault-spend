@@ -15,7 +15,8 @@ export type CoreWidgetId =
   | "needs_a_look"
   | "trend_spending"
   | "budget_bills"
-  | "recent_transactions";
+  | "recent_transactions"
+  | "goals_overview";
 
 export type PinnedReportWidgetId = "top_merchants" | "debt_payoff" | "allocation" | "net_worth_by_member";
 
@@ -74,6 +75,7 @@ export const WIDGET_CATALOG: { id: FixedWidgetId; label: string; group: "core" |
   { id: "trend_spending", label: "Trend & spending", group: "core" },
   { id: "budget_bills", label: "Budget & bills", group: "core" },
   { id: "recent_transactions", label: "Recent transactions", group: "core" },
+  { id: "goals_overview", label: "Savings goals", group: "core" },
   { id: "top_merchants", label: "Top merchants", group: "report" },
   { id: "debt_payoff", label: "Debt payoff planner", group: "report" },
   { id: "allocation", label: "Allocation", group: "report" },
@@ -97,8 +99,26 @@ function isValidWidgetId(id: unknown): id is WidgetId {
 }
 
 /** Money first, then what needs doing: the stat tiles, To do, Safe to spend, Runway, then the
- * reports (1.3.0 UI review, s6). */
+ * reports (1.3.0 UI review, s6). Savings goals comes last, after Recent transactions, as in v9
+ * (VS-31 F6). */
 export const DEFAULT_LAYOUT: WidgetId[] = [
+  "stat_net_worth",
+  "stat_cash",
+  "stat_debt",
+  "stat_investments",
+  "needs_a_look",
+  "safe_to_spend",
+  "runway",
+  "trend_spending",
+  "budget_bills",
+  "recent_transactions",
+  "goals_overview",
+];
+
+/** The 1.3.0 default, before the Savings goals card. A saved layout that is exactly this list
+ * belongs to someone who never rearranged their Dashboard, so `loadDashboardLayout` gives them the
+ * new default instead. */
+export const OLD_DEFAULT_LAYOUT_V2: readonly WidgetId[] = [
   "stat_net_worth",
   "stat_cash",
   "stat_debt",
@@ -171,8 +191,9 @@ export const LAYOUT_PRESET_LABELS: Record<LayoutPresetKey, string> = {
  * guard. Drops any id from a future/older version of the catalog this build doesn't recognize,
  * rather than erroring. A saved layout from before the stat cards were split back out carries the
  * single legacy "stats" id — expanded in place into the 4 new ids so an upgrading user's arrangement
- * doesn't just lose its stat row. A saved list that is exactly the pre-1.3.0 default
- * (`OLD_DEFAULT_LAYOUT_V1`) comes back as the new `DEFAULT_LAYOUT`. */
+ * doesn't just lose its stat row. A saved list that is exactly an earlier default
+ * (`OLD_DEFAULT_LAYOUT_V1` before 1.3.0, `OLD_DEFAULT_LAYOUT_V2` before Savings goals) comes back as
+ * the new `DEFAULT_LAYOUT`. */
 export async function loadDashboardLayout(): Promise<WidgetId[]> {
   try {
     const raw = await getProfileUiState("dashboard_layout");
@@ -186,9 +207,10 @@ export async function loadDashboardLayout(): Promise<WidgetId[]> {
     // any change writes the whole list). They get the new order; it is saved the next time the
     // layout changes, not here. If they named that exact order as one of their own layouts, they
     // chose it, so it stays.
-    if (sameOrder(filtered, OLD_DEFAULT_LAYOUT_V1)) {
+    const oldDefault = [OLD_DEFAULT_LAYOUT_V1, OLD_DEFAULT_LAYOUT_V2].find((old) => sameOrder(filtered, old));
+    if (oldDefault) {
       const named = await loadCustomLayoutPresets();
-      if (!named.some((p) => sameOrder(p.widgets, OLD_DEFAULT_LAYOUT_V1))) return DEFAULT_LAYOUT;
+      if (!named.some((p) => sameOrder(p.widgets, oldDefault))) return DEFAULT_LAYOUT;
     }
     return filtered;
   } catch {

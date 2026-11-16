@@ -8,6 +8,7 @@ import {
   DEFAULT_LAYOUT,
   LAYOUT_PRESETS,
   OLD_DEFAULT_LAYOUT_V1,
+  OLD_DEFAULT_LAYOUT_V2,
   STAT_WIDGET_IDS,
   WIDGET_CATALOG,
   accountWidgetId,
@@ -60,6 +61,7 @@ describe("the 1.3.0 Dashboard order (money first, To do next)", () => {
       "trend_spending",
       "budget_bills",
       "recent_transactions",
+      "goals_overview",
     ]);
   });
 
@@ -135,6 +137,61 @@ describe("the 1.3.0 Dashboard order (money first, To do next)", () => {
   it("still names the new order 'default' in the Layout menu", () => {
     expect(matchingLayoutPreset(DEFAULT_LAYOUT)).toBe("default");
     expect(matchingLayoutPreset([...OLD_DEFAULT_LAYOUT_V1])).toBe("custom");
+  });
+});
+
+describe("the Savings goals card (VS-31 F6)", () => {
+  const savedLayout = (layout: readonly WidgetId[], named: { name: string; widgets: readonly WidgetId[] }[] = []) =>
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd !== "get_profile_ui_state") return null;
+      const key = (args as { key: string }).key;
+      if (key === "dashboard_layout") return JSON.stringify(layout);
+      if (key === "dashboard_custom_layouts") return JSON.stringify(named);
+      return null;
+    });
+
+  it("is a core widget named Savings goals, so it can be added from Add widget", () => {
+    expect(WIDGET_CATALOG.find((w) => w.id === "goals_overview")).toEqual({ id: "goals_overview", label: "Savings goals", group: "core" });
+  });
+
+  it("comes last in the default layout, after Recent transactions", () => {
+    expect(DEFAULT_LAYOUT.slice(-2)).toEqual(["recent_transactions", "goals_overview"]);
+  });
+
+  it("keeps the 1.3.0 default (without the card) as OLD_DEFAULT_LAYOUT_V2", () => {
+    expect(OLD_DEFAULT_LAYOUT_V2).toEqual(DEFAULT_LAYOUT.filter((id) => id !== "goals_overview"));
+  });
+
+  it("gives someone who never customized the 1.3.0 Dashboard the new default, with the card", async () => {
+    savedLayout(OLD_DEFAULT_LAYOUT_V2);
+    expect(await loadDashboardLayout()).toEqual(DEFAULT_LAYOUT);
+  });
+
+  it("gives someone still on the pre-1.3.0 default the new default too", async () => {
+    savedLayout(OLD_DEFAULT_LAYOUT_V1);
+    expect(await loadDashboardLayout()).toEqual(DEFAULT_LAYOUT);
+  });
+
+  it("leaves the 1.3.0 order alone when it is one of the person's own named layouts", async () => {
+    savedLayout(OLD_DEFAULT_LAYOUT_V2, [{ name: "Mine", widgets: OLD_DEFAULT_LAYOUT_V2 }]);
+    expect(await loadDashboardLayout()).toEqual(OLD_DEFAULT_LAYOUT_V2);
+  });
+
+  it("does not add the card to a customized layout", async () => {
+    const custom: WidgetId[] = ["stat_net_worth", "recent_transactions", "runway"];
+    savedLayout(custom);
+    expect(await loadDashboardLayout()).toEqual(custom);
+  });
+
+  it("keeps the card in a saved layout and in a named layout", async () => {
+    const withGoals: WidgetId[] = ["goals_overview", "stat_net_worth"];
+    savedLayout(withGoals, [{ name: "Goals first", widgets: withGoals }]);
+    expect(await loadDashboardLayout()).toEqual(withGoals);
+    expect(await loadCustomLayoutPresets()).toEqual([{ name: "Goals first", widgets: withGoals }]);
+  });
+
+  it("names a layout that is exactly the 1.3.0 order a custom layout in the Layout menu", () => {
+    expect(matchingLayoutPreset([...OLD_DEFAULT_LAYOUT_V2])).toBe("custom");
   });
 });
 
