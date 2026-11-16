@@ -8,6 +8,11 @@
     { "pattern": "src/app/AppShell.css", "reason": "Shell layout shared by every screen." },
     { "pattern": "src/app/AppResponsive.css", "reason": "Responsive rules shared by every screen." },
     { "pattern": "src/shared/ui/Shared*.css", "reason": "Shared controls, buttons and cards used across the app." },
+    { "pattern": "src/shared/ui/PageTabs.*", "reason": "The tab strip shared by Cash Flow, Investments and Reports (VS-31)." },
+    { "pattern": "src/shared/ui/CategoryBars.*", "reason": "Category bars shared by the Dashboard, Budget and Cash Flow (VS-31)." },
+    { "pattern": "src/shared/ui/SegmentBar.*", "reason": "Segment bars shared by Accounts and Investments (VS-31)." },
+    { "pattern": "src/shared/ui/StackedRows.*", "reason": "Stacked rows shared by Cash Flow and Household (VS-31)." },
+    { "pattern": "src/shared/ui/ChartPieces.css", "reason": "Chart pieces shared by Accounts, Investments, Cash Flow and Household (VS-31)." },
     { "pattern": "src/shared/ui/Modal.css", "reason": "Shared dialog styling." },
     { "pattern": "src/shared/ui/MenuSelect.css", "reason": "Shared menu styling; menus are used across the app." },
     { "pattern": "src/shared/ui/RowMenu.css", "reason": "Shared row menu styling." },
@@ -89,6 +94,9 @@
     { "pattern": "src/AskVault*", "specs": ["ask_vault", "feature305_", "transaction_qa", "dashboard_order", "financial_snapshot"], "reason": "Ask the Vault card on the Dashboard." },
     { "pattern": "src/askVaultStyles*", "specs": ["ask_vault", "feature305_", "transaction_qa"], "reason": "Ask the Vault styling." },
     { "pattern": "src/RetirementScenarioDialog.*", "specs": ["ask_vault", "feature305_", "transaction_qa", "dashboard_order", "financial_snapshot"], "reason": "Ask the Vault investment scenario dialog." },
-    { "pattern": "src/SpendingScenarioDialog.*", "specs": ["ask_vault", "feature305_", "transaction_qa", "dashboard_order", "financial_snapshot"], "reason": "Ask the Vault spending scenario dialog." }
+    { "pattern": "src/SpendingScenarioDialog.*", "specs": ["ask_vault", "feature305_", "transaction_qa", "dashboard_order", "financial_snapshot"], "reason": "Ask the Vault spending scenario dialog." },
+    { "pattern": "src/features/dashboard/spendingSoFar.ts", "specs": ["feature395_", "feature60_", "feature66_", "feature270_", "feature271_", "dashboard_order"], "reason": "Dashboard Spending so far card figures (VS-31)." },
+    { "pattern": "src/features/household/spendingByPerson.ts", "specs": ["feature411_", "feature333_", "feature316_", "feature23_", "feature47_"], "reason": "Household Spending by person chart figures (VS-31)." },
+    { "pattern": "src/features/reports/ReportsTabs.css", "specs": ["feature410_", "feature81_", "feature89_", "feature143_", "feature317_"], "reason": "Reports tabs and print layout (VS-31)." }
   ]
 }

@@ -29,6 +29,13 @@ describe("grouped release notes", () => {
     expect(changelogSections(entry).map((s) => s.heading)).toEqual(["New features", "Enhancements", "Bug fixes"]);
   });
 
+  it("writes 1.3.3 in the three labelled groups and names the VS-31 layouts in plain words", () => {
+    const entry = CHANGELOG["1.3.3"];
+    expect(changelogSections(entry).map((s) => s.heading)).toEqual(["New features", "Enhancements", "Bug fixes"]);
+    const text = changelogNotes(entry).join("\n");
+    for (const part of [/Six months at a glance/, /What your investments are in/, /What you own and owe/, /Spending against the plan/, /Savings goals/, /Tags and people/, /Debt payoff/, /by person/]) expect(text).toMatch(part);
+  });
+
   it("includes the import account-routing fix in the grouped 1.3.2 release notes", () => {
     const entry = CHANGELOG["1.3.2"];
     expect(changelogSections(entry).map((s) => s.heading)).toEqual(["New features", "Enhancements", "Bug fixes"]);

@@ -241,6 +241,9 @@ import {
   type Theme,
 } from "../shared/native/appTypes";
 import type { SettingsGroupId } from "../shared/lib/settingsIndex";
+import type { CashFlowTab } from "../features/reports/CashFlowView";
+import type { ReportsTab } from "../features/reports/ReportsOverview";
+import type { InvestmentsTab } from "../features/investments/InvestmentsView";
 
 const EMPTY_TRANSACTIONS: Transaction[] = [];
 const EMPTY_FLAGS: AnomalyFlag[] = [];
@@ -265,6 +268,22 @@ function App({
   onDataFileChanged: (message: string, tab?: Tab) => void;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+  /** The tab a Dashboard link asks a page to open on (VS-31). Forgotten as soon as that page is left, so the
+   * sidebar always opens a page on its first tab. */
+  const [pageStartTab, setPageStartTab] = useState<{
+    cashflow?: CashFlowTab;
+    reports?: ReportsTab;
+    investments?: InvestmentsTab;
+  }>({});
+  useEffect(() => {
+    setPageStartTab((cur) => {
+      const keep: typeof cur = {};
+      if (activeTab === "cashflow" && cur.cashflow) keep.cashflow = cur.cashflow;
+      if (activeTab === "reports" && cur.reports) keep.reports = cur.reports;
+      if (activeTab === "investments" && cur.investments) keep.investments = cur.investments;
+      return Object.keys(cur).every((k) => k in keep) ? cur : keep;
+    });
+  }, [activeTab]);
   /** Asks Settings to open a group; "manage profiles" in the sidebar uses it. A new nonce asks again. */
   const [settingsJump, setSettingsJump] = useState<{ group: SettingsGroupId; nonce: number } | undefined>(undefined);
   // The page whose ? button opened Help: Help opens that page's section. Cleared once Help is left,
@@ -2204,9 +2223,18 @@ function App({
                 onOpenTransactions={() => setActiveTab("ledger")}
                 onOpenRecurring={() => setActiveTab("recurring")}
                 onOpenBudget={() => setActiveTab("budget")}
-                onOpenCashFlow={() => setActiveTab("cashflow")}
-                onOpenInvestments={() => setActiveTab("investments")}
-                onOpenReports={() => setActiveTab("reports")}
+                onOpenCashFlow={(tab) => {
+                  setPageStartTab({ cashflow: tab });
+                  setActiveTab("cashflow");
+                }}
+                onOpenInvestments={(tab) => {
+                  setPageStartTab({ investments: tab });
+                  setActiveTab("investments");
+                }}
+                onOpenReports={(tab) => {
+                  setPageStartTab({ reports: tab });
+                  setActiveTab("reports");
+                }}
                 onOpenAccounts={() => setActiveTab("accounts")}
                 onOpenBuckets={() => setActiveTab("buckets")}
                 onOpenUncategorized={() => {
@@ -2635,6 +2663,7 @@ function App({
           {activeTab === "investments" && (
             <Suspense fallback={null}>
               <InvestmentsView
+                initialTab={pageStartTab.investments}
                 onOpenHelp={openHelpFor}
                 holdings={holdings}
                 accounts={accounts}
@@ -2676,6 +2705,7 @@ function App({
           {activeTab === "cashflow" && (
             <Suspense fallback={null}>
               <CashFlowView
+                initialTab={pageStartTab.cashflow}
                 onOpenHelp={openHelpFor}
                 cashFlow={cashFlow}
                 range={cashFlowRange}
@@ -2760,6 +2790,7 @@ function App({
           {activeTab === "reports" && !pendingSetupImport && (
             <Suspense fallback={null}>
               <ReportsView
+                initialTab={pageStartTab.reports}
                 onOpenHelp={openHelpFor}
                 accounts={accounts}
                 transactions={transactions}

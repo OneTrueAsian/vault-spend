@@ -584,59 +584,10 @@
 
 .donut-interactive-slice { cursor: pointer; }
 .donut-interactive-slice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-/* Budget (s2): the month's totals in one strip — four cells side by side, two by two below
-   900px. The small breakdown line and the income allocation note sit under the cells. */
-/* .budget-view is a flex column with an 18px gap, which spaces the strip from the groups; a card's
-   own bottom margin would double it. */
-.budget-summary {
-  padding: 16px 20px;
-  margin-bottom: 0;
-}
-
-.budget-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px 20px;
-}
-
-@media (max-width: 900px) {
-  .budget-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-.budget-summary-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.budget-summary-cell .stat-value {
-  font-variant-numeric: tabular-nums;
-}
-
-.budget-summary-sub {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
 .budget-summary-note {
   margin: 10px 0 0;
   font-size: 12px;
   color: var(--text-muted);
-}
-
-/* Inside the strip the allocation note is one more line of it, not a box in a box; it keeps its
-   colour (muted, positive when balanced, negative and bold when over). */
-.budget-summary .budget-allocation {
-  margin: 4px 0 0;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: none;
-  font-size: 12px;
 }
 
 .category-trend {

@@ -344,6 +344,7 @@
     "feature396_budget_plan_card.mjs": "drives menus that close when the window loses focus",
     "feature397_accounts_own_owe_bar.mjs": "drives menus that close when the window loses focus",
     "feature410_reports_tabs_and_print.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared keyboard",
-    "feature411_household_spending_by_person.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus"
+    "feature411_household_spending_by_person.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus",
+    "feature412_dashboard_links_open_the_right_tab.mjs": "not reviewed for parallel execution; exclusive until approved"
   }
 }

@@ -24,8 +24,16 @@ describe("printing the Reports sections", () => {
     expect(print).toMatch(/\.report-table-wide td\s*\{[^}]*font-size:\s*8px/);
   });
 
-  it("asks paper to print the heatmap's colors, and leaves a status message off", () => {
+  it("asks paper to print the heatmap's colors", () => {
     expect(print).toMatch(/\.heatmap-cell,[^{]*\{[^}]*print-color-adjust:\s*exact/);
-    expect(print).toMatch(/\.toast-stack\s*\{[^}]*display:\s*none/);
+  });
+
+  // VS-31 step 3: a status message is left off every print in the app, so the rule lives in the shared print block
+  // (loaded with the app), not in the Reports stylesheet that only exists once Reports has loaded.
+  it("leaves a status message off every print, from the app's shared print rules", () => {
+    expect(print).not.toMatch(/\.toast-stack/);
+    const shared = readFileSync(new URL("../transactions/Transactions.css", import.meta.url), "utf8");
+    const sharedPrint = shared.slice(shared.indexOf("@media print"));
+    expect(sharedPrint).toMatch(/\.toast-stack[^{]*\{[^}]*display:\s*none\s*!important/);
   });
 });

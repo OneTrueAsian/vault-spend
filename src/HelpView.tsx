@@ -130,7 +130,9 @@ export const TAB_HELP: TabHelp[] = [
       <>The <strong>To do</strong> card, right under the four money cards, lists what needs you: uncategorized transactions, bills due in the next 3 days, everyday accounts with no activity for 30+ days, Recurring bills that look missed or changed price, and a finished month waiting for its <strong>month-end review</strong>. Each row jumps to where it's fixed.</>,
       <><strong>Safe to spend</strong> shows what's left of your cash after the Recurring bills due before your next paycheck, with an optional buffer you choose to keep (see FAQ).</>,
       <>The ring shows how many months of expenses your cash and savings cover, at your average spending over the last 90 days, against a goal of 6 months.</>,
-      <>This month's spending by category, your recent transactions, and an <strong>Insights</strong> feed that surfaces things worth a look on its own: a category on pace to go over budget, a month-over-month jump, an unusually large charge, and good news too, like a category you meaningfully cut back on.</>,
+      <>The <strong>Spending in (month) so far</strong> card shows this month's spending by category, with how it compares to the same days last month. Click <strong>Everything else</strong> to open the smaller categories, and <strong>Show fewer</strong> to close them again. Under the bars, <strong>Biggest one-off cost</strong> names the largest single purchase.</>,
+      <>Beside your <strong>Recent transactions</strong> sits <strong>Savings goals</strong>, with every goal's progress toward its target. An <strong>Insights</strong> feed surfaces things worth a look on its own: a category on pace to go over budget, a month-over-month jump, an unusually large charge, and good news too, like a category you meaningfully cut back on.</>,
+      <>The "View" links on cards open the matching tab: <strong>Top merchants</strong> opens Cash Flow's <strong>Look at one month</strong>, <strong>Open payoff planner</strong> opens Cash Flow's <strong>Debt payoff</strong>, <strong>Allocation</strong> opens Investments' <strong>Mix and targets</strong> and <strong>Net worth by member</strong> opens Reports' <strong>Tags and people</strong>.</>,
       <>The <strong>Ask the Vault</strong> question box sits right under the page title (see FAQ), and people who are new here also see a <strong>Get started</strong> checklist.</>,
     ],
     tags: [
@@ -199,7 +201,10 @@ export const TAB_HELP: TabHelp[] = [
         ],
       },
     ],
-    more: [<>Accounts are grouped as cash, credit cards, loans, investments and other, each group in one box with its total; the biggest balance comes first.</>],
+    more: [
+      <>At the top, <strong>What you own and owe</strong> shows two bars: what you own, split into cash, investments and other accounts, and property and valuables, and what you owe, split into credit cards and loans. A kind too small to name inside its bar is listed in the key under it. Hidden accounts count in these bars, as they do in the three totals.</>,
+      <>Accounts are grouped as <strong>Cash</strong>, <strong>Borrowing</strong> (credit cards and loans), <strong>Investments and other</strong> and <strong>Property and valuables</strong>, each group in one box with its total; the biggest balance comes first.</>,
+    ],
     tags: [
       "accounts", "net worth", "assets", "liabilities", "what changed", "account type", "credit", "loan", "investment",
       "institution", "details", "reconcile", "reconciliation", "statement", "cleared", "balance history", "property",
@@ -377,8 +382,8 @@ export const TAB_HELP: TabHelp[] = [
       },
     ],
     more: [
-      <>The summary at the top shows <strong>Planned spending</strong>, <strong>Spent so far</strong>, <strong>Left to spend</strong> and <strong>Money left after income</strong>.</>,
-      <>Categories are grouped as Income, Fixed, Flexible and Non-Monthly. Each group's heading shows its progress, such as "$2,300.00 of $3,607.00 · 64% used", or how much income has been received.</>,
+      <>The <strong>Spending against the plan</strong> card at the top shows each category's spending as a bar, with an outline for what you planned. The part of a bar that goes past its outline is spending over plan. The card shows your eight biggest categories and says how many more there are. Under the bars, a line says how much income has come in so far, and another says how much of your planned income "isn't given a job yet", meaning no expense line has claimed it.</>,
+      <>Categories are grouped as Income, Fixed, Flexible and Non-Monthly, each in its own card. Income shows <strong>Planned</strong>, <strong>Received</strong> and <strong>Still expected</strong>. The others show <strong>Planned</strong>, <strong>Spent</strong> and <strong>Left</strong>, with a note such as <strong>All used</strong>, <strong>Close to limit</strong> or <strong>Over</strong>. A card's heading shows its total progress, such as "$2,300.00 of $3,607.00 · 64% used".</>,
       <>A line shows how much of your budgeted income no expense line has claimed yet. On the current month each expense bar carries a tick for how far through the month you are; a bar filled past the tick is running ahead of an even pace.</>,
       <>Red means over budget. A category spent exactly to its budget says "Used in full".</>,
     ],
@@ -436,44 +441,46 @@ export const TAB_HELP: TabHelp[] = [
   {
     tab: "cashflow",
     title: "Cash Flow",
-    summary: "Money in and out over recent months, a forecast of your balance, and a plan for paying off your debts.",
+    summary: "Money in and out over recent months, a forecast of your balance, and a plan for paying off your debts, in five tabs under a six-month overview.",
     howTo: [
       {
         question: "How do I see one month's spending?",
         steps: [
-          <>Choose a 3 or 6 month window, and tick <strong>Compare to last year</strong> to set each month against the year before.</>,
-          <>Click a month's bar to see its spending by category and any unusually large charges.</>,
+          <>Open <strong>Month by month</strong> and choose a 3 or 6 month window. Click a month's bar to see its spending by category and any unusually large charges.</>,
+          <>Or open <strong>Look at one month</strong> for that month's <strong>Top categories</strong> and <strong>Top merchants</strong>, with a picker to look further back.</>,
+          <>Open <strong>Compared with last year</strong> to set each month against the year before.</>,
         ],
       },
       {
         question: "How do I see where my balance is heading?",
         steps: [
-          <>Scroll to <strong>Forecast</strong> and pick 30, 60 or 90 days.</>,
+          <>Open the <strong>Forecast</strong> tab and pick 30, 60 or 90 days.</>,
           <>Your checking and savings balance is projected with each Recurring bill and paycheck landing on its due date, the lowest balance called out, and a "Coming up" list (see FAQ).</>,
         ],
       },
       {
         question: "How do I plan paying off my debts?",
         steps: [
-          <>Scroll to the <strong>Debt Payoff Planner</strong>.</>,
+          <>Open the <strong>Debt payoff</strong> tab.</>,
           <>Choose snowball or avalanche to see how fast your credit cards and loans clear. Untick Include to leave one out (see FAQ).</>,
         ],
       },
     ],
     more: [
+      <>The <strong>Six months at a glance</strong> card above the tabs shows each of the last six months as stacked spending by category, with a tick for what came in that month.</>,
       <>"Top categories" and "Top merchants" cover a single month (this one, with a picker to look back further) and show a month-over-month trend per category.</>,
     ],
-    tags: ["cash flow", "income", "expenses", "forecast", "debt payoff planner", "top categories", "top merchants", "year over year", "compare to last year", "snowball", "avalanche"],
+    tags: ["cash flow", "six months at a glance", "look at one month", "month by month", "compared with last year", "income", "expenses", "forecast", "debt payoff planner", "top categories", "top merchants", "year over year", "compare to last year", "snowball", "avalanche"],
   },
   {
     tab: "investments",
     title: "Investments",
-    summary: "Your holdings in each account, what they're worth and how they've done, and where they're headed.",
+    summary: "Your holdings in each account, what they're worth and how they've done, and where they're headed, in four tabs under a bar showing what your investments are in.",
     howTo: [
       {
         question: "How do I add a holding?",
         steps: [
-          <>Click <strong>Add holding</strong> and enter its shares, price and cost basis.</>,
+          <>On the <strong>Holdings</strong> tab, click <strong>Add holding</strong> and enter its shares, price and cost basis.</>,
           <>Prices are yours to keep up to date, unless you turn on live prices in Settings → Features: then a new holding fills in its price by symbol and existing ones stay current by themselves (see FAQ).</>,
         ],
       },
@@ -497,14 +504,14 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I check my mix of investments?",
         steps: [
-          <>Set a <strong>Target allocation</strong> by asset class.</>,
+          <>Open the <strong>Mix and targets</strong> tab and set a <strong>Target allocation</strong> by asset class.</>,
           <>See how far each has drifted from where you want it.</>,
         ],
       },
       {
         question: "How do I project a future balance?",
         steps: [
-          <>In the <strong>goal projection</strong> calculator, enter a starting amount, a monthly contribution and an assumed yearly return.</>,
+          <>On the <strong>Growth calculator</strong> tab, in the <strong>goal projection</strong> calculator, enter a starting amount, a monthly contribution and an assumed yearly return.</>,
           <>Click <strong>Save as goal</strong> to turn the projection into a real goal.</>,
         ],
       },
@@ -517,6 +524,7 @@ export const TAB_HELP: TabHelp[] = [
       },
     ],
     more: [
+      <>The bar above the tabs, <strong>What your investments are in</strong>, splits your total by kind of investment. A kind too small to name inside the bar is listed in the key under it. <strong>Money put in</strong> shows what you have added to each investment account over time.</>,
       <>Each holding shows its computed value and gain or loss.</>,
       <>Vault Spend records your portfolio's value each day you open it or refresh prices, so the <strong>Portfolio value over time</strong> chart builds up.</>,
     ],
@@ -535,7 +543,7 @@ export const TAB_HELP: TabHelp[] = [
         question: "How do I start splitting things by person?",
         steps: [
           <>On Transactions, open the <strong>⋯</strong> More actions menu and choose <strong>Manage family members</strong> to add people.</>,
-          <>Assign accounts, transactions and more to them. Anything not assigned to anyone shows under "Unassigned".</>,
+          <>Assign accounts, transactions and more to them. Anything not assigned to anyone shows under "Shared". You can also click <strong>Add person</strong> on this page, and use <strong>Rename</strong> or <strong>Remove</strong> on a person's row in the <strong>People</strong> card.</>,
         ],
       },
       {
@@ -546,8 +554,12 @@ export const TAB_HELP: TabHelp[] = [
         ],
       },
     ],
-    more: [<>A budget grid splits each category's budget by person.</>],
-    tags: ["household", "family", "spending by person", "income by person", "net worth by person", "budget by person", "unassigned"],
+    more: [
+      <><strong>Spending by person</strong> stacks each person's spending by category, with a tick for what they earned that month. Under it, a note names each person's <strong>biggest one-off cost</strong>: a purchase that is large and doesn't repeat under the same name in other months.</>,
+      <>The <strong>(month) by person</strong> table lists each person's income and spending in plain figures, and <strong>Net worth by person</strong> shows what each person owns and owes today.</>,
+      <>A budget grid splits each category's budget by person. It lists spending categories only; income is not part of it.</>,
+    ],
+    tags: ["household", "family", "spending by person", "income by person", "net worth by person", "budget by person", "unassigned", "shared", "people", "add person", "one-off"],
   },
   {
     tab: "reports",
@@ -564,15 +576,15 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I see where the money went?",
         steps: [
-          <>Follow the Sankey diagram from your income to your biggest spending categories, with a "Left over" or "Shortfall" flow depending on which side won.</>,
-          <>Use the table of spending by category and month below it.</>,
-          <>In the daily-spending heatmap, darker days are bigger spending days. Point at a day for its total, or press Tab once to enter the grid and use the arrow keys to move between days. Home and End move to the first and last day. The focused day's total appears below the grid. One big bill like rent doesn't wash the rest out.</>,
+          <>Open <strong>Where income went</strong> and follow the Sankey diagram from your income to your biggest spending categories, with a "Left over" or "Shortfall" flow depending on which side won.</>,
+          <>Open <strong>Categories by month</strong> for the table of spending by category and month.</>,
+          <>On the <strong>Daily spending</strong> tab, in the heatmap, darker days are bigger spending days. Point at a day for its total, or press Tab once to enter the grid and use the arrow keys to move between days. Home and End move to the first and last day. The focused day's total appears below the grid. One big bill like rent doesn't wash the rest out.</>,
         ],
       },
       {
         question: "How do I save a report as a file?",
         steps: [
-          <>Use the CSV or PDF export on this page.</>,
+          <>Use the CSV or PDF export on this page. <strong>Print</strong> and <strong>Save as PDF</strong> include every section of the report, whichever tab is open.</>,
           <>See Exporting your data below for what each holds.</>,
         ],
       },
@@ -585,7 +597,7 @@ export const TAB_HELP: TabHelp[] = [
       },
     ],
     more: [
-      <>Also here: spending by family member and by tag, a year-by-year comparison, a savings-rate trend, and net worth by family member.</>,
+      <>The report has seven tabs under the range, summary and export buttons: <strong>Where income went</strong>, <strong>Categories by month</strong>, <strong>Daily spending</strong>, <strong>Tags and people</strong> (spending by family member and by tag, and net worth by family member), <strong>Savings rate</strong> (a savings-rate trend), <strong>Year by year</strong> and <strong>Comparisons</strong>. The range, summary and export buttons are hidden on Comparisons, which has its own age-based figures.</>,
       <>Property and valuables are on the Accounts tab, and the setup-data import and export is in Settings → Data.</>,
     ],
     tags: [

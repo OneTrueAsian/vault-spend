@@ -1735,7 +1735,9 @@ table.ledger.report-table {
 
 @media print {
   .sidebar,
-  .no-print {
+  .no-print,
+  /* A status message that happens to be showing is not part of any printout. */
+  .toast-stack {
     display: none !important;
   }
   /* Paper can't scroll: the Reports category-by-month table goes back to sharing the page width,

@@ -24,6 +24,9 @@ import type {
 } from "../../shared/lib/types";
 import { DonutChart, LineChart, ProgressRing, Sparkline, fmtMoneyShort } from "../../shared/ui/charts";
 import { CategoryBars, type CategoryBarRow } from "../../shared/ui/CategoryBars";
+import type { CashFlowTab } from "../reports/CashFlowView";
+import type { ReportsTab } from "../reports/ReportsOverview";
+import type { InvestmentsTab } from "../investments/InvestmentsView";
 import { StatDetailPanel } from "../../shared/ui/StatDetailPanel";
 import { formatAmount, formatDisplayDate, toLocalIsoDate } from "../../shared/lib/format";
 import { groupOf, isOverdrawn, netWorthContribution, owedAmount } from "../../shared/lib/accountGroups";
@@ -208,9 +211,9 @@ export function DashboardView({
   onOpenTransactions: () => void;
   onOpenRecurring: () => void;
   onOpenBudget: () => void;
-  onOpenCashFlow: () => void;
-  onOpenInvestments: () => void;
-  onOpenReports: () => void;
+  onOpenCashFlow: (tab?: CashFlowTab) => void;
+  onOpenInvestments: (tab?: InvestmentsTab) => void;
+  onOpenReports: (tab?: ReportsTab) => void;
   onOpenAccounts: () => void;
   onOpenBuckets: () => void;
   /** Opens Transactions already filtered to just the uncategorized ones. */
@@ -925,7 +928,7 @@ export function DashboardView({
         ) : (
           <p className="empty-state">No spending yet this month.</p>
         )}
-        <div className="clickable-row" onClick={onOpenCashFlow} title="Go to the Cash Flow tab" style={{ marginTop: 4 }}>
+        <div className="clickable-row" onClick={() => onOpenCashFlow("one-month")} title="Go to the Cash Flow tab" style={{ marginTop: 4 }}>
           <span className="category-link">View Cash Flow →</span>
         </div>
       </div>
@@ -962,7 +965,7 @@ export function DashboardView({
         ) : (
           <p className="empty-state">No debt to pay off — nice.</p>
         )}
-        <div className="clickable-row" onClick={onOpenCashFlow} title="Go to the Cash Flow tab" style={{ marginTop: 4 }}>
+        <div className="clickable-row" onClick={() => onOpenCashFlow("debt")} title="Go to the Cash Flow tab" style={{ marginTop: 4 }}>
           <span className="category-link">Open payoff planner →</span>
         </div>
       </div>
@@ -991,7 +994,7 @@ export function DashboardView({
         ) : (
           <p className="empty-state">No holdings yet.</p>
         )}
-        <div className="clickable-row" onClick={onOpenInvestments} title="Go to the Investments tab" style={{ marginTop: 4 }}>
+        <div className="clickable-row" onClick={() => onOpenInvestments("mix")} title="Go to the Investments tab" style={{ marginTop: 4 }}>
           <span className="category-link">View Investments →</span>
         </div>
       </div>
@@ -1029,7 +1032,7 @@ export function DashboardView({
         ) : (
           <p className="empty-state">Add a family member from the Household tab to see this breakdown.</p>
         )}
-        <div className="clickable-row" onClick={onOpenReports} title="Go to the Reports tab" style={{ marginTop: 4 }}>
+        <div className="clickable-row" onClick={() => onOpenReports("people")} title="Go to the Reports tab" style={{ marginTop: 4 }}>
           <span className="category-link">View Reports →</span>
         </div>
       </div>
@@ -1058,7 +1061,7 @@ export function DashboardView({
   function renderInvestmentWidget(accountName: string): React.ReactNode {
     const accountHoldings = holdings.filter((h) => h.account_name === accountName);
     if (accountHoldings.length === 0) return null;
-    return <InvestmentWidget accountName={accountName} accountHoldings={accountHoldings} onOpenInvestments={onOpenInvestments} />;
+    return <InvestmentWidget accountName={accountName} accountHoldings={accountHoldings} onOpenInvestments={() => onOpenInvestments()} />;
   }
 
   function renderWidget(id: WidgetId): React.ReactNode {

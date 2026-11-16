@@ -77,9 +77,4 @@
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-
-  /* A status message that happens to be showing is not part of the report. */
-  .toast-stack {
-    display: none !important;
-  }
 }

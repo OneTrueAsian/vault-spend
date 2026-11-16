@@ -531,3 +531,45 @@ describe("v9 recent transactions", () => {
     expect(widget.textContent).toContain("See all");
   });
 });
+
+describe("Links into pages with tabs (VS-31 step 3)", () => {
+  const link = (label: string) =>
+    [...container.querySelectorAll<HTMLElement>(".clickable-row")].find(el => el.textContent?.includes(label))!;
+  const click = async (el: HTMLElement) => { await act(async () => { el.click(); }); };
+
+  it('"View Cash Flow →" on Top merchants opens Cash Flow on Look at one month', async () => {
+    const p = props({ layoutWidgets: ["top_merchants"] });
+    await render(p);
+    await click(link("View Cash Flow"));
+    expect(p.onOpenCashFlow).toHaveBeenCalledWith("one-month");
+  });
+
+  it('"Open payoff planner →" opens Cash Flow on Debt payoff', async () => {
+    const p = props({ layoutWidgets: ["debt_payoff"] });
+    await render(p);
+    await click(link("Open payoff planner"));
+    expect(p.onOpenCashFlow).toHaveBeenCalledWith("debt");
+  });
+
+  it('"View Reports →" on Net worth by member opens Reports on Tags and people', async () => {
+    const p = props({ layoutWidgets: ["net_worth_by_member"] });
+    await render(p);
+    await click(link("View Reports"));
+    expect(p.onOpenReports).toHaveBeenCalledWith("people");
+  });
+
+  it('"View Investments →" on Allocation opens Investments on Mix and targets', async () => {
+    const p = props({ layoutWidgets: ["allocation"] });
+    await render(p);
+    await click(link("View Investments"));
+    expect(p.onOpenInvestments).toHaveBeenCalledWith("mix");
+  });
+
+  it("the pinned investment account widget still opens Investments on its first tab", async () => {
+    const holding = { id: 1, account_id: 9, account_name: "Brokerage", symbol: "VTI", name: "Total market", shares: "1", price: "100.00", cost_basis: "90.00", asset_class: "US Stocks", value: "100.00", gain_loss: "10.00", prev_close: null, day_gain_loss: null };
+    const p = props({ layoutWidgets: ["investment:Brokerage" as WidgetId], holdings: [holding] });
+    await render(p);
+    await click(link("View in Investments"));
+    expect(p.onOpenInvestments).toHaveBeenCalledWith();
+  });
+});
