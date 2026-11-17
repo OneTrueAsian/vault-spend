@@ -1,0 +1,56 @@
+﻿name: UI frontend checks (test only)
+run-name: UI frontend checks ${{ github.sha }}
+
+on:
+  push:
+    branches:
+      - 'ci/release-1.3.3-ui-frontend-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Use LF line endings
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install dependencies
+        run: npm ci
+      # Supplemental functional checks only. The primary gate's dependency-audit failure is still blocking.
+      - name: Run every frontend check and retain all exit codes
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $results = [ordered]@{}
+          & npm.cmd test
+          $results.unit = $LASTEXITCODE
+          & npm.cmd run lint
+          $results.lint = $LASTEXITCODE
+          & npx.cmd tsc --noEmit
+          $results.types = $LASTEXITCODE
+          & npm.cmd run build
+          $results.frontendBuild = $LASTEXITCODE
+          $results | ConvertTo-Json | Set-Content -Encoding utf8 frontend-checks.json
+          $results | ConvertTo-Json
+          if (@($results.Values | Where-Object { $_ -ne 0 }).Count) { exit 1 }
+      - name: Retain frontend results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-frontend-checks
+          path: frontend-checks.json
+          if-no-files-found: error
+          retention-days: 14
