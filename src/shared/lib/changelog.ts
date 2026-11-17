@@ -26,24 +26,21 @@ export const changelogNotes = (entry: ChangelogEntry): string[] => changelogSect
 export const CHANGELOG: Record<string, ChangelogEntry> = {
   "1.3.3": {
     "New features": [
-      "Every main page has a fresh layout. Cash Flow, Investments and Reports now sit under tabs, so each page shows one thing at a time instead of one long scroll. Cash Flow has Forecast, Month by month, Look at one month, Compared with last year and Debt payoff. Investments has Holdings, Mix and targets, Growth calculator and Money put in. Reports has Where income went, Categories by month, Daily spending, Tags and people, Savings rate, Year by year and Comparisons.",
+      "Every main page has a fresh layout. Cash Flow, Investments and Reports now sit under tabs, so each page shows one thing at a time instead of one long scroll. Cash Flow has Forecast, Month by month, Look at one month, Compared with last year and Debt payoff. Investments has Holdings, Mix and targets, Growth calculator and Money put in. Reports has Where income went, Categories by month, Daily spending, Tags and people, Savings rate, Year by year and Comparisons. Help describes the new cards and tabs on each page.",
       "New overview cards sit above those tabs: Six months at a glance on Cash Flow (each month's spending by category, with a tick for what came in), What your investments are in on Investments, and What you own and owe on Accounts.",
-      "The Dashboard has a Spending in (month) so far card that compares this month with the same days last month and names your biggest one-off cost, plus a Savings goals card with every goal's progress.",
+      "The Dashboard has a Spending this month so far card that compares this month with the same days last month and names your biggest one-off cost, plus a Savings goals card with every goal's progress.",
       "Budget has a Spending against the plan card that shows each category's spending against what you planned, and says how much of your planned income isn't given a job yet. The Income, Fixed, Flexible and Non-Monthly groups are now cards showing Planned, Spent and Left.",
       "Household shows Spending by person as a stacked chart with a tick for what each person earned, and a People card where you can add, rename or remove people.",
     ],
     Enhancements: [
-      "The import screen now has Bank categories, Needs a category and Transactions tabs. Bank categories you already matched to one of your own aren't asked again; choose Change on the import screen to see and change your remembered choices.",
+      "The import screen now has Bank categories, Needs a category and Transactions tabs. Bank categories you already matched to one of your own aren't asked again; choose Change on the import screen to see and change your remembered choices. The number of rows under each bank category is now a button: click it to see those transactions (date, description and amount) before you choose. Rows that are not being imported are listed too, marked Not importing. A small info icon beside \"The app will remember it next time.\" explains that choosing \"Let the app guess\" is not remembered, so the app will ask about that bank category again on a later import. The Help page says the same.",
       "Links on Dashboard cards now open the right tab: Top merchants opens Look at one month, Open payoff planner opens Debt payoff, Allocation opens Mix and targets, and Net worth by member opens Tags and people.",
       "Print and Save as PDF on Reports include every section of the report, whichever tab you have open.",
-      "Help names the new cards and tabs on each page.",
       "Ask the Vault's Show all answers now open in the wide window, so long answer tables are easier to read. In a narrow window the table scrolls sideways inside its own box instead of squeezing the columns.",
-      "On the import review, the number of rows under each bank category is now a button. Click it to see those transactions (date, description and amount) before you choose one of your own categories. Rows that are not being imported are listed too, marked Not importing.",
-      "On the import review, a small info icon now sits beside \"The app will remember it next time.\" It explains that if you choose \"Let the app guess\" for a bank category, the app does not remember that choice and will ask you about that category again on a later import. Picking one of your own categories is what the app remembers. The Help page says the same.",
     ],
     "Bug fixes": [
       "An import is no longer refused when a remembered category was deleted. That bank category starts on Let the app guess so you can choose again.",
-      "Household: names in the (month) by person table no longer break in the middle of a word on a narrow window.",
+      "Household: names in the by person table no longer break in the middle of a word on a narrow window.",
       "Budget: the Left amount in a group card is shown in full, even when a category is far over its plan.",
       "Reports: a status message that happens to be showing is no longer printed on the report. This now applies to every printout from the app.",
     ],

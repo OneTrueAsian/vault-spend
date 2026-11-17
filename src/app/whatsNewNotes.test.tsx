@@ -36,6 +36,29 @@ describe("grouped release notes", () => {
     for (const part of [/Six months at a glance/, /What your investments are in/, /What you own and owe/, /Spending against the plan/, /Savings goals/, /Tags and people/, /Debt payoff/, /by person/]) expect(text).toMatch(part);
   });
 
+  // Owner review of the 1.3.3 notes: a "(month)" placeholder would be shown to readers word for word.
+  it("writes no (month) placeholder in the 1.3.3 notes", () => {
+    const text = changelogNotes(CHANGELOG["1.3.3"]).join("\n");
+    expect(text).not.toContain("(month)");
+    expect(text).toMatch(/Spending this month so far card/);
+    expect(text).toMatch(/names in the by person table no longer break/);
+  });
+
+  // Owner review of the 1.3.3 notes: the three import-screen enhancements become one note that keeps each point.
+  it("describes the import screen in one 1.3.3 enhancement", () => {
+    const enhancements = changelogSections(CHANGELOG["1.3.3"]).find((s) => s.heading === "Enhancements")!.notes;
+    const imports = enhancements.filter((n) => /import/i.test(n));
+    expect(imports).toHaveLength(1);
+    for (const part of [/choose Change/, /number of rows under each bank category is now a button/, /Not importing/, /"Let the app guess"/, /The Help page says the same/]) expect(imports[0]).toMatch(part);
+  });
+
+  // Owner review of the 1.3.3 notes: the thin "Help names the new cards and tabs" enhancement is folded into new feature 1.
+  it("mentions Help in the 1.3.3 layout feature, not as its own enhancement", () => {
+    const sections = changelogSections(CHANGELOG["1.3.3"]);
+    expect(sections.find((s) => s.heading === "New features")!.notes[0]).toMatch(/Help describes the new cards and tabs on each page\./);
+    expect(sections.find((s) => s.heading === "Enhancements")!.notes.some((n) => /^Help names/.test(n))).toBe(false);
+  });
+
   it("puts VS-35 tabs and remembered choices under Enhancements, and deleted-category recovery under Bug fixes", () => {
     const sections = changelogSections(CHANGELOG["1.3.3"]);
     const enhancements = sections.find(s => s.heading === "Enhancements")!.notes.join(" ");
