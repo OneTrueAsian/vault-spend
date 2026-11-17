@@ -1,5 +1,5 @@
-﻿name: UI palette validation (test only)
-run-name: UI palette validation ${{ github.sha }}
+name: UI and dependency security validation (test only)
+run-name: UI and dependency security validation ${{ github.sha }}
 
 on:
   push:
@@ -21,4 +21,4 @@ jobs:
     uses: ./.github/workflows/windows-desktop-gate-sharded.yml
     with:
       source_sha: ${{ github.sha }}
-      contract_tests: tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs tools/verify-sharded-gate-summary.test.mjs tools/assert-draft-release.test.mjs tools/sharded-gate-workflow.test.mjs tools/release-windows-workflow.test.mjs tools/aggregate-shard-results.test.mjs tools/write-check-records.test.mjs
+      contract_tests: tools/picomatch-security.test.mjs tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs tools/verify-sharded-gate-summary.test.mjs tools/assert-draft-release.test.mjs tools/sharded-gate-workflow.test.mjs tools/release-windows-workflow.test.mjs tools/aggregate-shard-results.test.mjs tools/write-check-records.test.mjs

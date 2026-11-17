@@ -28,7 +28,7 @@ export function isTestOnlyFile(file) {
 export function isBuildInput(file) {
   const f = norm(file);
   if (isTestOnlyFile(f)) return false;
-  if (f.startsWith("@build/") || f.startsWith("mobile/") || f.startsWith(".cargo/") || /^\.env(?:\..+)?$/.test(f) || BUILD_TOOLS.has(f)) return true;
+  if (f.startsWith("@build/") || f.startsWith("mobile/") || f.startsWith(".cargo/") || f === ".npmrc" || f.startsWith("tools/vendor/picomatch/") || /^\.env(?:\..+)?$/.test(f) || BUILD_TOOLS.has(f)) return true;
   if (EMBEDDED_OUTSIDE_SRC.has(f)) return true;
   if (f.startsWith("src-tauri/target/") || f.startsWith("target/") || f.startsWith("node_modules/") || f.startsWith("dist/")) return false;
   if (f.startsWith("src/") || f.startsWith("public/") || f.startsWith("core/") || f.startsWith("src-tauri/")) return true;
