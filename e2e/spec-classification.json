@@ -348,6 +348,6 @@
     "feature412_dashboard_links_open_the_right_tab.mjs": "not reviewed for parallel execution; exclusive until approved",
     "feature413_import_review_tabs.mjs": "reviewed: drives shared keyboard, menus and screenshots; exclusive desktop access; detected: depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared keyboard; lib\\importAccount.mjs: drives menus that close when the window loses focus",
     "feature414_chart_segment_details.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared pointer (hover); uses the shared keyboard",
-    "feature415_default_palette_layout.mjs": "drives menus that close when the window loses focus"
+    "feature415_default_palette_layout.mjs": "drives menus that close when the window loses focus; uses the shared pointer (hover)"
   }
 }

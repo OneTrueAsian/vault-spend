@@ -77,8 +77,13 @@ try {
     await b.execute(t => [...document.querySelectorAll('.theme-toggle[aria-label="Theme"] button')].find(e => e.textContent.trim().toLowerCase() === t).click(), theme);
     for (const page of ["Dashboard", "Accounts", "Transactions", "Recurring", "Budget", "Goals", "Cash Flow", "Investments", "Household", "Reports", "Settings", "Help"]) {
       await b.$(`.nav-item[aria-label="${page}"]`).click();
+      await b.$('.main h1').moveTo(); // off the sidebar, onto the page title, so no sidebar popout covers the page
       await dismissStatusMessages(b);
       await b.execute(() => document.querySelector('.main').scrollTop = 0);
+      // In the narrow layout a hovered or keyboard-focused sidebar tab shows its name as a popout over the page.
+      const popout = await b.execute(() => [...document.querySelectorAll('.nav-item')].map(e => e.getAttribute('aria-label'))
+        .find((label, i, all) => label && getComputedStyle(document.querySelectorAll('.nav-item')[i], '::after').content === `"${label}"`) ?? null);
+      assert.equal(popout, null, `${page} ${theme} ${width}: no sidebar name popout covers the page in the screenshot`);
       const g = await geometry();
       assert.equal(g.background, theme === "light" ? "rgb(230, 238, 247)" : "rgb(15, 27, 42)", "the shipped Default palette is active");
       assert.ok(g.overflow <= 1, `${page} ${theme} ${width}: no page-wide overflow`);
