@@ -1,6 +1,10 @@
 # The benchmark package is checksummed byte for byte; never convert its line endings.
 core/data/benchmarks/* -text
 
+# The Tauri CLI rewrites this manifest in LF whenever its bytes differ, which made the first build of a CRLF checkout fail the
+# build guard. Check it out in LF so the build leaves it untouched (e2e/lib/tauriManifestEol.test.mjs).
+src-tauri/Cargo.toml text eol=lf
+
 # M6 corpus freeze records exact bytes, including line endings, across checkouts.
 src/testSupport/askVaultM6/** -text
 src/testSupport/askVaultM6/freeze.ts whitespace=cr-at-eol
