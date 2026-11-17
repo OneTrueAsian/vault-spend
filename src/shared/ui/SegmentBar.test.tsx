@@ -120,4 +120,16 @@ describe("SegmentBar", () => {
     expect(host.textContent).not.toMatch(/\$\s?\d/);
     stop();
   });
+
+  it("offers exact investment amounts on hover and click when details are enabled", () => {
+    act(() => root.render(<SegmentBar rows={[{ segments: ownOwe[0].segments }]} caption="Investment mix" details />));
+    const target = segs(visualRows()[0])[0];
+    expect(target.closest(".segment-bar-track")?.tagName).toBe("BUTTON");
+    act(() => target.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    expect(document.querySelector(".chart-details")?.textContent).toContain("$25,879.00");
+    act(() => target.click());
+    expect(document.querySelector(".chart-details")?.getAttribute("role")).toBe("dialog");
+    act(() => document.body.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true })));
+    expect(document.querySelector(".chart-details")).toBeNull();
+  });
 });

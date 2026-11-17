@@ -1,0 +1,11 @@
+{
+  "name": "@vault-spend/picomatch",
+  "version": "4.0.7-vaultspend.1",
+  "description": "Reviewed picomatch 4.0.7 with the local CVE-2026-112366 repeated-wildcard guard",
+  "license": "MIT",
+  "main": "index.js",
+  "type": "commonjs",
+  "sideEffects": false,
+  "engines": { "node": ">=12" },
+  "files": ["index.js", "posix.js", "lib", "LICENSE", "PATCHES.md"]
+}

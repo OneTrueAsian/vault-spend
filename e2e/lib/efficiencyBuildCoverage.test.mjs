@@ -14,7 +14,7 @@ const write = (file, value) => { const name = path.join(repo, file); fs.mkdirSyn
 const collect = (environment = {}) => identity.collectInputs(repo, { environment });
 
 describe("F2: complete reviewed build-input roots", () => {
-  it.each(["mobile/index.html", "tools/mobile-offline-build.ts", "tools/mobile-icons.ts", ".cargo/config.toml", ".cargo/config", ".env", ".env.production.local"])("includes %s", file => {
+  it.each(["mobile/index.html", "tools/mobile-offline-build.ts", "tools/mobile-icons.ts", "tools/vendor/picomatch/lib/parse.js", "tools/vendor/picomatch/package.json", ".npmrc", ".cargo/config.toml", ".cargo/config", ".env", ".env.production.local"])("includes %s", file => {
     write(file, "before"); const before = key(collect()); write(file, "after");
     expect(key(collect())).not.toBe(before);
   });

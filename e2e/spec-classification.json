@@ -208,7 +208,7 @@
     "feature280_holdings_import_styling.mjs": "depends on which window has OS focus; uses the shared keyboard",
     "feature283_transaction_snapshot_lifecycle.mjs": "uses the shared keyboard",
     "feature284_editable_suggestions.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared keyboard",
-    "feature286_manual_lock_confirmation.mjs": "depends on which window has OS focus",
+    "feature286_manual_lock_confirmation.mjs": "depends on which window has OS focus; lib\\dialogFocus.mjs: depends on which window has OS focus; lib\\profileMenuDiagnostics.mjs: depends on which window has OS focus; lib\\profileMenuDiagnostics.mjs: reacts to blur (the window losing focus)",
     "feature296_ask_vault_lock.mjs": "depends on which window has OS focus; uses the shared keyboard; lib\\askLayoutChecks.mjs: uses the shared pointer (hover); lib\\askLayoutChecks.mjs: uses the shared keyboard; lib\\askRetirement.mjs: depends on which window has OS focus; lib\\askReady.mjs: uses the shared keyboard",
     "feature303_ask_vault_retirement_native.mjs": "uses the shared keyboard",
     "feature304_ask_vault_retirement_flow.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared pointer (hover); takes OS foreground with another window",
@@ -276,7 +276,7 @@
     "feature330_qa_forecast_window_boundaries.mjs": "reviewed: DOM reads and element clicks only; no parallel approval recorded, so it runs exclusively",
     "feature331_qa_forecast_everyday_baseline.mjs": "reviewed: DOM reads and element clicks only; no parallel approval recorded, so it runs exclusively",
     "feature332_qa_large_valid_projection.mjs": "reviewed: DOM reads and element clicks only; no parallel approval recorded, so it runs exclusively",
-    "feature333_qa_household_refund_split_transfer_month.mjs": "reviewed: DOM reads and element clicks only; no parallel approval recorded, so it runs exclusively",
+    "feature333_qa_household_refund_split_transfer_month.mjs": "reviewed: DOM reads and element clicks only; no parallel approval recorded, so it runs exclusively; detected: depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared keyboard; lib\\dateFieldInput.mjs: uses the shared keyboard",
     "feature334_qa_cash_flow_compare_last_year.mjs": "depends on which window has OS focus; uses the shared pointer (hover)",
     "feature335_qa_dashboard_member_table_long_names.mjs": "reviewed: DOM reads and element clicks only; no parallel approval recorded, so it runs exclusively",
     "feature336_qa_chart_figures_without_a_mouse.mjs": "reviewed: DOM reads and element clicks only; no parallel approval recorded, so it runs exclusively; detected: uses the shared pointer (hover)",
@@ -304,7 +304,7 @@
     "feature358_qa_mobile_screens_read_only.mjs": "starts the loopback mobile test server, a standalone Edge session (needs MSEDGEDRIVER matching the installed Edge) and clicks desktop dialogs; no parallel approval recorded, so it runs exclusively",
     "feature359_qa_transactions_filters_bulk_delete_and_recurring.mjs": "uses the shared keyboard",
     "feature360_qa_feature_toggles_and_sidebar_names.mjs": "depends on which window has OS focus; uses the shared pointer (hover); uses the shared keyboard; lib\\budgetRows.mjs: depends on which window has OS focus; lib\\budgetRows.mjs: drives menus that close when the window loses focus; lib\\budgetRows.mjs: uses the shared keyboard",
-    "feature361_qa_help_sections_and_page_links.mjs": "uses the shared pointer to open each page and its Help link; no parallel approval recorded, so it runs exclusively",
+    "feature361_qa_help_sections_and_page_links.mjs": "depends on which window has OS focus",
     "feature362_qa_budget_report_month_boundary.mjs": "reviewed: drives Budget month arrows and Reports range buttons; exclusive until source-bound parallel approval exists; detected: lib\\budgetRows.mjs: depends on which window has OS focus; lib\\budgetRows.mjs: drives menus that close when the window loses focus; lib\\budgetRows.mjs: uses the shared keyboard",
     "feature363_qa_update_offer_consent.mjs": "reviewed: real profile/theme/window and consent gestures require exclusive desktop access; controlled updater responses, no actual download or installer; detected: depends on which window has OS focus; drives menus that close when the window loses focus",
     "feature364_report_pdf_save.mjs": "not reviewed for parallel execution; exclusive until approved",
@@ -343,9 +343,11 @@
     "feature395_dashboard_spending_goals_pair.mjs": "drives menus that close when the window loses focus",
     "feature396_budget_plan_card.mjs": "drives menus that close when the window loses focus",
     "feature397_accounts_own_owe_bar.mjs": "drives menus that close when the window loses focus",
-    "feature410_reports_tabs_and_print.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared keyboard",
-    "feature411_household_spending_by_person.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus",
+    "feature410_reports_tabs_and_print.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared pointer (hover); uses the shared keyboard",
+    "feature411_household_spending_by_person.mjs": "drives menus that close when the window loses focus",
     "feature412_dashboard_links_open_the_right_tab.mjs": "not reviewed for parallel execution; exclusive until approved",
-    "feature413_import_review_tabs.mjs": "reviewed: drives shared keyboard, menus and screenshots; exclusive desktop access"
+    "feature413_import_review_tabs.mjs": "reviewed: drives shared keyboard, menus and screenshots; exclusive desktop access; detected: depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared keyboard; lib\\importAccount.mjs: drives menus that close when the window loses focus",
+    "feature414_chart_segment_details.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared pointer (hover); uses the shared keyboard",
+    "feature415_default_palette_layout.mjs": "drives menus that close when the window loses focus"
   }
 }
