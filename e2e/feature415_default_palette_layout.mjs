@@ -18,6 +18,58 @@ const geometry = () => b.execute(() => {
     .map(e => { const r = e.getBoundingClientRect(), c = e.parentElement.getBoundingClientRect(); return { title: e.textContent, left: r.left - c.left - 1, right: c.right - r.right - 1, height: r.height }; });
   return { overflow: main.scrollWidth - main.clientWidth, bands, background: getComputedStyle(document.body).backgroundColor };
 });
+// Missing-content faults a screenshot reviewer cannot be relied on to see: an empty panel body, a chart with no data marks, and text
+// that runs past its panel or is clipped without an ellipsis. Each fault names its card by data-control (negative controls) or heading.
+const contentFaults = () => b.execute(() => {
+  const faults = [];
+  const shown = e => e.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+  const sized = e => { const r = e.getBoundingClientRect(); return r.width > 1 && r.height > 1; };
+  for (const card of [...document.querySelectorAll('.page .card')].filter(c => shown(c) && sized(c))) {
+    const heads = [...card.querySelectorAll(':scope > .card-head, :scope > h2, :scope > h3')];
+    const name = card.dataset.control ?? (heads[0]?.textContent.trim() || card.className);
+    const inHead = n => heads.some(h => h.contains(n));
+    const texts = [];
+    const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+    for (let t; (t = walker.nextNode());) if (t.textContent.trim() && shown(t.parentElement)) texts.push(t);
+    // Panel body: visible text, or a visible graphic, control or coloured block, outside the heading. Empty-state messages count.
+    const content = texts.some(t => !inHead(t) && sized(t.parentElement)) || [...card.querySelectorAll('*')].some(e => !inHead(e) && shown(e) && sized(e)
+      && (e.matches('svg,img,canvas,input,select,textarea,button') || getComputedStyle(e).backgroundColor !== 'rgba(0, 0, 0, 0)'));
+    if (!content) faults.push({ card: name, kind: 'empty-panel' });
+    // Charts: data marks only; gridlines (line) and axis labels (text) do not count.
+    for (const svg of card.querySelectorAll('svg[role="img"]')) {
+      const r = svg.getBoundingClientRect();
+      if (r.width < 80 || r.height < 40 || !shown(svg)) continue;
+      const marks = [...svg.querySelectorAll('rect.chart-bar,polyline,polygon,path,circle')].filter(m => {
+        const s = getComputedStyle(m), mr = m.getBoundingClientRect();
+        return s.display !== 'none' && s.visibility !== 'hidden' && (mr.width > 0 || mr.height > 0) && (s.fill !== 'none' || s.stroke !== 'none');
+      });
+      if (!marks.length) faults.push({ card: name, kind: 'chart-no-marks' });
+    }
+    // Text: past the card's edge, or clipped by a non-scrolling container without an ellipsis or line clamp.
+    for (const t of texts) {
+      const range = document.createRange(); range.selectNodeContents(t);
+      const rects = [...range.getClientRects()].filter(x => x.width > 0 && x.height > 0);
+      if (!rects.length) continue;
+      const box = { left: Math.min(...rects.map(x => x.left)), right: Math.max(...rects.map(x => x.right)), top: Math.min(...rects.map(x => x.top)), bottom: Math.max(...rects.map(x => x.bottom)) };
+      let kind = null, truncated = false;
+      for (let a = t.parentElement; a; a = a.parentElement) {
+        const s = getComputedStyle(a), ar = a.getBoundingClientRect();
+        if (s.textOverflow === 'ellipsis' || (s.webkitLineClamp && s.webkitLineClamp !== 'none')) truncated = true;
+        if (ar.width <= 2 || ar.height <= 2) break; // visually hidden text for screen readers, or a collapsed region
+        const outX = box.left < ar.left - 1 || box.right > ar.right + 1, outY = box.top < ar.top - 1 || box.bottom > ar.bottom + 1;
+        const clipX = outX && s.overflowX !== 'visible', clipY = outY && s.overflowY !== 'visible';
+        if (clipX || clipY) {
+          const scrolls = (clipX && /auto|scroll/.test(s.overflowX)) || (clipY && /auto|scroll/.test(s.overflowY));
+          if (!scrolls && !truncated) kind = 'text-clipped';
+          break;
+        }
+        if (a === card) { if (outX || outY) kind = 'text-outside'; break; }
+      }
+      if (kind) faults.push({ card: name, kind, text: t.textContent.trim().slice(0, 60) });
+    }
+  }
+  return faults;
+});
 try {
   await chooseStyle(b, "Default", "transparent");
   for (const theme of ["light", "dark"]) for (const width of [1440, 720]) {
@@ -34,6 +86,9 @@ try {
         assert.ok(Math.abs(band.left) <= 1 && Math.abs(band.right) <= 1, `${page}: shaded header edges ${JSON.stringify(band)}`);
         assert.ok(band.height >= 47, `${page}: header has room for its text and controls`);
       }
+      let faults = [];
+      await b.waitUntil(async () => (faults = await contentFaults()).length === 0, { timeout: 5000, interval: 250 }).catch(() => {});
+      assert.deepEqual(faults, [], `${page} ${theme} ${width}: every panel has content, every chart has data marks and no text leaves its panel`);
       await b.saveScreenshot(path.join(shots, `layout-${page.replaceAll(" ", "-")}-${theme}-${width}.png`));
       results.push({ page, theme, width, ...g });
     }
@@ -54,9 +109,30 @@ try {
     const after = await widths();
     assert.ok(before.every((w, i) => Math.abs(w - after[i]) <= 1), "Done preserves every report width");
   }
+  // Negative controls: each injected fault must be reported against its own card, and deliberate ellipsis truncation must not be.
+  await b.execute(() => {
+    const cards = [...document.querySelectorAll('.page .card')].filter(c => c.checkVisibility() && c.getBoundingClientRect().width > 200 && !c.querySelector('.card'));
+    const take = (kind, test = () => true) => { const c = cards.find(x => !x.dataset.control && test(x)); c.dataset.control = kind; return c; };
+    const empty = take('empty', c => c.querySelector(':scope > .card-head'));
+    for (const el of empty.children) if (!el.matches('.card-head')) el.style.visibility = 'hidden';
+    const chartSized = s => { const r = s.getBoundingClientRect(); return r.width >= 80 && r.height >= 40; };
+    for (const mark of take('chart', c => [...c.querySelectorAll('svg[role="img"]')].some(chartSized)).querySelectorAll('svg :is(rect,polyline,polygon,path,circle)')) mark.style.display = 'none';
+    const long = 'This sentence is much too long for its panel and keeps going well past the right-hand border of the card. '.repeat(3);
+    const add = (kind, style) => { const d = document.createElement('div'); d.setAttribute('style', style); d.textContent = long; take(kind).append(d); };
+    add('outside', 'white-space:nowrap');
+    add('clipped', 'white-space:nowrap;overflow:hidden;width:120px');
+    add('ellipsis', 'white-space:nowrap;overflow:hidden;width:120px;text-overflow:ellipsis');
+  });
+  const controls = await contentFaults();
+  const kindsFor = card => controls.filter(f => f.card === card).map(f => f.kind);
+  assert.ok(kindsFor('empty').includes('empty-panel'), `an emptied panel is reported: ${JSON.stringify(controls)}`);
+  assert.ok(kindsFor('chart').includes('chart-no-marks'), `a chart without marks is reported: ${JSON.stringify(controls)}`);
+  assert.ok(kindsFor('outside').some(k => k === 'text-outside' || k === 'text-clipped'), `text past the border is reported: ${JSON.stringify(controls)}`);
+  assert.ok(kindsFor('clipped').includes('text-clipped'), `text clipped without an ellipsis is reported: ${JSON.stringify(controls)}`);
+  assert.deepEqual(kindsFor('ellipsis'), [], "deliberate ellipsis truncation is not reported");
   // The default palette does not recolor other appearance styles.
   await chooseStyle(b, "Retro", "retro");
   assert.notEqual((await geometry()).background, "rgb(230, 238, 247)");
   fs.writeFileSync(path.join(shots, "default-layout.json"), JSON.stringify(results, null, 2));
-  console.log("FEATURE 415 PASSED: 12 sections in light/dark at 1440/720, header edges, overflow and equal report sizes through Customize.");
+  console.log("FEATURE 415 PASSED: 12 sections in light/dark at 1440/720, header edges, overflow, panel content, chart marks, text inside panels and equal report sizes through Customize.");
 } finally { await app.close(); }
