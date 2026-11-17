@@ -2307,6 +2307,7 @@ table.ledger.recurring-table .actions-col {
   /* minmax(0, …) lets a long category name wrap instead of stretching the column past the card */
   grid-template-columns: minmax(0, 1fr);
   gap: 8px;
+  overflow-x: hidden;
 }
 
 .import-category-row {

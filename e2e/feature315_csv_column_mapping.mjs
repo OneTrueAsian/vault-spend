@@ -83,8 +83,14 @@ async function reachReview() {
 }
 const reviewText = () => browser.execute(() => document.querySelector("[role='dialog']")?.innerText ?? "");
 /** The text of each row of the review's table, one string per row. */
-const reviewRows = () => browser.execute(() => [...document.querySelectorAll("[role='dialog'] table.dup-review-table tbody tr")].map((tr) => tr.innerText));
+const reviewRows = async () => {
+  const tab=await browser.$('[data-import-review-tab="rows"]');
+  if (await tab.isExisting()) await tab.click();
+  return browser.execute(() => [...document.querySelectorAll("[role='dialog'] table.dup-review-table tbody tr")].map(tr => tr.innerText));
+};
 async function confirmImport() {
+  const needs=await browser.$('[data-import-review-tab="needs"]');
+  if (await needs.isExisting()) await needs.click();
   const leaveRest = await browser.$("button=Leave the rest uncategorized");
   if (await leaveRest.isExisting()) await leaveRest.click();
   const confirm = await browser.$("button[data-import-confirm]");

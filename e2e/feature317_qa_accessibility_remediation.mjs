@@ -165,6 +165,7 @@ try {
     },
     { timeout: 20000, timeoutMsg: "the review opens (answering the amounts-direction question if asked)" },
   );
+  await browser.$('[data-import-review-tab="rows"]').click();
   const names = await browser.execute(() => [...document.querySelectorAll("[role='dialog'] tbody input[type='checkbox']")].map((i) => i.getAttribute("aria-label")));
   assert.equal(names.length, 3, "one checkbox per row");
   assert.ok(names.every((n) => n && n.length > 0), "every row checkbox is named");

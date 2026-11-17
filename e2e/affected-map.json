@@ -71,6 +71,9 @@
     { "pattern": ".github/workflows/**", "reason": "Hosted workflow definition: not exercised by local desktop specs.", "requires": ["Review the hosted workflow change against the hosted release gate; it cannot be proven locally"] }
   ],
   "areas": [
+    { "pattern": "src/features/imports/ImportReviewDialog.*", "specs": ["feature413_", "feature162_", "feature164_", "feature316_", "feature317_", "feature384_", "feature387_", "feature315_", "feature345_", "feature150_"], "reason": "Import review tabs, remembered categories, row choices, accounts and column replacement (VS-35)." },
+    { "pattern": "src/shared/lib/importResolution.ts", "specs": ["feature413_", "feature162_", "feature164_", "feature315_", "feature345_", "feature384_", "feature387_"], "reason": "Import review category resolution and remembered-choice defaults (VS-35)." },
+    { "pattern": "src/shared/ui/ImportCategoryReconcile.*", "specs": ["feature413_", "feature162_", "feature387_"], "reason": "Bank category choices and row-count disclosure (VS-35)." },
     {
       "pattern": "src/askVault/retirement/retirementNativeContract.ts",
       "specs": ["ask_vault", "feature305_", "transaction_qa", "dashboard_order", "financial_snapshot"],

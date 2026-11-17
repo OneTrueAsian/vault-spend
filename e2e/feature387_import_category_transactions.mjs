@@ -172,7 +172,9 @@ try {
   assert.equal(await (await toggles())[1].getAttribute("aria-expanded"), "false", "the other lists stay closed");
 
   // An unticked row is marked, and only that row.
+  await browser.$('[data-import-review-tab="rows"]').click();
   await (await reviewCheckbox("QQXZ BIG BOX")).click();
+  await browser.$('[data-import-review-tab="bank"]').click();
   await waitUntilOrDiagnose(
     browser,
     async () => (await browser.execute(() => document.querySelectorAll("li[data-not-importing]").length)) === 1,
@@ -185,7 +187,9 @@ try {
     1,
     "the ticked row is not marked",
   );
+  await browser.$('[data-import-review-tab="rows"]').click();
   await (await reviewCheckbox("QQXZ BIG BOX")).click();
+  await browser.$('[data-import-review-tab="bank"]').click();
 
   // The keyboard works: focus the second count and press Enter.
   await browser.execute(() => document.querySelectorAll("button.import-category-rows-toggle")[1].focus());
@@ -218,7 +222,9 @@ try {
       await openReview();
       for (const toggle of await toggles()) await toggle.click();
       await waitUntilOrDiagnose(browser, async () => (await lists()).length === 3, { timeoutMsg: `${palette}/${theme}: all lists should open` });
-      await (await reviewCheckbox("QQXZ BIG BOX")).click();
+      await browser.$('[data-import-review-tab="rows"]').click();
+  await (await reviewCheckbox("QQXZ BIG BOX")).click();
+  await browser.$('[data-import-review-tab="bank"]').click();
       await (await browser.$(".import-category-reconcile-head strong")).click(); // focus and pointer off the counts
       const where = `${palette}/${theme}`;
 

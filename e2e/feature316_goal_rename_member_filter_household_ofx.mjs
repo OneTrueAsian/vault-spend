@@ -169,6 +169,7 @@ try {
     timeout: 8000,
     timeoutMsg: "both compact records are read (the review title says Import 2 transactions)",
   });
+  await browser.$('[data-import-review-tab="rows"]').click();
   const review = await browser.execute(() => [...document.querySelectorAll("[role='dialog']")].map((d) => d.innerText).join(" "));
   assert.match(review, /Import 2 transactions/, "both compact records are read");
   assert.match(review, /QQOFX GREEN LEAF/);
@@ -176,6 +177,7 @@ try {
   assert.doesNotMatch(review, /No transactions were found/);
   const confirmButton = await browser.$("button[data-import-confirm]");
   if (!(await confirmButton.isEnabled())) {
+    await browser.$('[data-import-review-tab="needs"]').click();
     // Rows without a category ask for one first; leave the rest uncategorized, as a person would.
     const leave = await browser.$("button=Leave the rest uncategorized");
     if (await leave.isExisting()) await leave.click();
