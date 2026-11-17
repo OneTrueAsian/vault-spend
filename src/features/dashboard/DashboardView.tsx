@@ -714,10 +714,13 @@ export function DashboardView({
             points={netWorthHistory.map((p) => ({ label: p.month_label, value: parseFloat(p.value) }))}
             height={210}
             caption="Net worth by month"
+            emptyText="Your net worth trend fills in as the months go by."
           />
-          <p className="account-col" style={{ marginTop: 8 }}>
-            {netWorthDelta >= 0 ? "▲" : "▼"} {fmtMoneyShort(Math.abs(netWorthDelta))} over this period
-          </p>
+          {netWorthHistory.length > 0 && (
+            <p className="account-col" style={{ marginTop: 8 }}>
+              {netWorthDelta >= 0 ? "▲" : "▼"} {fmtMoneyShort(Math.abs(netWorthDelta))} over this period
+            </p>
+          )}
           {assetsTotal !== 0 && (
             <p className="modal-message-secondary" style={{ marginTop: 4 }}>
               This trend does not include property and valuables. Their current value is included in the net worth above.

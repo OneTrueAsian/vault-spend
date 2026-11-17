@@ -417,8 +417,11 @@ export function LineChart({
   formatValue = fmtMoneyShort,
   maxLabels,
   caption = "Chart values",
+  emptyText = "Nothing to show yet.",
 }: {
   points: { label: string; value: number }[];
+  /** Shown instead of the chart when there are no points (an empty series has no axis to draw). */
+  emptyText?: string;
   width?: number;
   height?: number;
   color?: string;
@@ -434,6 +437,7 @@ export function LineChart({
 }) {
   const [wrapRef, width] = useMeasuredWidth(initialWidth);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  if (points.length === 0) return <p className="empty-state">{emptyText}</p>;
 
   const padR = Math.max(12, Math.ceil(Math.max(0, ...points.map(point => point.label.length)) * 12 * 0.62 / 2) + 4);
   const padT = 14;

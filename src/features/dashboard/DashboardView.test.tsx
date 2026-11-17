@@ -137,6 +137,16 @@ it("editing current property value changes the net-worth headline without rewrit
   expect(container.textContent).toContain("does not include property and valuables");
 });
 
+// VS-34: with no net-worth history yet, the Net worth trend card drew an empty chart whose axis read "$NaN".
+it("says the net worth trend fills in over time when there is no history yet, never $NaN", async () => {
+  await render(props({ netWorthHistory: [], layoutWidgets: ["stat_net_worth", "trend_spending"] }));
+  const card = container.querySelector('[data-widget-id="trend_spending"] .card')!;
+  expect(card.textContent).not.toMatch(/NaN/);
+  expect(card.textContent).toContain("Your net worth trend fills in as the months go by.");
+  expect(card.textContent).not.toContain("over this period");
+  expect(card.querySelector("svg")).toBeNull();
+});
+
 it("Task7: waits for the current roster preparation and ignores a cancelled earlier roster", async()=>{
   const pending:{signal:AbortSignal;resolve:(ready:boolean)=>void}[]=[];
   vi.spyOn(vendor,"prepareVendors").mockImplementation((_names,signal)=>new Promise(resolve=>pending.push({signal,resolve})));

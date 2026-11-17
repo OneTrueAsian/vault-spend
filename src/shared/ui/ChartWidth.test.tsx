@@ -70,6 +70,13 @@ describe("charts measured at the card width", () => {
     act(() => root.render(<LineChart width={720} points={[{ label: "Jan", value: 100 }]} />));
     expect(host.querySelector("svg")?.getAttribute("viewBox")).toMatch(/^0 0 720 /);
   });
+  // VS-34: with no points the axis was worked out from Math.min() of nothing and read "$NaN".
+  it("shows a plain message instead of a $NaN axis when a line chart has no points", () => {
+    act(() => root.render(<LineChart points={[]} />));
+    expect(host.textContent).not.toMatch(/NaN/);
+    expect(host.querySelector("svg")).toBeNull();
+    expect(host.textContent).toContain("Nothing to show yet.");
+  });
   it("leaves room for the last line-chart date label", () => {
     act(() => root.render(<LineChart points={[{ label: "Nov 30", value: 100 }, { label: "Oct 6", value: 120 }]} />));
     const svg = host.querySelector("svg")!;
