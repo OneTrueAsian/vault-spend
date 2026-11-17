@@ -5,6 +5,10 @@ core/data/benchmarks/* -text
 # build guard. Check it out in LF so the build leaves it untouched (e2e/lib/tauriManifestEol.test.mjs).
 src-tauri/Cargo.toml text eol=lf
 
+# classify-specs.mjs --check compares this generated file with its own LF output byte for byte, so a CRLF checkout always failed the
+# check. Check it out in LF (e2e/lib/specClassificationEol.test.mjs).
+e2e/spec-classification.json text eol=lf
+
 # M6 corpus freeze records exact bytes, including line endings, across checkouts.
 src/testSupport/askVaultM6/** -text
 src/testSupport/askVaultM6/freeze.ts whitespace=cr-at-eol
