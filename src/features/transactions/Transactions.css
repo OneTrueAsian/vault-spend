@@ -1969,6 +1969,15 @@ table.ledger.recurring-table .budget-alert-badge {
    past its box in Futuristic's wider letters, so the names may wrap and the badge may drop under
    the date. The window width stands in for the page's: the sidebar is a fixed width here. */
 @media (min-width: 1400px) {
+  /* VS-33: every other column is already as narrow as its contents, so the name column only gets
+     what the cell padding leaves. At 14px a side, a long name ("RIVERSIDE HOSPITAL PAYROLL") fit at
+     1440px with under a pixel to spare and wrapped when the due date read a little wider. */
+  table.ledger.recurring-table th,
+  table.ledger.recurring-table td {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
   table.ledger.recurring-table td[data-label="Merchant"] {
     min-width: 14rem;
   }
