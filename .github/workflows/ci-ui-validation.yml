@@ -1,0 +1,24 @@
+﻿name: UI palette validation (test only)
+run-name: UI palette validation ${{ github.sha }}
+
+on:
+  push:
+    branches:
+      - 'ci/release-1.3.3-ui-validation-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-palette-validation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows-gate:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/windows-desktop-gate-sharded.yml
+    with:
+      source_sha: ${{ github.sha }}
+      contract_tests: tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs tools/verify-sharded-gate-summary.test.mjs tools/assert-draft-release.test.mjs tools/sharded-gate-workflow.test.mjs tools/release-windows-workflow.test.mjs tools/aggregate-shard-results.test.mjs tools/write-check-records.test.mjs

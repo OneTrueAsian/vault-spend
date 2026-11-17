@@ -86,7 +86,7 @@ describe("StackedRows", () => {
   it("names the picture without amounts, and gives the exact figures for every category in a table", () => {
     act(() => root.render(<StackedRows rows={months} caption="Six months at a glance" tickLabel="What came in" />));
     const pic = host.querySelector(".stacked-rows")!;
-    expect(pic.getAttribute("role")).toBe("img");
+    expect(pic.getAttribute("role")).toBe("group");
     expect(pic.getAttribute("aria-label")).toBe("Six months at a glance");
     expect(host.querySelector(".sr-only table caption")?.textContent).toBe("Six months at a glance");
     expect(tableRows()).toEqual([
@@ -141,5 +141,82 @@ describe("StackedRows", () => {
     const stop = startPrivacyMask(host);
     expect(host.textContent).not.toMatch(/\$\s?\d/);
     stop();
+  });
+
+  it("shows the actual category in sparse rows and pins details until dismissed", () => {
+    act(() => root.render(<StackedRows rows={months} caption="Six months" tickLabel="What came in" />));
+    const groceries = segs(visualRows()[0])[1]; // Legend position two is Car upkeep, not Groceries.
+    act(() => groceries.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    expect(document.querySelector(".chart-details")?.textContent).toContain("Groceries");
+    expect(document.querySelector(".chart-details")?.textContent).toContain("$400.00");
+    act(() => groceries.click());
+    act(() => groceries.dispatchEvent(new MouseEvent("pointerout", { bubbles: true })));
+    expect(document.querySelector(".chart-details")?.getAttribute("role")).toBe("dialog");
+    act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(document.querySelector(".chart-details")).toBeNull();
+  });
+
+  it("gives grouped categories their exact breakdown and income ticks their own value", () => {
+    const many = ["A", "B", "C", "D", "E", "F", "G"].map((category, i) => ({ category, amount: 70 - i * 10 }));
+    act(() => root.render(<StackedRows rows={[{ label: "Jordan", segments: many, tick: 900 }]} caption="By person" tickLabel="What they earned" />));
+    act(() => segs(visualRows()[0])[5].click());
+    expect(document.querySelector(".chart-details")?.textContent).toContain("Everything else");
+    expect(document.querySelector(".chart-details")?.textContent).toContain("$20.00");
+    expect(document.querySelector(".chart-details")?.textContent).toContain("Section total: $30.00");
+    act(() => visualRows()[0].querySelector<HTMLButtonElement>(".stacked-rows-tick")!.click());
+    expect(document.querySelector(".chart-details")?.textContent).toContain("What they earned");
+    expect(document.querySelector(".chart-details")?.textContent).toContain("$900.00");
+  });
+
+  it("does not expose amounts when details open while privacy is enabled", () => {
+    document.documentElement.dataset.privacy = "on";
+    try {
+      act(() => root.render(<StackedRows rows={months} caption="Six months" tickLabel="What came in" />));
+      act(() => segs(visualRows()[0])[0].click());
+      const panel = document.querySelector(".chart-details")!;
+      expect(panel).not.toBeNull();
+      expect(panel.textContent).not.toMatch(/\$\s?\d/);
+      for (const el of document.querySelectorAll(".chart-details *, .stacked-rows *")) {
+        for (const attr of el.attributes) expect(attr.value).not.toMatch(/\$\s?\d/);
+      }
+    } finally {
+      delete document.documentElement.dataset.privacy;
+    }
+  });
+
+  it("does not reopen beneath the pointer when closing pinned details", () => {
+    act(() => root.render(<StackedRows rows={months} caption="Six months" tickLabel="What came in" />));
+    act(() => segs(visualRows()[0])[0].click());
+    act(() => document.querySelector<HTMLButtonElement>(".chart-details-close")!.click());
+    // Removing the popup can expose another segment without an intentional pointer move.
+    act(() => segs(visualRows()[1])[1].dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    expect(document.querySelector(".chart-details")).toBeNull();
+    const bar = visualRows()[1].querySelector<HTMLButtonElement>(".stacked-rows-track")!;
+    act(() => bar.focus());
+    act(() => bar.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true })));
+    act(() => bar.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(document.querySelector(".chart-details")?.textContent).toContain("Car upkeep");
+  });
+
+  it("lets keyboard users explore every section from one bar without widening small values", () => {
+    act(() => root.render(<StackedRows rows={months} caption="Six months" tickLabel="What came in" />));
+    const row = visualRows()[0], bar = row.querySelector<HTMLButtonElement>(".stacked-rows-track")!;
+    expect(row.querySelectorAll("button")).toHaveLength(1);
+    act(() => bar.focus());
+    act(() => bar.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(document.querySelector(".chart-details")?.textContent).toContain("Groceries");
+    act(() => bar.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true })));
+    expect(document.querySelector(".chart-details")?.textContent).toContain("What came in");
+    expect(segs(row)[1].style.width).toBe(`${(400 / 3000) * 100}%`);
+  });
+
+  it("keeps a pinned section selected when the pointer moves across the same bar", () => {
+    act(() => root.render(<StackedRows rows={months} caption="Six months" tickLabel="What came in" />));
+    const row = visualRows()[0], bar = row.querySelector<HTMLButtonElement>(".stacked-rows-track")!;
+    act(() => segs(row)[0].click());
+    act(() => segs(row)[1].dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    expect(bar.getAttribute("aria-pressed")).toBe("true");
+    expect(bar.getAttribute("aria-label")).toContain("Rent");
+    expect(document.querySelector(".chart-details h3")?.textContent).toContain("Rent");
   });
 });

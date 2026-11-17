@@ -587,6 +587,7 @@ export function InvestmentsView({
           <SegmentBar
             rows={[{ segments: donutData.filter((d) => d.value > 0).map((d) => ({ label: d.label, amount: d.value, color: d.color })) }]}
             caption="Your investments, grouped by kind"
+            details
           />
           {/* Nothing is written inside the bar, so every kind is listed here with its share. */}
           <ul className="chart-legend" style={{ listStyle: "none", padding: 0, margin: "12px 0 0" }} data-investments-mix-key>

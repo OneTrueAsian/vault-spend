@@ -1,6 +1,8 @@
 import { formatAmount } from "../lib/format";
 import { CATEGORY_COLORS } from "./categoryPalette";
 import "./ChartPieces.css";
+import { useChartDetails } from "./useChartDetails";
+import { ChartDetailTrack } from "./ChartDetailTrack";
 
 export type StackedRow = { label: string; segments: { category: string; amount: number }[]; /** e.g. what came in or was earned */ tick?: number };
 
@@ -15,8 +17,9 @@ const sum = (values: number[]) => values.reduce((s, v) => s + v, 0);
 /** Rows of stacked category segments on one shared scale, each with an optional tick (Cash Flow "Six
  * months at a glance", Household "Spending by person"). Categories are colored by their total across
  * all rows, so a category keeps its color from row to row. Up to six categories each get a palette
- * color; with more, the largest five keep theirs and the rest are drawn as one "Everything else". The picture carries no amounts in any attribute; a visually hidden
- * table gives every category's exact figure. */
+ * color; with more, the largest five keep theirs and the rest are drawn as one "Everything else".
+ * Segments and income ticks offer hover/focus and pinned details; amounts stay out of attributes.
+ * A visually hidden table retains every category's exact figure. */
 export function StackedRows({
   rows,
   caption,
@@ -33,6 +36,7 @@ export function StackedRows({
   emptyText?: string;
   format?: (amount: number) => string;
 }) {
+  const details = useChartDetails(rows, format);
   const totals = new Map<string, number>();
   for (const r of rows) for (const s of r.segments) totals.set(s.category, (totals.get(s.category) ?? 0) + Math.max(s.amount, 0));
   // Only categories with something to draw take a color; a refund-only or zero category would waste a slot.
@@ -53,16 +57,28 @@ export function StackedRows({
 
   return (
     <div className="stacked-rows-wrap">
-      <div className="stacked-rows" role="img" aria-label={caption}>
+      <div className="stacked-rows" role="group" aria-label={caption}>
         {rows.map((r, ri) => (
           <div key={ri} className="stacked-rows-row">
             <span className="stacked-rows-label">{r.label}</span>
-            <div className="stacked-rows-track">
-              {drawn[ri].map((s, si) => (
-                <div key={si} className="stacked-rows-seg" style={{ width: pct(s.amount, scale), background: color(s.category) }} />
-              ))}
-              {r.tick !== undefined && <div className="stacked-rows-tick" style={{ left: pct(r.tick, scale) }} />}
-            </div>
+            <ChartDetailTrack className="stacked-rows-track" controller={details} points={[
+              ...drawn[ri].map((s, si) => ({
+                key: `${ri}-${si}`, className: "stacked-rows-seg",
+                style: { width: pct(s.amount, scale), background: color(s.category) },
+                detail: {
+                    title: `${r.label} · ${s.category}`,
+                    entries: s.category === EVERYTHING_ELSE
+                      ? r.segments.filter(item => !named.includes(item.category) && ranked.includes(item.category)).map(item => ({ label: item.category, amount: item.amount }))
+                      : [{ label: s.category, amount: s.amount }],
+                    sectionTotal: s.category === EVERYTHING_ELSE ? s.amount : undefined,
+                    total: sum(r.segments.map(item => item.amount)), totalLabel: "Total spending",
+                },
+              })),
+              ...(r.tick !== undefined ? [{ key: `${ri}-tick`, className: "stacked-rows-tick",
+                detail: { title: `${r.label} · ${tickLabel}`, entries: [{ label: tickLabel, amount: r.tick }], total: sum(r.segments.map(s => s.amount)), totalLabel: "Total spending" },
+                style: { left: pct(r.tick, scale), background: "var(--text)" },
+              }] : []),
+            ]} />
             <span className="stacked-rows-total">{format(sum(r.segments.map((s) => s.amount)))}</span>
           </div>
         ))}
@@ -87,6 +103,7 @@ export function StackedRows({
           )}
         </ul>
       </div>
+      {details.popover}
       <div className="sr-only">
         <table>
           <caption>{caption}</caption>

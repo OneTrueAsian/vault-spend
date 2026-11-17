@@ -1,0 +1,51 @@
+/* A chart target keeps the segment's original dimensions and color, including on hover in Retro. */
+.page button.chart-details-track,
+.page button.chart-details-track:hover,
+.page button.chart-details-track:active {
+  display: flex;
+  padding: 0;
+  border: 0;
+  min-height: 24px;
+  min-width: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+  flex-shrink: 1;
+  cursor: pointer;
+}
+.page .chart-details-track:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+.page .chart-details-track[aria-pressed="true"] > .chart-details-point[data-active="true"] { outline: 2px solid var(--text); outline-offset: 2px; }
+.stacked-rows-track.chart-details-track { height: 24px; align-items: center; }
+.stacked-rows-track.chart-details-track > .stacked-rows-seg { height: 20px; }
+.stacked-rows-track.chart-details-track > .stacked-rows-tick { top: -1px; bottom: -1px; }
+.segment-bar-track.chart-details-track > .segment-bar-seg { height: 100%; }
+.chart-details-point { display: block; }
+.chart-details {
+  position: fixed;
+  z-index: 10000;
+  box-sizing: border-box;
+  width: 280px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: var(--shadow-md);
+  font-size: 13px;
+  pointer-events: none;
+}
+.chart-details[data-pinned="true"] { pointer-events: auto; }
+.chart-details h3 { margin: 0 0 8px; font-size: 14px; padding-right: 24px; overflow-wrap: break-word; }
+.chart-details p { margin: 6px 0; }
+.chart-details ul { padding: 0; list-style: none; margin: 8px 0; }
+.chart-details li { display: flex; gap: 12px; justify-content: space-between; margin: 5px 0; }
+.chart-details li > span { min-width: 0; overflow-wrap: break-word; }
+.chart-details strong { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chart-details small { color: var(--text-muted); }
+.chart-details .chart-details-close { position: absolute; right: 8px; top: 8px; padding: 2px 7px; min-height: 28px; min-width: 28px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 5px; }
