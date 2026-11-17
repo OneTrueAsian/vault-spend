@@ -82,6 +82,26 @@ gigabytes. Three layers now stop that:
 Screenshot folders follow the same rule: set the spec's own output variable (`VS_SCREENS_DIR`,
 `VS_T9_SHOTS`, `COMPARISONS_SHOTS_DIR`, …) to keep screenshots somewhere permanent.
 
+## Keeping and reviewing a run's screenshots
+
+`npm run e2e -- --spec=<specs> --keep-screens` also copies every screenshot a spec saves through the harness session
+(`saveScreenshot`) into `target/e2e-shots/<run start, UTC>/<spec>/`. The harness does this when `VAULTSPEND_SHOTS_DIR` is
+set, which the runner sets per spec; each spec's own screenshot file and folder are unchanged, and without the switch nothing
+changes. The newest three runs are kept. The run report prints `Screenshots kept: N in <folder>` and
+`target\e2e-last-run.json` records `keptScreens` (with a per-spec count). Mobile Playwright captures and pixel measurements
+(`takeScreenshot`) are not kept. About twenty specs save screenshots only when their own variable is set (for example
+`VS_M5_SHOTS`, `VAULTSPEND_E2E_SHOTS`, `VS_QA_COMPLETION_SHOTS`, `VS_TASK7_SHOTS`; `grep -rn "process.env.*SHOTS\|_OUTPUT" e2e`
+lists them). The report names every spec that kept no screenshots; set that spec's variable too if you need its screenshots
+reviewed. A spec that kept none has not been reviewed, which is not the same as passing review.
+
+`npm run e2e:review -- [folder]` then reviews every PNG in the folder (default: the newest kept run) with a local vision model,
+Ollama's `qwen3.6:35b` with thinking off, and writes `summary.md` (counts plus only the flagged and unsure screenshots) and
+`verdicts.json` into it. It takes about 5 seconds per screenshot and unloads the model when done. Run it after an E2E run, never
+during one. Exit 0 when reviewed, 3 when Ollama or the model is unavailable, 1 otherwise; `--host=` and `--model=` override the
+defaults. It works on any folder of screenshots, such as a UAT capture.
+
+To review E2E or UAT screenshots, run the specs with `--keep-screens` (or use the UAT shots folder), then `npm run e2e:review -- [folder]`, read its `summary.md`, and open only the flagged screenshots plus at least two passed ones per spec. If the review is unavailable (exit 3), open the screenshots directly. A local pass is a hint, never acceptance or sign-off, and it does not notice missing content (spec DOM checks cover that). Measured on 17 November 2026: 9 of 12 seeded faults caught, 1 of 64 good screens flagged, about 85% fewer Claude tokens than viewing every screenshot.
+
 ## Running a spec
 
 `enableProtectionThroughUI` returns after clicking Finish, which starts asynchronous

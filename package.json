@@ -11,6 +11,7 @@
     "test": "vitest run",
     "e2e": "node e2e/run-all.mjs",
     "e2e:smoke": "node e2e/run-all.mjs --spec=smoke",
+    "e2e:review": "node e2e/review-screens.mjs",
     "build:app": "node e2e/build-app.mjs",
     "select:specs": "node e2e/select-specs.mjs",
     "verify:fast": "node e2e/verify.mjs fast",

@@ -114,7 +114,11 @@ npm run access -- cargo-test -- cargo test --workspace -- --test-threads=1
 npm run build:app
 npm run e2e:smoke
 npm run e2e -- --spec=2   # example affected feature selection
+npm run e2e -- --spec=415 --keep-screens   # also keep every screenshot in target/e2e-shots/<run>/<spec>/
+npm run e2e:review        # local Qwen review of the newest kept run (or pass a folder); writes summary.md
 ```
+
+To review E2E or UAT screenshots, run the specs with `--keep-screens` (or use the UAT shots folder), then `npm run e2e:review -- [folder]`, read its `summary.md`, and open only the flagged screenshots plus at least two passed ones per spec. If the review is unavailable (exit 3), open the screenshots directly. A local pass is a hint, never acceptance or sign-off, and it does not notice missing content (spec DOM checks cover that).
 
 Follow `AGENTS.md` and `e2e/README.md` for validation scope. Use `npm run e2e`
 for the full desktop suite; a selected feature run is focused coverage only.
