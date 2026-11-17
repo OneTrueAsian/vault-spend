@@ -59,6 +59,12 @@ describe("grouped release notes", () => {
     expect(sections.find((s) => s.heading === "Enhancements")!.notes.some((n) => /^Help names/.test(n))).toBe(false);
   });
 
+  it("lists the VS-33 Recurring name fix and the VS-34 net worth trend fix among the 1.3.3 bug fixes", () => {
+    const fixes = changelogSections(CHANGELOG["1.3.3"]).find((s) => s.heading === "Bug fixes")!.notes.join("\n");
+    expect(fixes).toMatch(/Recurring: a long name stays on one line in a wide window/);
+    expect(fixes).toMatch(/Dashboard: the Net worth trend no longer shows "\$NaN"/);
+  });
+
   it("puts VS-35 tabs and remembered choices under Enhancements, and deleted-category recovery under Bug fixes", () => {
     const sections = changelogSections(CHANGELOG["1.3.3"]);
     const enhancements = sections.find(s => s.heading === "Enhancements")!.notes.join(" ");

@@ -43,6 +43,8 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
       "Household: names in the by person table no longer break in the middle of a word on a narrow window.",
       "Budget: the Left amount in a group card is shown in full, even when a category is far over its plan.",
       "Reports: a status message that happens to be showing is no longer printed on the report. This now applies to every printout from the app.",
+      "Recurring: a long name stays on one line in a wide window. Before, it could wrap onto a second line on some dates.",
+      "Dashboard: the Net worth trend no longer shows \"$NaN\" before its history has loaded. Until there is history, it says the trend fills in as the months go by.",
     ],
   },
   "1.3.2": {
