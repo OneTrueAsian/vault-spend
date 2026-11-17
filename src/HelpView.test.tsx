@@ -535,3 +535,18 @@ describe("HelpView search finds the 1.3.2 features by the words people use", () 
     expect(container.textContent).not.toContain("Can I save my own Dashboard layout?");
   });
 });
+
+// Owner review of the 1.3.3 notes: a "(month)" placeholder reads as a literal name that no heading has. Help names
+// the month-titled headings with an example instead.
+describe("HelpView month-titled headings", () => {
+  it("shows an example month instead of a (month) placeholder", () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    act(() => root.render(<>{TAB_HELP.flatMap((h) => h.more ?? []).map((item, i) => <p key={i}>{item}</p>)}</>));
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    act(() => root.unmount());
+    expect(text).not.toContain("(month)");
+    expect(text).toContain("for example Spending in March 2026 so far");
+    expect(text).toContain("for example March 2026 by person");
+  });
+});
