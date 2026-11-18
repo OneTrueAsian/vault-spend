@@ -17,6 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { seedFixtureInto } from "./lib/seed.mjs";
+import { demoEnv } from "./lib/demoEnv.mjs";
 
 const PY = `
 import datetime, random
@@ -259,7 +260,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       console.error("Build the app first: npx tauri build --debug --no-bundle");
       process.exit(1);
     }
-    spawn(exe, [], { detached: true, stdio: "ignore", env: { ...process.env, VAULTSPEND_DB_DIR: dataDir } }).unref();
+    spawn(exe, [], { detached: true, stdio: "ignore", env: demoEnv(dataDir) }).unref();
     console.log(`Vault Spend is open on the household data in ${dataDir}. Re-run for a fresh copy.`);
   }
 }

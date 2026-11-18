@@ -26,6 +26,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { seedDemoRegistry } from "./lib/demo-seed.mjs";
+import { demoEnv } from "./lib/demoEnv.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 process.chdir(repoRoot); // seed.mjs resolves target/debug/init_db.exe relative to cwd
@@ -97,7 +98,7 @@ console.log(`\nLaunching Vault Spend on the demo data in ${demoDir}\n`);
 const child = spawn(exe, [], {
   detached: true,
   stdio: "ignore",
-  env: { ...process.env, VAULTSPEND_DB_DIR: demoDir },
+  env: demoEnv(demoDir),
 });
 child.unref();
 console.log(`Second backup folder to try:  ${path.join(demoDir, "second-copy")}`);

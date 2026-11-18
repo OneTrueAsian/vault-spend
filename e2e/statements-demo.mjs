@@ -16,6 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { seedFixtureInto } from "./lib/seed.mjs";
+import { demoEnv } from "./lib/demoEnv.mjs";
 import { dateInMonth, displayDate } from "./lib/dates.mjs";
 import { buildPdf, checkingStatement, unknownBankStatement, unknownBrokerageStatement } from "./lib/statementPdf.mjs";
 
@@ -182,6 +183,6 @@ console.log(`\nPractice statements are in ${filesDir}`);
 if (args.has("--seed")) process.exit(0);
 
 console.log(`Launching Vault Spend on the practice data in ${demoDir}\n`);
-const child = spawn(exe, [], { detached: true, stdio: "ignore", env: { ...process.env, VAULTSPEND_DB_DIR: demoDir } });
+const child = spawn(exe, [], { detached: true, stdio: "ignore", env: demoEnv(demoDir) });
 child.unref();
 console.log("Vault Spend is open. This is throwaway practice data. Re-run `npm run demo:statements` any time for a fresh copy.\n");
