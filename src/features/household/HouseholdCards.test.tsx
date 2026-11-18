@@ -117,3 +117,19 @@ it("styles the month-by-person names to wrap between words only, and keeps its a
   expect(rule("[data-month-by-person] .ledger .amount-col")).toMatch(/white-space:\s*nowrap/);
   expect(rule("[data-month-by-person] .ledger td:first-child")).toMatch(/min-width:\s*\d+px/);
 });
+// Moved from the removed incomeByMember tests (a real production case): an internal transfer and the deposit side of a credit
+// card payment, both attributed to a person, are not income, so the month table's Income column leaves them out.
+it("leaves transfers and credit card payments out of a person's income", () => {
+  const account = (id: number, name: string, account_type: string) => ({ id, name, account_type, starting_balance: "0", current_balance: "0", institution: null, mask: null,
+    interest_rate: null, excluded_from_debt_payoff: false, member_id: null, member_name: null, checkpoint_date: null, icon_key: null, import_flip_signs: null, hidden: false }) as ComponentProps<typeof HouseholdView>["accounts"][number];
+  show({
+    accounts: [account(1, "Everyday Checking", "checking"), account(2, "Capital One", "credit")],
+    transactions: [
+      { ...txn(1, "147.70", 1), category: "Income" },
+      { ...txn(2, "6000.00", 1), category: "Transfer" },
+      { ...txn(3, "1867.82", 1), category: "Credit Card Payment", account_id: 2 },
+    ],
+  });
+  const rows = [...host.querySelectorAll('[data-month-by-person] tbody tr')].map(e => e.textContent);
+  expect(rows[0]).toBe("Alex$147.70$0.00");
+});

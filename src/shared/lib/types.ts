@@ -217,8 +217,6 @@ export type MemberBudgetActual = {
   actual: string;
 };
 
-export type BudgetGroup = "income" | "fixed" | "flexible" | "nonmonthly";
-
 export type ReportBudgetLine = {
   category: string;
   budget_group: string;

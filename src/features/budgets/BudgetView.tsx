@@ -702,8 +702,8 @@ export function BudgetView({
     saveCategoryOrder(next);
   }
 
-  // One summary per non-empty group — its heading's progress line and bar,
-  // and the page's totals, all come from this one computation.
+  // One summary per non-empty group — its heading's "spent of planned" line and the page's totals
+  // both come from this one computation.
   const groupSummaries = GROUP_ORDER.map((group) => {
     const groupLines = orderedCategories.map((c) => lineByCategory.get(c)!).filter((line) => line.budget_group === group);
     const groupBudgeted = sumMoney(groupLines.map((b) => effectiveBudget(b)));

@@ -1,9 +1,6 @@
 import type { ReactNode } from "react";
 import { MenuSelect } from "../shared/ui/MenuSelect";
 import { money } from "./mobileViewModel";
-export interface MobileDisplay {
-    hidden: boolean;
-}
 export function Amount({ value, hidden }: {
     value: string | number | null;
     hidden: boolean;

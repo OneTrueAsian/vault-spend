@@ -1,6 +1,6 @@
 import type { Account, Asset, Transaction } from "./types";
 import { isTransferTransaction } from "./transfers";
-import { isIncomeTransaction, netWorthContribution } from "./accountGroups";
+import { netWorthContribution } from "./accountGroups";
 
 /** A name→amount row for a "by family member" breakdown table. */
 export type MemberAmount = { name: string; amount: number; /** The catch-all row for spending nobody was named for; never a real person. */ unassigned?: true };
@@ -30,20 +30,6 @@ export function spendingByMember(transactions: Transaction[], options: { include
   const rows: MemberAmount[] = Array.from(totals, ([name, amount]) => ({ name, amount }));
   if (options.includeUnassigned && unassigned > 0) rows.push({ name: "Unassigned", amount: unassigned, unassigned: true });
   return rows;
-}
-
-/** All-time income grouped by family member — the symmetric counterpart
- * to `spendingByMember` (inflows instead of outflows), same
- * drop-unattributed convention. Income itself is `isIncomeTransaction`
- * (accountGroups.ts) — the same rule `Store::monthly_totals` applies on
- * the backend, so this never disagrees with what Cash Flow reports. */
-export function incomeByMember(transactions: Transaction[], accounts: Account[]): MemberAmount[] {
-  const totals = new Map<string, number>();
-  for (const t of transactions) {
-    if (!t.member_name || !isIncomeTransaction(t, accounts)) continue;
-    totals.set(t.member_name, (totals.get(t.member_name) ?? 0) + parseFloat(t.amount));
-  }
-  return Array.from(totals, ([name, amount]) => ({ name, amount }));
 }
 
 /** Net worth grouped by family member — accounts plus manually-tracked
