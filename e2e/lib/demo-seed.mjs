@@ -39,6 +39,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { seedFixtureInto } from "./seed.mjs";
+import { seedMainHousehold } from "./practice-data/index.mjs";
 
 const PY = `
 import datetime, random
@@ -368,7 +369,7 @@ for i in range(24, 0, -1):
 /** Creates a fresh demo database in `dbDir` (which must already exist and be
  * empty, or not contain a vaultspend.db yet). */
 export async function seedDemoDatabase(dbDir) {
-  await seedFixtureInto(dbDir, PY);
+  await seedMainHousehold(dbDir);
 }
 
 // ---------------------------------------------------------------------------
