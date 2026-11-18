@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { afterAll, describe, expect, it } from "vitest";
-import { seedMainHousehold } from "./index.mjs";
+import { buildPracticeData, seedMainHousehold } from "./index.mjs";
 
 // The shared practice data (see COVERAGE.md) is built by the real seeding path: init_db.exe for the schema, then
 // Python inserts. Both must exist to build it; without them the reason is printed instead of a silent pass.
@@ -64,6 +64,67 @@ describe.skipIf(!canBuild)("main practice household", () => {
     const [[future]] = query(d, `SELECT COUNT(*) FROM transactions WHERE date > '${day}'`);
     expect(future).toBe(0);
   }, 60000);
+});
+
+describe.skipIf(!canBuild)("practice data registry, profiles, files and README", () => {
+  let dir, result, registry;
+  it("builds", async () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "vs-practice-reg-"));
+    made.push(dir);
+    result = await buildPracticeData(dir, { today: TODAY });
+    registry = JSON.parse(fs.readFileSync(path.join(dir, "profiles.json"), "utf8"));
+  }, 120000);
+
+  it("lists the main household, Sam, Fresh start and Locked, in that order, with existing databases", () => {
+    expect(registry.profiles.map((p) => [p.id, p.name])).toEqual([["household-0", "Rivera household"], ["sam-1", "Sam"], ["fresh-2", "Fresh start"], ["locked-3", "Locked"]]);
+    for (const p of registry.profiles) expect(fs.existsSync(p.db_path), p.name).toBe(true);
+    expect(result.profiles.map((p) => p.id)).toEqual(registry.profiles.map((p) => p.id));
+  });
+
+  it("pre-selects the main household without skipping the selector", () => {
+    const device = JSON.parse(fs.readFileSync(path.join(dir, "device-settings.json"), "utf8"));
+    expect(device.last_used_profile_id).toBe("household-0");
+  });
+
+  it("gives Sam two plaintext backups", () => {
+    const sam = registry.profiles.find((p) => p.id === "sam-1");
+    expect(sam.protection ?? null).toBe(null);
+    expect(fs.readdirSync(path.join(path.dirname(sam.db_path), "backups")).filter((f) => f.endsWith(".db"))).toEqual(result.samBackupNames);
+    expect(result.samBackupNames).toHaveLength(2);
+  });
+
+  it("keeps Fresh start empty with every default", () => {
+    const fresh = registry.profiles.find((p) => p.id === "fresh-2").db_path;
+    expect(query(fresh, "SELECT COUNT(*) FROM transactions")[0][0]).toBe(0);
+    expect(query(fresh, "SELECT COUNT(*) FROM family_members")[0][0]).toBe(0);
+    expect(query(fresh, "SELECT COUNT(*) FROM accounts")[0][0]).toBe(0);
+    const settings = query(fresh, "SELECT budget_exclusion_enabled, auto_link_transfers FROM app_settings WHERE id = 1")[0] ?? [0, 0];
+    expect(settings).toEqual([0, 0]);
+  });
+
+  it("makes Locked a protected profile with no plaintext copy left", () => {
+    const locked = registry.profiles.find((p) => p.id === "locked-3");
+    expect(locked.protection).toEqual({ format: 1 });
+    expect(path.basename(locked.db_path)).toBe("vaultspend-protected.db");
+    expect(fs.existsSync(`${locked.db_path}.key`)).toBe(true);
+    expect(fs.existsSync(path.join(path.dirname(locked.db_path), "vaultspend.db"))).toBe(false);
+  });
+
+  it("writes the practice files", () => {
+    const files = fs.readdirSync(result.filesDir).sort();
+    for (const f of ["1-northwind-month-1.pdf", "3-riverbend-month-1.pdf", "5-harborview-month-1.pdf", "7-picture-only.pdf", "8-corner-download-unfamiliar-headers.csv", "11-joint-checking-download.csv", "README.txt"]) expect(files, f).toContain(f);
+    const readme = fs.readFileSync(path.join(result.filesDir, "README.txt"), "utf8");
+    expect(readme).toContain("Practice Checking");
+    expect(readme).not.toContain("Everyday Checking");
+  });
+
+  it("explains every profile, and holds Locked's password only in the README", () => {
+    const readme = fs.readFileSync(result.readmePath, "utf8");
+    for (const name of ["Rivera household", "Sam", "Fresh start", "Locked"]) expect(readme).toContain(name);
+    expect(readme).toMatch(/Password: \S{12,}/);
+    expect(readme).toMatch(/Recovery key: \S+/);
+    expect(JSON.stringify(registry)).not.toMatch(/Password/i);
+  });
 });
 
 // One check per data-backed row in COVERAGE.md.
