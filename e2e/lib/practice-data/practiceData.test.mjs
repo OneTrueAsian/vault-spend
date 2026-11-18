@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { afterAll, describe, expect, it } from "vitest";
-import { buildPracticeData, seedMainHousehold } from "./index.mjs";
+import { buildPracticeData, seedMainHousehold, seedTidyHousehold } from "./index.mjs";
 
 // The shared practice data (see COVERAGE.md) is built by the real seeding path: init_db.exe for the schema, then
 // Python inserts. Both must exist to build it; without them the reason is printed instead of a silent pass.
@@ -63,6 +63,15 @@ describe.skipIf(!canBuild)("main practice household", () => {
     const d = await build(day);
     const [[future]] = query(d, `SELECT COUNT(*) FROM transactions WHERE date > '${day}'`);
     expect(future).toBe(0);
+  }, 60000);
+});
+
+describe.skipIf(!canBuild)("tidy household (specs 268-271, 296 check its exact figures)", () => {
+  it("has exactly one family member, Jordan, so the Member column stays hidden", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vs-tidy-"));
+    made.push(dir);
+    await seedTidyHousehold(dir, { today: TODAY });
+    expect(query(path.join(dir, "vaultspend.db"), "SELECT name FROM family_members")).toEqual([["Jordan"]]);
   }, 60000);
 });
 
@@ -176,6 +185,10 @@ describe.skipIf(!canBuild)("practice data covers every feature (COVERAGE.md)", (
     expect(one("SELECT auto_link_transfers FROM app_settings WHERE id = 1")).toBe(1);
     expect(count("SELECT 1 FROM transfer_links WHERE auto = 1 AND reviewed = 0")).toBeGreaterThanOrEqual(1);
     expect(count("SELECT 1 FROM transactions WHERE description LIKE 'Holiday Fund%'")).toBe(3);
+  });
+
+  it("Transactions: some rows were sorted by a rule (Sorted by: Your rule)", () => {
+    expect(count(`SELECT 1 FROM transactions WHERE category_source = 'rule' AND description = 'Shell Oil' AND date LIKE '${thisMonth}%'`)).toBeGreaterThanOrEqual(1);
   });
 
   it("Transactions: review inbox", () => {

@@ -14,6 +14,7 @@
 - Build with `npm run build:app` (same debug Tauri build, but under exclusive access and reused when every input matches) so builds and desktop runs do not collide. Run Cargo commands that use the shared `target\` folder through `npm run access -- <name> -- <command>` when another agent may be building or running desktop specs. See "Building and running without stepping on each other" in `e2e/README.md`.
 - `npm run select:specs` lists potentially affected desktop specs. If it selects everything for an unknown or shared file, narrow the checks by reviewing the behavior that changed. `npm run verify:fast` includes the full unit suite, and `npm run verify:full` runs everything. Use either only with owner approval. Report targeted runs as targeted coverage.
 - If a required test cannot run, report the command, the blocker, and which checks did run. Do not claim tests passed without running them.
+- Demos, UAT walk-throughs and hands-on looks at the app use the shared practice data (`e2e/lib/practice-data/`, opened with `npm run demo`) instead of rows made up for the occasion. A new feature adds the data it needs there, with a row in `e2e/lib/practice-data/COVERAGE.md` and a check in `practiceData.test.mjs`. Automated E2E specs keep their own small fixtures.
 
 ## Validation scope and avoiding unnecessary reruns
 

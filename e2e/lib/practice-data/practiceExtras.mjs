@@ -9,6 +9,15 @@ export const PRACTICE_PY = String.raw`
 def days_ago(n):
     return today - datetime.timedelta(days=n)
 
+# A second person, Alex, who earns the ACME pay and buys the fuel, so per-person views show two people plus Shared.
+# (The tidy household keeps Jordan alone: specs check its one-person layout.)
+cur.execute("INSERT INTO family_members (name) VALUES ('Alex')")
+alex = cur.lastrowid
+cur.execute("UPDATE transactions SET member_id = ? WHERE description IN ('ACME CORP PAYROLL', 'Shell Oil')", (alex,))
+
+# Rows a rule sorted ("Sorted by: Your rule"); the Shell Oil rule itself is added below.
+cur.execute("UPDATE transactions SET category_source = 'rule' WHERE description IN ('Shell Oil', 'Netflix')")
+
 pfp = [0]
 def ptx(acc, date, desc, amt, cat, source="user", member=None, confidence=None):
     if date is None:

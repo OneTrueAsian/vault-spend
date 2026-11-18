@@ -21,8 +21,6 @@ def on(back, day):
     d = month_start(back).replace(day=min(day, 28))
     return d if d <= today else None
 
-cur.execute("INSERT INTO family_members (name) VALUES ('Alex')")
-alex = cur.lastrowid
 cur.execute("INSERT INTO family_members (name) VALUES ('Jordan')")
 jordan = cur.lastrowid
 
@@ -90,7 +88,7 @@ fun  = ["AMC Theatres", "Steam Games", "Concert Tickets", "Bowling Alley"]
 for back in range(MONTHS, -1, -1):
     # Pay: Alex on the 1st and 15th, Jordan on the 5th and 20th. 401(k) money comes out of Alex's pay.
     for day in (1, 15):
-        tx(checking, on(back, day), "ACME CORP PAYROLL", 2450.00, "Income", alex)
+        tx(checking, on(back, day), "ACME CORP PAYROLL", 2450.00, "Income")
         tx(k401, on(back, day), "Payroll contribution", 350.00, "Transfer")
     tx(k401, on(back, 15), "Employer match", 175.00, "Transfer")
     for day in (5, 20):
@@ -132,7 +130,7 @@ for back in range(MONTHS, -1, -1):
     for i in range(random.randint(6, 9)):
         charge(visa, back, 1 + i * 3 + random.randint(0, 2), random.choice(dine), round(random.uniform(12, 72), 2), "Dining Out")
     for i in range(4):
-        charge(visa, back, 2 + i * 7, "Shell Oil", round(random.uniform(38, 62), 2), "Gas", alex)
+        charge(visa, back, 2 + i * 7, "Shell Oil", round(random.uniform(38, 62), 2), "Gas")
     for i in range(random.randint(2, 4)):
         charge(visa, back, 6 + i * 6, random.choice(shop), round(random.uniform(20, 180), 2), "Shopping")
     for i in range(random.randint(1, 3)):
