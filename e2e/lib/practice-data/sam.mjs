@@ -50,12 +50,12 @@ tx(checking, days_ago(19), "Noodle House", -24.60, "Dining Out")
 tx(checking, days_ago(6), "Noodle House", -18.15, "Dining Out")
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?,?,?,?,?,?,?)",
-    (checking, days_ago(45), "Transfer to Savings", "-150.00", "Savings Goal", "user", "sam-demo-transfer-out"),
+    (checking, days_ago(45).isoformat(), "Transfer to Savings", "-150.00", "Savings Goal", "user", "sam-demo-transfer-out"),
 )
 out_id = cur.lastrowid
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?,?,?,?,?,?,?)",
-    (savings, days_ago(45), "Transfer from Checking", "150.00", "Savings Goal", "user", "sam-demo-transfer-in"),
+    (savings, days_ago(45).isoformat(), "Transfer from Checking", "150.00", "Savings Goal", "user", "sam-demo-transfer-in"),
 )
 in_id = cur.lastrowid
 cur.execute("INSERT INTO transfer_links (out_transaction_id, in_transaction_id) VALUES (?, ?)", (out_id, in_id))
