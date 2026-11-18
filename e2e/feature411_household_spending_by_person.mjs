@@ -141,6 +141,7 @@ try {
   // Rent comes round every month, so it is not a one-off.
   assert.deepEqual(chart.notes, [`Sam's biggest one-off cost: ${BANK_STYLE}, $90.00`, `Shared's biggest one-off cost: ${BANK_UNBROKEN}, $60.00`]);
   // Budget by person lists spending categories only.
+  await waitUntilOrDiagnose(b, () => b.execute(() => document.querySelectorAll("[data-budget-by-person] tbody tr").length > 0), { timeout: 15000, timeoutMsg: "the Budget by person card loads" });
   const budgetRows = await b.execute(() => [...document.querySelectorAll("[data-budget-by-person] tbody tr")].map((tr) => tr.cells[0].textContent.trim()));
   assert.deepEqual(budgetRows, ["Groceries", "Rent"], "no Income row in Budget by person");
   // Every figure on the rest of the page is still there.
