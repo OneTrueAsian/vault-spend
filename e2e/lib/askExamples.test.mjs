@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as x from "./askExamples.mjs";
-import { RETIREMENT_CORPUS } from "../../src/askVault/retirementCorpus";
-import { compiledRetirementCase } from "../../src/askVault/retirementCompiledCorpus";
+import { RETIREMENT_CORPUS } from "../../src/askVault/retirement/retirementCorpus";
+import { compiledRetirementCase } from "../../src/askVault/retirement/retirementCompiledCorpus";
 
 // Task 7 (D-6, G-4): the examples pass iterates the card's own exported lists and expects an outcome worked from the seed. Hand figures are pinned for 2026-10-22.
 // Written after the helper (no RED receipt for this file); its negative cases below show the checks can fail.

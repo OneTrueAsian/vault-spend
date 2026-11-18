@@ -168,7 +168,7 @@ describe("during a run", () => {
 
 describe("test and harness identity is separate from the application's (owner decision 20 Oct 2026)", () => {
   it("a test edit made before the run does not make the executable stale, and the result records the test key as well as the build key", async () => {
-    inputs["src/askVault/useRetirementScenario.test.tsx"] = "edited after the build";
+    inputs["src/askVault/retirement/useRetirementScenario.test.tsx"] = "edited after the build";
     inputs["e2e/lib/harness.mjs"] = "also edited";
     const run = await guard();
     expect(run.artifact.status).toBe("fresh");

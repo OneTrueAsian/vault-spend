@@ -1,8 +1,9 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
-import { LegalNoticeGate } from "./LegalNoticeGate";
-import { StartupGate } from "./StartupGate";
+import App from "./app/App";
+import { LegalNoticeGate } from "./features/help/LegalNoticeGate";
+import { StartupGate } from "./app/StartupGate";
+import "./themes/default.css";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

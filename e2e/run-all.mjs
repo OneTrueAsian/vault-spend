@@ -30,6 +30,7 @@ import { classifySpecs, createApprovalContext, runSchedule } from "./lib/schedul
 import { matchesSelector } from "./lib/specSelectors.mjs";
 import { parseRetryOptions, retryFailuresInIsolation, serializeExecutedResult } from "./lib/isolatedRetry.mjs";
 import { parseShard, shardSpecs } from "./lib/specShard.mjs";
+import { countKept, keptBySpec, startKeptRun } from "./lib/keepScreens.mjs";
 
 const e2eDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -155,7 +156,7 @@ function runSpec(name) {
     const child = spawn(process.execPath, [path.join(e2eDir, name)], {
       cwd: path.resolve(e2eDir, ".."),
       stdio: "pipe",
-      env: { ...process.env, ...isolatedTempEnv(specTempDir) },
+      env: { ...process.env, ...isolatedTempEnv(specTempDir), ...(keptRunDir ? { VAULTSPEND_SHOTS_DIR: path.join(keptRunDir, path.basename(name, ".mjs")) } : {}) },
     });
     let output = "";
     let timedOut = false;
@@ -209,6 +210,8 @@ try {
 process.once("SIGINT", () => { guard.abort(); process.exit(130); });
 if (guard.artifact.status === "unknown") console.log(`Note: ${guard.artifact.reason} Results are labelled artifact=unknown. Use "npm run build:app" to record it.`);
 else if (guard.artifact.status === "stale") console.log(`WARNING: running against a stale executable (--allow-stale-artifact). ${guard.artifact.reason}`);
+// --keep-screens: every screenshot a spec saves is also copied to target/e2e-shots/<run>/<spec>/ for npm run e2e:review (newest 3 runs kept).
+const keptRunDir = process.argv.includes("--keep-screens") ? startKeptRun(path.join(repoRoot, "target", "e2e-shots")) : null;
 
 const overallStart = Date.now();
 if (schedule === "classified") {
@@ -270,6 +273,13 @@ const failed = results.filter((r) => r.code !== 0);
 console.log(`\n${results.length - failed.length}/${results.length} passed in ${totalSeconds}s (concurrency ${concurrency})${flaky.length > 0 ? `; ${flaky.length} passed only on a retry, see FLAKY below` : ""}`);
 const slowest = [...results].sort((a, b) => b.durationMs - a.durationMs).slice(0, 5);
 console.log("Slowest specs: " + slowest.map((r) => `${r.name} ${(r.durationMs / 1000).toFixed(1)}s`).join(", "));
+const keptPerSpec = keptRunDir ? keptBySpec(keptRunDir, results.map((r) => r.name)) : [];
+if (keptRunDir) {
+  console.log(`Screenshots kept: ${countKept(keptRunDir)} in ${keptRunDir} (review with: npm run e2e:review)`);
+  const none = keptPerSpec.filter((k) => k.count === 0).map((k) => k.spec);
+  // Not reviewed is not reviewed-and-clean: name them, so nobody reads an empty review as a pass.
+  if (none.length) console.log(`No screenshots kept for ${none.length} spec(s), so the local review cannot cover them: ${none.join(", ")}. Some specs save screenshots only when their own variable is set (see e2e/README.md).`);
+}
 // A launch that stalls before its page loads is retried by harness.mjs. That is worth knowing about even
 // when every spec then passes, so count the reports the specs printed.
 const launchRetries = results.reduce((n, r) => n + (r.output.match(/\[harness\] launch retry/g)?.length ?? 0), 0);
@@ -282,6 +292,7 @@ try {
   fs.writeFileSync(lastRunPath, JSON.stringify({
     identity: verdict.identity, validationManifest: verdict.validationManifest, approvalBinding: approvalContext?.binding ?? createApprovalContext({ inputs: verdict.validationManifest?.before, identity: verdict.identity }).binding, sourceValid, valid: verdict.valid, problems: verdict.problems, schedule, parallelSafe: classes.parallel.length, exclusive: classes.exclusive.length, concurrency, specTimeoutMs: SPEC_TIMEOUT_MS, elapsedSeconds: Number(totalSeconds), launchRetries, timeouts,
     selected: specs, executed: results.map(serializeExecutedResult),
+    ...(keptRunDir ? { keptScreens: { dir: keptRunDir, count: countKept(keptRunDir), perSpec: keptPerSpec } } : {}),
   }, null, 2) + "\n");
 } catch { /* the record is evidence for the report, not part of the verdict */ }
 if (retrySkipped) console.log(`\nNOT RETRIED: ${retrySkipped}`);

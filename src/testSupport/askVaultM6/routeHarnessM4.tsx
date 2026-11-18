@@ -3,9 +3,9 @@ import { createRoot } from "react-dom/client";
 import { readFileSync } from "node:fs";
 import { vi } from "vitest";
 import type { CutPreviewDialogProps, CutPreviewScreen } from "../../CutPreviewDialog";
-import type { ParseContext } from "../../askVault/types";
-import { validateBaselineBatchSnapshot } from "../../askVault/cutPreviewBatch";
-import { baselineRequest } from "../../askVault/spendingScenarioBaseline";
+import type { ParseContext } from "../../askVault/common/types";
+import { validateBaselineBatchSnapshot } from "../../askVault/cutPreview/cutPreviewBatch";
+import { baselineRequest } from "../../askVault/spending/spendingScenarioBaseline";
 import { canonical } from "./counting";
 import { SOURCE, m4DisplayMoney, type M4Row } from "./m4Scenario";
 

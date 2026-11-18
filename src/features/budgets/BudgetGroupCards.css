@@ -1,0 +1,72 @@
+/* Budget-only: Goals keeps its existing shared stylesheet. */
+.budget-view .budget-group-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+.budget-view .budget-group { margin: 0; min-width: 0; border: 1px solid var(--border); border-radius: 14px; padding: 12px; background: var(--surface); box-shadow: var(--shadow-sm); }
+.budget-view .budget-group-head { margin: 0; padding: 0 0 6px; border-bottom: 1px solid var(--border); }
+.budget-view .budget-group-head-line { flex-wrap: wrap; }
+.budget-view .budget-group-progress { font-size: 12px; }
+.budget-view .budget-group .cat-list { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.budget-view .cat-row, .budget-view .cat-list-head { display: grid; grid-template-columns: minmax(150px, 2fr) minmax(70px, .8fr) minmax(70px, .8fr) minmax(78px, .9fr) minmax(48px, 1fr) 28px; gap: 8px; padding: 12px 0; }
+.budget-view .cat-list-head > :nth-child(n+2):nth-child(-n+4) { text-align: right; }
+.budget-view .cat-list-head > :nth-child(5) { text-align: left; }
+.budget-view .cat-row-bar { width: 100%; min-width: 0; }
+.budget-view .cat-amt { min-width: 0; font-size: 12px; }
+.budget-view .budget-amount-input { min-width: 0; width: 100%; }
+.budget-view .budget-group-column { display: grid; gap: 18px; min-width: 0; align-content: start; }
+.budget-view .cat-amt::before { content: none; }
+.budget-view .cat-row-name { gap: 6px; }
+.budget-view .row-icon-badge { flex: none; }
+@media (max-width: 1380px) {
+  .budget-view .budget-group-cards { grid-template-columns: minmax(0, 1fr); }
+  .budget-view .budget-group-cards > .budget-group { grid-column: auto; grid-row: auto; }
+}
+@media (max-width: 800px) {
+  .budget-view .cat-list-head { display: none; }
+  .budget-view .cat-row { grid-template-columns: repeat(3, minmax(0, 1fr)) 28px; }
+  .budget-view .cat-row-name { grid-column: 1 / 4; grid-row: 1; }
+  .budget-view .cat-row-actions { grid-column: 4; grid-row: 1; }
+  .budget-view .cat-amt { grid-row: 2; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .budget-view .cat-amt::before { content: attr(data-label); color: var(--text-muted); font-size: 11px; }
+  .budget-view .cat-row-bar { grid-column: 1 / -1; grid-row: 3; }
+}
+
+.budget-view .cat-list-head { padding: 8px 0; }
+
+.budget-view .cat-row-name-stack { min-width: 0; }
+.budget-view .cat-row-name .category-link { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: normal; word-break: normal; }
+
+.budget-view .drag-handle { margin-right: 0; }
+
+/* VS-31 stream B: "Spending against the plan". The card is its own container, so its rows restack when the
+   card, not the window, is narrow. A category name may wrap between words, never inside one. */
+.budget-view .budget-plan { container-type: inline-size; margin-bottom: 18px; }
+.budget-view .budget-plan .card-head { justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+.budget-view .budget-plan-sub { margin: 0 0 10px; }
+.budget-view .budget-plan .category-bars-name,
+.budget-view .budget-plan .category-bars-select { white-space: normal; text-align: left; }
+.budget-view .budget-plan .category-bars-bar { width: 34%; }
+.budget-view .budget-plan .category-bars-amount { padding-left: 8px !important; }
+.budget-view .budget-plan-more,
+.budget-view .budget-plan-key { margin: 10px 0 0; }
+.budget-view .budget-plan-foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); display: grid; gap: 6px; }
+.budget-view .budget-plan-income,
+.budget-view .budget-plan-foot .budget-summary-note { margin: 0; font-size: 12.5px; color: var(--text-muted); overflow-wrap: break-word; }
+.budget-view .budget-plan .budget-allocation { margin: 0; padding: 0; border: 0; border-radius: 0; background: none; font-size: inherit; }
+@container (max-width: 640px) {
+  .budget-view .budget-plan .category-bars,
+  .budget-view .budget-plan .category-bars tbody { display: block; }
+  .budget-view .budget-plan .category-bars tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "name amount" "bar note";
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 4px;
+    padding: 6px 0;
+  }
+  .budget-view .budget-plan .category-bars th,
+  .budget-view .budget-plan .category-bars td { padding: 0 !important; }
+  .budget-view .budget-plan .category-bars-name { grid-area: name; }
+  .budget-view .budget-plan .category-bars-amount { grid-area: amount; }
+  .budget-view .budget-plan .category-bars-bar { grid-area: bar; width: auto; }
+  .budget-view .budget-plan .category-bars-note-cell { grid-area: note; }
+}

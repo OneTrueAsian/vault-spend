@@ -151,12 +151,13 @@ try {
   assert.match(await memberToggle().getText(), /All members/);
   await browser.keys("Escape");
 
-  // 3. Household unassigned spending
+  // 3. Household spending by person: unattributed spending is Shared (the chart's row; it used to be an "Unassigned" list line)
   await nav("Household");
   await browser.$("//h2[contains(.,'Spending by person')]").waitForExist({ timeout: 15000 });
   const spending = await browser.$("//div[contains(@class,'card')][.//h2[contains(.,'Spending by person')]]").getText();
   assert.match(spending, /Alex\s*\$30\.00/);
-  assert.match(spending, /Unassigned\s*\$20\.00/, "12.25 + 7.75 of unassigned spending");
+  assert.match(spending, /Shared\s*\$20\.00/, "12.25 + 7.75 of spending nobody was named for");
+  assert.ok(!spending.includes("Unassigned"), "the chart says Shared, never Unassigned");
 
   // 4. Compact OFX through the real chooser, and an unreadable file
   await nav("Transactions");
@@ -168,6 +169,7 @@ try {
     timeout: 8000,
     timeoutMsg: "both compact records are read (the review title says Import 2 transactions)",
   });
+  await browser.$('[data-import-review-tab="rows"]').click();
   const review = await browser.execute(() => [...document.querySelectorAll("[role='dialog']")].map((d) => d.innerText).join(" "));
   assert.match(review, /Import 2 transactions/, "both compact records are read");
   assert.match(review, /QQOFX GREEN LEAF/);
@@ -175,6 +177,7 @@ try {
   assert.doesNotMatch(review, /No transactions were found/);
   const confirmButton = await browser.$("button[data-import-confirm]");
   if (!(await confirmButton.isEnabled())) {
+    await browser.$('[data-import-review-tab="needs"]').click();
     // Rows without a category ask for one first; leave the rest uncategorized, as a person would.
     const leave = await browser.$("button=Leave the rest uncategorized");
     if (await leave.isExisting()) await leave.click();

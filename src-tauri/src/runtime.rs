@@ -126,7 +126,6 @@ impl AppRuntime {
     }
 
     /// Drops the open profile's state (its connection closes) and remembers which profile is locked.
-    #[allow(dead_code)] // used by the lock screen and auto-lock in Phases C and E
     pub fn lock_profile(&self, profile_id: &str) {
         self.clear_notice();
         let mut slot = self.slot.lock().unwrap_or_else(|e| e.into_inner());
@@ -400,7 +399,7 @@ mod tests {
     #[test]
     fn a_freshly_locked_profile_has_no_delay() {
         // A baseline guard, not a new behavior: attempt-delay bookkeeping (Phase C, Task 2) lives
-        // in the separate `protection_session::Sessions`, not here — `AppRuntime` itself carries no
+        // in the separate `protection::session::Sessions`, not here — `AppRuntime` itself carries no
         // deadline state. This just pins down that locking alone still reports the plain Locked
         // status, so a later change that tries to fold delay state into this slot is caught here.
         let runtime = open_runtime(open_state("fresh-lock"));

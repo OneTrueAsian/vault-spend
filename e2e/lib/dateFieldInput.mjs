@@ -1,4 +1,4 @@
-// Filling a date or month field through its visible controls (src/DateField.tsx, src/MonthField.tsx):
+// Filling a date or month field through its visible controls (src/shared/ui/DateField.tsx, src/shared/ui/MonthField.tsx):
 // typing into the box and choosing in the app-drawn calendar. Reading a field is lib/dateFields.mjs; this
 // file is separate because typing uses the shared keyboard, which makes a spec that imports it exclusive.
 

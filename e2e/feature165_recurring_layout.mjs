@@ -9,7 +9,7 @@
 // and the table fits inside its own box (Futuristic's table once scrolled inside it at 1120px).
 // Wherever the list is a table, cadence labels ("Every 2 weeks") and "Due soon" stay on one line.
 // From 1400px, account names ("Joint Checking") and "Iron Works Gym" do too, and at 1440px in
-// Default every merchant name does. A name longer than the 14rem name column ("RIVERSIDE HOSPITAL
+// Default every merchant name does, with room to spare for a wider due date (VS-33). A name longer than the 14rem name column ("RIVERSIDE HOSPITAL
 // PAYROLL" at 1400px, or in Futuristic's wider capitals) may wrap.
 //
 // Run with: node e2e/run-all.mjs --spec=165
@@ -84,6 +84,33 @@ const wrappedText = ({ account, merchants }) =>
     merchants,
   );
 
+/** VS-33: the due dates are today's, so their width changes with the date ("Nov 6" against "Nov 16").
+ * At 1440px the name once fit with under a pixel to spare and wrapped on wider dates. A name must stay
+ * on one line with every due date this much wider, enough for the widest date. */
+const WIDER_DATE_PX = 12;
+
+/** Whether one merchant name still fits on one line when every due date is `extra` pixels wider: a
+ * blank spacer is added beside each date, the name's lines are counted, and the spacers are removed. */
+const nameWrapsWithWiderDates = (merchant, extra) =>
+  browser.execute(
+    (merchant, extra) => {
+      const spacers = [...document.querySelectorAll('table[data-recurring-table] td[data-label="Next due"]')].map((td) => {
+        const s = document.createElement("span");
+        s.style.cssText = `display:inline-block;width:${extra}px`;
+        td.prepend(s);
+        return s;
+      });
+      const name = [...document.querySelectorAll("table[data-recurring-table] .account-name-cell")].find((e) => e.textContent.trim() === merchant);
+      const range = document.createRange();
+      range.selectNodeContents(name);
+      const lines = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top))).size;
+      spacers.forEach((s) => s.remove());
+      return lines > 1;
+    },
+    merchant,
+    extra,
+  );
+
 /** Whether the list is drawn as a table (not the narrow card layout), and if so whether the table
  * is wider than the box it scrolls in. */
 const tableFit = () =>
@@ -128,6 +155,10 @@ try {
         const merchants = !wide ? null : width === 1440 && palette === "transparent" ? "all" : "Iron Works Gym";
         const wrapped = await wrappedText({ account: wide, merchants });
         if (wrapped.length) fail(`${palette} at ${width}px this text wraps onto a second line: ${wrapped.join(", ")}`);
+        if (merchants === "all") {
+          if (await nameWrapsWithWiderDates("RIVERSIDE HOSPITAL PAYROLL", WIDER_DATE_PX))
+            fail(`${palette} at ${width}px "RIVERSIDE HOSPITAL PAYROLL" wraps when the due dates read ${WIDER_DATE_PX}px wider`);
+        }
       }
       console.log(`${palette} ${width}px: no overlaps`);
     }

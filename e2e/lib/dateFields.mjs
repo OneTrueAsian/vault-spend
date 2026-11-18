@@ -1,4 +1,4 @@
-// Reading and filling a date or month field (src/DateField.tsx, src/MonthField.tsx).
+// Reading and filling a date or month field (src/shared/ui/DateField.tsx, src/shared/ui/MonthField.tsx).
 // Since 1.3.3 every date and month field is a text box in the region's own order ("10/04/2026",
 // "04/10/2026", "2026/10/04") with an app-drawn calendar beside it; no native date control is involved.
 // While a field isn't being edited the date is written out ("Oct 4, 2026") over the box.

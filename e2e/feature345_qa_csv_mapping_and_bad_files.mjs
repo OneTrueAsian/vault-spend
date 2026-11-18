@@ -43,7 +43,11 @@ const windowOpen = () => browser.execute(() => !!document.querySelector("[data-c
 const field = (name) => browser.$(`button[data-column-field="${name}"]`);
 const continueButton = () => browser.$("button[data-column-continue]");
 const problem = async () => (await (await browser.$("[data-column-problem]")).getText()).trim();
-const reviewRows = () => browser.execute(() => [...document.querySelectorAll("[role='dialog'] table.dup-review-table tbody tr")].map((tr) => tr.innerText));
+const reviewRows = async () => {
+  const tab=await browser.$('[data-import-review-tab="rows"]');
+  if (await tab.isExisting()) await tab.click();
+  return browser.execute(() => [...document.querySelectorAll("[role='dialog'] table.dup-review-table tbody tr")].map(tr => tr.innerText));
+};
 const summary = () => browser.execute(() => document.querySelector("[role='dialog'] .dup-review-summary")?.innerText ?? null);
 const dialogText = () => browser.execute(() => document.querySelector("[role='dialog']")?.innerText ?? "");
 async function startWith(file) {
@@ -68,6 +72,8 @@ async function closeReview() {
   await waitUntilOrDiagnose(browser, async () => !(await browser.execute(() => !!document.querySelector("[role='dialog'] .dup-review-summary, button[data-import-confirm]"))), { timeout: 10000, timeoutMsg: "the review closes without importing", extra: dialogText });
 }
 async function confirmImport() {
+  const needs=await browser.$('[data-import-review-tab="needs"]');
+  if (await needs.isExisting()) await needs.click();
   const leaveRest = await browser.$("button=Leave the rest uncategorized");
   if (await leaveRest.isExisting()) await leaveRest.click();
   const confirm = await browser.$("button[data-import-confirm]");

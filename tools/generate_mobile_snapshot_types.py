@@ -106,7 +106,7 @@ def outputs():
     return {
         ROOT / "core/src/mobile_snapshot_v1.schema.json": json.dumps(schema, indent=2) + "\n",
         ROOT / "core/src/mobile_snapshot_types.rs": subprocess.run(["rustfmt", "--edition", "2024", "--config-path", str(ROOT / "rustfmt.toml"), "--emit", "stdout"], input="\n".join(rust) + "\n", text=True, capture_output=True, check=True).stdout,
-        ROOT / "src/mobileSnapshotTypes.ts": "\n".join(ts) + "\n",
+        ROOT / "src/mobile/mobileSnapshotTypes.ts": "\n".join(ts) + "\n",
     }
 
 if __name__ == "__main__":

@@ -40,11 +40,11 @@ async function geometry(selector, count) {
   }, selector, count), { timeoutMsg: `Charts must draw at the card width: ${selector}`, timeout: 12000 });
   console.log(await browser.execute(sel => [...document.querySelectorAll(sel)].map(svg => ({ width: svg.getBoundingClientRect().width, viewBox: svg.getAttribute('viewBox') })), selector));
 }
-async function cashFlowTab(name) {
-  await waitUntilOrDiagnose(browser, () => browser.execute(wanted =>
-    [...document.querySelectorAll('.reports-view .tabs button')].some(button => button.textContent.trim() === wanted), name),
-    { timeoutMsg: `Cash Flow should render the ${name} tab` });
-  await browser.execute(wanted => [...document.querySelectorAll('.reports-view .tabs button')].find(button => button.textContent.trim() === wanted).click(), name);
+// Cash Flow's page tabs (VS-31): a tab's panel stays mounted once opened, so charts are measured in the shown panel only.
+async function cashFlowTab(id) {
+  await waitUntilOrDiagnose(browser, () => browser.execute(wanted => !!document.getElementById(`cashflow-tab-${wanted}`), id),
+    { timeoutMsg: `Cash Flow should render the ${id} tab` });
+  await browser.execute(wanted => document.getElementById(`cashflow-tab-${wanted}`).click(), id);
 }
 try {
   for (const [label, palette] of [['Default', 'transparent'], ['Futuristic', 'futuristic'], ['Retro', 'retro']]) {
@@ -53,21 +53,21 @@ try {
       await browser.execute(label => [...document.querySelectorAll('.theme-toggle button')].find(button => button.textContent === label).click(), theme === 'light' ? 'Light' : 'Dark');
       await waitUntilOrDiagnose(browser, () => browser.execute(t => document.documentElement.dataset.theme === t, theme), { timeoutMsg: `Apply ${theme}` });
       await browser.$('.nav-item[data-tab=cashflow]').click();
-      await cashFlowTab('Overview');
+      await cashFlowTab('by-month');
       for (const width of [1440, 1280, 800]) {
         await browser.setWindowSize(width, 1000);
-        await geometry('.reports-view .chart-fit > svg', 1);
+        await geometry('#cashflow-panel-by-month .chart-fit > svg', 1);
       }
       await browser.setWindowSize(1440, 1000);
-      await geometry('.reports-view .chart-fit > svg', 1);
+      await geometry('#cashflow-panel-by-month .chart-fit > svg', 1);
       await browser.saveScreenshot(path.join(shots, `${palette}-${theme}-cashflow.png`));
-      await cashFlowTab('Forecast');
+      await cashFlowTab('forecast');
       for (const width of [1440, 1280, 800]) {
         await browser.setWindowSize(width, 1000);
-        await geometry('.reports-view .chart-fit > svg', 1);
+        await geometry('#cashflow-panel-forecast .chart-fit > svg', 1);
       }
       await browser.setWindowSize(1440, 1000);
-      await geometry('.reports-view .chart-fit > svg', 1);
+      await geometry('#cashflow-panel-forecast .chart-fit > svg', 1);
       await browser.saveScreenshot(path.join(shots, `${palette}-${theme}-forecast.png`));
       await browser.$('.nav-item[data-tab=accounts]').click();
       const back = await browser.$('[data-account-back]');

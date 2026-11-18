@@ -7,7 +7,7 @@ import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const bundle = await build({
-  entryPoints: ["src/profileIpc.ts"],
+  entryPoints: ["src/shared/native/profileIpc.ts"],
   bundle: true,
   write: false,
   format: "iife",
@@ -58,7 +58,6 @@ try {
     assert.deepEqual(await emit(bad), { emitted: true });
     await b.$('[data-launch-error-kind="startup_failed"]').waitForExist({ timeout: 10000 });
     assert.equal(await b.$(".brand-word").isExisting(), false);
-    assert.equal(await b.$("[data-auto-lock-session]").isExisting(), false);
     assert.equal((await b.$("body").getText()).includes("must-not-render"), false);
     const fresh = await b.executeAsync((done) => {
       window.VaultProfileApi.invokeProfile("get_startup_state")

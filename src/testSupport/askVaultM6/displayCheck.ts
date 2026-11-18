@@ -1,6 +1,6 @@
 /**
  * Strict display verification for the combined harness (owner instruction of 21 October 2026: "one expected amount appears" is not proof of a ranking).
- * Test-only and independent of src/askVault/answer.ts: dollars, month names, dates and plurals are formatted here from the reply's exact strings.
+ * Test-only and independent of src/askVault/ordinary/answer.ts: dollars, month names, dates and plurals are formatted here from the reply's exact strings.
  * It checks, for the reply the card was given:
  *  - every ranked or broken-down row, in order: the label, the amount and the detail, and the number of rows;
  *  - the headline total and purchase count of a total, the "no spending" wording of an empty period, and both totals and the difference of a comparison.

@@ -20,7 +20,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { chooseMenuOption, chooseStyle, launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { chooseMenuOption, chooseStyle, dismissStatusMessages, launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedHouseholdDatabase } from "./household-demo.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
@@ -162,11 +162,17 @@ try {
       await waitUntilOrDiagnose(browser, () => browser.execute((m) => document.documentElement.dataset.theme === m, mode), {
         timeoutMsg: `the ${mode} theme should apply`,
       });
+      await browser.setWindowSize(1440, 1000);
       await openDashboard();
+      await dismissStatusMessages(browser);
       await settled(readDashboard, (v) => v.sideways <= 1 && v.tileShare >= 0.95, `${label} ${mode}: tiles fill their row and nothing scrolls sideways`);
       await browser.saveScreenshot(path.join(shotsDir, `dashboard-${palette}-${mode}.png`));
       await browser.execute(() => document.querySelector(".runway-card")?.scrollIntoView({ block: "center" }));
       await browser.saveScreenshot(path.join(shotsDir, `dashboard-${palette}-${mode}-runway.png`));
+      await browser.$('[data-widget-id="recent_transactions"]').scrollIntoView({block: "start"});
+      assert.equal(await browser.$('[data-widget-id="recent_transactions"] table').isExisting(), false, "recent activity is a list");
+      assert.equal(await browser.$('button=See all').isExisting(), true);
+      await browser.saveScreenshot(path.join(shotsDir, `dashboard-${palette}-${mode}-recent.png`));
       await browser.execute(() => document.querySelector(".main")?.scrollTo(0, 0));
     }
   }
@@ -174,11 +180,16 @@ try {
 
   // Narrow: the title row's actions wrap rather than push the page sideways, and Ask the Vault keeps
   // its share of the page.
-  await browser.setWindowSize(800, 900);
+  await browser.setWindowSize(720, 520);
   await openDashboard();
   const narrow = await settled(readDashboard, (v) => v.sideways <= 1 && v.qaShare >= 0.5 && v.tileShare >= 0.95, "at 800 wide: nothing scrolls sideways, Ask the Vault and the tiles keep their width");
   console.log("narrow:", JSON.stringify({ sideways: narrow.sideways, qaShare: narrow.qaShare, tileShare: narrow.tileShare, tileLines: narrow.tileTops }));
-  await browser.saveScreenshot(path.join(shotsDir, "dashboard-800.png"));
+  await browser.saveScreenshot(path.join(shotsDir, "dashboard-720.png"));
+  await browser.$('[data-privacy-toggle]').click();
+  await settled(() => browser.execute(() => document.querySelector('.recent-transactions').textContent), text => !/\$[\d,]+\.\d{2}/.test(text), "recent amounts are masked");
+  await browser.$('[data-widget-id="recent_transactions"]').scrollIntoView({block: "start"});
+  await browser.saveScreenshot(path.join(shotsDir, "dashboard-recent-hidden-720.png"));
+  await browser.$('[data-privacy-toggle]').click();
   console.log(`screenshots: ${shotsDir}`);
 
   console.log("FEATURE 270 E2E TEST PASSED");

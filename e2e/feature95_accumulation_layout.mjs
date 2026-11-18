@@ -141,7 +141,7 @@ const contrastReport = () =>
 
 try {
   await browser.setWindowSize(1440, 1600);
-  const rothId = await openDetails(browser, "Joey Roth IRA");
+  const rothId = await openDetails(browser, "Sample Roth IRA");
   await waitForAccumulation(browser, rothId);
   await browser.$("polyline[data-series='projected']").waitForExist({ timeout: 10000, timeoutMsg: "the Roth has a saved plan, so a projection line should draw" });
   await shot("details-1440", "[data-accumulation]");
@@ -161,6 +161,8 @@ try {
   await shot("details-privacy");
   // ...and the Investments summary.
   await nav(browser, "Investments");
+  // The money-put-in summary is in Investments' "Money put in" tab (VS-31).
+  await (await browser.$("#investments-tab-money-in")).click();
   await browser.$("[data-acc-summary]").waitForExist({ timeout: 15000 });
   await browser.pause(400);
   const summaryText = await browser.execute(() => document.querySelector("[data-acc-summary]").innerText);
@@ -179,13 +181,15 @@ try {
     // Navigate at full size (the sidebar changes shape in a narrow window), then narrow the window on the page.
     await browser.setWindowSize(1440, 1600);
     await nav(browser, "Investments");
+    // The money-put-in summary is in Investments' "Money put in" tab (VS-31).
+    await (await browser.$("#investments-tab-money-in")).click();
     await browser.$("[data-acc-summary]").waitForExist({ timeout: 15000 });
     await browser.setWindowSize(width, 1600);
     await browser.pause(400);
     await shot(`summary-${width}`, "[data-acc-summary]");
     for (const p of await layoutProblems()) problems.push(`Investments @${width}: ${p}`);
     await browser.setWindowSize(1440, 1600);
-    await openDetails(browser, "Joey Roth IRA");
+    await openDetails(browser, "Sample Roth IRA");
     await waitForAccumulation(browser, rothId);
     await browser.setWindowSize(width, 1600);
     await browser.pause(400);
@@ -201,7 +205,7 @@ try {
     for (const mode of ["light", "dark"]) {
       await setLook(palette, mode);
       await nav(browser, "Accounts");
-      await openDetails(browser, "Joey Roth IRA");
+      await openDetails(browser, "Sample Roth IRA");
       await waitForAccumulation(browser, rothId);
       await browser.$("polyline[data-series='projected']").waitForExist({ timeout: 10000 });
       await shot(`details-${label.toLowerCase()}-${mode}`, "[data-accumulation]");
@@ -241,6 +245,8 @@ try {
       else if (tooltipAlpha < 1) contrastProblems.push(`${label} ${mode}: the chart tooltip's background is see-through (opacity ${tooltipAlpha}), so lines show through its text`);
       await browser.keys("Escape");
       await nav(browser, "Investments");
+      // The money-put-in summary is in Investments' "Money put in" tab (VS-31).
+      await (await browser.$("#investments-tab-money-in")).click();
       await browser.$("[data-acc-summary]").waitForExist({ timeout: 15000 });
       await shot(`summary-${label.toLowerCase()}-${mode}`, "[data-acc-summary]");
     }

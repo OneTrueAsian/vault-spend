@@ -1,14 +1,14 @@
-import { CHANGED_BODY, CHANGED_HEADING } from "./askVault/changedState";
+import { CHANGED_BODY, CHANGED_HEADING } from "./askVault/common/changedState";
 import { CutPreviewDialog, type CutPreviewScreen } from "./CutPreviewDialog";
-import type { CutPreviewDraft, ConfirmedCutPreview } from "./askVault/cutPreviewContract";
-import { calculateCutPreview } from "./askVault/cutPreviewMath";
+import type { CutPreviewDraft, ConfirmedCutPreview } from "./askVault/cutPreview/cutPreviewContract";
+import { calculateCutPreview } from "./askVault/cutPreview/cutPreviewMath";
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { SpendingScenarioDialog, type SpendingScenarioDialogProps, type SpendingScenarioScreen } from "./SpendingScenarioDialog";
-import { FIXTURE_TODAY, fixtureBaseline, fixtureDraft, fixtureIntent, fixtureOnce, fixturePartMonth, fixturePreview, noHistoryBaseline, shortHistoryBaseline } from "./askVault/spendingScenarioFixtures";
-import { calculateSpendingScenario } from "./askVault/spendingScenarioMath";
+import { FIXTURE_TODAY, fixtureBaseline, fixtureDraft, fixtureIntent, fixtureOnce, fixturePartMonth, fixturePreview, noHistoryBaseline, shortHistoryBaseline } from "./testSupport/askVault/spendingScenarioFixtures";
+import { calculateSpendingScenario } from "./askVault/spending/spendingScenarioMath";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

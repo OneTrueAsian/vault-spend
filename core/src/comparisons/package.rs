@@ -198,10 +198,6 @@ impl Package {
         self.references.iter().filter(move |r| r.metric == metric && r.mode == mode)
     }
 
-    pub fn reference_by_id(&self, id: &str) -> Option<&Reference> {
-        self.references.iter().find(|r| r.id == id)
-    }
-
     /// The documented reason this metric/mode has no benchmark, if the maintainers recorded one.
     pub fn gap_reason(&self, metric: MetricId, mode: ComparisonMode) -> Option<&str> {
         self.gaps.iter().find(|g| g.metric == metric && g.mode == mode).map(|g| g.reason.as_str())

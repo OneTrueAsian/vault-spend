@@ -20,10 +20,9 @@ try {
   const cashFlowNav = await app.browser.$("button*=Cash Flow");
   await cashFlowNav.click();
 
-  // The Debt Payoff Planner now lives behind its own sub-tab (Overview/
-  // Forecast/Debt Payoff), rather than always being visible on one long
-  // scroll.
-  const debtSubTab = await app.browser.$("button=Debt Payoff");
+  // The Debt Payoff Planner lives behind its own Cash Flow tab ("Debt
+  // payoff", VS-31), rather than always being visible on one long scroll.
+  const debtSubTab = await app.browser.$("#cashflow-tab-debt");
   await debtSubTab.waitForExist({ timeout: 10000 });
   await debtSubTab.click();
 

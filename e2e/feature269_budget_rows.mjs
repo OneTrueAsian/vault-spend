@@ -1,7 +1,7 @@
 // E2E test: a simpler Budget page (UI review s2), on the tidy two-person household data.
 //
-// - The month's totals are one strip, so at 1440x1000 the first category row starts less than
-//   420px below the page title (the review measured about 700px of totals above it).
+// - The month's totals are one "Spending against the plan" card (VS-31), and at 1440x1000 the first
+//   category row starts less than 160px below it (it used to be a strip, with the row 420px below the title).
 // - Each group has one column-heading row; the amounts line up on the right.
 // - Typing 250 into Groceries' budget field and pressing Tab saves it: it's still 250.00 after
 //   the window reloads.
@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { chooseRowAction, chooseStyle, launchApp, waitForDataLoaded, waitUntilOrDiagnose, withFocusRetry } from "./harness.mjs";
+import { chooseRowAction, chooseStyle, dismissStatusMessages, launchApp, waitForDataLoaded, waitUntilOrDiagnose, withFocusRetry } from "./harness.mjs";
 import { seedHouseholdDatabase } from "./household-demo.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 import { budgetRowMenu, budgetRowMenuItems, strayDivider, waitForBudgetRow } from "./lib/budgetRows.mjs";
@@ -54,7 +54,33 @@ async function settled(read, ok, timeoutMsg, timeout = 10000) {
   return last;
 }
 
-const HEADINGS = /^Category Budget (Spent Left|Received Difference) Settings$/;
+// A range per word detects breaks inside words, which scrollWidth alone cannot detect.
+async function checkNameWrapping(width, label) {
+  const rows = await browser.execute(() => [...document.querySelectorAll('.cat-row-name .category-link')].map(el => {
+    const text = el.firstChild;
+    const lineCount = range => new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size;
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const lines = lineCount(range);
+    const brokenWords = [...text.textContent.matchAll(/\S+/g)].filter(match => {
+      range.setStart(text, match.index);
+      range.setEnd(text, match.index + match[0].length);
+      return lineCount(range) > 1;
+    }).map(match => match[0]);
+    const style = getComputedStyle(el);
+    return { name: el.textContent, lines, brokenWords, overflowWrap: style.overflowWrap, wordBreak: style.wordBreak };
+  }));
+  assert.ok(rows.length > 0, `${label}/${width}: category names loaded`);
+  assert.deepEqual(rows.filter(row => row.brokenWords.length || row.overflowWrap !== "normal" || row.wordBreak !== "normal"), [], `${label}/${width}: words remain intact`);
+  if (width === 1440) {
+    for (const name of ["Entertainment", "Subscriptions"]) {
+      assert.equal(rows.find(row => row.name === name)?.lines, 1, `${label}/${width}: ${name} fits one line`);
+    }
+  }
+  console.log(`${label}/${width} category name wrapping: ${JSON.stringify(rows)}`);
+}
+
+const HEADINGS = /^Category Planned (Spent Left|Received Still expected) Progress Settings$/;
 
 try {
   await openBudget();
@@ -62,21 +88,22 @@ try {
   // ---- 1. One summary strip, so the categories start near the top -------------------------------
   const readLayout = () =>
     browser.execute(() => {
-      const title = document.querySelector(".view-title").getBoundingClientRect().top;
+      const title = document.querySelector("[data-budget-summary]").getBoundingClientRect().bottom;
       const firstRow = document.querySelector(".cat-row").getBoundingClientRect().top;
       const heads = [...document.querySelectorAll(".cat-list-head")].map((h) =>
         [...h.children].map((c) => c.textContent.trim()).filter(Boolean).join(" "),
       );
       // How far apart the right edges of each amount column (Spent, Left) are across all rows.
-      const spreads = [1, 2].map((col) => {
-        const rights = [...document.querySelectorAll(".cat-row")].map((r) => r.querySelectorAll(".cat-amt")[col].getBoundingClientRect().right);
+      const spreads = [...document.querySelectorAll(".budget-group")].flatMap(group => [1, 2].map(col => {
+        const rights = [...group.querySelectorAll(".cat-row")].map(r => r.querySelectorAll(".cat-amt")[col].getBoundingClientRect().right);
         return Math.max(...rights) - Math.min(...rights);
-      });
+      }));
       const main = document.querySelector(".main");
       return {
+        clippedNames: [...document.querySelectorAll('.cat-row-name .category-link')].filter(el => el.scrollWidth > el.clientWidth + 1).map(el => el.textContent),
         gap: firstRow - title,
         summaries: document.querySelectorAll("[data-budget-summary]").length,
-        tiles: document.querySelectorAll(".group-cards, .group-card").length,
+        tiles: document.querySelectorAll(".group-cards, .group-card, .budget-group-track").length,
         groups: document.querySelectorAll("[data-budget-group]").length,
         heads,
         spreads,
@@ -87,7 +114,8 @@ try {
   const layout = await settled(
     readLayout,
     (l) =>
-      l.gap < 420 &&
+      l.clippedNames.length === 0 &&
+      l.gap < 160 &&
       l.summaries === 1 &&
       l.tiles === 0 &&
       l.heads.length === l.groups &&
@@ -95,9 +123,9 @@ try {
       l.spreads.every((d) => d <= 1) &&
       l.sideways <= 1 &&
       l.balanceNote.includes("Not an account balance"),
-    "at 1440x1000: one summary strip (saying it's not an account balance), no group tiles, one heading row per group, the first category row less than 420px below the title, amounts lined up on the right and nothing scrolling sideways",
+    "at 1440x1000: one Spending against the plan card (saying it's not an account balance), no group tiles, one heading row per group, the first category row less than 160px below that card (its group heading and column headings sit between), amounts lined up on the right and nothing scrolling sideways",
   );
-  console.log(`first category row sits ${layout.gap.toFixed(0)}px below the title; headings: ${JSON.stringify(layout.heads)}`);
+  console.log(`first category row sits ${layout.gap.toFixed(0)}px below the plan card; headings: ${JSON.stringify(layout.heads)}`);
   await browser.saveScreenshot(path.join(shotsDir, "budget-top-1440.png"));
 
   // No row's menu starts, ends or doubles a divider: Groceries has its two settings, Income has none.
@@ -164,9 +192,24 @@ try {
       await waitUntilOrDiagnose(browser, () => browser.execute((m) => document.documentElement.dataset.theme === m, mode), {
         timeoutMsg: `the ${mode} theme should apply`,
       });
+      await browser.setWindowSize(1440, 1000);
       await openBudget();
+      await dismissStatusMessages(browser);
+      await browser.$(".budget-group-cards").scrollIntoView({block: "start"});
       await settled(noSidewaysScroll, (sc) => sc.main <= 1 && sc.lists <= 1, `${label} ${mode}: nothing should scroll sideways`);
-      await browser.saveScreenshot(path.join(shotsDir, `budget-${palette}-${mode}.png`));
+      await browser.executeAsync(done => document.fonts.ready.then(() => done()));
+      await checkNameWrapping(1440, `${label} ${mode}`);
+      await browser.saveScreenshot(path.join(shotsDir, `budget-${palette}-${mode}-1440.png`));
+      await browser.setWindowSize(720, 520);
+      await settled(noSidewaysScroll, sc => sc.main <= 1 && sc.lists <= 1, `${label} ${mode}: 720px has no horizontal overflow`);
+      await checkNameWrapping(720, `${label} ${mode}`);
+      await browser.$('[data-budget-group="fixed"]').scrollIntoView({block: "start"});
+      await browser.saveScreenshot(path.join(shotsDir, `budget-${palette}-${mode}-720.png`));
+      await browser.execute(() => [...document.querySelectorAll('.cat-row-name .category-link')].find(el => el.textContent === "Subscriptions").closest('.cat-row').scrollIntoView({block: "center"}));
+      await browser.saveScreenshot(path.join(shotsDir, `budget-${palette}-${mode}-720-subscriptions.png`));
+      await browser.$('[data-budget-group="flexible"]').scrollIntoView({block: "start"});
+      await browser.saveScreenshot(path.join(shotsDir, `budget-${palette}-${mode}-720-flexible.png`));
+      await browser.setWindowSize(1440, 1000);
     }
   }
   await chooseStyle(browser, "Default", "transparent");
@@ -188,7 +231,7 @@ try {
         // Rows whose ⋯ wrapped off the line with their amounts.
         strayMenus: [...document.querySelectorAll(".cat-row")]
           .filter((r) => {
-            const left = [...r.querySelectorAll(".cat-amt")].at(-1).getBoundingClientRect();
+            const left = r.querySelector(".cat-row-name").getBoundingClientRect();
             const menu = r.querySelector("[data-row-menu]").getBoundingClientRect();
             return Math.abs((left.top + left.bottom) / 2 - (menu.top + menu.bottom) / 2) > 8;
           })
@@ -197,10 +240,13 @@ try {
     });
   await settled(
     readNarrow,
-    (n) => n.main <= 1 && n.lists <= 1 && n.label === '"Budget "' && n.strayMenus.length === 0,
+    (n) => n.main <= 1 && n.lists <= 1 && n.label === '"Planned"' && n.strayMenus.length === 0,
     "at 800x900: nothing scrolls sideways, each stacked amount says which column it is, and each row's ⋯ sits on its amounts' line",
   );
   await browser.saveScreenshot(path.join(shotsDir, "budget-narrow-800.png"));
+  await browser.setWindowSize(720, 520);
+  await settled(noSidewaysScroll, sc => sc.main <= 1 && sc.lists <= 1, "minimum 720px window: no horizontal overflow");
+  await browser.saveScreenshot(path.join(shotsDir, "budget-narrow-720.png"));
   console.log(`screenshots: ${shotsDir}`);
 
   console.log("FEATURE 269 E2E TEST PASSED");

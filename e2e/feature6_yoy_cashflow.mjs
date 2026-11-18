@@ -1,7 +1,7 @@
 // E2E smoke test for year-over-year cash flow comparison: seeds income in
-// the current month and the same month last year, checks "Compare to last
-// year" on the Cash Flow tab, and confirms the chart switches to the YoY
-// legend/title.
+// the current month and the same month last year, opens Cash Flow's
+// "Compared with last year" tab (the old "Compare to last year" tick box,
+// VS-31), and confirms the chart switches to the YoY legend/title.
 //
 // Run with: node e2e/feature6_yoy_cashflow.mjs
 
@@ -30,32 +30,35 @@ try {
   const cashFlowNav = await app.browser.$("button*=Cash Flow");
   await cashFlowNav.click();
 
-  const title = await app.browser.$(".reports-section-title");
+  // VS-31: Cash Flow has page tabs. Income vs. expenses is in "Month by month", and the old "Compare
+  // to last year" tick box is now the "Compared with last year" tab.
+  await (await app.browser.$("#cashflow-tab-by-month")).waitForDisplayed({ timeout: 10000 });
+  await (await app.browser.$("#cashflow-tab-by-month")).click();
+  const title = await app.browser.$("#cashflow-panel-by-month .reports-section-title");
   await title.waitForExist({ timeout: 10000 });
   console.log("initial title:", await title.getText());
 
   // Defaults to the shorter 3-month preset — a newer account's chart
   // shouldn't open to mostly-empty months out of the box (6 is still one
   // click away for anyone with a longer history).
-  const threeMonthsBtn = await app.browser.$("button=3 months");
+  const threeMonthsBtn = await app.browser.$("#cashflow-panel-by-month").$("button=3 months");
   if (!(await threeMonthsBtn.getAttribute("class")).includes("tab-btn-active")) {
     throw new Error("expected Cash Flow to default to the 3-month range");
   }
   console.log("Cash Flow defaults to the 3-month range");
 
-  const checkbox = await app.browser.$(".compare-last-year-toggle input");
-  await checkbox.click();
+  await (await app.browser.$("#cashflow-tab-last-year")).click();
 
   await app.browser.waitUntil(
-    async () => (await app.browser.$(".reports-section-title").getText()).includes("this year vs"),
+    async () => (await app.browser.$("#cashflow-panel-last-year .reports-section-title").getText()).includes("this year vs"),
     { timeout: 10000, timeoutMsg: "expected the title to switch to the YoY comparison" },
   );
-  console.log("YoY title:", await app.browser.$(".reports-section-title").getText());
+  console.log("YoY title:", await app.browser.$("#cashflow-panel-last-year .reports-section-title").getText());
 
   // Read the legend in one go: walking a live element list while the chart re-renders threw
   // "Index out of bounds" in a busy run.
   const readLegend = () =>
-    app.browser.execute(() => [...document.querySelectorAll(".chart-legend-item")].map((el) => el.textContent.trim()));
+    app.browser.execute(() => [...document.querySelectorAll("#cashflow-panel-last-year .chart-legend-item")].map((el) => el.textContent.trim()));
   await app.browser
     .waitUntil(async () => {
       const texts = await readLegend();

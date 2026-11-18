@@ -1,0 +1,288 @@
+import { getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
+
+/** The 9 always-available Dashboard widgets, plus the 4 report sections
+ * that can also be pinned onto the Dashboard from their home tab (Cash
+ * Flow, Investments, Reports). "Pinning" and picking a widget from the
+ * "+ Add widget" modal are the same operation — both just add the id to
+ * the current layout — so there's no separate "unlocked" concept to track. */
+export type CoreWidgetId =
+  | "stat_net_worth"
+  | "stat_cash"
+  | "stat_debt"
+  | "stat_investments"
+  | "runway"
+  | "safe_to_spend"
+  | "needs_a_look"
+  | "trend_spending"
+  | "budget_bills"
+  | "recent_transactions"
+  | "goals_overview";
+
+export type PinnedReportWidgetId = "top_merchants" | "debt_payoff" | "allocation" | "net_worth_by_member";
+
+/** The fixed, always-the-same-shape widgets — the ones `WIDGET_CATALOG`
+ * and `LAYOUT_PRESETS` enumerate. */
+export type FixedWidgetId = CoreWidgetId | PinnedReportWidgetId;
+
+/** A widget scoped to one specific account/bucket/investment account,
+ * chosen by the user from the "+ Add widget" dialog rather than picked
+ * from the fixed catalog. Holdings have no `account_id` (InvestmentsView
+ * already groups them by `account_name`), so investment widgets key by
+ * name — the same string that page already treats as the account's
+ * identity. */
+export type AccountWidgetId = `account:${number}`;
+export type BucketWidgetId = `bucket:${number}`;
+export type InvestmentWidgetId = `investment:${string}`;
+
+export type WidgetId = FixedWidgetId | AccountWidgetId | BucketWidgetId | InvestmentWidgetId;
+
+export function accountWidgetId(accountId: number): AccountWidgetId {
+  return `account:${accountId}`;
+}
+export function bucketWidgetId(bucketId: number): BucketWidgetId {
+  return `bucket:${bucketId}`;
+}
+export function investmentWidgetId(accountName: string): InvestmentWidgetId {
+  return `investment:${accountName}`;
+}
+
+export function parseWidgetId(
+  id: WidgetId,
+):
+  | { kind: "fixed"; id: FixedWidgetId }
+  | { kind: "account"; targetId: number }
+  | { kind: "bucket"; targetId: number }
+  | { kind: "investment"; accountName: string } {
+  if (id.startsWith("account:")) return { kind: "account", targetId: Number(id.slice("account:".length)) };
+  if (id.startsWith("bucket:")) return { kind: "bucket", targetId: Number(id.slice("bucket:".length)) };
+  if (id.startsWith("investment:")) return { kind: "investment", accountName: id.slice("investment:".length) };
+  return { kind: "fixed", id: id as FixedWidgetId };
+}
+
+/** The 4 stat-card widgets — kept as one contiguous list so DashboardView
+ * can lay out however many of them are still on the layout, and adjacent to
+ * each other, as one shared row instead of 4 full-width stacked cards. */
+export const STAT_WIDGET_IDS: readonly WidgetId[] = ["stat_net_worth", "stat_cash", "stat_debt", "stat_investments"];
+
+export const WIDGET_CATALOG: { id: FixedWidgetId; label: string; group: "core" | "report" }[] = [
+  { id: "stat_net_worth", label: "Net Worth", group: "core" },
+  { id: "stat_cash", label: "Cash", group: "core" },
+  { id: "stat_debt", label: "Debt", group: "core" },
+  { id: "stat_investments", label: "Investments", group: "core" },
+  { id: "runway", label: "Runway", group: "core" },
+  { id: "safe_to_spend", label: "Safe to spend", group: "core" },
+  { id: "needs_a_look", label: "To do", group: "core" },
+  { id: "trend_spending", label: "Trend & spending", group: "core" },
+  { id: "budget_bills", label: "Budget & bills", group: "core" },
+  { id: "recent_transactions", label: "Recent transactions", group: "core" },
+  { id: "goals_overview", label: "Savings goals", group: "core" },
+  { id: "top_merchants", label: "Top merchants", group: "report" },
+  { id: "debt_payoff", label: "Debt payoff planner", group: "report" },
+  { id: "allocation", label: "Allocation", group: "report" },
+  { id: "net_worth_by_member", label: "Net worth by member", group: "report" },
+];
+
+const CATALOG_IDS = new Set(WIDGET_CATALOG.map((w) => w.id));
+
+/** A saved id is either one of the fixed catalog entries, or a
+ * well-formed reference to a specific account/bucket/investment account.
+ * Whether that *target* still exists is checked at render time
+ * (DashboardView has the live data; this module doesn't) — a dead
+ * reference is pruned from the saved layout once App.tsx notices the
+ * target is gone. */
+function isValidWidgetId(id: unknown): id is WidgetId {
+  if (typeof id !== "string") return false;
+  if (CATALOG_IDS.has(id as FixedWidgetId)) return true;
+  if (/^(account|bucket):\d+$/.test(id)) return true;
+  if (/^investment:.+$/.test(id)) return true;
+  return false;
+}
+
+/** Money first, then what needs doing: the stat tiles, To do, Safe to spend, Runway, then the
+ * reports (1.3.0 UI review, s6). Savings goals comes last, after Recent transactions, as in v9
+ * (VS-31 F6). */
+export const DEFAULT_LAYOUT: WidgetId[] = [
+  "stat_net_worth",
+  "stat_cash",
+  "stat_debt",
+  "stat_investments",
+  "needs_a_look",
+  "safe_to_spend",
+  "runway",
+  "trend_spending",
+  "budget_bills",
+  "recent_transactions",
+  "goals_overview",
+];
+
+/** The 1.3.0 default, before the Savings goals card. A saved layout that is exactly this list
+ * belongs to someone who never rearranged their Dashboard, so `loadDashboardLayout` gives them the
+ * new default instead. */
+export const OLD_DEFAULT_LAYOUT_V2: readonly WidgetId[] = [
+  "stat_net_worth",
+  "stat_cash",
+  "stat_debt",
+  "stat_investments",
+  "needs_a_look",
+  "safe_to_spend",
+  "runway",
+  "trend_spending",
+  "budget_bills",
+  "recent_transactions",
+];
+
+/** The default order before 1.3.0. A saved layout that is exactly this list belongs to someone who
+ * never rearranged their Dashboard, so `loadDashboardLayout` gives them the new default instead. */
+export const OLD_DEFAULT_LAYOUT_V1: readonly WidgetId[] = [
+  "stat_net_worth",
+  "stat_cash",
+  "stat_debt",
+  "stat_investments",
+  "runway",
+  "safe_to_spend",
+  "needs_a_look",
+  "trend_spending",
+  "budget_bills",
+  "recent_transactions",
+];
+
+function sameOrder(a: readonly WidgetId[], b: readonly WidgetId[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
+}
+
+export const LAYOUT_PRESETS = {
+  default: DEFAULT_LAYOUT,
+  bills_focus: [
+    "stat_net_worth",
+    "stat_cash",
+    "stat_debt",
+    "stat_investments",
+    "safe_to_spend",
+    "needs_a_look",
+    "budget_bills",
+    "debt_payoff",
+    "recent_transactions",
+  ],
+  investor_focus: [
+    "stat_net_worth",
+    "stat_cash",
+    "stat_debt",
+    "stat_investments",
+    "trend_spending",
+    "allocation",
+    "net_worth_by_member",
+    "runway",
+  ],
+} satisfies Record<string, WidgetId[]>;
+
+export type LayoutPresetKey = keyof typeof LAYOUT_PRESETS;
+
+export const LAYOUT_PRESET_LABELS: Record<LayoutPresetKey, string> = {
+  default: "Default",
+  bills_focus: "Bills Focus",
+  investor_focus: "Investor Focus",
+};
+
+/** Was a per-viewer `localStorage` arrangement (like `loadNavOrder`/`theme` in App.tsx) until Phase E
+ * Task 8's browser-state audit: an investment widget's id (`investment:<account name>`) embeds a
+ * real account name, which is profile financial content, not a display choice — it can't sit in
+ * global, unencrypted, cross-profile browser storage. Now a per-profile backend UI-state key, same
+ * as `saved_filters`/`category_order`, so it shares their encryption, lock gating, and generation
+ * guard. Drops any id from a future/older version of the catalog this build doesn't recognize,
+ * rather than erroring. A saved layout from before the stat cards were split back out carries the
+ * single legacy "stats" id — expanded in place into the 4 new ids so an upgrading user's arrangement
+ * doesn't just lose its stat row. A saved list that is exactly an earlier default
+ * (`OLD_DEFAULT_LAYOUT_V1` before 1.3.0, `OLD_DEFAULT_LAYOUT_V2` before Savings goals) comes back as
+ * the new `DEFAULT_LAYOUT`. */
+export async function loadDashboardLayout(): Promise<WidgetId[]> {
+  try {
+    const raw = await getProfileUiState("dashboard_layout");
+    if (!raw) return DEFAULT_LAYOUT;
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return DEFAULT_LAYOUT;
+    const expanded = parsed.flatMap((id) => (id === "stats" ? STAT_WIDGET_IDS : [id]));
+    const filtered = expanded.filter(isValidWidgetId);
+    if (filtered.length === 0) return DEFAULT_LAYOUT;
+    // Someone who never rearranged their Dashboard has the old default saved (the first save after
+    // any change writes the whole list). They get the new order; it is saved the next time the
+    // layout changes, not here. If they named that exact order as one of their own layouts, they
+    // chose it, so it stays.
+    const oldDefault = [OLD_DEFAULT_LAYOUT_V1, OLD_DEFAULT_LAYOUT_V2].find((old) => sameOrder(filtered, old));
+    if (oldDefault) {
+      const named = await loadCustomLayoutPresets();
+      if (!named.some((p) => sameOrder(p.widgets, oldDefault))) return DEFAULT_LAYOUT;
+    }
+    return filtered;
+  } catch {
+    return DEFAULT_LAYOUT;
+  }
+}
+
+export async function saveDashboardLayout(widgets: WidgetId[]): Promise<void> {
+  try {
+    const generation = await getCurrentGeneration();
+    await setProfileUiState("dashboard_layout", JSON.stringify(widgets), generation);
+  } catch {
+    // per-viewer preference only — fine to skip if the save fails
+  }
+}
+
+/** A user-named arrangement, saved alongside the 3 built-in presets —
+ * same idea as `SavedTransactionFilter` in App.tsx (a per-profile backend-stored
+ * list keyed by name, where saving under a name already in use replaces
+ * it rather than accumulating duplicates). Its dropdown `<option value>`
+ * is `custom:${name}` — see `matchingLayoutPreset` below. */
+export type SavedLayoutPreset = { name: string; widgets: WidgetId[] };
+
+export async function loadCustomLayoutPresets(): Promise<SavedLayoutPreset[]> {
+  try {
+    const raw = await getProfileUiState("dashboard_custom_layouts");
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (p): p is SavedLayoutPreset =>
+          !!p && typeof p === "object" && typeof (p as SavedLayoutPreset).name === "string" &&
+          Array.isArray((p as SavedLayoutPreset).widgets),
+      )
+      .map((p) => ({ name: p.name, widgets: p.widgets.filter(isValidWidgetId) }))
+      .filter((p) => p.widgets.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+export async function saveCustomLayoutPresets(presets: SavedLayoutPreset[]): Promise<void> {
+  try {
+    const generation = await getCurrentGeneration();
+    await setProfileUiState("dashboard_custom_layouts", JSON.stringify(presets), generation);
+  } catch {
+    // per-viewer preference only — fine to skip if the save fails
+  }
+}
+
+/** Which named preset (if any) the current layout exactly matches, by
+ * order and contents — used to drive the Layout dropdown's selected value
+ * and its "Custom (unsaved)" fallback. Purely derived from `widgets`
+ * rather than tracked as its own piece of state, so there's no way for it
+ * to drift out of sync with a hand-edited layout. Checks the 3 built-in
+ * presets first, then any saved custom ones (returned as `custom:${name}`,
+ * matching their dropdown `<option value>`). */
+export function matchingLayoutPreset(
+  widgets: WidgetId[],
+  customPresets: SavedLayoutPreset[] = [],
+): LayoutPresetKey | `custom:${string}` | "custom" {
+  for (const key of Object.keys(LAYOUT_PRESETS) as LayoutPresetKey[]) {
+    const preset = LAYOUT_PRESETS[key];
+    if (preset.length === widgets.length && preset.every((id, i) => id === widgets[i])) {
+      return key;
+    }
+  }
+  for (const custom of customPresets) {
+    if (custom.widgets.length === widgets.length && custom.widgets.every((id, i) => id === widgets[i])) {
+      return `custom:${custom.name}`;
+    }
+  }
+  return "custom";
+}

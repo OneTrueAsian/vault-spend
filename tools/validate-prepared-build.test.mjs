@@ -17,7 +17,7 @@ test("signing recovery requires exact source, both packaging gates, full regress
   validateBuild(run, jobs, sha, [".github/workflows/build-macos-check.yml"], "202/202 passed");
   for (const change of [{ head_sha: "b".repeat(40) }, { head_branch: "main" }, { status: "in_progress" }, { event: "push" }, { path: "other.yml" }])
     assert.throws(() => validateBuild({ ...run, ...change }, jobs, sha, [], "202/202 passed"));
-  assert.throws(() => validateBuild(run, jobs, sha, ["src/App.tsx"], "202/202 passed"));
+  assert.throws(() => validateBuild(run, jobs, sha, ["src/app/App.tsx"], "202/202 passed"));
   assert.throws(() => validateBuild(run, jobs, sha, ["e2e/lib/protection.mjs"], "202/202 passed"));
   assert.throws(() => validateBuild(run, jobs, sha, [], "199/202 passed"));
   assert.throws(() => validateBuild(run, [{ ...jobs[0], conclusion: "failure" }, jobs[1]], sha, [], "202/202 passed"));

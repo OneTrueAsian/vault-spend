@@ -21,7 +21,7 @@ const WIDTHS = (QUICK ? [960] : [720, 960, 1280]).filter(w => !ONLY.width || Str
 const STYLES = (QUICK ? [["Default", "transparent"]] : [["Default", "transparent"], ["Futuristic", "futuristic"], ["Retro", "retro"]]).filter(([name]) => !ONLY.style || name === ONLY.style);
 const THEMES = ["light", "dark"].filter(t => !ONLY.theme || t === ONLY.theme);
 const RUN_MATRIX = ONLY.section !== "keyboard-and-error", RUN_EXTRAS = ONLY.section === "keyboard-and-error" || !ONLY.section;
-/** Mirrors RETIREMENT_ANNOUNCEMENTS in src/askVault/retirementScreenContract.ts (a repository test keeps the two equal). */
+/** Mirrors RETIREMENT_ANNOUNCEMENTS in src/askVault/retirement/retirementScreenContract.ts (a repository test keeps the two equal). */
 const ANNOUNCE = {
   choices: { heading: "A few details to confirm", live: "none" }, reading: { heading: "Reading your account", live: "status" }, review: { heading: null, live: "none" },
   result: { heading: null, live: "status" }, "deposits-only": { heading: null, live: "status" }, blocked: { heading: "A few details need attention", live: "alert" },

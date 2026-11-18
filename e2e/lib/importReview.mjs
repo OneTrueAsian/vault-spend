@@ -1,6 +1,6 @@
 // For specs that call the import commands directly, because the native file dialog is out of
 // WebDriver's reach. The review screen refuses to import while a checked row the app can't place
-// has no choice (src/importResolution.ts); `commitReviewedImport` does what a person pressing
+// has no choice (src/shared/lib/importResolution.ts); `commitReviewedImport` does what a person pressing
 // "Leave the rest uncategorized" would, so a spec about something else (notes, signs) can import.
 
 const key = (name) => name.trim().toLowerCase();

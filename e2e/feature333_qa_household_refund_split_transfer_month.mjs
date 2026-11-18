@@ -4,7 +4,11 @@
 // Top cards (memberBreakdowns.ts): spending = outflows only, transfers excluded, refunds NOT netted: Alex 100, Blair 90, Unassigned 20; income = isIncomeTransaction: Alex 30 (the refund).
 // Budget table (monthly_budget_actuals_by_member): refunds net and splits go by line: Groceries Alex 70, Blair 60; Dining Out Unassigned 20 (listed first), Blair 30. Last month: Groceries Blair 45.
 import assert from "node:assert/strict";
-import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import fs from "node:fs";
+import path from "node:path";
+import { makeTempDir } from "./lib/tempDir.mjs";
+import { typeDate } from "./lib/dateFieldInput.mjs";
+import { launchApp, chooseStyle, dismissStatusMessages, withFocusRetry, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -17,6 +21,7 @@ def first(back):
 cur.execute("INSERT INTO family_members(name) VALUES('QA Alex')"); alex=cur.lastrowid
 cur.execute("INSERT INTO family_members(name) VALUES('QA Blair')"); blair=cur.lastrowid
 cur.execute("INSERT INTO accounts(name,account_type,starting_balance) VALUES('QA Checking','checking','5000.00')"); acct=cur.lastrowid
+cur.execute("UPDATE accounts SET member_id=? WHERE id=?", (alex,acct))
 def add(back,description,amount,category,member):
     cur.execute("INSERT INTO transactions(account_id,date,description,amount,category,category_source,member_id,fingerprint) VALUES(?,?,?,?,?,'user',?,?)",(acct,first(back).isoformat(),description,amount,category,member,description))
     return cur.lastrowid
@@ -33,30 +38,225 @@ for back in [0,1]:
     for category,amount in [('Groceries','400.00'),('Dining Out','150.00')]:
         cur.execute("INSERT INTO budgets(category,period,monthly_amount,budget_group) VALUES(?,?,?,'flexible')",(category,period,amount))
 `);
+const shots = process.env.VS_STEP1_SHOTS ?? makeTempDir("vaultspend-step1-household-");
+fs.mkdirSync(shots, {recursive: true});
 const app = await launchApp({ dbDir });
 const b = app.browser;
 const read = () => b.execute(() => {
   const card = prefix => [...document.querySelectorAll('.card')].find(c => c.querySelector('h2')?.textContent.startsWith(prefix));
-  const list = prefix => { const c = card(prefix); return c ? [...c.querySelectorAll('li')].map(li => [li.children[0].textContent, li.children[1].textContent]) : null; };
-  const table = card('Budget, by category and person');
+  // "Spending by person" is a stacked chart now: one row per person and Shared, each with its label and total.
+  const chart = prefix => { const c = card(prefix); return c ? [...c.querySelectorAll('.stacked-rows-row')].map(row => [row.querySelector('.stacked-rows-label').textContent, row.querySelector('.stacked-rows-total').textContent]) : null; };
+  const table = card('Budget by person,');
   const rows = table ? [...table.querySelectorAll('tbody tr')].map(tr => [...tr.cells].map(td => td.textContent)) : null;
-  return { spending: list('Spending by person'), income: list('Income by person'), budget: rows };
+  return { spending: chart('Spending by person'), monthly: [...document.querySelectorAll('[data-month-by-person] tbody tr')].map(tr => [...tr.cells].map(td => td.textContent)), budget: rows };
 });
 const settle = async (check, why) => waitUntilOrDiagnose(b, async () => { try { check(await read()); return true; } catch { return false; } }, { timeout: 10000, timeoutMsg: why });
 try {
   await b.setWindowSize(1280, 900);
   await (await b.$('.nav-item[aria-label="Household"]')).click();
-  await settle(r => assert.deepEqual(r.spending, [['QA Alex', '$100.00'], ['QA Blair', '$90.00'], ['Unassigned', '$20.00']]), 'this month spending: outflows only, transfer excluded, refund not netted');
-  await settle(x => assert.ok(x.budget && x.budget.length === 4), 'the budget table loads its four rows');
+  await settle(r => assert.deepEqual(r.spending, [['QA Alex', '$100.00'], ['QA Blair', '$90.00'], ['Shared', '$20.00']]), 'this month spending: outflows only, transfer excluded, refund not netted');
+  await settle(x => assert.ok(x.budget && x.budget.length === 2), 'the budget table loads its two category rows');
   let r = await read();
-  assert.deepEqual(r.income, [['QA Alex', '$30.00']], 'the refund on a checking account is counted as income by the shared income rule');
+  assert.deepEqual(r.monthly, [['QA Alex', '$30.00', '$100.00'], ['QA Blair', '$0.00', '$90.00'], ['Shared', '$0.00', '$20.00']], 'the refund on a checking account is counted as income by the shared income rule');
   // Rows come per category in member order with the unassigned bucket first (BTreeMap<Option<i64>>), the category name and budget only on a group's first row.
-  assert.deepEqual(r.budget, [['Dining Out', 'Unassigned', '$20.00', '$150.00'], ['', 'QA Blair', '$30.00', ''], ['Groceries', 'QA Alex', '$70.00', '$400.00'], ['', 'QA Blair', '$60.00', '']], 'refund nets in the budget table and the split goes line by line to its parent member');
+  assert.deepEqual(r.budget, [['Dining Out', '$150.00', '$0.00', '$30.00', '$20.00'], ['Groceries', '$400.00', '$70.00', '$60.00', '$0.00']], 'refund nets in the budget table and the split goes line by line to its parent member');
   await (await b.$("button[aria-label='Previous month']")).click();
-  await settle(r2 => assert.deepEqual(r2.spending, [['QA Blair', '$45.00']]), 'last month spending is only Blair 45');
+  await settle(r2 => assert.deepEqual(r2.spending, [['QA Alex', '$0.00'], ['QA Blair', '$45.00'], ['Shared', '$0.00']]), 'last month spending is only Blair 45');
   await settle(x => assert.ok(x.budget && x.budget.length === 1), 'last month budget table loads');
   r = await read();
-  assert.deepEqual(r.income, [], 'no income last month: the card is present with no rows (its empty message)');
-  assert.deepEqual(r.budget, [['Groceries', 'QA Blair', '$45.00', '$400.00']]);
+  assert.deepEqual(r.monthly, [['QA Alex', '$0.00', '$0.00'], ['QA Blair', '$0.00', '$45.00'], ['Shared', '$0.00', '$0.00']], 'last month has no income, but every person and Shared remain visible');
+  assert.deepEqual(r.budget, [['Groceries', '$400.00', '$0.00', '$45.00', '$0.00']]);
+  for (const theme of ["light", "dark"]) {
+    await b.setWindowSize(1440, 1000);
+    await chooseStyle(b, "Default", "transparent");
+    await b.execute(t => [...document.querySelectorAll('.theme-toggle[aria-label="Theme"] button')].find(el => el.textContent.trim().toLowerCase() === t).click(), theme);
+    await b.$('.nav-item[data-tab="household"]').click();
+    await b.$('.household-cards').waitForExist({timeout: 10000});
+    await dismissStatusMessages(b);
+    assert.ok(await b.execute(() => [...document.querySelectorAll('[data-budget-by-person] tbody tr')].every(row => row.getBoundingClientRect().height < 100)), "category artwork remains inside a compact table row");
+    await b.saveScreenshot(path.join(shots, `household-${theme}-1440.png`));
+    await b.$('[data-budget-by-person]').scrollIntoView({block: "start"});
+    await b.saveScreenshot(path.join(shots, `household-budget-${theme}-1440.png`));
+    await b.$('[data-privacy-toggle]').click();
+    await waitUntilOrDiagnose(b, () => b.execute(() => !/\$[\d,]+\.\d{2}/.test(document.querySelector('.household-view').textContent)), {timeoutMsg: "Household figures are masked"});
+    await b.saveScreenshot(path.join(shots, `household-${theme}-hidden.png`));
+    await b.$('[data-privacy-toggle]').click();
+    await b.setWindowSize(720, 520);
+    await waitUntilOrDiagnose(b, () => b.execute(() => document.querySelector('.main').scrollWidth <= document.querySelector('.main').clientWidth + 1), {timeoutMsg: "Household fits 720px"});
+    await b.$('.household-cards').scrollIntoView({block: "start"});
+    await b.saveScreenshot(path.join(shots, `household-${theme}-720.png`));
+  }
+  await b.setWindowSize(1280, 900);
+  await b.$('[aria-label="Rename QA Alex"]').waitForExist({timeout: 10000});
+  await b.$('[aria-label="Rename QA Alex"]').click();
+  await withFocusRetry(b, async () => {
+    const field = await b.$('[aria-label="Name for QA Alex"]');
+    await field.click(); await b.keys(["Control", "a"]); await b.keys("Control"); await field.addValue("QA Alexandra");
+    await b.$('.household-people button[type="submit"]').click();
+  });
+  await b.$('[aria-label="Rename QA Alexandra"]').waitForExist({timeout: 10000});
+  await b.$('[aria-label="Remove QA Alexandra"]').click();
+  assert.ok((await b.$('.household-remove-confirm').getText()).includes("becomes unassigned"));
+  await b.$('.household-remove-confirm .modal-secondary').click();
+  assert.equal(await b.$('[aria-label="Rename QA Alexandra"]').isExisting(), true, "Cancel keeps the person");
+  await b.$('[aria-label="Remove QA Alexandra"]').click();
+  await b.$('.household-remove-confirm .btn-danger').click();
+  await waitUntilOrDiagnose(b, async () => !(await b.$('[aria-label="Rename QA Alexandra"]').isExisting()), {timeoutMsg: "existing remove handler removes the person"});
+  const worth = await b.execute(() => [...document.querySelectorAll('.household-cards .breakdown-list li')].map(el => el.textContent));
+  assert.ok(worth.some(row => row.startsWith('Shared') && row.includes('$4,275.00')), `removing a person preserves the account value as Shared: ${worth}`);
+  await withFocusRetry(b, () => typeDate(b, 'input[aria-label="Household month"]', "2025-03"));
+  await waitUntilOrDiagnose(b, () => b.execute(() => document.querySelector('[data-month-by-person] h2').textContent === "March 2025 by person"), {timeoutMsg: "picker selects across year boundaries"});
+  assert.deepEqual(await b.execute(() => [...document.querySelectorAll('.household-cards .breakdown-list li')].map(el => el.textContent)), worth, "net worth uses today's values regardless of selected month");
+  await b.$('button=Add person').click();
+  await b.$('[role="dialog"]').waitForExist({timeout: 5000});
+  assert.ok((await b.$('[role="dialog"]').getText()).includes("Manage family members"), "Add person opens the existing dialog");
+  console.log("Household actions: People rename, cancel, remove, retained assets, existing Add dialog and cross-year month picker");
+
   console.log('FEATURE 333 PASSED: Household refund, split, transfer, unassigned and viewed-month semantics match hand calculations.');
 } finally { await app.close(); }
+
+
+// The household budget must retain word boundaries and distinct numeric/bar columns at 720px.
+const layoutDb = await seedFixture(`
+import datetime
+day=datetime.date.today().replace(day=1).isoformat()
+period=day[:7]
+cur.execute("INSERT INTO family_members(id,name) VALUES (701,'Jordan'),(702,'Riley M.')")
+cur.execute("INSERT INTO accounts(id,name,account_type,starting_balance) VALUES (701,'Layout Checking','checking','10000.00')")
+rows=[('Entertainment','120.00','-35.43',702,'flexible'),('Groceries','650.00','-196.50',702,'flexible'),('Income','4400.00','4400.00',701,'income'),('Rent','1850.00','-1850.00',701,'fixed'),('Subscriptions','75.00','-62.99',701,'fixed'),('Kids activities and sports camps','140.00','-96.00',702,'flexible')]
+for index,(category,planned,actual,member,group) in enumerate(rows):
+    cur.execute("INSERT OR IGNORE INTO categories(name) VALUES (?)",(category,))
+    cur.execute("INSERT INTO budgets(category,period,monthly_amount,budget_group) VALUES (?,?,?,?)",(category,period,planned,group))
+    cur.execute("INSERT INTO transactions(account_id,date,description,amount,category,category_source,member_id,fingerprint) VALUES (701,?,'Household layout fixture',?,?,'user',?,?)",(day,actual,category,member,'household-layout-'+str(index)))
+`);
+const layoutApp = await launchApp({dbDir: layoutDb, windowSize: {width: 1440, height: 1000}});
+const layoutBrowser = layoutApp.browser;
+async function checkHouseholdBudgetLayout(width, theme) {
+  const result = await layoutBrowser.execute(() => {
+    const rows = [...document.querySelectorAll('[data-budget-by-person] tbody tr')];
+    const issues = [];
+    const rect = el => {
+      const r=el.getBoundingClientRect();
+      return {left:r.left,right:r.right,top:r.top,bottom:r.bottom};
+    };
+    const textRect = el => { const range=document.createRange(); range.selectNodeContents(el); return rect(range); };
+    const measurements = rows.map(row => {
+      const cells=[...row.cells];
+      const category=cells[0].textContent;
+      const nameNode=[...cells[0].querySelector('.cell-with-icon').childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+      const brokenWords=[];
+      for (const match of nameNode.textContent.matchAll(/\S+/g)) {
+        const range=document.createRange(); range.setStart(nameNode,match.index); range.setEnd(nameNode,match.index+match[0].length);
+        if (new Set([...range.getClientRects()].map(r=>Math.round(r.top))).size > 1) brokenWords.push(match[0]);
+      }
+      if (brokenWords.length) issues.push({category,kind:'split words',words:brokenWords});
+      const planned=textRect(cells[1]); const plannedCell=rect(cells[1]);
+      if (planned.left < plannedCell.left-1 || planned.right > plannedCell.right+1) issues.push({category,kind:'planned text outside cell',planned,plannedCell});
+      const people=cells.slice(2).map((cell,index) => {
+        const bar=rect(cell.querySelector('.household-person-bar'));
+        const amount=textRect(cell.querySelector('.household-person-value > span:last-child'));
+        const bounds=rect(cell);
+        if (bar.left < bounds.left-1 || amount.right > bounds.right+1 || bar.right+4 > amount.left) issues.push({category,kind:'person contents overlap or escape',person:index,bar,amount,bounds});
+        if (index === 0 && planned.right+4 > bar.left) issues.push({category,kind:'planned amount overlaps first person bar',planned,bar});
+        return {bar,amount,bounds};
+      });
+      return {category,plannedText:cells[1].textContent,brokenWords,planned,plannedCell,people};
+    });
+    const main=document.querySelector('.main');
+    return {issues,measurements,pageOverflow:main.scrollWidth-main.clientWidth};
+  });
+  // Six budget lines are seeded; Budget by person lists spending categories only (VS-31 step 2), so the Income row is not one of the five.
+  assert.ok(result.measurements.length === 5, `${theme}/${width}: all layout fixture rows loaded`);
+  assert.equal(result.measurements.find(row=>row.category==='Income'), undefined, 'no Income row in Budget by person');
+  assert.equal(result.measurements.find(row=>row.category==='Rent')?.plannedText,'$1,850.00');
+  console.log(`Household budget geometry ${theme}/${width}: ${JSON.stringify(result)}`);
+  assert.deepEqual(result.issues,[],`${theme}/${width}: whole words and separate Planned/bar/amount columns`);
+  assert.ok(result.pageOverflow<=1,`${theme}/${width}: table scrolling stays inside its region`);
+}
+try {
+  for (const theme of ['light','dark']) {
+    await layoutBrowser.setWindowSize(1440,1000);
+    await chooseStyle(layoutBrowser,'Default','transparent');
+    await layoutBrowser.execute(t=>[...document.querySelectorAll('.theme-toggle[aria-label="Theme"] button')].find(el=>el.textContent.trim().toLowerCase()===t).click(),theme);
+    await layoutBrowser.$('.nav-item[data-tab="household"]').click();
+    await waitUntilOrDiagnose(layoutBrowser,()=>layoutBrowser.execute(()=>document.querySelectorAll('[data-budget-by-person] tbody tr').length===5),{timeoutMsg:'Household budget layout fixture loads'});
+    await dismissStatusMessages(layoutBrowser);
+    await layoutBrowser.executeAsync(done=>document.fonts.ready.then(()=>done()));
+    for (const width of [1440,720]) {
+      await layoutBrowser.setWindowSize(width,1000);
+      await layoutBrowser.$('[data-budget-by-person]').scrollIntoView({block:'start'});
+      await layoutBrowser.saveScreenshot(path.join(shots,`household-${theme}-${width}-budget.png`));
+      await checkHouseholdBudgetLayout(width,theme);
+      if (width===720) {
+        await layoutBrowser.execute(()=>{const region=document.querySelector('.household-table-scroll');region.scrollLeft=region.scrollWidth;});
+        await layoutBrowser.saveScreenshot(path.join(shots,`household-${theme}-720-budget-people.png`));
+        await checkHouseholdBudgetLayout(width,theme);
+      }
+    }
+  }
+  console.log('FEATURE 333 HOUSEHOLD LAYOUT PASSED: intact words, bounded Planned amounts and separated person bars at 1440/720 light/dark.');
+} finally { await layoutApp.close(); }
+
+// Owner decision 17.4: the "(month) by person" table keeps a long name whole (it may wrap between words, or after a hyphen)
+// and keeps its amounts whole, at 1440px and 720px, light and dark.
+const monthDb = await seedFixture(`
+import datetime
+day=datetime.date.today().replace(day=1).isoformat()
+cur.execute("INSERT INTO family_members(id,name) VALUES (801,'Bartholomew-Montgomery'),(802,'Alexandria Montgomery-Featherstone'),(803,'Christopherson')")
+cur.execute("INSERT INTO accounts(id,name,account_type,starting_balance) VALUES (801,'Name Checking','checking','10000.00')")
+rows=[('Pay','12345.67',801),('Pay','8123.45',802),('Pay','4400.00',803),('Rent','-1850.00',801),('Groceries','-1196.50',802),('Fun','-96.00',803)]
+for index,(description,amount,member) in enumerate(rows):
+    cur.execute("INSERT INTO transactions(account_id,date,description,amount,category,category_source,member_id,fingerprint) VALUES (801,?,?,?,?,'user',?,?)",(day,'Name fixture '+description,amount,'Income' if float(amount)>0 else description,member,'household-name-'+str(index)))
+`);
+const monthApp = await launchApp({dbDir: monthDb, windowSize: {width: 1440, height: 1000}});
+const monthBrowser = monthApp.browser;
+async function checkMonthTableLayout(width, theme) {
+  const result = await monthBrowser.execute(() => {
+    const issues = [];
+    const table = document.querySelector('[data-month-by-person] table');
+    const region = document.querySelector('[data-month-by-person] .household-table-scroll');
+    if (!region) issues.push({kind: 'the table is not in a scroll region'});
+    const rows = [...table.querySelectorAll('tbody tr')];
+    const textRect = el => { const range=document.createRange(); range.selectNodeContents(el); const r=range.getBoundingClientRect(); return {left:r.left,right:r.right}; };
+    const names = rows.map(row => {
+      const cell = row.cells[0];
+      const node = [...cell.childNodes].find(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+      const broken = [];
+      // A piece ends at a space or just after a hyphen: breaking there is normal wrapping. Breaking inside a piece is not.
+      for (const match of node.textContent.matchAll(/[^\s-]+-?/g)) {
+        const range = document.createRange(); range.setStart(node, match.index); range.setEnd(node, match.index + match[0].length);
+        if (new Set([...range.getClientRects()].map(r => Math.round(r.top))).size > 1) broken.push(match[0]);
+      }
+      if (broken.length) issues.push({name: cell.textContent, kind: 'name split inside a word', broken});
+      for (const amount of [row.cells[1], row.cells[2]]) {
+        const range = document.createRange(); range.selectNodeContents(amount);
+        if (new Set([...range.getClientRects()].map(r => Math.round(r.top))).size > 1) issues.push({name: cell.textContent, kind: 'amount split over lines', amount: amount.textContent});
+      }
+      return cell.textContent;
+    });
+    const main = document.querySelector('.main');
+    return {issues, names, regionOverflow: region ? region.scrollWidth - region.clientWidth : null, pageOverflow: main.scrollWidth - main.clientWidth};
+  });
+  assert.equal(result.names.length, 4, `${theme}/${width}: three people and Shared are listed`);
+  console.log(`Household month table geometry ${theme}/${width}: ${JSON.stringify(result)}`);
+  assert.deepEqual(result.issues, [], `${theme}/${width}: whole names and whole amounts`);
+  assert.ok(result.pageOverflow <= 1, `${theme}/${width}: a narrow table scrolls inside its own region, not the page`);
+}
+try {
+  for (const theme of ['light','dark']) {
+    await monthBrowser.setWindowSize(1440,1000);
+    await chooseStyle(monthBrowser,'Default','transparent');
+    await monthBrowser.execute(t=>[...document.querySelectorAll('.theme-toggle[aria-label="Theme"] button')].find(el=>el.textContent.trim().toLowerCase()===t).click(),theme);
+    await monthBrowser.$('.nav-item[data-tab="household"]').click();
+    await waitUntilOrDiagnose(monthBrowser,()=>monthBrowser.execute(()=>document.querySelectorAll('[data-month-by-person] tbody tr').length===4),{timeoutMsg:'Household month-by-person fixture loads'});
+    await dismissStatusMessages(monthBrowser);
+    await monthBrowser.executeAsync(done=>document.fonts.ready.then(()=>done()));
+    for (const width of [1440,720]) {
+      await monthBrowser.setWindowSize(width,1000);
+      await monthBrowser.$('[data-month-by-person]').scrollIntoView({block:'start'});
+      await monthBrowser.saveScreenshot(path.join(shots,`household-${theme}-${width}-month-table.png`));
+      await checkMonthTableLayout(width,theme);
+    }
+  }
+  console.log('FEATURE 333 HOUSEHOLD MONTH TABLE PASSED: long names stay whole and amounts stay whole at 1440/720 light/dark.');
+} finally { await monthApp.close(); }

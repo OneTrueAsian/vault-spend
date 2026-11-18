@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import type { ParseContext } from "../../askVault/types";
+import type { ParseContext } from "../../askVault/common/types";
 // Install the transparent M4 dialog observer before any other harness imports AskVaultCard.
 // Otherwise the already-cached card bypasses the observation wrapper while still rendering correctly.
 import { observeM4 } from "./routeHarnessM4";

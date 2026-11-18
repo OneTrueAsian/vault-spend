@@ -142,10 +142,10 @@ try {
   await nav("Household");
   await b.waitUntil(() => b.execute(() => document.querySelector('[data-financial-read="Household budget totals"]')?.getAttribute("role") === "alert"), { timeout: 10000 });
   assert.equal(await b.execute(() => document.querySelector(".reports-view")?.textContent.includes("No budgeted spending yet")), false);
-  assert.equal(await b.execute(() => document.querySelector(".reports-view")?.textContent.includes("Budget, by category and person")), false);
+  assert.equal(await b.execute(() => document.querySelector(".reports-view")?.textContent.includes("Budget by person,")), false);
   alterFixture("ALTER TABLE transactions_f291_hold RENAME TO transactions"); renamed = false;
   await b.$('[aria-label="Next month"]').click();
-  await b.waitUntil(() => b.execute(() => document.querySelector(".reports-view")?.textContent.includes("Budget, by category and person")), { timeout: 10000 });
+  await b.waitUntil(() => b.execute(() => document.querySelector(".reports-view")?.textContent.includes("Budget by person,")), { timeout: 10000 });
   await nav("Budget");
   await b.$("[data-budget-summary]").waitForExist({ timeout: 10000 });
 

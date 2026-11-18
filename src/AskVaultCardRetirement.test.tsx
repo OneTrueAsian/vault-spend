@@ -3,11 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { AskVaultCard } from "./AskVaultCard";
-import { notifyDataWrite } from "./askVault/dataWriteEvents";
-import { retirementIllustrativeBalance } from "./askVault/retirementScreenContract";
-import { validateRetirementContextReply, validateRetirementRosterReply } from "./askVault/retirementNativeContract";
-import type { RetirementContextReply, RetirementContextWireRequest, RetirementRosterReply, RetirementRosterWireRequest } from "./askVault/retirementNativeContract";
-import type { ParseContext } from "./askVault/types";
+import { notifyDataWrite } from "./askVault/common/dataWriteEvents";
+import { retirementIllustrativeBalance } from "./askVault/retirement/retirementScreenContract";
+import { validateRetirementContextReply, validateRetirementRosterReply } from "./askVault/retirement/retirementNativeContract";
+import type { RetirementContextReply, RetirementContextWireRequest, RetirementRosterReply, RetirementRosterWireRequest } from "./askVault/retirement/retirementNativeContract";
+import type { ParseContext } from "./askVault/common/types";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

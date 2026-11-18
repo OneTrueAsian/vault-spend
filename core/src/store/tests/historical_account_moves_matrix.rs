@@ -1724,10 +1724,10 @@ fn every_place_that_writes_a_saved_balance_is_known_so_a_new_writer_cannot_bypas
     // Writers of `balance_resets` (outside tests) and how each one keeps provenance honest:
     //  checkpoints.rs / historical_move.rs  record versions themselves, under the write guard;
     //  accounts.rs                          account deletion (guarded) and the legacy-compatible reader/writer glue;
-    //  schema.rs                            the old one-time repair of manual dates, which the table triggers record;
+    //  schema/migrations.rs                 the old one-time repair of manual dates, which the table triggers record;
     //  sign_flip.rs                         direct edits that the table triggers turn into untrusted provenance (G13).
     // Any other file that writes the table fails this test until it is added here with its reason.
-    let known = ["accounts.rs", "checkpoints.rs", "historical_move.rs", "schema.rs", "sign_flip.rs"];
+    let known = ["accounts.rs", "checkpoints.rs", "historical_move.rs", "migrations.rs", "sign_flip.rs"];
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut found: Vec<String> = Vec::new();
     fn walk(dir: &std::path::Path, out: &mut Vec<String>) {

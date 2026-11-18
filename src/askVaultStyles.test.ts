@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 // The "what I understood" chips use the plain text and surface colors, which every style keeps readable.
 describe("Ask the Vault understood-as chips", () => {
   it("use the ordinary text and surface colors, not the soft accent pair", () => {
-    const css = readFileSync(new URL("./BudgetAndGoals.css", import.meta.url), "utf8");
+    const css = readFileSync(new URL("./features/budgets/BudgetAndGoals.css", import.meta.url), "utf8");
     const rule = css.match(/\.ledger-qa-chips li\s*\{([^}]*)\}/);
     expect(rule, ".ledger-qa-chips li rule").not.toBeNull();
     expect(rule![1]).not.toContain("accent-soft");

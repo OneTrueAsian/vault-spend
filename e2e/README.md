@@ -76,11 +76,31 @@ gigabytes. Three layers now stop that:
 - `run-all.mjs` (and `stress.mjs`) give every spec its own `TEMP`/`TMP` folder and delete it when the spec
   ends, including a spec killed on timeout whose own exit cleanup never ran. Folders left by a run that
   was itself killed are swept from `%TEMP%\vaultspend-e2e-runs` by a later run once 6 hours old.
-- Specs and tools that start msedgedriver themselves (feature172, `tools/test_mobile_*`) give it an
+- Specs and tools that start msedgedriver themselves (feature172, `tools/mobile/test_mobile_*`) give it an
   isolated temp folder too.
 
 Screenshot folders follow the same rule: set the spec's own output variable (`VS_SCREENS_DIR`,
 `VS_T9_SHOTS`, `COMPARISONS_SHOTS_DIR`, …) to keep screenshots somewhere permanent.
+
+## Keeping and reviewing a run's screenshots
+
+`npm run e2e -- --spec=<specs> --keep-screens` also copies every screenshot a spec saves through the harness session
+(`saveScreenshot`) into `target/e2e-shots/<run start, UTC>/<spec>/`. The harness does this when `VAULTSPEND_SHOTS_DIR` is
+set, which the runner sets per spec; each spec's own screenshot file and folder are unchanged, and without the switch nothing
+changes. The newest three runs are kept. The run report prints `Screenshots kept: N in <folder>` and
+`target\e2e-last-run.json` records `keptScreens` (with a per-spec count). Mobile Playwright captures and pixel measurements
+(`takeScreenshot`) are not kept. About twenty specs save screenshots only when their own variable is set (for example
+`VS_M5_SHOTS`, `VAULTSPEND_E2E_SHOTS`, `VS_QA_COMPLETION_SHOTS`, `VS_TASK7_SHOTS`; `grep -rn "process.env.*SHOTS\|_OUTPUT" e2e`
+lists them). The report names every spec that kept no screenshots; set that spec's variable too if you need its screenshots
+reviewed. A spec that kept none has not been reviewed, which is not the same as passing review.
+
+`npm run e2e:review -- [folder]` then reviews every PNG in the folder (default: the newest kept run) with a local vision model,
+Ollama's `qwen3.6:35b` with thinking off, and writes `summary.md` (counts plus only the flagged and unsure screenshots) and
+`verdicts.json` into it. It takes about 5 seconds per screenshot and unloads the model when done. Run it after an E2E run, never
+during one. If Ollama is not answering on this machine, it starts `ollama serve` in the background (from PATH or the default install folder), waits up to 30 seconds and leaves it running. Exit 0 when reviewed, 3 when Ollama still cannot be reached or the model is missing, 1 otherwise; `--host=` and `--model=` override the
+defaults. It works on any folder of screenshots, such as a UAT capture.
+
+To review E2E or UAT screenshots, run the specs with `--keep-screens` (or use the UAT shots folder), then `npm run e2e:review -- [folder]`, read its `summary.md`, and open only the flagged screenshots plus at least two passed ones per spec. The review starts Ollama itself if it is not running; if it still cannot run (exit 3), open the screenshots directly. A local pass is a hint, never acceptance or sign-off, and it does not notice missing content (spec DOM checks cover that). Measured on 17 November 2026: 9 of 12 seeded faults caught, 1 of 64 good screens flagged, about 85% fewer Claude tokens than viewing every screenshot.
 
 ## Running a spec
 
@@ -118,7 +138,7 @@ To switch visual style the way a person does, use `chooseStyle(browser,
 style's row, chooses it and waits until it applies.
 
 Dates on screen are written out ("Oct 4", or "Oct 4, 2025" for another year), the way
-`formatDisplayDate` in `src/format.ts` shows them; `displayDate` in `lib/dates.mjs` gives the text to
+`formatDisplayDate` in `src/shared/lib/format.ts` shows them; `displayDate` in `lib/dates.mjs` gives the text to
 expect. Every date field is `DateField` and every month field `MonthField`: a text box in the
 region's own order ("10/04/2026", "04/10/2026", "2026/10/04") with a calendar the app draws beside it;
 there is no native date or month control, so nothing in a spec may select `input[type="date"]` or

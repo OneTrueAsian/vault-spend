@@ -79,6 +79,9 @@ const look = (browser) =>
 // profile has no budget to draw one), colored inline the way the app colors category fills.
 async function barsLook(browser) {
   await browser.execute(() => [...document.querySelectorAll(".nav-item")].find((b) => b.textContent.trim() === "Cash Flow").click());
+  // The income/expense bars are in Cash Flow's "Month by month" tab (VS-31).
+  await (await browser.$("#cashflow-tab-by-month")).waitForExist({ timeout: 10000 });
+  await (await browser.$("#cashflow-tab-by-month")).click();
   await (await browser.$(".chart-bar")).waitForExist({ timeout: 10000 });
   const out = await browser.execute(() => {
     const bar = getComputedStyle(document.querySelector(".chart-bar"));

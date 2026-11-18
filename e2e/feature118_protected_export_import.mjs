@@ -1,6 +1,6 @@
 // Protected `.vaultspend` package round trip through the compiled app. Native save/folder pickers
 // cannot be driven by WebDriver, so this invokes the same backend commands with paths inside the
-// isolated test directory; Modal.test.tsx covers the source chooser and package-password UI.
+// isolated test directory; features/profiles/ProtectedPackageImportDialogs.test.tsx covers the source chooser and package-password UI.
 // Run with: node e2e/run-all.mjs --spec=118
 
 import assert from "node:assert/strict";
