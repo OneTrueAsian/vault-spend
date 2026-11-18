@@ -1872,13 +1872,28 @@ fn excluded_flag(store: &Store, id: i64) -> bool {
 }
 
 #[test]
-fn budget_exclusion_migration_adds_columns_once() {
+fn budget_exclusion_migration_adds_missing_columns_on_upgrade_and_is_repeatable() {
     let store = Store::open_in_memory().unwrap();
     let account = test_account(&store);
-    store.init_schema().unwrap();
-    assert!(!store.get_app_settings().unwrap().budget_exclusion_enabled);
     store.save_transactions(account, &[tx("2026-08-20", "Coffee", "-4.00")]).unwrap();
-    assert!(!store.all_transactions().unwrap()[0].excluded_from_budget);
+    store.set_envelope_caps_enabled(false).unwrap();
+    store
+        .conn
+        .execute_batch(
+            "ALTER TABLE transactions DROP COLUMN excluded_from_budget;
+             ALTER TABLE app_settings DROP COLUMN budget_exclusion_enabled;",
+        )
+        .unwrap();
+
+    store.init_schema().unwrap();
+    store.init_schema().unwrap();
+
+    let stored = store.all_transactions().unwrap();
+    assert_eq!(stored.len(), 1);
+    assert!(!stored[0].excluded_from_budget);
+    let settings = store.get_app_settings().unwrap();
+    assert!(!settings.budget_exclusion_enabled);
+    assert!(!settings.envelope_caps_enabled);
 }
 
 #[test]
