@@ -217,6 +217,18 @@ mod tests {
     const KEY_A: [u8; 32] = [0x11; 32];
     const KEY_B: [u8; 32] = [0x22; 32];
 
+    #[test]
+    fn bundled_database_engine_includes_the_wal_memory_disclosure_fix() {
+        // CVE-2026-119375 affects SQLite <3.54.0, including SQLCipher's SQLite.
+        // Check the linked engine, not just the Rust wrapper's crate version.
+        assert!(rusqlite::version_number() >= 3_054_000, "linked SQLite: {}", rusqlite::version());
+        let conn = Connection::open_in_memory().unwrap();
+        let cipher: String = conn.query_row("PRAGMA cipher_version", [], |row| row.get(0)).unwrap();
+        let version: Vec<u32> = cipher.split_whitespace().next().unwrap().split('.').take(3)
+            .map(|part| part.parse().unwrap()).collect();
+        assert!(version.as_slice() >= [4, 20, 0].as_slice(), "linked SQLCipher: {cipher}");
+    }
+
     fn temp_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("vaultspend-store-enc-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);

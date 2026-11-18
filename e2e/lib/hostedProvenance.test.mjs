@@ -24,7 +24,7 @@ const inputs = setting => ({ "src/main.tsx": "same-app", "@build/environment": J
 const options = setting => ({ operation: "hosted-fixture", lockDir: path.join(root, "lock"), exePath: path.join(root, "fixture.exe"), recordPath: path.join(root, "artifact.json"), collectInputs: () => inputs(setting), toolchain, mode: "debug" });
 const build = setting => buildArtifact({ ...options(setting), runBuild: async () => fs.writeFileSync(path.join(root, "fixture.exe"), "fixture compiler output") });
 
-describe.each(["release-windows.yml", "prepare-signed-installers.yml"])("hosted provenance compatibility: %s", file => {
+describe.each(["release-windows.yml", "prepare-signed-installers.yml", "windows-desktop-gate-sharded.yml"])("hosted provenance compatibility: %s", file => {
   beforeEach(() => { workflow = fs.readFileSync(`.github/workflows/${file}`, "utf8").replaceAll("\r\n", "\n"); });
   it("records the debug artifact before either medium-integrity gate", () => {
     expect(buildStep()).toMatch(/^\s+run: npm run build:app\s*$/m);

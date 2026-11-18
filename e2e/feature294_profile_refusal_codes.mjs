@@ -6,7 +6,7 @@ import { build } from "esbuild";
 import { launchApp } from "./harness.mjs";
 
 const bundle = await build({
-  entryPoints: ["src/profileIpc.ts"],
+  entryPoints: ["src/shared/native/profileIpc.ts"],
   bundle: true,
   write: false,
   format: "iife",

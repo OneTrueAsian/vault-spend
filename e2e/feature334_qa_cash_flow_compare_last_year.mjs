@@ -1,4 +1,4 @@
-// UAT-119: Cash Flow "Compare to last year" bars. Last month (relative to today): income 800, expense 880 -> net -80. The same month a year earlier: income 500, expense 200 -> net 300.
+// UAT-119: Cash Flow "Compared with last year" bars (the old "Compare to last year" switch). Last month (relative to today): income 800, expense 880 -> net -80. The same month a year earlier: income 500, expense 200 -> net 300.
 // BarChart draws net cash flow per pair; the tooltip names "This year" and "Last year" with the nets. Bars are hover-only (charts.tsx hit rect has no keyboard handler): not asserted as focusable.
 import assert from "node:assert/strict";
 import { launchApp, waitUntilOrDiagnose, withFocusRetry } from "./harness.mjs";
@@ -49,8 +49,9 @@ const tooltips = async title => {
 try {
   await b.setWindowSize(1280, 900);
   await (await b.$('.nav-item[aria-label="Cash Flow"]')).click();
-  await (await b.$("//label[contains(.,'Compare to last year')]/input")).waitForDisplayed({ timeout: 10000 });
-  await (await b.$("//label[contains(.,'Compare to last year')]/input")).click();
+  // The old "Compare to last year" tick box is Cash Flow's "Compared with last year" tab (VS-31).
+  await (await b.$("#cashflow-tab-last-year")).waitForDisplayed({ timeout: 10000 });
+  await (await b.$("#cashflow-tab-last-year")).click();
   await waitUntilOrDiagnose(b, async () => (await b.execute(() => document.body.innerText)).includes("Net cash flow — this year vs. last year"), { timeout: 10000, timeoutMsg: "the comparison chart replaces Income vs. expenses" });
   // The legend appears once the year-over-year figures arrive, a moment after the heading.
   await waitUntilOrDiagnose(b, async () => { const t = await b.execute(() => document.body.innerText); return t.includes("This year") && t.includes("Last year"); }, { timeout: 10000, timeoutMsg: "legend names both years" });

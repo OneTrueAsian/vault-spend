@@ -1,0 +1,729 @@
+/* Base tokens retain the retired Slate palette as a fallback. The current
+   styles are Default (internal id "transparent"), Futuristic and Retro;
+   themeBootstrap.ts normalizes retired saved ids to Default. Palette selectors
+   below and themes/futuristic.css override these shared tokens. Light/dark
+   mode is independent of the style choice. Historical palette derivation
+   and contrast adjustments are available in git history. */
+:root {
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --surface-2: #eef1f7;
+  /* What a toast is painted on; opaque. Transparent overrides it. */
+  --status-base: var(--surface);
+  /* What dropdown menus are painted on. Solid here; Transparent makes it a blurred glass. */
+  --menu-bg: var(--status-base);
+  --surface-hover: #e6e9f0;
+  --sidebar-bg: #fbfbfd;
+  --sidebar-bg-hover: #eef1f7;
+  --sidebar-bg-active: linear-gradient(135deg, #1f3568, #2f4f96);
+  --sidebar-text: #5c6885;
+  --sidebar-text-dim: #697392;
+  --sidebar-text-active: #1c2740;
+  --sidebar-border: #e8ebf3;
+
+  --text: #1c2740;
+  --text-muted: #616b84;
+  --text-faint: #697392;
+  --border: #e8ebf3;
+  --border-strong: #d8deeb;
+
+  --accent: #233d7b;
+  --accent-strong: #3f62ad;
+  --accent-soft: #cfd4e2;
+  --accent-soft-text: #233d7b;
+  --on-accent: #ffffff;
+
+  --positive: #168756;
+  --positive-soft: #deeee7;
+  --negative: #c94c4c;
+  --negative-soft: #f7e6e6;
+  --warning: #a2690c;
+  --warning-soft: #f2eadd;
+  --info: #3970e7;
+  --info-soft: #e3ebfc;
+
+  --nav-active-shadow: 0 12px 22px rgba(35, 61, 123, 0.24);
+
+  /* Category colors for charts and legends (src/shared/ui/categoryPalette.ts); Futuristic recolors them. */
+  --cat-1: #1E9E76;
+  --cat-2: #3E7CB8;
+  --cat-3: #C08A2E;
+  --cat-4: #8A5FB0;
+  --cat-5: #BD5B3C;
+  --cat-6: #4E8FC9;
+
+  --shadow-sm: 0 6px 16px rgba(28, 39, 69, 0.06);
+  --shadow-md: 0 14px 32px rgba(28, 39, 69, 0.08);
+  --shadow-lg: 0 24px 56px rgba(28, 39, 69, 0.14);
+
+  --font-display: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Code", Consolas, monospace;
+
+  color-scheme: light;
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c1428;
+    --surface: #101c38;
+    --surface-2: #0a111f;
+    --surface-hover: #131a28;
+    --sidebar-bg: #0e1830;
+    --sidebar-bg-hover: #0a111f;
+    --sidebar-bg-active: linear-gradient(135deg, #3457a0, #4d6fc4);
+    --sidebar-text: #93a0c2;
+    --sidebar-text-dim: #7a86ab;
+    --sidebar-text-active: #eef1fb;
+    --sidebar-border: #233257;
+
+    --text: #eef1fb;
+    --text-muted: #93a0c2;
+    --text-faint: #7a86ab;
+    --border: #233257;
+    --border-strong: #304674;
+
+    --accent: #6083dc;
+    --accent-strong: #85a0e4;
+    --accent-soft: #1e2f56;
+    --accent-soft-text: #85a0e4;
+    --on-accent: #06231a;
+
+    --positive: #3ddb99;
+    --positive-soft: #183e49;
+    --negative: #ff8a8a;
+    --negative-soft: #3b3047;
+    --warning: #eab54a;
+    --warning-soft: #37383b;
+    --info: #6ea1ff;
+    --info-soft: #21345c;
+
+    --nav-active-shadow: 0 12px 22px rgba(52, 87, 160, 0.35);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0c1428;
+  --surface: #101c38;
+  --surface-2: #0a111f;
+  --surface-hover: #131a28;
+  --sidebar-bg: #0e1830;
+  --sidebar-bg-hover: #0a111f;
+  --sidebar-bg-active: linear-gradient(135deg, #3457a0, #4d6fc4);
+  --sidebar-text: #93a0c2;
+  --sidebar-text-dim: #7a86ab;
+  --sidebar-text-active: #eef1fb;
+  --sidebar-border: #233257;
+
+  --text: #eef1fb;
+  --text-muted: #93a0c2;
+  --text-faint: #7a86ab;
+  --border: #233257;
+  --border-strong: #304674;
+
+  --accent: #6083dc;
+  --accent-strong: #85a0e4;
+  --accent-soft: #1e2f56;
+  --accent-soft-text: #85a0e4;
+  --on-accent: #06231a;
+
+  --positive: #3ddb99;
+  --positive-soft: #183e49;
+  --negative: #ff8a8a;
+  --negative-soft: #3b3047;
+  --warning: #eab54a;
+  --warning-soft: #37383b;
+  --info: #6ea1ff;
+  --info-soft: #21345c;
+
+  --nav-active-shadow: 0 12px 22px rgba(52, 87, 160, 0.35);
+
+  color-scheme: dark;
+}
+
+/* Default (internal id "transparent") uses Apple's system colors
+   (systemBlue/-Green/-Red/-Orange/-Indigo, as documented in Apple's HIG)
+   on a frosted-glass surface treatment instead of Slate's solid cards.
+   --accent/--positive/--negative/--warning below are darkened from
+   Apple's raw system colors in light mode only, the same WCAG 4.5:1
+   remediation used for the shared base tokens (Apple's own
+   systemGreen/-Red/-Orange fail 4.5:1 as text against white — verified
+   directly, not eyeballed); dark mode uses Apple's raw values as-is since
+   they already clear 4.5:1 against a near-black surface. Reuses the
+   default (non-Futuristic) icon set — its rounded caps/joins already read
+   as SF-Symbols-ish, so no third icon variant is needed. */
+:root[data-palette="transparent"] {
+  --bg: #eaebef;
+  --surface: rgba(255, 255, 255, 0.40);
+  /* Dialogs sit over the dimmed page, where 40% white composites to about #afb2b2 and the muted
+     label colour only reached 3.2:1. A near-opaque panel keeps every dialog text colour above 4.5:1. */
+  --modal-surface: rgba(255, 255, 255, 0.94);
+  --surface-2: rgba(255, 255, 255, 0.25);
+  --surface-hover: rgba(120, 120, 128, 0.14);
+  --sidebar-bg: rgba(255, 255, 255, 0.25);
+  --sidebar-bg-hover: rgba(120, 120, 128, 0.14);
+  --sidebar-bg-active: rgba(0, 88, 184, 0.12);
+  --sidebar-text: #3a3a3c;
+  /* Text colors are solid, not translucent: over the tinted glass a 60%/40% gray fell to
+     2.6-3.4:1. Each of these keeps 4.5:1 on the lightest and tintiest surface it sits on. */
+  --sidebar-text-dim: #5f5f66;
+  --sidebar-text-active: #1d1d1f;
+  --sidebar-border: rgba(255, 255, 255, 0.4);
+
+  --text: #1d1d1f;
+  --text-muted: #5a5a61;
+  --text-faint: #5f5f66;
+  --border: rgba(60, 60, 67, 0.16);
+  --border-strong: rgba(60, 60, 67, 0.28);
+
+  /* #007aff carried white text at only 4.0:1; this blue carries it at 6.8:1 and reads as text too. */
+  --accent: #0058b8;
+  --accent-strong: #004a9c;
+  --accent-soft: rgba(0, 88, 184, 0.12);
+  --accent-soft-text: #004a9c;
+  --on-accent: #ffffff;
+
+  --positive: #136d2f; /* 5.3:1 on its own soft tint (goal badges), not 3.5:1 */
+  --positive-soft: rgba(52, 199, 89, 0.16);
+  --negative: #d70015;
+  --on-negative: #ffffff;
+  --negative-soft: rgba(255, 59, 48, 0.14);
+  --warning: #9a4500; /* 5.4:1 on its own soft tint, not 4.3:1 */
+  --warning-soft: rgba(255, 149, 0, 0.16);
+  --info: #4a48b8;
+  --info-soft: rgba(88, 86, 214, 0.14);
+
+  --nav-active-shadow: 0 8px 20px rgba(0, 122, 255, 0.18);
+
+  --shadow-sm: 0 1px 2px rgba(30, 30, 60, 0.05);
+  --shadow-md: 0 8px 24px rgba(30, 30, 60, 0.08);
+  --shadow-lg: 0 20px 50px rgba(30, 30, 60, 0.14);
+
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+
+  /* The color wash the floating glass panels refract against — see the
+     `.app-shell::before` rule below. Blur over a flat single-tone
+     background barely reads as "glass" at all; this gives it something
+     to visibly show through. */
+  --wash-a: rgba(0, 122, 255, 0.22);
+  --wash-b: rgba(175, 82, 222, 0.18);
+  --wash-c: rgba(90, 200, 250, 0.2);
+
+  /* Fully opaque: the colour a toast is painted on. --surface is a 72% wash
+     in this style, and a toast floats over table rows and buttons. */
+  --status-base: #ffffff;
+  /* Dropdown menus: translucent (lower the last number for more see-through), with a blur behind. */
+  --menu-bg: rgba(255, 255, 255, 0.80);
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="transparent"]:not([data-theme="light"]) {
+    --bg: #0a0a0c;
+    --surface: rgba(28, 28, 30, 0.68);
+    --modal-surface: rgba(28, 28, 30, 0.68);
+    --surface-2: rgba(28, 28, 30, 0.5);
+    --surface-hover: rgba(120, 120, 128, 0.24);
+    --sidebar-bg: rgba(30, 30, 34, 0.5);
+    --sidebar-bg-hover: rgba(120, 120, 128, 0.22);
+    --sidebar-bg-active: rgba(77, 163, 255, 0.18);
+    --sidebar-text: rgba(235, 235, 245, 0.65);
+    --sidebar-text-dim: #9d9da6;
+    --sidebar-text-active: #ffffff;
+    --sidebar-border: rgba(255, 255, 255, 0.1);
+
+    --text: #ffffff;
+    --text-muted: #a9a9b2;
+    --text-faint: #9d9da6;
+    --border: rgba(255, 255, 255, 0.1);
+    --border-strong: rgba(255, 255, 255, 0.18);
+
+    --accent: #4da3ff;
+    --accent-strong: #79baff;
+    --accent-soft: rgba(77, 163, 255, 0.18);
+    --accent-soft-text: #8cc4ff;
+    --on-accent: #0b1a2b;
+
+    --positive: #30d158;
+    --positive-soft: rgba(48, 209, 88, 0.18);
+    --negative: #ff453a;
+    --on-negative: #2a0f06;
+    --negative-soft: rgba(255, 69, 58, 0.18);
+    --warning: #ff9f0a;
+    --warning-soft: rgba(255, 159, 10, 0.18);
+    --info: #5e5ce6;
+    --info-soft: rgba(94, 92, 230, 0.2);
+
+    --nav-active-shadow: 0 8px 26px rgba(10, 132, 255, 0.32);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.55);
+
+    --wash-a: rgba(10, 132, 255, 0.32);
+    --wash-b: rgba(191, 90, 242, 0.28);
+    --wash-c: rgba(100, 210, 255, 0.26);
+
+    --status-base: #1c1c1e;
+    --menu-bg: rgba(28, 28, 30, 0.80);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-palette="transparent"][data-theme="dark"] {
+  --bg: #0a0a0c;
+  --surface: rgba(28, 28, 30, 0.68);
+  --modal-surface: rgba(28, 28, 30, 0.68);
+  --surface-2: rgba(28, 28, 30, 0.5);
+  --surface-hover: rgba(120, 120, 128, 0.24);
+  --sidebar-bg: rgba(30, 30, 34, 0.5);
+  --sidebar-bg-hover: rgba(120, 120, 128, 0.22);
+  --sidebar-bg-active: rgba(77, 163, 255, 0.18);
+  --sidebar-text: rgba(235, 235, 245, 0.65);
+  --sidebar-text-dim: #9d9da6;
+  --sidebar-text-active: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+
+  --text: #ffffff;
+  --text-muted: #a9a9b2;
+  --text-faint: #9d9da6;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  --accent: #4da3ff;
+  --accent-strong: #79baff;
+  --accent-soft: rgba(77, 163, 255, 0.18);
+  --accent-soft-text: #8cc4ff;
+  --on-accent: #0b1a2b;
+
+  --positive: #30d158;
+  --positive-soft: rgba(48, 209, 88, 0.18);
+  --negative: #ff453a;
+  --on-negative: #2a0f06;
+  --negative-soft: rgba(255, 69, 58, 0.18);
+  --warning: #ff9f0a;
+  --warning-soft: rgba(255, 159, 10, 0.18);
+  --info: #5e5ce6;
+  --info-soft: rgba(94, 92, 230, 0.2);
+
+  --nav-active-shadow: 0 8px 26px rgba(10, 132, 255, 0.32);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.55);
+
+  --wash-a: rgba(10, 132, 255, 0.32);
+  --wash-b: rgba(191, 90, 242, 0.28);
+  --wash-c: rgba(100, 210, 255, 0.26);
+
+  --status-base: #1c1c1e;
+  --menu-bg: rgba(28, 28, 30, 0.80);
+
+  color-scheme: dark;
+}
+
+/* Transparent's structural glass touches: everything above this point is a
+   pure color/font token swap that the rest of this file's existing rules
+   already consume via var(...), same as Slate/Futuristic. These few rules
+   are the only ones that add a property Slate/Futuristic don't use
+   (backdrop-filter, a bumped border-radius) — all scoped to the palette
+   attribute, so Slate and Futuristic are byte-for-byte unaffected. */
+/* Floating panels, not flush: real Liquid Glass insets the sidebar and
+   toolbar from the window edge with a visible gap, rather than sitting
+   edge-to-edge the way Slate/Futuristic's shared `.app-shell` layout does.
+   `.app-shell` itself has no background (see the plain `:root` rule far
+   above) and no positioning context of its own, so adding padding/a
+   `position` here is additive — Slate/Futuristic never reference this
+   selector and are laid out exactly as before. */
+[data-palette="transparent"] .app-shell {
+  --shell-pad: 14px;
+  --shell-gap: 14px;
+  padding: var(--shell-pad);
+  gap: var(--shell-gap);
+  position: relative;
+  isolation: isolate;
+}
+
+/* The color wash the floating panels refract against (see --wash-a/b/c
+   above) — a fixed, decorative layer behind the sidebar/main panels.
+   `position: fixed` escapes `.app-shell`'s own `overflow: hidden` (that
+   only clips descendants that establish no containing block of their own,
+   which a plain `position: relative` doesn't), so it correctly covers the
+   whole window rather than just `.app-shell`'s box. */
+[data-palette="transparent"] .app-shell::before {
+  content: "";
+  position: fixed;
+  inset: -10%;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 12% 15%, var(--wash-a) 0%, transparent 42%),
+    radial-gradient(circle at 88% 20%, var(--wash-c) 0%, transparent 40%),
+    radial-gradient(circle at 70% 88%, var(--wash-b) 0%, transparent 46%);
+  filter: blur(60px);
+}
+
+[data-palette="transparent"] .sidebar {
+  position: relative;
+  z-index: 1;
+  border-radius: 22px;
+  border-right: none;
+  border: 1px solid var(--sidebar-border);
+}
+
+/* The sidebar's glass: the colour wash behind it, blurred. It is a layer of
+   its own, fixed over the sidebar's place (--shell-pad in from the
+   window's edges, like the sidebar), rather than a backdrop-filter on the sidebar
+   itself: an element with a backdrop-filter traps `position: fixed`
+   children inside its own box, where the sidebar clips them, and the
+   names beside the icons of the narrow sidebar and its profile menu
+   (AppResponsive.css) need to reach past it. The narrow sidebar sets the
+   layer's width to match its own. */
+[data-palette="transparent"] .sidebar::before {
+  content: "";
+  position: fixed;
+  top: var(--shell-pad);
+  bottom: var(--shell-pad);
+  left: var(--shell-pad);
+  width: var(--sidebar-w);
+  z-index: -1;
+  border-radius: 22px;
+  backdrop-filter: blur(24px) saturate(1.7);
+  -webkit-backdrop-filter: blur(24px) saturate(1.7);
+  pointer-events: none;
+}
+
+/* `.main` is only ever the scroll container — no background/radius of its
+   own — so `.page` inside it reads as a floating panel with the wash
+   showing around it. */
+[data-palette="transparent"] .main {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+
+/* `.page` is every view's own top-level wrapper (Dashboard/Accounts/
+   Ledger/etc. each render one) — giving it the floating-panel treatment
+   here, rather than `.main`, keeps the wash visible in the 14px gap
+   around it. Its existing `max-width: 1180px; margin: 0 auto` (unchanged,
+   defined once further down) still centers it — the 3-value margin below
+   only adds top/bottom spacing on top of that auto-centering, it doesn't
+   replace it. */
+[data-palette="transparent"] .page {
+  margin: 14px auto;
+  border-radius: 22px;
+  background: var(--surface-2);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+}
+
+[data-palette="transparent"] .card,
+[data-palette="transparent"] .modal-panel {
+  border-radius: 20px;
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+}
+
+[data-palette="transparent"] .modal-panel {
+  background: var(--modal-surface);
+}
+
+[data-palette="transparent"] .modal-overlay {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* `:where()` contributes zero specificity, so this only pill-shapes a
+   *plain* button — any class-based override (`.stat`/`.stat-hero`'s own
+   `border-radius: 18px` included) still wins exactly the way it already
+   beats the base (unscoped) `button { border-radius: 9px }` rule elsewhere
+   in this file. A bare `button` selector here instead clobbered every
+   `.stat`/`.stat-hero` tile app-wide — those render as a real <button> for
+   their expand/collapse behavior, not because they're meant to look like
+   one, and a 999px radius on a near-square 194×164 card turns it into a
+   circle. */
+[data-palette="transparent"] :where(button) {
+  border-radius: 999px;
+}
+
+/* Transparent's active-nav-item color/icon/glass rules live further down,
+   alongside Slate's and Futuristic's own (see `.nav-item.nav-item-active`
+   near `.sidebar`/`.nav-item`) rather than here — that positioning is load-
+   bearing for a specificity tie against `.nav-item:hover`, not cosmetic. */
+
+/* Retro — an optional reskin: a classic 1990s-desktop colour
+   scheme (gray control faces, white document panes, navy selection, square
+   corners, raised and sunken four-edge borders). Like the others it follows
+   the Light/Dark/System switch, so it needs the same three-block
+   structure: Light is the historical palette; Dark is a modern adaptation of
+   the same geometry (candidates, not historical values). Text uses a local
+   system sans from the font stack below — no font file is bundled or downloaded.
+   Secondary text is #4a4a4a, not the historical #808080 (2.17:1 on #c0c0c0).
+   --status-base and --menu-bg stay opaque. The component geometry (raised
+   buttons, sunken fields, square corners) is in the "Retro" section at
+   the end of this file. */
+:root[data-palette="retro"] {
+  --retro-face: #c0c0c0;
+  --retro-window: #ffffff;
+  --retro-hl: #ffffff;
+  --retro-light: #dfdfdf;
+  --retro-shadow: #808080;
+  --retro-dark: #000000;
+  --retro-sel: #000080;
+  --retro-sel-text: #ffffff;
+
+  --bg: var(--retro-face);
+  --surface: var(--retro-face);
+  --surface-2: #dfdfdf;
+  --status-base: var(--retro-face);
+  --menu-bg: var(--retro-face);
+  --surface-hover: #d4d4d4;
+  --sidebar-bg: var(--retro-face);
+  --sidebar-bg-hover: #dfdfdf;
+  --sidebar-bg-active: var(--retro-sel);
+  --sidebar-text: #000000;
+  --sidebar-text-dim: #4a4a4a;
+  --sidebar-text-active: #000000;
+  --sidebar-border: #808080;
+
+  --text: #000000;
+  --text-muted: #4a4a4a;
+  --text-faint: #4a4a4a;
+  --border: #808080;
+  --border-strong: #404040;
+
+  --accent: #000080;
+  --accent-strong: #1010a0;
+  --accent-soft: #c8c8e0;
+  --accent-soft-text: #000080;
+  --on-accent: #ffffff;
+
+  --positive: #005000;
+  --positive-soft: #b8d4b8;
+  --negative: #a00000;
+  --on-negative: #ffffff;
+  --negative-soft: #e0b8b8;
+  --warning: #6a4200;
+  --warning-soft: #d8d0a8;
+  --info: #004a80;
+  --info-soft: #b8ccd8;
+
+  --nav-active-shadow: none;
+
+  --shadow-sm: none;
+  --shadow-md: 1px 1px 0 #000000;
+  --shadow-lg: 2px 2px 0 rgba(0, 0, 0, 0.5);
+
+  --retro-raised: inset -1px -1px var(--retro-dark), inset 1px 1px var(--retro-hl),
+    inset -2px -2px var(--retro-shadow), inset 2px 2px var(--retro-light);
+  --retro-sunken: inset -1px -1px var(--retro-hl), inset 1px 1px var(--retro-shadow),
+    inset -2px -2px var(--retro-light), inset 2px 2px var(--retro-dark);
+
+  --font-display: "Microsoft Sans Serif", Tahoma, Arial, sans-serif;
+  --font-body: "Microsoft Sans Serif", Tahoma, Arial, sans-serif;
+  --font-mono: "Lucida Console", Consolas, "Courier New", monospace;
+
+  font-size: 13px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="retro"]:not([data-theme="light"]) {
+    --retro-face: #303030;
+    --retro-window: #121212;
+    --retro-hl: #626262;
+    --retro-light: #454545;
+    --retro-shadow: #181818;
+    --retro-dark: #000000;
+    --retro-sel: #304ea5;
+
+    --bg: #1b1b1b;
+    --surface-2: #3a3a3a;
+    --surface-hover: #424242;
+    --sidebar-bg-hover: #3a3a3a;
+    --sidebar-text: #f3f3f3;
+    --sidebar-text-dim: #c4c4c4;
+    --sidebar-text-active: #f3f3f3;
+    --sidebar-border: #000000;
+
+    --text: #f3f3f3;
+    --text-muted: #c4c4c4;
+    --text-faint: #c4c4c4;
+    --border: #626262;
+    --border-strong: #808080;
+
+    --accent: #8aa4f5;
+    --accent-strong: #a8bcf8;
+    --accent-soft: #2a3a6e;
+    --accent-soft-text: #c8d4ff;
+    --on-accent: #0b0b0b;
+
+    --positive: #5fd38d;
+    --positive-soft: #1f3d2b;
+    --negative: #ff8f8f;
+    --on-negative: #2a0f06;
+    --negative-soft: #4a2424;
+    --warning: #e8b84a;
+    --warning-soft: #4a3a14;
+    --info: #7fb2ff;
+    --info-soft: #1f3350;
+
+    --shadow-md: 1px 1px 0 #000000;
+    --shadow-lg: 2px 2px 0 #000000;
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-palette="retro"][data-theme="dark"] {
+  --retro-face: #303030;
+  --retro-window: #121212;
+  --retro-hl: #626262;
+  --retro-light: #454545;
+  --retro-shadow: #181818;
+  --retro-dark: #000000;
+  --retro-sel: #304ea5;
+
+  --bg: #1b1b1b;
+  --surface-2: #3a3a3a;
+  --surface-hover: #424242;
+  --sidebar-bg-hover: #3a3a3a;
+  --sidebar-text: #f3f3f3;
+  --sidebar-text-dim: #c4c4c4;
+  --sidebar-text-active: #f3f3f3;
+  --sidebar-border: #000000;
+
+  --text: #f3f3f3;
+  --text-muted: #c4c4c4;
+  --text-faint: #c4c4c4;
+  --border: #626262;
+  --border-strong: #808080;
+
+  --accent: #8aa4f5;
+  --accent-strong: #a8bcf8;
+  --accent-soft: #2a3a6e;
+  --accent-soft-text: #c8d4ff;
+  --on-accent: #0b0b0b;
+
+  --positive: #5fd38d;
+  --positive-soft: #1f3d2b;
+  --negative: #ff8f8f;
+  --on-negative: #2a0f06;
+  --negative-soft: #4a2424;
+  --warning: #e8b84a;
+  --warning-soft: #4a3a14;
+  --info: #7fb2ff;
+  --info-soft: #1f3350;
+
+  --shadow-md: 1px 1px 0 #000000;
+  --shadow-lg: 2px 2px 0 #000000;
+
+  color-scheme: dark;
+}
+
+/* `:where()` keeps a plain <button> at one class of specificity, so any
+   class-based button (.modal-secondary, .nav-item, .stat…) still overrides
+   it by source order, the same trick Transparent's pill rule uses. Every
+   plain button is a gray raised face; the base accent fill doesn't apply. */
+[data-palette="retro"] :where(button) {
+  background-color: var(--retro-face);
+  color: var(--text);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-raised);
+  font-weight: 400;
+}
+
+[data-palette="retro"] :where(button):hover {
+  background-color: var(--retro-face);
+  border-color: transparent;
+}
+
+[data-palette="retro"] :where(button):active:not(:disabled) {
+  box-shadow: var(--retro-sunken);
+}
+
+[data-palette="retro"] :where(button):disabled {
+  opacity: 1;
+  color: var(--text-muted);
+  text-shadow: 1px 1px 0 var(--retro-hl);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Every `animation`/`transition` in this file — modal open, the More menu,
+   stat-detail panels, hover states — goes through this one blanket
+   override rather than being listed individually, so nothing added later
+   can slip through unlisted. Zero motion exists in this app that this
+   rule shouldn't reach. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Settings > Appearance > Reduce motion: the same rule as the OS setting above, chosen in the app. */
+:root[data-motion="reduced"] *,
+:root[data-motion="reduced"] *::before,
+:root[data-motion="reduced"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Backup identities and restore warnings must remain readable at narrow widths. */
+.backup-restore-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+}
+
+.backup-restore-confirm .backup-restore-warning {
+  flex: 1 1 260px;
+}
+
+.backup-restore-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.backup-file-label, .backup-restore-warning {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

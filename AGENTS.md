@@ -1,10 +1,15 @@
 # Repository instructions for coding assistants
 
+## Implementation plans
+
+- Store implementation plans and their supporting move maps, progress notes, and validation evidence in `E:\misc\Programming\Agents\Implementations`, unless the owner explicitly requests another location. Do not create new implementation plans in this repository.
+
 ## Testing workflow
 
 - Use the validation scope rules below when interpreting these commands. A requirement for a final regression is not a requirement to repeat it after every edit.
 - Read `e2e/README.md` before changing or running end to end tests. The E2E suite drives a compiled Tauri app and requires a current `npx tauri build --debug --no-bundle` after app changes.
 - For focused changes, run `npm test` and `npm run lint` first. Then run `npm run e2e:smoke` and the affected E2E specs with `npm run e2e -- --spec=<feature numbers or filename fragments>`. Use `npm run e2e -- --list` to find specs. Add or update focused tests for the behavior changed.
+- To review E2E or UAT screenshots, run the specs with `--keep-screens` (or use the UAT shots folder), then `npm run e2e:review -- [folder]`, read its `summary.md`, and open only the flagged screenshots plus at least two passed ones per spec. The review starts Ollama itself if it is not running; if it still cannot run (exit 3), open the screenshots directly. A local pass is a hint, never acceptance or sign-off, and it does not notice missing content (spec DOM checks cover that).
 - Run the full `npm run e2e` for release work or changes to shared UI infrastructure, persistence, or the E2E harness. Do not describe a targeted run as full regression coverage.
 - Build with `npm run build:app` (same debug Tauri build, but under exclusive access and reused when every input matches) so builds and desktop runs do not collide. Run Cargo commands that use the shared `target\` folder through `npm run access -- <name> -- <command>` when another agent may be building or running desktop specs. See "Building and running without stepping on each other" in `e2e/README.md`.
 - `npm run select:specs` lists the desktop specs a change can affect (unknown or shared files select everything); `npm run verify:fast` runs the full unit suite, tsc and lint plus only the native checks and desktop specs the change reaches; `npm run verify:full` runs everything. Neither is milestone or release acceptance, and a fast or targeted run must never be described as full regression coverage.
@@ -29,3 +34,7 @@ Authority: the owner's 20 October 2026 instruction to record these rules in repo
 - Additional benchmark repetitions beyond the agreed measurement plan require explicit owner approval. Record all failures and retries; approval is not inferred from silence or an available time budget.
 - Coordinate measurement windows: do not run unit tests, lint, compilation, other desktop sessions or profiling alongside another agent's performance measurements. Do not stop another agent's processes to obtain access.
 - The verification tooling must expose its plan before execution and must not silently turn a routine fix into full regression or benchmarking. Existing selection/cache limitations must be disclosed rather than used as a reason to repeat unaffected validation.
+
+## Waiting on long-running or remote work
+
+An assistant does nothing between turns. Never close a turn with "I'll check later" unless the wake-up is already running: start a background watch (for example `gh run watch <id> --exit-status` with `run_in_background`) in the same turn as the dispatch, before the hand-off message. If the watch can end early, say so and re-arm it when it returns; if nothing can wake the assistant, tell the owner to ping it. When the work finishes, read and report the result unprompted (passed, failed, cause, options). Never rely on the owner to announce a failure.

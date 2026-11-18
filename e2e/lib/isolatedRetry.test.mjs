@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseRetryOptions, retryFailuresInIsolation } from "./isolatedRetry.mjs";
+import { parseRetryOptions, retryFailuresInIsolation, serializeExecutedResult } from "./isolatedRetry.mjs";
+import { aggregateShardResults } from "./shardAggregate.mjs";
 
 const pass = name => ({ name, code: 0, output: `${name} ok`, durationMs: 1000 });
 const fail = (name, output = `${name} broke`) => ({ name, code: 1, output, durationMs: 2000 });
@@ -96,5 +97,52 @@ describe("--retry-failed", () => {
   });
   it("refuses to combine with parallel running, so a retried pass can never count as parallel proof", () => {
     expect(() => parseRetryOptions(["--retry-failed"], 2)).toThrow(/--concurrency=1/);
+  });
+});
+
+describe("the e2e-last-run.json record of a retried spec (VS-14)", () => {
+  const onDisk = r => JSON.parse(JSON.stringify(serializeExecutedResult(r)));
+  const retried = async (name, retryResult, firstOutput) => {
+    const first = fail(name, firstOutput);
+    const { results } = await retryFailuresInIsolation({ results: [first], run: async () => retryResult, budget: 3 });
+    return { first, record: onDisk(results[0]) };
+  };
+  it("keeps the first attempt's exit code, duration and full output when the retry passes", async () => {
+    const { first, record } = await retried("b.mjs", pass("b.mjs"), "Error: first attempt broke\n  at step 3");
+    expect(record).toMatchObject({ name: "b.mjs", code: 0, flaky: true, output: "b.mjs ok" });
+    expect(record.attempts).toEqual([
+      { code: 1, durationMs: first.durationMs, output: "Error: first attempt broke\n  at step 3" },
+      { code: 0, durationMs: 1000, output: "b.mjs ok" },
+    ]);
+  });
+  it("keeps both attempts and no flaky mark when the retry fails too", async () => {
+    const { record } = await retried("b.mjs", fail("b.mjs", "second attempt broke"), "first attempt broke");
+    expect(record).toMatchObject({ name: "b.mjs", code: 1, flaky: false, output: "second attempt broke" });
+    expect(record.attempts.map(a => [a.code, a.output])).toEqual([[1, "first attempt broke"], [1, "second attempt broke"]]);
+  });
+  it("keeps the first failure when the retry could not run", async () => {
+    const first = fail("b.mjs", "first attempt broke");
+    const { results } = await retryFailuresInIsolation({ results: [first], run: async () => { throw new Error("driver gone"); }, budget: 3 });
+    const record = onDisk(results[0]);
+    expect(record.code).toBe(1);
+    expect(record.flaky).toBe(false);
+    expect(record.attempts).toEqual([{ code: 1, durationMs: first.durationMs, output: "first attempt broke" }]);
+  });
+  it("writes no attempts for a spec that was never retried", () => {
+    expect(onDisk(pass("a.mjs"))).toEqual({ name: "a.mjs", code: 0, durationMs: 1000, output: "a.mjs ok" });
+  });
+  it("reaches the aggregate as a retry kept apart from failures, for a pass after a fail and a fail after a fail", async () => {
+    const passed = await retried("b.mjs", pass("b.mjs"));
+    const failedTwice = await retried("c.mjs", fail("c.mjs", "again"));
+    const names = ["a.mjs", "b.mjs", "c.mjs"];
+    const identity = { artifactStatus: "fresh", exeSha256: "EXE", buildKey: "KEY", testKey: "T" };
+    const record = { sourceValid: true, valid: true, concurrency: 1, identity, selected: names, executed: [onDisk(pass("a.mjs")), passed.record, failedTwice.record] };
+    const result = aggregateShardResults({ expected: names, total: 1, prepared: { exeSha256: "EXE", buildKey: "KEY" }, runAttempt: 1, shards: [{ index: 1, meta: { index: 1, total: 1, runAttempt: 1 }, record }] });
+    expect(result.retries).toEqual([
+      { shard: 1, name: "b.mjs", firstExit: 1, finalExit: 0, passedOnRetry: true },
+      { shard: 1, name: "c.mjs", firstExit: 1, finalExit: 1, passedOnRetry: false },
+    ]);
+    expect(result.failures).toEqual([{ shard: 1, name: "c.mjs", code: 1, attempts: 2 }]);
+    expect(result.totals).toMatchObject({ passed: 2, failed: 1, retried: 2, passedOnRetry: 1 });
   });
 });

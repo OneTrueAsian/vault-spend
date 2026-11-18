@@ -76,11 +76,31 @@ gigabytes. Three layers now stop that:
 - `run-all.mjs` (and `stress.mjs`) give every spec its own `TEMP`/`TMP` folder and delete it when the spec
   ends, including a spec killed on timeout whose own exit cleanup never ran. Folders left by a run that
   was itself killed are swept from `%TEMP%\vaultspend-e2e-runs` by a later run once 6 hours old.
-- Specs and tools that start msedgedriver themselves (feature172, `tools/test_mobile_*`) give it an
+- Specs and tools that start msedgedriver themselves (feature172, `tools/mobile/test_mobile_*`) give it an
   isolated temp folder too.
 
 Screenshot folders follow the same rule: set the spec's own output variable (`VS_SCREENS_DIR`,
 `VS_T9_SHOTS`, `COMPARISONS_SHOTS_DIR`, …) to keep screenshots somewhere permanent.
+
+## Keeping and reviewing a run's screenshots
+
+`npm run e2e -- --spec=<specs> --keep-screens` also copies every screenshot a spec saves through the harness session
+(`saveScreenshot`) into `target/e2e-shots/<run start, UTC>/<spec>/`. The harness does this when `VAULTSPEND_SHOTS_DIR` is
+set, which the runner sets per spec; each spec's own screenshot file and folder are unchanged, and without the switch nothing
+changes. The newest three runs are kept. The run report prints `Screenshots kept: N in <folder>` and
+`target\e2e-last-run.json` records `keptScreens` (with a per-spec count). Mobile Playwright captures and pixel measurements
+(`takeScreenshot`) are not kept. About twenty specs save screenshots only when their own variable is set (for example
+`VS_M5_SHOTS`, `VAULTSPEND_E2E_SHOTS`, `VS_QA_COMPLETION_SHOTS`, `VS_TASK7_SHOTS`; `grep -rn "process.env.*SHOTS\|_OUTPUT" e2e`
+lists them). The report names every spec that kept no screenshots; set that spec's variable too if you need its screenshots
+reviewed. A spec that kept none has not been reviewed, which is not the same as passing review.
+
+`npm run e2e:review -- [folder]` then reviews every PNG in the folder (default: the newest kept run) with a local vision model,
+Ollama's `qwen3.6:35b` with thinking off, and writes `summary.md` (counts plus only the flagged and unsure screenshots) and
+`verdicts.json` into it. It takes about 5 seconds per screenshot and unloads the model when done. Run it after an E2E run, never
+during one. If Ollama is not answering on this machine, it starts `ollama serve` in the background (from PATH or the default install folder), waits up to 30 seconds and leaves it running. Exit 0 when reviewed, 3 when Ollama still cannot be reached or the model is missing, 1 otherwise; `--host=` and `--model=` override the
+defaults. It works on any folder of screenshots, such as a UAT capture.
+
+To review E2E or UAT screenshots, run the specs with `--keep-screens` (or use the UAT shots folder), then `npm run e2e:review -- [folder]`, read its `summary.md`, and open only the flagged screenshots plus at least two passed ones per spec. The review starts Ollama itself if it is not running; if it still cannot run (exit 3), open the screenshots directly. A local pass is a hint, never acceptance or sign-off, and it does not notice missing content (spec DOM checks cover that). Measured on 17 November 2026: 9 of 12 seeded faults caught, 1 of 64 good screens flagged, about 85% fewer Claude tokens than viewing every screenshot.
 
 ## Running a spec
 
@@ -118,7 +138,7 @@ To switch visual style the way a person does, use `chooseStyle(browser,
 style's row, chooses it and waits until it applies.
 
 Dates on screen are written out ("Oct 4", or "Oct 4, 2025" for another year), the way
-`formatDisplayDate` in `src/format.ts` shows them; `displayDate` in `lib/dates.mjs` gives the text to
+`formatDisplayDate` in `src/shared/lib/format.ts` shows them; `displayDate` in `lib/dates.mjs` gives the text to
 expect. Every date field is `DateField` and every month field `MonthField`: a text box in the
 region's own order ("10/04/2026", "04/10/2026", "2026/10/04") with a calendar the app draws beside it;
 there is no native date or month control, so nothing in a spec may select `input[type="date"]` or
@@ -228,6 +248,11 @@ node e2e/run-all.mjs --concurrency=1 --retry-failed   # also re-run each failed 
 ```
 
 `--retry-failed[=N]` exists because one intermittent failure in one of ~255 specs fails a whole hosted release gate. It is off by default, so a local run shows every failure, and the hosted full gate turns it on. It needs `--concurrency=1`, so a retried pass can never count toward the parallel-safety proof. After the run, each failed spec is run once more, alone. A spec that then passes counts as passed, but the run prints `FLAKY` with the spec's first failure in full, and `target/e2e-last-run.json` keeps both attempts (`attempts`, `flaky`). A flaky pass is an intermittent failure on this build to investigate, not a clean pass. A spec that fails again stays failed. If more than N (default 3) specs fail, nothing is retried, because that many failures is not an isolated flake.
+
+Where retry evidence lives, and for how long:
+- **Shard record** (`target/e2e-last-run.json`, uploaded by each sharded-gate shard as the `shard-evidence-<n>-attempt-<run attempt>` artifact, kept 14 days by `retention-days` in `windows-desktop-gate-sharded.yml`): every executed spec has its own exit code, duration and full output. A retried spec also has `attempts`, listing each attempt's `code`, `durationMs` and full `output` in order, so a spec that failed and then passed keeps its failed first attempt (`flaky: true`). A spec that failed twice keeps both (`flaky: false`). If the retry could not start, `attempts` holds the first failure alone.
+- **Aggregate** (`sharded-gate-summary-<run attempt>`, also 14 days): lists retries apart from failures. A retry entry records the first and final exit codes and whether it passed on retry; a spec that failed its retry is also listed under failures. The gate-wide retry budget is not relaxed. The summary does not copy the output or durations; those stay in the shard record.
+- **Job log**: the run prints `FLAKY` with each first failure in full. How long a log is kept is GitHub's repository setting; the workflow does not set it. After the 14 days the shard record is gone, so keep a failing run's evidence elsewhere if it is needed longer.
 
 A spec that runs longer than 60 seconds is killed as hung. A much slower machine (the hosted Windows CI
 runner) can raise that ceiling with `VAULTSPEND_E2E_SPEC_TIMEOUT_MS` (a whole number of milliseconds from

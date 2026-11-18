@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { dismissFirstLaunchDialogs, launchApp, openSettingsGroup } from "./harness.mjs";
-import { enableProtectionThroughUI, seedPopulatedProfile, waitForProtectionSetupCompletion } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, seedPopulatedProfile, waitForProtectionSetupCompletion, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 
 const PASSWORD = "correct horse battery staple";
@@ -27,7 +27,7 @@ try {
   await enableProtectionThroughUI(browser, PASSWORD);
   await waitForProtectionSetupCompletion(browser);
   await browser.waitUntil(async () => (await browser.$(".page").getText()).includes("Password protection: On"), {
-    timeout: 10000,
+    timeout: PROTECTION_FINISH_MS,
     timeoutMsg: "expected Password protection: On after finishing setup",
   });
 

@@ -8,6 +8,7 @@
 
 import { chooseRowAction, launchApp, reclaimWindowFocus, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { openReportsTab } from "./lib/reportsTabs.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -133,6 +134,7 @@ try {
   const reportsNav = await app.browser.$("button*=Reports");
   await reportsNav.click();
 
+  await openReportsTab(app.browser, "people");
   const membersTable = await app.browser.$("[data-report-members]");
   await membersTable.waitForExist({ timeout: 10000 });
   await app.browser.waitUntil(async () => (await membersTable.getText()).includes("Alex"), {

@@ -1,0 +1,23 @@
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+
+// The base `button:hover` rule (SharedButtons.css) fills a hovered button with the accent colour and
+// outweighs `.help-link`, which left the ? button's text nearly unreadable on hover in every style.
+describe("? Help button hover", () => {
+  it("sets its own background on hover, so the accent fill from button:hover never applies", () => {
+    const css = readFileSync(new URL("../../app/AppShell.css", import.meta.url), "utf8");
+    const hover = css.match(/\.help-link:hover\s*\{([^}]*)\}/);
+    expect(hover, ".help-link:hover rule").not.toBeNull();
+    expect(hover![1]).toMatch(/background(-color)?:\s*var\(--surface-hover\)/);
+  });
+});
+
+describe("profile switcher hover contrast", () => {
+  it("keeps the sidebar foreground/background pair instead of inheriting the primary-button accent fill", () => {
+    const css = readFileSync(new URL("../../app/AppShell.css", import.meta.url), "utf8");
+    const hover = css.match(/\.profile-switcher-toggle:hover[^{}]*\{([^}]*)\}/);
+    expect(hover, "scoped profile hover rule").not.toBeNull();
+    expect(hover![1]).toMatch(/background:\s*var\(--sidebar-bg-hover\)/);
+    expect(hover![1]).toMatch(/color:\s*var\(--sidebar-text-active\)/);
+  });
+});

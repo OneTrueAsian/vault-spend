@@ -1,11 +1,11 @@
 //! Profile selection, unlock and manual lock (plan v2 §4.4-4.5). Thin wrappers: all the real logic
-//! (attempt delays, the crypto, choosing the next `StartupState`) lives in `protection_session`,
+//! (attempt delays, the crypto, choosing the next `StartupState`) lives in `protection::session`,
 //! `budget_core::protection`/`store`, and `startup::startup_state_for_registry`.
 use crate::commands::{AppState, AppStateHandle};
 use crate::config::AppPaths;
 use crate::device_settings::DeviceSettingsStore;
 use crate::profiles;
-use crate::protection_session::{Sessions, SetupChallenge};
+use crate::protection::session::{Sessions, SetupChallenge};
 use crate::startup::{self, LaunchStatus, StartupState};
 use budget_core::protection::keyfile::KeyFile;
 use budget_core::protection::recovery::RecoveryCode;
@@ -174,7 +174,7 @@ pub fn lock_current_profile(expected_generation: u64, app: tauri::AppHandle, pat
 }
 
 /// Turns password protection on for the currently open (and so far unprotected) profile — the
-/// journaled conversion itself lives in `protection_transition::enable_protection`; this function
+/// journaled conversion itself lives in `protection::transition::enable_protection`; this function
 /// just supplies the profile identity from the live session, then hot-swaps the connection to the
 /// freshly encrypted file the same way `unlock_profile` swaps in a freshly opened one (`startup::
 /// activate`, not a raw field assignment, so the second backup folder, the tray and the due-backup
@@ -203,7 +203,7 @@ pub fn enable_profile_protection_with_recovery(
         // may mutate this profile's data while it is being exported into and verified against the
         // new encrypted file.
         let session = runtime.lock()?;
-        crate::protection_transition::enable_protection_with_recovery(
+        crate::protection::transition::enable_protection_with_recovery(
             &paths.config_path,
             &profile_id,
             &db_path,
@@ -262,7 +262,7 @@ pub fn change_password(
         if paths.current_generation() != expected_generation {
             return Err("The active profile changed before this operation could finish.".into());
         }
-        crate::protection_lifecycle::rotate_password_with_recovery(
+        crate::protection::lifecycle::rotate_password_with_recovery(
             &paths.config_path,
             &profile_id,
             &db_path,
@@ -276,7 +276,7 @@ pub fn change_password(
     let dek = key_file.unlock_with_password(&new_password).map_err(|e| e.to_string())?;
     let state = AppState::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string())?;
     startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
-    if let Err(reason) = crate::protection_lifecycle::complete_committed_rotation(&paths.config_path) {
+    if let Err(reason) = crate::protection::lifecycle::complete_committed_rotation(&paths.config_path) {
         eprintln!("password rotation committed; old-file cleanup will resume on restart: {reason}");
     }
     startup::broadcast_state(&app);
@@ -318,7 +318,7 @@ pub fn commit_regenerate_recovery(
     }
     let recovery_display = recovery_code.display();
     let db_path = current_db_path(&paths);
-    crate::protection_lifecycle::regenerate_recovery_with_code(&db_path, &current_password, recovery_code)?;
+    crate::protection::lifecycle::regenerate_recovery_with_code(&db_path, &current_password, recovery_code)?;
     Ok(recovery_display)
 }
 
@@ -342,7 +342,7 @@ pub fn remove_protection(
         if paths.current_generation() != expected_generation {
             return Err("The active profile changed before this operation could finish.".into());
         }
-        crate::protection_lifecycle::remove_protection(
+        crate::protection::lifecycle::remove_protection(
             &paths.config_path,
             &profile_id,
             &db_path,
@@ -353,7 +353,7 @@ pub fn remove_protection(
     };
     let state = AppState::open(&target_path).map_err(|e| e.to_string())?;
     startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
-    if let Err(reason) = crate::protection_lifecycle::complete_committed_removal(&paths.config_path) {
+    if let Err(reason) = crate::protection::lifecycle::complete_committed_removal(&paths.config_path) {
         eprintln!("protection removal committed; encrypted-file cleanup will resume on restart: {reason}");
     }
     startup::broadcast_state(&app);
@@ -413,7 +413,7 @@ pub fn begin_recovery(
 
 /// Finishes recovery for `id`: re-verifies `code` against the on-disk key file one more time (never
 /// trusting `begin_recovery`'s earlier check alone), opens the profile with the DEK it unwraps, and
-/// rotates to the confirmed new password via `protection_lifecycle::recover_password_with_recovery`
+/// rotates to the confirmed new password via `protection::lifecycle::recover_password_with_recovery`
 /// — the same journaled rotation `change_password` uses, so a kill mid-recovery resolves through the
 /// exact startup recovery Task 2 already built (`recover_interrupted_rotation`). Activates the
 /// profile on success, the same hot-swap `unlock_profile`/`change_password` already do.
@@ -443,7 +443,7 @@ pub fn commit_recovery(
         return Err("Something else changed before recovery could finish.".into());
     }
     let opened = Store::open_with_key(&target.db_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string())?;
-    let (new_key_file, committed_recovery_code, target_path) = crate::protection_lifecycle::recover_password_with_recovery(
+    let (new_key_file, committed_recovery_code, target_path) = crate::protection::lifecycle::recover_password_with_recovery(
         &paths.config_path,
         &id,
         &target.db_path,
@@ -461,7 +461,7 @@ pub fn commit_recovery(
     let new_dek = new_key_file.unlock_with_password(&new_password).map_err(|e| e.to_string())?;
     let state = AppState::open_with_key(&target_path, DatabaseKey::Raw(new_dek.as_bytes())).map_err(|e| e.to_string())?;
     startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
-    if let Err(reason) = crate::protection_lifecycle::complete_committed_rotation(&paths.config_path) {
+    if let Err(reason) = crate::protection::lifecycle::complete_committed_rotation(&paths.config_path) {
         eprintln!("recovery committed; old-file cleanup will resume on restart: {reason}");
     }
     startup::broadcast_state(&app);
@@ -522,7 +522,7 @@ pub fn commit_protection_setup(
         }
         (None, Some(name)) => {
             let live_db_path = current_db_path(&paths);
-            crate::protection_transition::create_protected_profile_with_recovery(
+            crate::protection::transition::create_protected_profile_with_recovery(
                 &paths.config_path,
                 &live_db_path,
                 &name,
@@ -548,7 +548,7 @@ pub fn list_protection_leftovers(
     paths: tauri::State<AppPaths>,
     device: tauri::State<DeviceSettingsStore>,
     runtime: tauri::State<AppStateHandle>,
-) -> Result<Vec<crate::protection_leftovers::LeftoverEntry>, String> {
+) -> Result<Vec<crate::protection::leftovers::LeftoverEntry>, String> {
     let _open = runtime.lock()?;
     ensure_cleanup_origin(&paths, &expected_profile_id, expected_generation)?;
     let db_path = current_db_path(&paths);
@@ -557,7 +557,7 @@ pub fn list_protection_leftovers(
         return Ok(Vec::new());
     };
     let mirror = device.snapshot().backup_mirror_dir(&profile_id).map(std::path::PathBuf::from);
-    crate::protection_leftovers::list_leftovers(&former_path, mirror.as_deref())
+    crate::protection::leftovers::list_leftovers(&former_path, mirror.as_deref())
 }
 
 #[tauri::command]
@@ -577,7 +577,7 @@ pub fn delete_protection_leftovers(
         return Ok(paths_to_delete);
     };
     let mirror = device.snapshot().backup_mirror_dir(&profile_id).map(std::path::PathBuf::from);
-    crate::protection_leftovers::delete_leftovers(&paths_to_delete, &former_path, mirror.as_deref(), &db_path)
+    crate::protection::leftovers::delete_leftovers(&paths_to_delete, &former_path, mirror.as_deref(), &db_path)
 }
 
 /// Called only while holding the runtime slot: transitions cannot change the
@@ -596,7 +596,7 @@ mod tests {
     // unit test without a running Tauri app (there is no existing precedent for mocking that in
     // this codebase — `commands.rs`'s own tests exercise the plain functions underneath, e.g.
     // `profiles::create_profile`, not `commands::create_profile` itself). This module's behaviour
-    // is therefore proved by: (a) the plain-function tests in `startup.rs`/`protection_session.rs`
+    // is therefore proved by: (a) the plain-function tests in `startup.rs`/`protection::session.rs`
     // that back every branch here, and (b) feature101/feature102 (Task 9), which drive the actual
     // compiled app through these exact commands over IPC.
 }

@@ -40,3 +40,8 @@ export async function retryFailuresInIsolation({ results, run, budget }) {
   }
   return { results: results.map(r => replaced.get(r.name) ?? r), flaky };
 }
+
+/** The record one executed spec gets in target/e2e-last-run.json. A retried spec keeps every attempt's exit code, duration and full output, so a pass after a failure never loses the failure. */
+export function serializeExecutedResult(r) {
+  return { name: r.name, code: r.code, durationMs: r.durationMs, output: r.output, ...(r.attempts ? { attempts: r.attempts.map((a) => ({ code: a.code, durationMs: a.durationMs, output: a.output })), flaky: r.code === 0 } : {}) };
+}

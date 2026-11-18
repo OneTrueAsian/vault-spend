@@ -21,6 +21,12 @@ const trend = () => b.execute(() => {
   const card = heading.closest('.card');
   return { axes: [...card.querySelectorAll('.axis-label')].map(e => e.textContent), points: card.querySelector('polyline')?.getAttribute('points') };
 });
+// The chart first draws at its default width and redraws once it has measured its container; compare only settled drawings.
+const chartSized = () => waitUntilOrDiagnose(b, () => b.execute(() => {
+  const line = [...document.querySelectorAll('.reports-section-title')].find(e => e.textContent === 'Net worth trend')?.closest('.card')?.querySelector('polyline');
+  const svg = line?.ownerSVGElement;
+  return !!svg && Math.abs(svg.viewBox.baseVal.width - svg.getBoundingClientRect().width) < 1;
+}), {timeout:10000, timeoutMsg:'the net-worth trend chart has measured its width'});
 const householdWorth = () => b.execute(() => {
   const heading = [...document.querySelectorAll('h2')].find(e => e.textContent === 'Net worth by person');
   return heading?.closest('.card')?.innerText ?? '';
@@ -28,6 +34,7 @@ const householdWorth = () => b.execute(() => {
 try {
   await b.setWindowSize(1280, 900);
   await waitUntilOrDiagnose(b, async () => await worth() === '$1,100.00', {timeout:10000, timeoutMsg:'current property is included in net-worth headline'});
+  await chartSized();
   const before = await trend();
   assert.ok(before?.axes.length && before.points, 'the actual historical chart is present');
   await nav('Household');
@@ -48,6 +55,7 @@ try {
   await waitUntilOrDiagnose(b, async () => await (await (await property()).$('button.bal')).getText() === '$250.00', {timeout:10000, timeoutMsg:'Accounts reads back the edited current value'});
   await nav('Dashboard');
   await waitUntilOrDiagnose(b, async () => await worth() === '$1,250.00', {timeout:10000, timeoutMsg:'Dashboard headline updates after the edit'});
+  await chartSized();
   assert.deepEqual(await trend(), before, 'editing today\'s property does not rewrite historical chart points or amounts');
   assert.ok((await b.$('body').getText()).includes('does not include property and valuables'));
   await nav('Household');

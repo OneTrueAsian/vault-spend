@@ -3,7 +3,7 @@
 // date is relative to today; every figure the specs expect is derived from the
 // numbers below (see e2e/lib/accumulation.mjs for the independent maths).
 //
-//   Joey Roth IRA   6 x $450 deposits (back 6..1), holdings worth $10,000,
+//   Sample Roth IRA 6 x $450 deposits (back 6..1), holdings worth $10,000,
 //                   plan: 7%, withdraw in 36 months, no monthly saved (uses the
 //                   $450 average), no "spread over years"
 //   Sam's 529       4 x $275 deposits (back 4..1), holdings worth $3,000,
@@ -39,7 +39,7 @@ def plan(account_id, monthly, pct, months_ahead, years):
     cur.execute("INSERT INTO investment_plans (account_id, monthly_contribution, annual_return_pct, withdraw_date, withdraw_years) VALUES (?,?,?,?,?)",
                 (account_id, monthly, pct, d, years))
 
-roth = acct("Joey Roth IRA", "investment")
+roth = acct("Sample Roth IRA", "investment")
 sam = acct("Sam's 529", "investment")
 alex = acct("Alex's 529", "investment")
 brokerage = acct("Fidelity Brokerage", "investment")
@@ -63,9 +63,9 @@ plan(sam, "300.00", "6", 60, 3)
 /** What the fixture adds up to, worked out by hand. */
 export const SUMMARY_EXPECTED = {
   rows: 4,
-  invested: { "Joey Roth IRA": 2700, "Sam's 529": 1100, "Alex's 529": 450, "Fidelity Brokerage": 0 },
-  worth: { "Joey Roth IRA": 10000, "Sam's 529": 3000, "Alex's 529": 1000, "Fidelity Brokerage": 2000 },
-  monthly: { "Joey Roth IRA": 450, "Sam's 529": 300, "Alex's 529": 225 },
+  invested: { "Sample Roth IRA": 2700, "Sam's 529": 1100, "Alex's 529": 450, "Fidelity Brokerage": 0 },
+  worth: { "Sample Roth IRA": 10000, "Sam's 529": 3000, "Alex's 529": 1000, "Fidelity Brokerage": 2000 },
+  monthly: { "Sample Roth IRA": 450, "Sam's 529": 300, "Alex's 529": 225 },
   totalInvested: 4250,
   totalWorth: 16000,
   totalMonthly: 975,

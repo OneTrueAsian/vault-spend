@@ -843,14 +843,14 @@ mod tests {
             });
         }
         assert_eq!(serde_json::to_value(states).unwrap(), fixture["startup"]);
-        let challenge = crate::protection_session::SetupChallenge {
+        let challenge = crate::protection::session::SetupChallenge {
             token: "inert-contract-token".into(),
             recovery_display: "0000-0000-0000-0000-0000-0000-0000".into(),
             challenge_group_indices: [0, 6],
         };
         assert_eq!(serde_json::to_value(&challenge).unwrap(), fixture["challenge"]);
         assert!(budget_core::protection::recovery::RecoveryCode::parse(&challenge.recovery_display).is_ok());
-        use crate::protection_leftovers::{LeftoverEntry, LeftoverKind};
+        use crate::protection::leftovers::{LeftoverEntry, LeftoverKind};
         let leftovers = vec![
             LeftoverEntry {
                 path: "E:\\fixture\\original.db".into(),

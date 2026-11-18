@@ -22,7 +22,7 @@ export function isoDaysFromNow(offset, now = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** How the app shows a stored "YYYY-MM-DD" in a list (src/format.ts formatDisplayDate): "Oct 4" in
+/** How the app shows a stored "YYYY-MM-DD" in a list (src/shared/lib/format.ts formatDisplayDate): "Oct 4" in
  * `now`'s year, "Oct 4, 2025" in any other. */
 export function displayDate(iso, now = new Date()) {
   const [y, m, d] = iso.split("-").map(Number);

@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { chooseStyle, launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { invoke } from "./lib/change-password.mjs";
-import { enableProtectionThroughUI } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 import { askPreparedQuestion } from "./lib/askPreparedQuestion.mjs";
 
 // M5 acceptance in the compiled app: the Ask card takes a question about extra money into one investment account through
@@ -87,6 +87,7 @@ try {
   // Changing the details asks for the account again, and drops the result at once.
   await clickButton("Change the details");
   await waitText("Nothing has been calculated yet", "choices after Change the details");
+  await waitText("M5 IRA", "the investment accounts to be listed after Change the details");
   const again = await text();
   assert.ok(again.includes("M5 IRA") && again.includes("M5 Other") && !again.includes("Illustrative balance"), `the account is asked again and the result is gone: ${again}`);
   await closeAndCheckFocus();
@@ -117,6 +118,7 @@ try {
   // 6. A question without an account asks which one; the roster is the native one.
   await ask("extra $50 a month for retirement");
   await waitText("Nothing has been calculated yet", "choices");
+  await waitText("M5 IRA", "the investment accounts to be listed");
   const choices = await text();
   assert.ok(choices.includes("M5 IRA") && choices.includes("M5 Other") && !choices.includes("M5 Checking"), `only investment accounts are offered: ${choices}`);
   await clickButton("Close");
@@ -167,7 +169,7 @@ try {
   // 9. Locking removes everything: no dialog, no figures, no question after unlocking.
   await (await b.$("button*=Settings")).click();
   await enableProtectionThroughUI(b, PASSWORD);
-  await b.waitUntil(async () => (await b.$(".page").getText()).includes("Password protection: On"), { timeout: 15000 });
+  await b.waitUntil(async () => (await b.$(".page").getText()).includes("Password protection: On"), { timeout: PROTECTION_FINISH_MS });
   await openDashboard();
   await toResult();
   assert.equal((await invoke(b, "debug_apply_system_session_event", { event: "locked" })).ok, true);

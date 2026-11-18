@@ -1,6 +1,6 @@
 // Protected `.vaultspend` package round trip through the compiled app. Native save/folder pickers
 // cannot be driven by WebDriver, so this invokes the same backend commands with paths inside the
-// isolated test directory; Modal.test.tsx covers the source chooser and package-password UI.
+// isolated test directory; features/profiles/ProtectedPackageImportDialogs.test.tsx covers the source chooser and package-password UI.
 // Run with: node e2e/run-all.mjs --spec=118
 
 import assert from "node:assert/strict";
@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { launchApp } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
-import { enableProtectionThroughUI, seedPopulatedProfile } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, seedPopulatedProfile, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 
 const PASSWORD = "correct horse battery staple";
 
@@ -26,7 +26,7 @@ try {
   const { browser } = app;
   await (await browser.$("button*=Settings")).click();
   await enableProtectionThroughUI(browser, PASSWORD);
-  await browser.$("button=Change password").waitForExist({ timeout: 15000 });
+  await browser.$("button=Change password").waitForExist({ timeout: PROTECTION_FINISH_MS });
 
   const packagePath = path.join(testDbDir, "portable-profile.vaultspend");
   const exported = await invoke(browser, "export_database", { destination: packagePath });

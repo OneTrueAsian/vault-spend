@@ -1,0 +1,80 @@
+/* Reports tabs (VS-31 step 2, stream R). Reports-only rules; the shared stylesheets are untouched. */
+
+/* Seven tabs: the strip already wraps between tabs at a narrow width; a tab's name never breaks inside. */
+.reports-tabs > button {
+  white-space: nowrap;
+}
+
+/* The print-only copy of every section (see ReportsOverview). It is drawn on paper only. */
+.reports-print-all {
+  display: none;
+}
+
+.reports-print-section {
+  margin-bottom: 16px;
+}
+
+@media print {
+  /* Paper shows every section once, from the print block; the tab panels (and the controls strip's range picker) step aside. */
+  .reports-view[data-printing] .reports-panel {
+    display: none !important;
+  }
+
+  .reports-view[data-printing] .reports-print-all {
+    display: block;
+  }
+
+  .reports-print-section {
+    break-inside: avoid-page;
+  }
+
+  /* Paper can't scroll: the flow chart and the heatmap fit the page instead of keeping a scroll bar. */
+  .reports-print-all .table-scroll {
+    overflow: visible;
+  }
+
+  .reports-print-all .sankey-svg {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .reports-print-all .heatmap-grid {
+    width: auto;
+    max-width: 100%;
+    flex-wrap: nowrap;
+  }
+
+  /* The category-by-month figures stay whole (an amount may not break inside the number), so the table shrinks to fit the
+     sheet instead: smaller type, and smaller still for more than six months. */
+  .reports-print-all .report-table th,
+  .reports-print-all .report-table td {
+    font-size: 10px;
+    padding-left: 3px;
+    padding-right: 3px;
+  }
+
+  .reports-print-all .report-table td.amount-col,
+  .reports-print-all .report-table th.amount-col {
+    overflow-wrap: normal;
+    white-space: nowrap;
+  }
+
+  .reports-print-all .report-table-wide th,
+  .reports-print-all .report-table-wide td {
+    font-size: 8px;
+    padding-left: 1px;
+    padding-right: 1px;
+  }
+
+  .reports-print-all .report-table th:first-child,
+  .reports-print-all .report-table td:first-child {
+    width: 14%;
+  }
+
+  /* Paper leaves out background colors unless asked: the heatmap squares are only background color. */
+  .reports-print-all .heatmap-cell,
+  .reports-print-all .heatmap-legend-swatch {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

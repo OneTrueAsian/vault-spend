@@ -209,8 +209,8 @@ pub fn debug_set_main_window_visible(visible: bool, app: tauri::AppHandle) -> Re
 #[cfg(debug_assertions)]
 #[tauri::command]
 pub async fn debug_start_mobile_asset_server(
-    service: tauri::State<'_, crate::mobile_server::MobileService>,
-) -> Result<(crate::mobile_server::MobileStatus, crate::mobile_server::PublicCertificate), String> {
+    service: tauri::State<'_, crate::mobile::server::MobileService>,
+) -> Result<(crate::mobile::server::MobileStatus, crate::mobile::server::PublicCertificate), String> {
     let service = service.inner().clone();
     tauri::async_runtime::spawn_blocking(move || service.start_test_fixture())
         .await
@@ -225,7 +225,7 @@ pub fn debug_quit_app(app: tauri::AppHandle) {
 #[cfg(debug_assertions)]
 #[tauri::command]
 pub fn debug_mobile_authorization_race(app: tauri::AppHandle, stage: String, action: String, target: String) -> Result<String, String> {
-    crate::mobile_race::arm(app, stage, action, target)
+    crate::mobile::race::arm(app, stage, action, target)
 }
 #[cfg(debug_assertions)]
 #[tauri::command]
@@ -236,7 +236,7 @@ pub fn debug_mobile_database_digest(app: tauri::AppHandle) -> Result<String, Str
     if directory.canonicalize().ok() != paths.config_path.parent().and_then(|p| p.canonicalize().ok()) {
         return Err("Disposable data required".into());
     }
-    let file = directory.join(format!("mobile-read-check-{}.db", crate::mobile_devices::random()?));
+    let file = directory.join(format!("mobile-read-check-{}.db", crate::mobile::devices::random()?));
     app.state::<crate::runtime::AppRuntime>()
         .lock()?
         .store
@@ -252,8 +252,8 @@ pub fn debug_mobile_database_digest(app: tauri::AppHandle) -> Result<String, Str
 #[cfg(debug_assertions)]
 #[tauri::command]
 pub async fn debug_start_mobile_setup_server(
-    service: tauri::State<'_, crate::mobile_server::MobileService>,
-) -> Result<crate::mobile_bootstrap::SetupInfo, String> {
+    service: tauri::State<'_, crate::mobile::server::MobileService>,
+) -> Result<crate::mobile::bootstrap::SetupInfo, String> {
     let service = service.inner().clone();
     tauri::async_runtime::spawn_blocking(move || service.start_test_setup_fixture())
         .await

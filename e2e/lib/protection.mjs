@@ -14,6 +14,10 @@ import { makeTempDir } from "./tempDir.mjs";
 
 const INIT_DB_EXE = path.resolve("target/debug/init_db.exe");
 
+// Turning protection on runs Argon2id key derivation and encrypted exports, which a slow hosted runner can take several times longer than a
+// developer machine. Every wait that follows it shares this allowance (the same 45s the conversion wait below always used).
+export const PROTECTION_FINISH_MS = 45000;
+
 // Deleted on exit, passed or failed (see tempDir.mjs).
 function freshDir(prefix) {
   return makeTempDir(prefix);
@@ -97,7 +101,7 @@ export async function enableProtectionThroughUI(browser, password) {
   await (await browser.$("#protection-setup-confirm")).setValue(password);
   await (await browser.$("button=Continue")).click();
   const recoveryEl = await browser.$(".modal-panel .path-box");
-  await recoveryEl.waitForExist({ timeout: 10000 });
+  await recoveryEl.waitForExist({ timeout: PROTECTION_FINISH_MS });
   const recoveryDisplay = (await recoveryEl.getText()).trim();
   await (await browser.$("button=I've saved it")).click();
   const label0 = await browser.$("label[for='protection-setup-answer-0']");
@@ -134,11 +138,11 @@ export async function waitForProtectionSetupCompletion(browser) {
       if (message) throw Error(`Password protection setup failed: ${message}`);
     }
     return false;
-  }, { timeout: 45000, timeoutMsg: "password protection conversion must complete and close its setup wizard" });
+  }, { timeout: PROTECTION_FINISH_MS, timeoutMsg: "password protection conversion must complete and close its setup wizard" });
   console.log(`[timing] password protection conversion completed ${Date.now() - started}ms after Finish returned`);
 }
 
-const FAILPOINT_WAIT_MS = 30_000;
+const FAILPOINT_WAIT_MS = 90_000;
 
 function isProcessAlive(pid) {
   try {

@@ -98,7 +98,7 @@ try {
   await waitUntilOrDiagnose(b, async () => (await invoke("list_buckets")).some((x) => x.name === "Roof fund" && x.target_date === target), { timeoutMsg: "the goal should be saved with the typed target date" });
 
   // ---- 3. An account's page: the statement dates ----------------------------------------------
-  const accountId = await openDetails(b, "Joey Roth IRA");
+  const accountId = await openDetails(b, "Sample Roth IRA");
   await typeDate(b, "[data-statement-period-start]", isoDaysFromNow(-60));
   await typeDate(b, "[data-statement-date]", isoDaysFromNow(-1));
   await waitUntilOrDiagnose(b, async () => !(await disabled("[data-upload-statement]")), { timeoutMsg: "two finished dates should enable uploading" });

@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { dismissFirstLaunchDialogs, launchApp } from "./harness.mjs";
-import { enableProtectionThroughUI, seedProfiles } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, seedProfiles, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 
 async function invoke(browser, command, args = {}) {
   const result = await browser.executeAsync((command, args, done) => {
@@ -26,7 +26,7 @@ try {
   await (await browser.$("button*=Settings")).click();
   await enableProtectionThroughUI(browser, PASSWORD);
   await browser.waitUntil(async () => (await browser.$(".page").getText()).includes("Password protection: On"), {
-    timeout: 10000,
+    timeout: PROTECTION_FINISH_MS,
     timeoutMsg: "expected Password protection: On after finishing setup",
   });
 
@@ -125,7 +125,7 @@ try {
 
     await (await browser.$("button*=Settings")).click();
     await enableProtectionThroughUI(browser, PASSWORD);
-    await browser.waitUntil(async () => (await browser.$(".page").getText()).includes("Password protection: On"), { timeout: 10000 });
+    await browser.waitUntil(async () => (await browser.$(".page").getText()).includes("Password protection: On"), { timeout: PROTECTION_FINISH_MS });
 
     await (await browser.$(".profile-switcher-toggle")).click();
     await (await browser.$("[data-profile-switcher-lock]")).click();

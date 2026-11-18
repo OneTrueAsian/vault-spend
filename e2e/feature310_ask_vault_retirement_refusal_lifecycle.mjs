@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { launchApp, reclaimWindowFocus, openSettingsGroup } from "./harness.mjs";
+import { chooseProfileFromMenu } from "./lib/profileMenu.mjs";
 import { askHelpers, QUESTION_REFUSED_STORED, REFUSAL_MESSAGE, seedRefusalProfile } from "./lib/askRetirement.mjs";
 
 // M5 numeric-refusal lifecycle and privacy in the compiled app (task item 2). The refused ("needs attention") card and the choices that "Change the details" reopens must retire like any other
@@ -80,15 +81,13 @@ try {
   await b.$("//tr[td[contains(.,'Default')]]//button[text()='Switch']").click();
   await b.$(".ledger-qa-card input").waitForExist({ timeout: 10000 });
   await toBlocked();
-  await b.execute(() => document.querySelector(".profile-switcher-toggle").click());
-  await b.execute(() => [...document.querySelectorAll(".profile-switcher-option")].find(o => o.textContent.includes("M5 Other")).click());
+  await chooseProfileFromMenu(b, "M5 Other");
   await b.waitUntil(async () => (await b.$(".profile-switcher-name").getText()) === "M5 Other", { timeout: 10000 });
   await b.$(".ledger-qa-card input").waitForExist({ timeout: 10000 });
   assert.equal(await b.$(".ledger-qa-card input").getValue(), "", "the other profile starts with an empty question");
   assert.ok(!(await h.dialogOpen()), "no dialog in the other profile");
   assert.ok(!(await b.execute(message => document.body.textContent.includes(message), REFUSAL_MESSAGE)), "no refusal text in the other profile");
-  await b.execute(() => document.querySelector(".profile-switcher-toggle").click());
-  await b.execute(() => [...document.querySelectorAll(".profile-switcher-option")].find(o => o.textContent.includes("Default")).click());
+  await chooseProfileFromMenu(b, "Default");
   await b.waitUntil(async () => (await b.$(".profile-switcher-name").getText()) === "Default", { timeout: 10000 });
   await b.$(".ledger-qa-card input").waitForExist({ timeout: 10000 });
   assert.ok(!(await h.dialogOpen()), "nothing returns after switching back");

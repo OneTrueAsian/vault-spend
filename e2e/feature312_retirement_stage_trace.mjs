@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { launchApp } from "./harness.mjs";
 import { seedRetirementProfile, askHelpers, QUESTION } from "./lib/askRetirement.mjs";
 import { invoke } from "./lib/change-password.mjs";
-import { enableProtectionThroughUI, waitForProtectionSetupCompletion } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, waitForProtectionSetupCompletion, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 
 // Required kept compiled regression for the diagnostic boundary; normal profile files are never opened.
 const evidence = { flows: [] };
@@ -23,7 +23,7 @@ try {
   await b.$('.nav-item[data-tab="settings"]').click();
   await enableProtectionThroughUI(b, "stage trace fixture password");
   await waitForProtectionSetupCompletion(b);
-  await b.waitUntil(async () => (await b.$('.page').getText()).includes('Password protection: On'), { timeout: 15000 });
+  await b.waitUntil(async () => (await b.$('.page').getText()).includes('Password protection: On'), { timeout: PROTECTION_FINISH_MS });
   await h.openDashboard();
   await b.waitUntil(async () => b.execute(() => !!window.__vaultspendStageTrace), { timeout: 5000 });
   const getRoster = async () => {

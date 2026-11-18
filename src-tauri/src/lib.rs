@@ -8,41 +8,24 @@ mod config;
 #[cfg(debug_assertions)]
 mod debug_commands;
 mod device_settings;
-mod finnhub;
 mod holding_import;
 mod launch_commands;
 mod legacy_migration;
-mod live_price_provider;
 mod live_prices;
 mod maintenance;
-mod mobile_api;
-mod mobile_bootstrap;
-mod mobile_certificates;
+mod mobile;
 mod mobile_commands;
-mod mobile_devices;
-mod mobile_discovery;
-#[cfg(debug_assertions)]
-mod mobile_race;
-mod mobile_secrets;
-mod mobile_server;
 mod perf_log;
 mod profiles;
+mod protection;
 mod protection_commands;
-mod protection_leftovers;
-mod protection_lifecycle;
-mod protection_session;
-mod protection_transition;
-#[cfg(test)]
-mod quote_http_fixture;
 mod request_session;
 #[cfg(debug_assertions)]
 mod retirement_stage_trace;
 mod runtime;
 mod startup;
 mod statement_review;
-mod stockdata;
 mod system_session;
-mod twelve_data;
 pub mod updater;
 mod window_state;
 
@@ -124,8 +107,8 @@ pub fn run() {
             // beside config.json, so a start with no profile open can still decide what the tray and
             // the window do without a database.
             app.manage(device_settings::DeviceSettingsStore::load(default_dir.join(device_settings::DEVICE_SETTINGS_FILENAME)));
-            let mobile = mobile_server::MobileService::new(default_dir.clone());
-            app.manage(mobile_api::MobileAccess::new(default_dir.clone()));
+            let mobile = mobile::server::MobileService::new(default_dir.clone());
+            app.manage(mobile::api::MobileAccess::new(default_dir.clone()));
             app.manage::<AppStateHandle>(runtime::AppRuntime::no_profile_open());
             app.manage(config::AppPaths {
                 config_path: config_path.clone(),
@@ -133,7 +116,7 @@ pub fn run() {
                 generation: std::sync::atomic::AtomicU64::new(0),
             });
             app.manage(startup::LaunchStatus::new(default_dir.clone()));
-            app.manage(protection_session::Sessions::new());
+            app.manage(protection::session::Sessions::new());
             app.manage(auto_lock::AutoLockController::new());
             mobile.attach(app.handle().clone());
             app.manage(mobile.clone());
@@ -159,14 +142,14 @@ pub fn run() {
             // person can do about it (launch_commands.rs). Nothing quietly opens a different file instead.
             // Resolved before anything else opens: an interrupted `enable_protection` (Phase C,
             // Task 5) must either finish or fully unwind before `config.json`'s current db_path is
-            // trusted — see `protection_transition::recover_interrupted_operation`'s own doc
+            // trusted — see `protection::transition::recover_interrupted_operation`'s own doc
             // comment. A journal that cannot even be read is left for the person to see rather than
             // guessed at, the same "never silently open something else" treatment as a damaged
             // profiles.json.
             let handle = app.handle().clone();
-            let protection_recovery = protection_transition::recover_interrupted_operation(&config_path)
-                .and_then(|()| protection_lifecycle::recover_interrupted_rotation(&config_path))
-                .and_then(|()| protection_lifecycle::recover_interrupted_removal(&config_path));
+            let protection_recovery = protection::transition::recover_interrupted_operation(&config_path)
+                .and_then(|()| protection::lifecycle::recover_interrupted_rotation(&config_path))
+                .and_then(|()| protection::lifecycle::recover_interrupted_removal(&config_path));
             if let Err(reason) = protection_recovery {
                 eprintln!("couldn't recover an interrupted password-protection change: {reason}");
                 app.state::<startup::LaunchStatus>().set_error(startup::LaunchError {
@@ -520,7 +503,7 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| {
             if matches!(event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {
-                app.state::<mobile_server::MobileService>().stop();
+                app.state::<mobile::server::MobileService>().stop();
             }
         });
 }

@@ -4,7 +4,7 @@
 // they are absent from release builds.
 import assert from "node:assert/strict";
 import { launchApp } from "./harness.mjs";
-import { enableProtectionThroughUI } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 
 const PASSWORD = "correct horse battery staple";
 
@@ -21,7 +21,7 @@ async function protect(browser) {
   await (await browser.$("button*=Settings")).click();
   await enableProtectionThroughUI(browser, PASSWORD);
   await browser.waitUntil(async () => (await browser.$(".page").getText()).includes("Password protection: On"), {
-    timeout: 10000,
+    timeout: PROTECTION_FINISH_MS,
     timeoutMsg: "password protection should finish before testing window triggers",
   });
 }

@@ -9,6 +9,7 @@
 //   node e2e/run-all.mjs --spec=75,77      # only matching feature numbers
 //   node e2e/run-all.mjs --spec=smoke      # quick launch check
 //   node e2e/run-all.mjs --list            # show selected specs without launching
+//   node e2e/run-all.mjs --shard=2/6       # only the second of six balanced slices (see lib/specShard.mjs)
 //
 // Six is the pool limit inherited from the historical "reduce E2E testing time"
 // measurements. Current source-bound approvals determine whether any specs can
@@ -27,7 +28,9 @@ import { collectInputs, readToolchain } from "./lib/buildIdentity.mjs";
 import { GuardRefusal, beginGuardedRun } from "./lib/runGuard.mjs";
 import { classifySpecs, createApprovalContext, runSchedule } from "./lib/scheduler.mjs";
 import { matchesSelector } from "./lib/specSelectors.mjs";
-import { parseRetryOptions, retryFailuresInIsolation } from "./lib/isolatedRetry.mjs";
+import { parseRetryOptions, retryFailuresInIsolation, serializeExecutedResult } from "./lib/isolatedRetry.mjs";
+import { parseShard, shardSpecs } from "./lib/specShard.mjs";
+import { countKept, keptBySpec, startKeptRun } from "./lib/keepScreens.mjs";
 
 const e2eDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -76,7 +79,14 @@ if (selectors) {
     }
   }
 }
-const specs = selectors ? allSpecs.filter((name) => selectors.some((selector) => matchesSelector(name, selector))) : allSpecs;
+const selectedSpecs = selectors ? allSpecs.filter((name) => selectors.some((selector) => matchesSelector(name, selector))) : allSpecs;
+// --shard=2/6: only this slice of the selected specs (hosted jobs each run their own slice at the same time). The split uses the
+// committed spec-weights.json, never local timings, so every shard computes the same partition.
+let shard;
+try { shard = parseShard(process.argv); } catch (error) { console.error(error.message); process.exit(1); }
+let shardWeights = {};
+try { shardWeights = JSON.parse(fs.readFileSync(path.join(e2eDir, "spec-weights.json"), "utf8")).weights ?? {}; } catch { /* no weights yet: an even split by count */ }
+const specs = shard ? shardSpecs(selectedSpecs, shardWeights, shard) : selectedSpecs;
 let classification;
 try { classification = JSON.parse(fs.readFileSync(path.join(e2eDir, "spec-classification.json"), "utf8")); } catch { classification = undefined; } // unreadable: everything exclusive
 let effectiveClassification = schedule === "classified" ? classification : { parallelSafe: specs };
@@ -146,7 +156,7 @@ function runSpec(name) {
     const child = spawn(process.execPath, [path.join(e2eDir, name)], {
       cwd: path.resolve(e2eDir, ".."),
       stdio: "pipe",
-      env: { ...process.env, ...isolatedTempEnv(specTempDir) },
+      env: { ...process.env, ...isolatedTempEnv(specTempDir), ...(keptRunDir ? { VAULTSPEND_SHOTS_DIR: path.join(keptRunDir, path.basename(name, ".mjs")) } : {}) },
     });
     let output = "";
     let timedOut = false;
@@ -200,6 +210,8 @@ try {
 process.once("SIGINT", () => { guard.abort(); process.exit(130); });
 if (guard.artifact.status === "unknown") console.log(`Note: ${guard.artifact.reason} Results are labelled artifact=unknown. Use "npm run build:app" to record it.`);
 else if (guard.artifact.status === "stale") console.log(`WARNING: running against a stale executable (--allow-stale-artifact). ${guard.artifact.reason}`);
+// --keep-screens: every screenshot a spec saves is also copied to target/e2e-shots/<run>/<spec>/ for npm run e2e:review (newest 3 runs kept).
+const keptRunDir = process.argv.includes("--keep-screens") ? startKeptRun(path.join(repoRoot, "target", "e2e-shots")) : null;
 
 const overallStart = Date.now();
 if (schedule === "classified") {
@@ -230,8 +242,8 @@ if (schedule === "classified") {
   classes = classifySpecs(specs, effectiveClassification, approvalContext);
 }
 console.log(schedule === "classified"
-  ? `Running ${specs.length} specs, classified: ${classes.parallel.length} parallel-safe at concurrency ${concurrency}, then ${classes.exclusive.length} exclusive one at a time...\n`
-  : `Running ${specs.length} specs with concurrency ${concurrency}...\n`);
+  ? `Running ${specs.length} specs${shard ? ` (shard ${shard.index} of ${shard.total})` : ""}, classified: ${classes.parallel.length} parallel-safe at concurrency ${concurrency}, then ${classes.exclusive.length} exclusive one at a time...\n`
+  : `Running ${specs.length} specs${shard ? ` (shard ${shard.index} of ${shard.total})` : ""} with concurrency ${concurrency}...\n`);
 const scheduled = await runSchedule({ specs, classification: effectiveClassification, approvalContext, concurrency, run: runAndReport, durations: knownDurations });
 let results = scheduled, flaky = [], retrySkipped;
 if (retryOptions.enabled) {
@@ -261,6 +273,13 @@ const failed = results.filter((r) => r.code !== 0);
 console.log(`\n${results.length - failed.length}/${results.length} passed in ${totalSeconds}s (concurrency ${concurrency})${flaky.length > 0 ? `; ${flaky.length} passed only on a retry, see FLAKY below` : ""}`);
 const slowest = [...results].sort((a, b) => b.durationMs - a.durationMs).slice(0, 5);
 console.log("Slowest specs: " + slowest.map((r) => `${r.name} ${(r.durationMs / 1000).toFixed(1)}s`).join(", "));
+const keptPerSpec = keptRunDir ? keptBySpec(keptRunDir, results.map((r) => r.name)) : [];
+if (keptRunDir) {
+  console.log(`Screenshots kept: ${countKept(keptRunDir)} in ${keptRunDir} (review with: npm run e2e:review)`);
+  const none = keptPerSpec.filter((k) => k.count === 0).map((k) => k.spec);
+  // Not reviewed is not reviewed-and-clean: name them, so nobody reads an empty review as a pass.
+  if (none.length) console.log(`No screenshots kept for ${none.length} spec(s), so the local review cannot cover them: ${none.join(", ")}. Some specs save screenshots only when their own variable is set (see e2e/README.md).`);
+}
 // A launch that stalls before its page loads is retried by harness.mjs. That is worth knowing about even
 // when every spec then passes, so count the reports the specs printed.
 const launchRetries = results.reduce((n, r) => n + (r.output.match(/\[harness\] launch retry/g)?.length ?? 0), 0);
@@ -272,7 +291,8 @@ try {
   fs.mkdirSync(path.dirname(lastRunPath), { recursive: true });
   fs.writeFileSync(lastRunPath, JSON.stringify({
     identity: verdict.identity, validationManifest: verdict.validationManifest, approvalBinding: approvalContext?.binding ?? createApprovalContext({ inputs: verdict.validationManifest?.before, identity: verdict.identity }).binding, sourceValid, valid: verdict.valid, problems: verdict.problems, schedule, parallelSafe: classes.parallel.length, exclusive: classes.exclusive.length, concurrency, specTimeoutMs: SPEC_TIMEOUT_MS, elapsedSeconds: Number(totalSeconds), launchRetries, timeouts,
-    selected: specs, executed: results.map((r) => ({ name: r.name, code: r.code, durationMs: r.durationMs, output: r.output, ...(r.attempts ? { attempts: r.attempts.map((a) => ({ code: a.code, durationMs: a.durationMs, output: a.output })), flaky: r.code === 0 } : {}) })),
+    selected: specs, executed: results.map(serializeExecutedResult),
+    ...(keptRunDir ? { keptScreens: { dir: keptRunDir, count: countKept(keptRunDir), perSpec: keptPerSpec } } : {}),
   }, null, 2) + "\n");
 } catch { /* the record is evidence for the report, not part of the verdict */ }
 if (retrySkipped) console.log(`\nNOT RETRIED: ${retrySkipped}`);

@@ -26,11 +26,57 @@ class RecoveryWorkflowTests(unittest.TestCase):
         source = (ROOT / '.github/workflows/release-windows.yml').read_text()
         self.assertTrue('diagnostic_only:' in source, 'missing non-publishing diagnostic input')
         self.assertTrue('ref: ${{ inputs.diagnostic_only && inputs.source_sha || inputs.tag }}' in source, 'diagnostics must test their pinned source, normal releases their immutable tag')
-        packaging = source.split('      - name: Build and publish Windows installers\n', 1)[1].split('      - name:', 1)[0]
+        packaging = source.split('\n  release:\n', 1)[1].split('      - name: Build Windows installers into the draft release\n', 1)[1].split('      - name:', 1)[0]
         self.assertIn('if: ${{ !inputs.diagnostic_only }}', packaging)
         signing = source.split('  sign-updates:\n', 1)[1]
         self.assertTrue('if: ${{ !inputs.recovery && !inputs.diagnostic_only }}' in signing, 'diagnostics must not enter protected signing')
         self.assertLess(source.index('      - name: Desktop WebDriver smoke preflight'), source.index('      - name: Full desktop E2E release gate'))
+
+    def test_sharded_diagnostic_is_opt_in_and_leaves_the_serial_release_path_alone(self):
+        source = (ROOT / '.github/workflows/release-windows.yml').read_text()
+        flag = source.split('      sharded:\n', 1)[1].split('\n\npermissions:', 1)[0]
+        self.assertIn('type: boolean', flag)
+        self.assertIn('default: false', flag)
+        release_job = source.split('\n  release:\n', 1)[1]
+        self.assertIn("    if: ${{ !cancelled() && !inputs.sharded && !inputs.test_release && (inputs.diagnostic_only || needs.release-baseline.result == 'success') }}\n", release_job.split('    runs-on:', 1)[0], 'the serial release job runs unless a sharded flag is set')
+        sharded = source.split('  sharded-gate:\n', 1)[1].split('\n  sharded-package:\n', 1)[0]
+        self.assertIn('uses: ./.github/workflows/windows-desktop-gate-sharded.yml', sharded)
+        self.assertIn('contents: read', sharded)
+        self.assertNotIn('secrets', sharded)
+        # Nothing the sharded path calls is able to package or publish.
+        called = (ROOT / '.github/workflows/windows-desktop-gate-sharded.yml').read_text()
+        for forbidden in ('tauri-action', 'gh release', 'secrets.', 'contents: write', 'git push'):
+            self.assertNotIn(forbidden, called)
+
+    def test_serial_release_refuses_the_reserved_draft_test_tags(self):
+        # v1.3.90 to v1.3.99 exist only for the draft test release; a plain dispatch on one must never publish or become the latest release.
+        step = workflow_step('Validate release tag and version')
+        def run(tag, ref):
+            with tempfile.TemporaryDirectory(prefix='reserved-tag-') as folder:
+                script = Path(folder) / 'step.ps1'
+                script.write_text("$ErrorActionPreference = 'Stop'\n" + step + "\n", encoding='utf-8')
+                env = dict(os.environ, RELEASE_TAG=tag, RECOVERY='false', DIAGNOSTIC_ONLY='false', SOURCE_SHA='', GITHUB_REF=ref)
+                return subprocess.run([str(POWERSHELL), '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', str(script)], env=env, capture_output=True, text=True, timeout=30, cwd=folder)
+        for tag in ('v1.3.90', 'v1.3.95', 'v1.3.99'):
+            result = run(tag, 'refs/tags/' + tag)
+            self.assertNotEqual(result.returncode, 0, tag)
+            self.assertIn('Reserved test tag', result.stderr, tag)
+        for tag in ('v1.3.2', 'v1.3.3', 'v1.3.9', 'v1.3.100'):
+            result = run(tag, 'refs/heads/not-a-tag')
+            self.assertNotIn('Reserved test tag', result.stderr, tag)
+
+    def test_windows_gate_jobs_have_headroom_and_keep_their_step_timeouts(self):
+        # The serial hosted gate took 80 of the 145 minutes the v1.3.2 job used, against a 150 minute limit. The limit is raised
+        # as a temporary safeguard; it removes no check, and a stuck step is still ended by its own timeout.
+        import re
+        for name in ('release-windows.yml', 'prepare-signed-installers.yml'):
+            source = (ROOT / '.github/workflows' / name).read_text()
+            # The serial gate job only: the draft test release's own packaging job has a shorter, separate limit.
+            job_limit = re.search(r'(?m)^    timeout-minutes: (\d+)\s*$', source.split('\n  release:\n', 1)[1] if name == 'release-windows.yml' else source)
+            self.assertIsNotNone(job_limit, name)
+            self.assertEqual(int(job_limit.group(1)), 240, name)
+            refresh = source.split('      - name: Refresh hosted WebView2 runtime\n', 1)[1].split('      - name:', 1)[0]
+            self.assertIn('timeout-minutes: 10', refresh, name)
 
     def test_hosted_runner_gate_limits_concurrent_app_launches(self):
         # The hosted desktop has one OS foreground window. Concurrency 3 still failed focus checks
@@ -40,7 +86,7 @@ class RecoveryWorkflowTests(unittest.TestCase):
         self.assertIn('--integrity Medium', gate)
         self.assertIn('-Gate full', gate)
 
-    def execute_desktop_gate(self, integrity, gate, code):
+    def execute_desktop_gate(self, integrity, gate, code, shard=None):
         with tempfile.TemporaryDirectory(prefix='release-desktop-gate-') as folder:
             root = Path(folder)
             commands = root / 'commands.json'
@@ -49,7 +95,7 @@ class RecoveryWorkflowTests(unittest.TestCase):
             script.write_text(
                 "$ErrorActionPreference = 'Stop'\nfunction whoami.exe { $global:LASTEXITCODE = 0; '" + integrity + "' }\n"
                 "function npm.cmd { ConvertTo-Json -InputObject @($args) | Set-Content -LiteralPath '" + str(commands).replace("'", "''") + "'; $global:LASTEXITCODE = " + str(code) + " }\n"
-                "& '" + str(helper).replace("'", "''") + "' -Gate " + gate + "\nexit $LASTEXITCODE\n",
+                "& '" + str(helper).replace("'", "''") + "' -Gate " + gate + (" -Shard " + shard if shard else "") + "\nexit $LASTEXITCODE\n",
                 encoding='utf-8',
             )
             result = subprocess.run([str(POWERSHELL), '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', str(script)], env=dict(os.environ, GITHUB_ACTIONS='true'), capture_output=True, text=True, timeout=15)
@@ -66,6 +112,23 @@ class RecoveryWorkflowTests(unittest.TestCase):
         result, commands = self.execute_desktop_gate('S-1-16-8192', 'full', 17)
         self.assertEqual(result.returncode, 17, result.stderr)
         self.assertEqual(json.loads(commands), ['run', 'e2e', '--', '--concurrency=1', '--retry-failed'])
+
+    def test_desktop_gate_runs_only_its_shard_with_the_same_serial_retry_policy(self):
+        import json
+        result, commands = self.execute_desktop_gate('S-1-16-8192', 'full', 0, shard='2/6')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(commands), ['run', 'e2e', '--', '--concurrency=1', '--retry-failed', '--shard=2/6'])
+
+    def test_desktop_gate_refuses_a_malformed_shard_before_starting_tests(self):
+        result, commands = self.execute_desktop_gate('S-1-16-8192', 'full', 0, shard='two-of-six')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIsNone(commands)
+
+    def test_desktop_gate_refuses_a_shard_for_the_smoke_preflight(self):
+        result, commands = self.execute_desktop_gate('S-1-16-8192', 'smoke', 0, shard='1/2')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('shard', result.stderr.lower())
+        self.assertIsNone(commands)
 
     def test_desktop_gate_smoke_success_is_forwarded(self):
         import json

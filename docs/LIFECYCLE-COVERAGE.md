@@ -5,7 +5,7 @@ the case list in them is complete. "Not mapped" means nobody has checked it yet,
 
 ## Freshness of views after a write (O)
 
-`src/mutationFreshness.test.ts` scans every command the app calls. Each write command must be in exactly
+`src/testSupport/guards/mutationFreshness.test.ts` scans every command the app calls. Each write command must be in exactly
 one group: a financial mutation that advances the freshness epoch (`financialMutations`), a write whose
 caller refreshes the shared snapshot, a presentation-only setting, or a change that remounts the profile.
 A new write command fails that test until its group is chosen. The same test fails on a recorded command
@@ -15,14 +15,14 @@ the backend no longer has. The behaviour of each group is described in `TRANSACT
 
 | Transition | Rust | Unit (vitest) | Compiled (e2e) |
 | --- | --- | --- | --- |
-| Partial plaintext cleanup, leftovers | `protection_leftovers.rs` | `ProtectionLeftovers.test.tsx` | `feature105` |
-| Mirror folder unreachable | `protection_leftovers.rs` (`unavailable_configured_mirror_fails_closed_before_any_deletion`) | — | `feature131`, `feature289` |
-| Interrupted protection change or publication | `protection_transition` tests | — | `feature106`, `feature130`, `feature293` (unreadable journal) |
+| Partial plaintext cleanup, leftovers | `protection/leftovers.rs` | `ProtectionLeftovers.test.tsx` | `feature105` |
+| Mirror folder unreachable | `protection/leftovers.rs` (`unavailable_configured_mirror_fails_closed_before_any_deletion`) | — | `feature131`, `feature289` |
+| Interrupted protection change or publication | `protection/transition.rs` tests | — | `feature106`, `feature130`, `feature293` (unreadable journal) |
 | Lock or switch while work is in flight | `OpenSession::replace` tests | `useTransactionData`, `useApplicationCalls` | `feature133`, `feature283`, `feature292` |
 | Duplicate submission | — | `ProtectionLeftovers.test.tsx`, `ImportInboxDialog.test.tsx`, `TransferReviewDialog.test.tsx` | `feature295` (Add transaction pressed twice adds one row; relies on identical in-flight calls sharing one request in `transactionReads.ts`) |
 | Stale import preview | review token check in `commands/import.rs` | `importResolution.test.ts`, `ImportReviewDialog.test.tsx` | `feature162` |
 | Refused profile switch or add | `profiles.rs` refusal codes | `profileIpc.test.ts` | `feature294` |
-| Phone viewer authorization changes while a snapshot refreshes (lock, switch, revoke, remove one profile from a phone, forget a profile) | `mobile_api.rs` unit tests | — | `feature168`, `feature169`, `feature170` (queued, building and ready stages, via `mobileRaceHarness.mjs`) |
+| Phone viewer authorization changes while a snapshot refreshes (lock, switch, revoke, remove one profile from a phone, forget a profile) | `mobile/api.rs` unit tests | — | `feature168`, `feature169`, `feature170` (queued, building and ready stages, via `mobileRaceHarness.mjs`) |
 
 ## Cross-view money rules (R)
 

@@ -34,7 +34,7 @@ mod platform {
             let context = unsafe { &*(reference_data as *const HookContext) };
             if let Some(event) = event_from_message(message, wparam.0) {
                 crate::auto_lock::queue_system_session_lock(&context.app, event);
-                if let Some(service) = context.app.try_state::<crate::mobile_server::MobileService>() {
+                if let Some(service) = context.app.try_state::<crate::mobile::server::MobileService>() {
                     match event {
                         SystemSessionEvent::Suspending => service.stop(),
                         SystemSessionEvent::Resumed => {

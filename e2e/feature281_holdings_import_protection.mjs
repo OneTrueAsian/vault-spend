@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
-import { enableProtectionThroughUI } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 const dbDir = await seedFixture(`cur.execute("INSERT INTO accounts (name,account_type,starting_balance) VALUES ('Private brokerage','investment','0')")`);
 const app = await launchApp({ dbDir });
 const b = app.browser, password = "temporary import test password";
@@ -12,7 +12,7 @@ async function ipc(command, args = {}) {
 }
 try {
   await b.$("button*=Settings").click(); await enableProtectionThroughUI(b, password);
-  await b.waitUntil(async () => (await b.$(".page").getText()).includes("Password protection: On"), { timeout: 10000 });
+  await b.waitUntil(async () => (await b.$(".page").getText()).includes("Password protection: On"), { timeout: PROTECTION_FINISH_MS });
   await b.$("button*=Investments").click(); await b.$("button*=Import holdings").waitForExist({ timeout: 10000 }); await b.$("button*=Import holdings").click();
   await (await b.$("[role='dialog']")).$("button=Paste rows").click();
   await b.$("[data-holding-import] textarea").setValue("Symbol,Shares,Price,Cost Basis\nSECRET,10,12.50,100\n");

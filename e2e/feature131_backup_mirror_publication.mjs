@@ -13,7 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import { launchApp } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
-import { enableProtectionThroughUI, seedPopulatedProfile } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, seedPopulatedProfile, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 import { finals, invoke, keyFiles, killDuringBackupNow, launchWithFailpoint, listedBackups, openApp, PASSWORD, seedRecentBackup, stagingFiles, unlockOnlyProfile } from "./lib/backup_publication.mjs";
 
 import { makeTempDir } from "./lib/tempDir.mjs";
@@ -82,7 +82,7 @@ async function finishNormally(dbDir, backupsDir, mirrorDir, isProtected) {
       const { browser } = app;
       await (await browser.$("button*=Settings")).click();
       await enableProtectionThroughUI(browser, PASSWORD);
-      await browser.$("button=Change password").waitForExist({ timeout: 15000 });
+      await browser.$("button=Change password").waitForExist({ timeout: PROTECTION_FINISH_MS });
       const set = await invoke(browser, "set_backup_copy_dir", { dir: mirrorDir });
       assert.equal(set.error, undefined, `choosing the second folder should work: ${set.error}`);
     } finally {

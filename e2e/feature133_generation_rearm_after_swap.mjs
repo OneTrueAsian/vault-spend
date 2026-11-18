@@ -17,7 +17,7 @@
 
 import assert from "node:assert/strict";
 import { launchApp, openSettingsGroup } from "./harness.mjs";
-import { enableProtectionThroughUI, seedPopulatedProfile } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, seedPopulatedProfile, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 
 const PASSWORD = "correct horse battery staple";
@@ -66,7 +66,7 @@ try {
   const { browser } = app;
   await (await browser.$("button*=Settings")).click();
   await enableProtectionThroughUI(browser, PASSWORD);
-  await browser.$("button=Change password").waitForExist({ timeout: 15000 });
+  await browser.$("button=Change password").waitForExist({ timeout: PROTECTION_FINISH_MS });
 
   const defaults = await invokeOk(browser, "get_auto_lock_settings");
   assert.equal(defaults.lock_when_hidden, true, "fixture assumption: tray-hide locking is on by default");

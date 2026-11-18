@@ -108,6 +108,9 @@ try {
     await assertSameRing("Safe to spend input", ".safe-buffer input", referenceRing, theme);
 
     await goTo("Investments");
+    // The goal projection is in Investments' "Growth calculator" tab (VS-31).
+    await (await browser.$("#investments-tab-growth")).waitForDisplayed({ timeout: 15000 });
+    await (await browser.$("#investments-tab-growth")).click();
     const saveAsGoal = await browser.$("[data-projection-save-as-goal]");
     await saveAsGoal.waitForExist({ timeout: 15000 });
     await saveAsGoal.scrollIntoView({ block: "center" });

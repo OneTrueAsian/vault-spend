@@ -4,17 +4,17 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { AskVaultCard, MORE_EXAMPLES } from "./AskVaultCard";
 import { TRANSACTION_QA_EXAMPLES } from "./transactionQa";
-import { parseQuestion } from "./askVault/parser";
-import type { AskVaultSnapshot } from "./askVault/contract";
-import type { AskVaultSnapshotV2 } from "./askVault/contractV2";
-import type { AskVaultRequest, AskVaultRequestV2, ParseContext } from "./askVault/types";
-import { TransactionError } from "./transactionContracts";
-import type { AskBaselineBatchRequest, AskBaselineBatchSnapshot } from "./askVault/cutPreviewBatch";
-import { useCutPreview } from "./askVault/useCutPreview";
-import { parseCutPreview } from "./askVault/cutPreviewParser";
-import { parseSpendingScenario } from "./askVault/spendingScenarioParser";
-import { parseRetirementScenario } from "./askVault/retirementParser";
-import type { ConfirmedCutPreview, CutPreviewIntent } from "./askVault/cutPreviewContract";
+import { parseQuestion } from "./askVault/ordinary/parser";
+import type { AskVaultSnapshot } from "./askVault/ordinary/contract";
+import type { AskVaultSnapshotV2 } from "./askVault/ordinary/contractV2";
+import type { AskVaultRequest, AskVaultRequestV2, ParseContext } from "./askVault/common/types";
+import { TransactionError } from "./shared/native/transactionContracts";
+import type { AskBaselineBatchRequest, AskBaselineBatchSnapshot } from "./askVault/cutPreview/cutPreviewBatch";
+import { useCutPreview } from "./askVault/cutPreview/useCutPreview";
+import { parseCutPreview } from "./askVault/cutPreview/cutPreviewParser";
+import { parseSpendingScenario } from "./askVault/spending/spendingScenarioParser";
+import { parseRetirementScenario } from "./askVault/retirement/retirementParser";
+import type { ConfirmedCutPreview, CutPreviewIntent } from "./askVault/cutPreview/cutPreviewContract";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -739,6 +739,7 @@ describe("the Ask the Vault card", () => {
     expect(text()).not.toContain("Coffee");
     await click("Show all 10");
     const dialog = document.querySelector("[role='dialog']")!;
+    expect(dialog.classList.contains("modal-panel-wide")).toBe(true);
     expect(dialog.querySelectorAll("li")).toHaveLength(10);
     expect(dialog.textContent).toContain("Coffee");
     await click("Close");

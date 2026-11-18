@@ -1,6 +1,6 @@
 // E2E test: while a large profile's data is still loading, no screen claims there is no data
 // (2026-10-02 QA, H3: Transactions said "0 transactions across 0 accounts", "No transactions yet"
-// and "No accounts yet" for several seconds on a 50,000-row profile; 20,000 rows here).
+// and "No accounts yet" for several seconds on a 50,000-row profile; 50,000 rows here).
 //
 // - From launch until the ledger shows its rows, the page never shows those empty-state messages.
 // - The loading placeholder shows instead, and Import transactions can't be used (it is missing
@@ -13,9 +13,9 @@ import assert from "node:assert/strict";
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
-// Large enough that the first load takes visibly long, small enough not to slow the other specs
-// running beside it in the full suite.
-const ROWS = 20000;
+// Large enough that the first load outlasts the moment this spec starts watching (20,000 rows had already
+// loaded on a fast hosted runner), which is the 50,000-row size the original QA report described.
+const ROWS = 50000;
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000')")
 account_id = cur.lastrowid

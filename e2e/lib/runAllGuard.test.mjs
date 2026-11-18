@@ -5,10 +5,14 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { collectInputs, computeBuildKey, readToolchain, recordArtifact } from "./buildIdentity.mjs";
 import { acquireAccess } from "./exclusiveAccess.mjs";
 
+// Each test starts a real "node e2e/run-all.mjs", which lists git, hashes about 1,700 input files and probes rustc and cargo before it refuses. That is
+// 0.45 s with a warm file cache and was 9.5 s on a cold one (a fresh checkout), so vitest's 5 s default failed correct runs under disk load.
+// The child already has its own 60 s bound (below); a real hang still ends there with no exit status, and every assertion is unchanged.
+vi.setConfig({ testTimeout: 60000 });
 const repo = path.resolve(".");
 let dir, exe, record, lockDir;
 const env = () => ({ ...process.env, VAULTSPEND_ACCESS_DIR: lockDir, VAULTSPEND_EXE: exe, VAULTSPEND_ARTIFACT_RECORD: record });

@@ -48,8 +48,10 @@ try {
   const status = await line.getAttribute("data-allocation");
   const text = await line.getText();
   console.log("current month allocation:", status, "-", text);
-  if (status !== "unallocated" || !text.includes("$2,000.00") || !text.includes("$6,000.00")) {
-    throw new Error(`expected "$2,000.00 of your $6,000.00 ... isn't assigned", got (${status}): ${text}`);
+  // The allocation message now sits in the card's income line ("Income so far is $0.00 of $6,000.00 planned. $2,000.00 of your planned income isn't given a job yet.").
+  const incomeLine = await (await browser.$("[data-budget-income-line]")).getText();
+  if (status !== "unallocated" || !text.includes("$2,000.00") || !text.includes("isn't given a job yet") || !incomeLine.includes("$6,000.00")) {
+    throw new Error(`expected "$2,000.00 ... isn't given a job yet" in an income line showing $6,000.00, got (${status}): ${text} / ${incomeLine}`);
   }
 
   // The pace tick: one per expense group heading's bar + one per expense row (Rent, Groceries).

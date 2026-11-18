@@ -17,7 +17,7 @@ pub const MIN_HISTORY_TO_CONTEST_A_RULE: usize = 3;
 pub const RELIABLE_RULE_AGREEMENT: f64 = 0.9;
 
 /// A contested rule reports at most this confidence, which is just under the review inbox's "Unsure"
-/// cutoff (`LOW_CONFIDENCE` in `src/importInbox.ts`), so a contested answer always lands in the inbox
+/// cutoff (`LOW_CONFIDENCE` in `src/features/imports/importInbox.ts`), so a contested answer always lands in the inbox
 /// instead of being applied silently however high the agreeing share is.
 pub const CONTESTED_RULE_MAX_CONFIDENCE: f64 = 0.69;
 

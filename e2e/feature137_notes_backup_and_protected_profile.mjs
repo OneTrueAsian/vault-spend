@@ -18,7 +18,7 @@ import path from "node:path";
 import { launchApp } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
-import { enableProtectionThroughUI } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 import { commitReviewedImport } from "./lib/importReview.mjs";
 
 const PASSWORD = "correct horse battery staple";
@@ -121,7 +121,7 @@ try {
   // ---- 2. Turn on password protection, then lock/unlock -------------------
   await nav(browser, "Settings");
   await enableProtectionThroughUI(browser, PASSWORD);
-  await browser.$("button=Change password").waitForExist({ timeout: 15000 });
+  await browser.$("button=Change password").waitForExist({ timeout: PROTECTION_FINISH_MS });
 
   await (await browser.$(".profile-switcher-toggle")).click();
   await (await browser.$("[data-profile-switcher-lock]")).click();

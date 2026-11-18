@@ -1,0 +1,105 @@
+import { useState } from "react";
+import { ProtectionSetupDialog } from "./ProtectionSetupDialog";
+import { ChangePasswordDialog } from "./ChangePasswordDialog";
+import { RegenerateRecoveryDialog } from "./RegenerateRecoveryDialog";
+import { RemoveProtectionDialog } from "./RemoveProtectionDialog";
+import { AutoLockSettings } from "./AutoLockSettings";
+import { SettingStar, cardAttr } from "../../shared/ui/SettingStar";
+import { getCurrentGeneration } from "../../shared/lib/profileUiState";
+import type { Profile } from "../../shared/lib/types";
+
+/** The Profile section's password-protection status and entry point into `ProtectionSetupDialog` —
+ * mounted once in `SettingsView` for whichever profile is currently active. Once the dialog reports
+ * success, `onProtected` reloads the app's bound read owners while retaining Settings.
+ * Protection conversion/password changes can replace the Store and retire its session:
+ * unchanged financial rows do not make the old request origin reusable. */
+export function ProfileProtectionSection({
+  profiles,
+  onProtected,
+}: {
+  profiles: Profile[];
+  onProtected: () => void;
+}) {
+  const [dialogGeneration, setDialogGeneration] = useState<number | null>(null);
+  const [changeGeneration, setChangeGeneration] = useState<number | null>(null);
+  const [regenerateGeneration, setRegenerateGeneration] = useState<number | null>(null);
+  const [removeGeneration, setRemoveGeneration] = useState<number | null>(null);
+  const active = profiles.find((p) => p.is_active);
+
+  if (!active) return null;
+
+  async function openSetup() {
+    setDialogGeneration(await getCurrentGeneration());
+  }
+
+  return (
+    <div className="card" {...cardAttr("password-protection")}>
+      <div className="card-head">
+        <h2 className="reports-section-title">
+          Password protection <span className="protection-new-badge">New</span>
+        </h2>
+        <SettingStar id="password-protection" />
+      </div>
+      <p className="modal-message-secondary">
+        Password protection: {active.is_password_protected ? "On" : "Off"}
+      </p>
+      {active.is_password_protected && <p className="modal-message-secondary">Your active data is encrypted, but the original file and older backups made before protection are still unencrypted until you delete them below. Exports and external copies may also be readable. Cleanup cannot detect every external copy or guarantee secure erasure.</p>}
+      {!active.is_password_protected && (
+        <div className="settings-actions">
+          <button type="button" className="modal-secondary" onClick={() => void openSetup()}>
+            Turn on password protection
+          </button>
+        </div>
+      )}
+      {active.is_password_protected && (
+        <div className="settings-actions">
+          <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setChangeGeneration)}>
+            Change password
+          </button>
+          <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setRegenerateGeneration)}>
+            Regenerate recovery key
+          </button>
+          <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setRemoveGeneration)}>
+            Remove protection
+          </button>
+        </div>
+      )}
+      <AutoLockSettings enabled={active.is_password_protected} />
+      {dialogGeneration !== null && (
+        <ProtectionSetupDialog
+          targetProfileId={active.id}
+          newProfileName={null}
+          expectedGeneration={dialogGeneration}
+          onDone={() => {
+            setDialogGeneration(null);
+            onProtected();
+          }}
+          onCancel={() => setDialogGeneration(null)}
+        />
+      )}
+      {changeGeneration !== null && (
+        <ChangePasswordDialog
+          expectedGeneration={changeGeneration}
+          onDone={() => {
+            setChangeGeneration(null);
+            onProtected();
+          }}
+          onCancel={() => setChangeGeneration(null)}
+        />
+      )}
+      {regenerateGeneration !== null && (
+        <RegenerateRecoveryDialog
+          expectedGeneration={regenerateGeneration}
+          onDone={() => {
+            setRegenerateGeneration(null);
+            onProtected();
+          }}
+          onCancel={() => setRegenerateGeneration(null)}
+        />
+      )}
+      {removeGeneration !== null && (
+        <RemoveProtectionDialog expectedGeneration={removeGeneration} onDone={() => { setRemoveGeneration(null); onProtected(); }} onCancel={() => setRemoveGeneration(null)} />
+      )}
+    </div>
+  );
+}

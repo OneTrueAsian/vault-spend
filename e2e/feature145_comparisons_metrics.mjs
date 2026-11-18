@@ -94,7 +94,7 @@ try {
   const accounts = await invoke(browser, "list_accounts");
   const checkingId = accounts.ok.find((a) => a.name === "Checking").id;
   assert.equal((await invoke(browser, "set_account_balance_override", { id: checkingId, balance: "9500" })).error, undefined);
-  await (await browser.$("[data-reports-tab='overview']")).click();
+  await (await browser.$("[data-reports-tab='income']")).click();
   await (await browser.$("[data-reports-tab='comparisons']")).click();
   await expectComparison(browser, "savings", "sipp_financial_institution_assets_median:35-44", 9500, "35–44");
 

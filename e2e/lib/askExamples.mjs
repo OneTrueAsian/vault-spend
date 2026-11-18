@@ -24,7 +24,7 @@ const round2 = n => Math.round(n * 100) / 100;
 /** The seed, relative to `now`: nothing depends on a fixed calendar date, and every row is on or before today. */
 export function buildWorld(now = new Date()) {
   const at = (offset, day) => dateInMonth(offset, day, now);
-  const julyYear = now.getMonth() + 1 >= 7 ? now.getFullYear() : now.getFullYear() - 1; // the most recent July that has begun (src/askVault/dates.ts bareMonthYear)
+  const julyYear = now.getMonth() + 1 >= 7 ? now.getFullYear() : now.getFullYear() - 1; // the most recent July that has begun (src/askVault/common/dates.ts bareMonthYear)
   const july = day => `${julyYear}-07-${String(day).padStart(2, "0")}`;
   const row = (date, description, amount, category, member) => ({ date, description, amount, category, member });
   const rows = [
@@ -112,5 +112,5 @@ export function missingEntityProblems(text) {
   return problems;
 }
 
-/** The adapted m5c-022 question (compiledRetirementCase in src/askVault/retirementCompiledCorpus.ts): the frozen September 2026 month replaced by the app's current month. A unit test keeps the two equal. */
+/** The adapted m5c-022 question (compiledRetirementCase in src/askVault/retirement/retirementCompiledCorpus.ts): the frozen September 2026 month replaced by the app's current month. A unit test keeps the two equal. */
 export const ADAPTED_M5C_022 = (now = new Date()) => `a one-time $500 deposit to my Roth IRA now, retiring ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;

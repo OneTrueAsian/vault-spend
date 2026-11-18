@@ -26,7 +26,7 @@ npm run access -- cargo-test -- cargo test --workspace -- --test-threads=1
 npm run build:app                     # build after Rust tests; embeds frontend assets for WebDriver
 ```
 
-Start with the [architecture and invariants guide](ARCHITECTURE.md) for code ownership and lifecycle contracts. See `AGENTS.md` for which checks to run for which kind of change, and `e2e/README.md` before touching the end-to-end suite. A release build is `npx tauri build`.
+Start with the [architecture and invariants guide](../Architecture.md) for code ownership and lifecycle contracts. See `AGENTS.md` for which checks to run for which kind of change, and `e2e/README.md` before touching the end-to-end suite. A release build is `npx tauri build`.
 
 ## Testing notes
 

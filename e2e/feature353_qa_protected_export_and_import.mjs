@@ -8,7 +8,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { launchApp, stubFilePicker, stubSaveDialog, waitUntilOrDiagnose, openSettingsGroup } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
-import { enableProtectionThroughUI, seedPopulatedProfile } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, seedPopulatedProfile, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 
 const PASSWORD = "correct horse battery staple";
 const testDbDir = freshTestDbDir();
@@ -30,7 +30,7 @@ try {
   await b.setWindowSize(1440, 1200);
   await (await b.$("button*=Settings")).click();
   await enableProtectionThroughUI(b, PASSWORD);
-  await b.$("button=Change password").waitForExist({ timeout: 20000 });
+  await b.$("button=Change password").waitForExist({ timeout: PROTECTION_FINISH_MS });
   await openSettingsGroup(b, "data");
 
   // --- export ------------------------------------------------------------------------------------------------------------------------------------------------

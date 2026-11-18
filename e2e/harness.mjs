@@ -24,6 +24,7 @@ import path from "node:path";
 import { isolatedTempEnv, makeTempDir, releaseTempDir } from "./lib/tempDir.mjs";
 import { settleWithin } from "./lib/settleWithin.mjs";
 import { waitForPort } from "./lib/waitForPort.mjs";
+import { wrapSaveScreenshot } from "./lib/keepScreens.mjs";
 
 export function cargoBin(env = process.env, home = homedir()) {
   return path.join(env.CARGO_HOME || path.join(home, ".cargo"), "bin");
@@ -686,6 +687,7 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
   if (profilePhases) console.error(`[harness] launch phases: ${phases.join(" | ")} | total +${((Date.now() - launchStartedAt) / 1000).toFixed(2)}s`);
 
   scaleWaitTimeouts(browser);
+  wrapSaveScreenshot(browser); // --keep-screens: also copy each screenshot into VAULTSPEND_SHOTS_DIR (no-op when unset)
 
   return {
     browser,

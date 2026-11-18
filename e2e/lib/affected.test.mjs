@@ -18,7 +18,7 @@ const select = (...changes) => selectAffected({ changes, specs, map, e2eDir });
 const askSpecs = specs.filter(name => /ask_vault|feature305_|transaction_qa|dashboard_order|financial_snapshot/.test(name));
 
 describe("a change confined to the Ask the Vault area", () => {
-  it.each(["src/RetirementScenarioDialog.tsx", "src/RetirementScenarioDialog.css", "src/askVault/useRetirementScenario.ts", "src/AskVaultCard.tsx", "src/askVault/retirementParser.ts"])(
+  it.each(["src/RetirementScenarioDialog.tsx", "src/RetirementScenarioDialog.css", "src/askVault/retirement/useRetirementScenario.ts", "src/AskVaultCard.tsx", "src/askVault/retirement/retirementParser.ts"])(
     "%s selects the Ask the Vault specs and smoke, not the whole suite", file => {
       const result = select(change(file));
       expect(result.broad).toBe(false);
@@ -28,13 +28,13 @@ describe("a change confined to the Ask the Vault area", () => {
       expect(result.specs).not.toContain("feature5_tags.mjs");
     });
   it("every selected spec exists, once", () => {
-    const result = select(change("src/askVault/retirementParser.ts"));
+    const result = select(change("src/askVault/retirement/retirementParser.ts"));
     expect(new Set(result.specs).size).toBe(result.specs.length);
     for (const name of result.specs) expect(specs).toContain(name);
   });
   it("explains each file: what it matched and why", () => {
-    const result = select(change("src/askVault/retirementParser.ts"));
-    expect(result.entries).toEqual([expect.objectContaining({ path: "src/askVault/retirementParser.ts", verdict: "area", reason: expect.stringMatching(/Ask the Vault/i) })]);
+    const result = select(change("src/askVault/retirement/retirementParser.ts"));
+    expect(result.entries).toEqual([expect.objectContaining({ path: "src/askVault/retirement/retirementParser.ts", verdict: "area", reason: expect.stringMatching(/Ask the Vault/i) })]);
   });
   it("a native Ask the Vault file selects the same specs and requires the Rust and TypeScript contract checks (the boundary is not visible to import analysis)", () => {
     const result = select(change("core/src/store/ask_vault_retirement.rs"));
@@ -44,7 +44,7 @@ describe("a change confined to the Ask the Vault area", () => {
     expect(result.required.join(" ")).toMatch(/retirementNativeContract|npm test/);
   });
   it("the TypeScript side of the native contract requires the Rust checks too", () => {
-    expect(select(change("src/askVault/retirementNativeContract.ts")).required.join(" ")).toMatch(/cargo test/);
+    expect(select(change("src/askVault/retirement/retirementNativeContract.ts")).required.join(" ")).toMatch(/cargo test/);
   });
 });
 
@@ -63,14 +63,14 @@ describe("new, deleted and renamed files", () => {
   });
   it("a rename is judged by both paths: moving an unknown file into the area is still broad", () => {
     expect(select(change("src/askVault/retirementMoved.ts", "R", "src/askVault/retirementOld.ts")).broad).toBe(false);
-    expect(select(change("src/askVault/retirementMoved.ts", "R", "src/BudgetView.tsx")).broad).toBe(true);
+    expect(select(change("src/askVault/retirementMoved.ts", "R", "src/features/budgets/BudgetView.tsx")).broad).toBe(true);
     expect(select(change("src/Elsewhere.tsx", "R", "src/askVault/retirementOld.ts")).broad).toBe(true);
   });
 });
 
 describe("shared infrastructure, persistence and the harness keep broad coverage", () => {
   it.each([
-    "src/main.tsx", "src/App.tsx", "src/App.css", "src/SharedControls.css", "src/Modal.css", "src/tauriInvoke.ts", "src/contractChecks.ts",
+    "src/main.tsx", "src/app/App.tsx", "src/shared/ui/App.css", "src/shared/ui/SharedControls.css", "src/shared/ui/Modal.css", "src/shared/native/tauriInvoke.ts", "src/shared/native/contractChecks.ts",
     "vite.config.ts", "package.json", "package-lock.json", "tsconfig.json", "Cargo.lock", "Cargo.toml", "src-tauri/tauri.conf.json", "src-tauri/src/lib.rs", "src-tauri/src/commands.rs",
     "core/src/store.rs", "core/src/store/accounts.rs", "core/src/store/investments.rs",
     "e2e/harness.mjs", "e2e/run-all.mjs", "e2e/lib/scheduler.mjs", "e2e/lib/runGuard.mjs", "e2e/spec-classification.json", "e2e/affected-map.json",
@@ -79,7 +79,7 @@ describe("shared infrastructure, persistence and the harness keep broad coverage
     expect(result.broad).toBe(true); expect(result.specs).toEqual(specs);
   });
   it("one broad file among narrow ones makes the whole selection broad", () => {
-    expect(select(change("src/askVault/retirementParser.ts"), change("src/main.tsx")).broad).toBe(true);
+    expect(select(change("src/askVault/retirement/retirementParser.ts"), change("src/main.tsx")).broad).toBe(true);
   });
   it("anything the map does not know about is broad (no silent empty selection)", () => {
     for (const file of ["tools/some-script.mjs", "scripts/new.ps1", "src/unknown/Thing.tsx", "weird.bin"]) expect(select(change(file)).broad, file).toBe(true);
@@ -87,7 +87,7 @@ describe("shared infrastructure, persistence and the harness keep broad coverage
 });
 
 describe("changes that need no desktop run", () => {
-  it.each(["README.md", "docs/notes.md", "AGENTS.md", "src/askVault/retirementParser.test.ts", "src/AskVaultCard.test.tsx", "core/src/store/tests/ask_vault_retirement.rs", ".github/workflows/release-windows.yml"])(
+  it.each(["README.md", "docs/notes.md", "AGENTS.md", "src/askVault/retirement/retirementParser.test.ts", "src/AskVaultCard.test.tsx", "core/src/store/tests/ask_vault_retirement.rs", ".github/workflows/release-windows.yml"])(
     "%s selects no desktop spec and says why", file => {
       const result = select(change(file));
       expect(result.specs).toEqual([]);
@@ -103,7 +103,7 @@ describe("changes that need no desktop run", () => {
     expect(select(change(".github/workflows/release-windows.yml")).required.join(" ")).toMatch(/hosted|workflow/i);
   });
   it("a no-desktop file next to an area file selects only the area", () => {
-    const result = select(change("README.md"), change("src/askVault/retirementParser.ts"));
+    const result = select(change("README.md"), change("src/askVault/retirement/retirementParser.ts"));
     expect(result.specs).toContain("smoke.mjs"); expect(result.broad).toBe(false);
   });
 });
@@ -127,7 +127,7 @@ describe("changes to a desktop spec or its helper", () => {
 
 describe("what is still required for final acceptance", () => {
   it("always lists the checks a fast selection does not replace", () => {
-    const result = select(change("src/askVault/retirementParser.ts"));
+    const result = select(change("src/askVault/retirement/retirementParser.ts"));
     const text = result.outstanding.join(" ");
     expect(text).toMatch(/full desktop/i); expect(text).toMatch(/milestone|release/i);
   });

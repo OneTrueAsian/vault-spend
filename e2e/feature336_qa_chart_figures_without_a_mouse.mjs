@@ -1,9 +1,10 @@
 // UAT-119 / QA-OBS-002: the Cash Flow bars and the Reports savings-rate trend show their figures in a hover-only tooltip. Each also carries a visually
-// hidden table of the same figures (src/charts.tsx), so a keyboard or screen-reader user can read them. Same fixture and hand calculations as feature328.
+// hidden table of the same figures (src/shared/ui/charts.tsx), so a keyboard or screen-reader user can read them. Same fixture and hand calculations as feature328.
 // Months (relative to today): -2 income 800 expense 200 -> 75%; -1 income 800 expense 880 -> -10%; current month expense 100, no income -> 0%.
 import assert from "node:assert/strict";
 import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { openReportsTab } from "./lib/reportsTabs.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -43,6 +44,9 @@ const hiddenTable = title => b.execute(titleText => {
 try {
   await b.setWindowSize(1280, 900);
   await nav('Cash Flow');
+  // Income vs. expenses is in Cash Flow's "Month by month" tab (VS-31).
+  await (await b.$('#cashflow-tab-by-month')).waitForDisplayed({ timeout: 10000 });
+  await (await b.$('#cashflow-tab-by-month')).click();
   await waitUntilOrDiagnose(b, async () => (await hiddenTable('Income vs. expenses'))?.rows.length === 6, { timeout: 10000, timeoutMsg: 'the Cash Flow chart lists three months of income and expenses' });
   const flow = await hiddenTable('Income vs. expenses');
   assert.equal(flow.inTree, true, 'the table is reachable by assistive technology, not display:none or aria-hidden');
@@ -54,6 +58,7 @@ try {
   assert.deepEqual(monthRows(0).map(r => r.slice(1)), [['Income', '$0.00'], ['Expenses', '$100.00']], JSON.stringify(flow.rows));
 
   await nav('Reports');
+  await openReportsTab(b, 'savings');
   await waitUntilOrDiagnose(b, async () => (await hiddenTable('Savings rate trend'))?.rows.length === 3, { timeout: 10000, timeoutMsg: 'the savings-rate chart lists three months' });
   const rates = await hiddenTable('Savings rate trend');
   assert.equal(rates.inTree, true);

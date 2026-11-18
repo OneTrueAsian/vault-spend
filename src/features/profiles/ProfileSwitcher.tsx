@@ -1,0 +1,89 @@
+import { usePopover } from "../../shared/hooks/usePopover";
+import type { Profile } from "../../shared/lib/types";
+import { ProfileIcon } from "../../shared/ui/icons";
+
+/** Always-visible sidebar widget showing which profile is currently active
+ * and letting the user jump straight to another one — same click-outside-
+ * to-close pattern as AccountFilterDropdown. Full profile management
+ * (create/rename/delete) still lives on the Settings tab; this is just fast
+ * visibility + switching from anywhere in the app. */
+export function ProfileSwitcher({
+  profiles,
+  onSwitchProfile,
+  onManageProfiles,
+  onLock,
+}: {
+  profiles: Profile[];
+  onSwitchProfile: (id: string) => void;
+  onManageProfiles: () => void;
+  /** Omitted (no button shown) when nothing about locking makes sense yet — e.g. no profile is
+   * password protected, so there is nothing for a lock action to guard. */
+  onLock?: () => void;
+}) {
+  const { open, setOpen, rootRef, triggerRef } = usePopover();
+
+  const current = profiles.find((p) => p.is_active);
+
+  return (
+    <div className="profile-switcher" ref={rootRef}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="profile-switcher-toggle"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="true"
+        aria-expanded={open}
+        // The name and caret are hidden in the narrow sidebar rail, so the icon alone would leave the button unnamed.
+        aria-label={current ? `${current.name}, choose profile` : "Choose profile"}
+      >
+        <ProfileIcon iconKey={current?.icon_key} className="profile-switcher-icon" />
+        <span className="profile-switcher-name">{current?.name ?? "Profile"}</span>
+        <span className="account-filter-caret">▾</span>
+      </button>
+      {open && (
+        <div className="profile-switcher-panel">
+          {profiles.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className={
+                p.is_active ? "profile-switcher-option profile-switcher-option-active" : "profile-switcher-option"
+              }
+              onClick={() => {
+                if (!p.is_active) onSwitchProfile(p.id);
+                setOpen(false);
+              }}
+            >
+              <ProfileIcon iconKey={p.icon_key} className="profile-switcher-icon" />
+              {p.name}
+              {p.is_active && " (current)"}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="profile-switcher-manage"
+            onClick={() => {
+              setOpen(false);
+              onManageProfiles();
+            }}
+          >
+            Manage profiles
+          </button>
+          {onLock && (
+            <button
+              type="button"
+              className="profile-switcher-manage"
+              data-profile-switcher-lock
+              onClick={() => {
+                setOpen(false);
+                onLock();
+              }}
+            >
+              Lock profile
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

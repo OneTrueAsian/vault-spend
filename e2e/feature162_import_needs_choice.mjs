@@ -73,13 +73,29 @@ const categoryOf = async (description, amount) =>
 
 const importButton = () => browser.$("button[data-import-confirm]");
 const remainingText = async () => (await (await browser.$("#import-remaining-choices")).getText()).trim();
-const needsChoiceRows = async () =>
-  browser.execute(() => [...document.querySelectorAll("[data-import-choice-row]")].map((li) => Number(li.getAttribute("data-import-choice-row"))));
-const rowMenu = (index) => browser.$(`button[data-import-row-choice][data-import-row-index="${index}"]`);
-// Why an Import was refused, shown inside the review dialog (a toast would sit behind its backdrop).
+async function section(id) {
+  const tab=await browser.$(`[data-import-review-tab="${id}"]`);
+  if (await tab.isExisting()) await tab.click();
+}
+const needsChoiceRows = async () => {
+  await section("needs");
+  return browser.execute(() => [...document.querySelectorAll("[data-import-choice-row]")].map(li => Number(li.getAttribute("data-import-choice-row"))));
+};
+const rowMenu = async index => { await section("needs"); return browser.$(`button[data-import-row-choice][data-import-row-index="${index}"]`); };
 const refusal = () => browser.execute(() => document.querySelector("[role='dialog'] [role='alert']")?.textContent ?? null);
-const panelMenu = (name) => browser.$(`button[data-import-category-choice][data-import-category-name="${name}"]`);
-const reviewCheckbox = (description) => browser.$(`//table[contains(@class,'dup-review-table')]//tr[.//td[normalize-space()='${description}']]//input[@type='checkbox']`);
+const panelMenu = async name => {
+  await section("bank");
+  const menu=await browser.$(`button[data-import-category-choice][data-import-category-name="${name}"]`);
+  if (!(await menu.isExisting())) {
+    await browser.$('[aria-label="Change your choices from last time"]').click();
+  }
+  await section("bank");
+  return browser.$(`button[data-import-category-choice][data-import-category-name="${name}"]`);
+};
+const reviewCheckbox = async description => {
+  await section("rows");
+  return browser.$(`//table[contains(@class,'dup-review-table')]//tr[.//td[normalize-space()='${description}']]//input[@type='checkbox']`);
+};
 
 async function startImport() {
   trace("start import");

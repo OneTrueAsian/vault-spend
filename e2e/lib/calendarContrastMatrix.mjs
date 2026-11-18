@@ -119,7 +119,7 @@ export async function runCalendarContrast(style, { group = style, accents = null
       await waitUntilOrDiagnose(b, async () => !(await b.$(".modal-panel").isExisting()), { timeoutMsg: "the dialog should close" });
 
       // The month calendar, on an investment account's page, on next month (this month when it is December).
-      const id = await openDetails(b, "Joey Roth IRA");
+      const id = await openDetails(b, "Sample Roth IRA");
       await waitForAccumulation(b, id);
       const month = 'input[aria-label="Withdraw month"]';
       await (await b.$(month)).scrollIntoView({ block: "center" });

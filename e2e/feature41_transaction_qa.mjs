@@ -285,7 +285,7 @@ try {
   await app.browser.$('button=Change the details').click();
   if (await app.browser.$('.cut-preview-results').isExisting()) throw new Error('Editing must retire the previous allocation');
   await app.browser.keys('Escape');
-  await app.browser.waitUntil(async () => !(await app.browser.$("[role='dialog']").isExisting()), { timeout: 5000 });
+  await app.browser.waitUntil(async () => !(await app.browser.$("[role='dialog']").isExisting()) && !(await app.browser.$(".modal-overlay").isExisting()), { timeout: 5000 });
   // Natural cap wording must keep its40% while requiring a separately chosen floor and final consent.
   await cutInput.setValue(`Save $5 a month from Dining Out, I can cut up to 40% from ${dateInMonth(1, 1)} through ${dateInMonth(2, 28)}`);
   await (await app.browser.$(".ledger-qa-card")).$("button=Ask").click();

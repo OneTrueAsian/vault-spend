@@ -2,7 +2,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { vi } from "vitest";
 import { AskVaultCard } from "../../AskVaultCard";
-import type { ParseContext } from "../../askVault/types";
+import type { ParseContext } from "../../askVault/common/types";
 import { canonical } from "./counting";
 import type { CorpusCase, Observation, Requirement } from "./manifest";
 

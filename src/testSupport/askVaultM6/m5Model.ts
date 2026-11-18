@@ -1,6 +1,6 @@
 /**
  * Independent exact model of the M5 extra-money illustration (Task-4 item 6: separate exact expected results for the M5 corpus). Test-only; shares no code with
- * src/askVault/retirementScenarioMath.ts. Rules (M5 Contract.md:43, :53-69; the result card's own statement "Growth is worked out each month, then your deposit is added
+ * src/askVault/retirement/retirementScenarioMath.ts. Rules (M5 Contract.md:43, :53-69; the result card's own statement "Growth is worked out each month, then your deposit is added
  * at the end of that month"):
  *  - month zero is today; the retirement month is a whole number of calendar months later (0 allowed);
  *  - a monthly extra is added at the end of each of those months on top of the saved monthly amount; a one-time extra is added at month zero;

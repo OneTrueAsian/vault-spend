@@ -5,7 +5,7 @@
 //   neutral tint, and only its change line is coloured.
 // - Dashboard: the budget alert banner names a category instead of counting them.
 // - Budget: the income heading's progress fill is not the red (`--negative`) colour, and the
-//   Mortgage line (paid exactly its budget on the 1st) reads "Used in full" in a neutral badge.
+//   Mortgage line (paid exactly its budget on the 1st) reads "All used" in a neutral badge.
 // - Recurring: the two total tiles use the neutral tint.
 // - Accounts: a loan's "Owed" amount is the same plain colour as a checking balance, and the
 //   "What you owe" tile uses the neutral tint.
@@ -203,14 +203,14 @@ try {
   assert.doesNotMatch(banner, /\d+ categor/, `the banner should name categories, not count them: "${banner}"`);
   console.log(`banner: "${banner}"`);
 
-  // ---- 3. Budget: income isn't red in the current month; Mortgage is "Used in full" -------------
+  // ---- 3. Budget: income isn't red in the current month; Mortgage is "All used" -------------
   await openTab("budget", () => document.querySelectorAll(".cat-row").length >= 10, "the Budget page with the household's categories");
   const negative = await tokenColour("--negative");
   const warning = await tokenColour("--warning");
   const budget = await settled(
     () =>
       browser.execute(() => {
-        const fill = document.querySelector("[data-budget-group='income'] .budget-group-track .progress-fill");
+        const fill = document.querySelector("[data-budget-group='income'] .cat-row-bar .progress-fill");
         const mortgage = [...document.querySelectorAll(".cat-row")].find((r) => r.querySelector(".category-link")?.textContent === "Mortgage");
         const badge = mortgage?.querySelector(".budget-alert-badge");
         return {
@@ -223,13 +223,13 @@ try {
         };
       }),
     (b) => b.fillColour && b.badgeText,
-    "expected the income heading's progress bar and the Mortgage row's badge",
+    "expected the income row's progress bar and the Mortgage row's badge",
   );
-  assert.notEqual(budget.fillColour, negative, `the income heading's fill should not be red in the current month: ${JSON.stringify(budget)}`);
-  assert.ok(!budget.fillClass.split(" ").includes("over"), `the income heading's fill should not be "over": ${budget.fillClass}`);
-  assert.equal(budget.badgeText, "Used in full", `Mortgage (paid exactly its budget) should read "Used in full": ${JSON.stringify(budget)}`);
+  assert.notEqual(budget.fillColour, negative, `the income row's fill should not be red in the current month: ${JSON.stringify(budget)}`);
+  assert.ok(!budget.fillClass.split(" ").includes("over"), `the income row's fill should not be "over": ${budget.fillClass}`);
+  assert.equal(budget.badgeText, "All used", `Mortgage (paid exactly its budget) should read "All used": ${JSON.stringify(budget)}`);
   assert.equal(budget.badgeClass, "budget-alert-badge budget-alert-done");
-  assert.ok(budget.badgeColour !== negative && budget.badgeColour !== warning, `"Used in full" should be neutral, got ${budget.badgeColour}`);
+  assert.ok(budget.badgeColour !== negative && budget.badgeColour !== warning, `"All used" should be neutral, got ${budget.badgeColour}`);
   console.log(`${budget.month}: income fill ${budget.fillClass} (${budget.fillColour}, red is ${negative}); Mortgage "${budget.badgeText}"`);
 
   // ---- 4. Recurring: the totals use the neutral tint -------------------------------------------

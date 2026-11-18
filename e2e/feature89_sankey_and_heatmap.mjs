@@ -21,6 +21,7 @@
 
 import { launchApp, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { openReportsTab } from "./lib/reportsTabs.mjs";
 
 const pad = (n) => String(n).padStart(2, "0");
 const now = new Date();
@@ -70,7 +71,9 @@ async function openReports(browser) {
   await browser.$("[data-reports-hub]").waitForExist({ timeout: 10000 });
   await (await browser.$("[data-range-preset='last_month']")).click();
   await browser.$("[data-report-sankey]").waitForExist({ timeout: 10000 });
+  await openReportsTab(browser, "daily");
   await browser.$("[data-report-heatmap]").waitForExist({ timeout: 10000 });
+  await openReportsTab(browser, "income");
 }
 
 /** Every Sankey label is fully inside the drawing, legible, and clear of its
@@ -133,6 +136,7 @@ try {
   if (/\$\d/.test(svgAriaLabel)) throw new Error(`the Sankey svg's aria-label shouldn't contain a dollar figure: "${svgAriaLabel}"`);
 
   // --- Heatmap: a day with spending reports its total; a transfer day doesn't ---
+  await openReportsTab(browser, "daily");
   const heatmapCard = await browser.$("[data-report-heatmap]");
   const cellFor = async (day) => {
     const cell = await heatmapCard.$(`[data-heatmap-day='${isoDay(day)}']`);
@@ -173,6 +177,7 @@ try {
   );
 
   // --- Labels: full width, then the half-window widths, with no sideways page scroll ---
+  await openReportsTab(browser, "income");
   await assertSankeyLabels(browser, 1440, 5);
   for (const width of [960, 800]) {
     await browser.setWindowSize(width, 1000);
@@ -189,6 +194,7 @@ try {
   }
 
   // --- A year of heatmap is wider than a half-width card: it opens on the newest weeks ---
+  await openReportsTab(browser, "daily");
   // (Left alone it opened on the oldest, empty weeks and hid recent spending off to the right.)
   await (await browser.$("[data-range-preset='last_12']")).click();
   await browser.waitUntil(
@@ -206,6 +212,7 @@ try {
   if (!scrolledToNewest) throw new Error("the wide heatmap should open scrolled to the newest weeks, not the oldest");
   await (await browser.$("[data-range-preset='last_month']")).click();
   await browser.setWindowSize(1440, 1400);
+  await openReportsTab(browser, "income");
 
   // --- Privacy mode: the diagram's labels and the heatmap readout are masked ---
   const noAmounts = (text) => !/\$\s?\d/.test(text);
@@ -216,6 +223,7 @@ try {
   });
   const maskedSvgText = await browser.execute(() => document.querySelector("[data-report-sankey] svg").textContent);
   if (/\$\s?\d/.test(maskedSvgText)) throw new Error(`the Sankey's drawn labels still show an amount under Privacy mode: ${maskedSvgText}`);
+  await openReportsTab(browser, "daily");
   await (await cellFor(2)).moveTo();
   await browser.waitUntil(async () => (await statusText()).includes("••••"), {
     timeout: 5000,
@@ -225,6 +233,7 @@ try {
   const maskedHeatmapText = await browser.execute(() => document.querySelector("[data-report-heatmap]").textContent);
   if (/\$\s?\d/.test(maskedHeatmapText)) throw new Error("the heatmap's hidden day table still shows an amount under Privacy mode");
   await (await browser.$("[data-privacy-toggle]")).click();
+  await openReportsTab(browser, "income");
   await browser.waitUntil(async () => (await (await browser.$("[data-report-sankey]")).getText()).includes("$3,000.00"), {
     timeout: 5000,
     timeoutMsg: "turning Privacy mode off should bring the figures back",
@@ -279,6 +288,7 @@ try {
     async () => (await (await b.$("[data-report-sankey]")).getText()).includes("No income or spending in this range."),
     { timeout: 10000, timeoutMsg: "the Sankey should show an empty state for a profile with no data" },
   );
+  await openReportsTab(b, "daily");
   const heatmapEmptyText = await (await b.$("[data-report-heatmap]")).getText();
   if (!heatmapEmptyText.includes("No spending in this range.")) throw new Error(`the heatmap should show an empty state too: ${heatmapEmptyText}`);
 } finally {

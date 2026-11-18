@@ -31,7 +31,7 @@ const expectPeople = async (expected, why) => {
 };
 try {
   await b.setWindowSize(1280, 900);
-  await expectPeople({ Unassigned: '$100.00' }, 'an unassigned property is counted under Unassigned');
+  await expectPeople({ Shared: '$100.00' }, 'an unassigned property is counted under Shared');
   await assign('QA Alex');
   await expectPeople({ 'QA Alex': '$100.00' }, 'assigning to Alex moves the 100 to Alex only');
   await nav('Accounts');
@@ -39,6 +39,6 @@ try {
   await assign('QA Blair');
   await expectPeople({ 'QA Blair': '$100.00' }, 'assigning to Blair replaces Alex (one member per property)');
   await assign('QA Blair');
-  await expectPeople({ Unassigned: '$100.00' }, 'toggling the checked member off returns the value to Unassigned');
-  console.log('FEATURE 326 PASSED: property member assignment via the row menu: Unassigned -> Alex -> Blair -> Unassigned, Household readback each step.');
+  await expectPeople({ Shared: '$100.00' }, 'toggling the checked member off returns the value to Shared');
+  console.log('FEATURE 326 PASSED: property member assignment via the row menu: Shared -> Alex -> Blair -> Shared, Household readback each step.');
 } finally { await app.close(); }

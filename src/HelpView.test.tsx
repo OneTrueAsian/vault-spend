@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { HelpView, TAB_HELP } from "./HelpView";
-import { NAV_ITEMS, PINNED_NAV_ITEMS } from "./appTypes";
+import { NAV_ITEMS, PINNED_NAV_ITEMS } from "./shared/native/appTypes";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -221,9 +221,16 @@ describe("HelpView", () => {
     expect(text).toContain("Change columns");
   });
 
+  it("names the import tabs, skips matched bank categories, and explains Change", () => {
+    const text = container.textContent ?? "";
+    for (const tab of ["Bank categories", "Needs a category", "Transactions"]) expect(text).toContain(tab);
+    expect(text).toContain("isn't asked again");
+    expect(text).toContain("Change on the import screen");
+  });
+
   it("explains that unsure import rows wait for a choice and that file category choices are remembered", () => {
     const text = container.textContent ?? "";
-    expect(text).toContain("Pick a category");
+    expect(text).toContain("Needs a category");
     expect(text).toContain("opens in a window");
     expect(text).toContain("Leave the rest uncategorized");
     expect(text).toContain("remembers that choice for your next import");
@@ -526,5 +533,20 @@ describe("HelpView search finds the 1.3.2 features by the words people use", () 
     expect(container.textContent).toContain(heading);
     // Search narrows the page: an entry that has nothing to do with the words is gone.
     expect(container.textContent).not.toContain("Can I save my own Dashboard layout?");
+  });
+});
+
+// Owner review of the 1.3.3 notes: a "(month)" placeholder reads as a literal name that no heading has. Help names
+// the month-titled headings with an example instead.
+describe("HelpView month-titled headings", () => {
+  it("shows an example month instead of a (month) placeholder", () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    act(() => root.render(<>{TAB_HELP.flatMap((h) => h.more ?? []).map((item, i) => <p key={i}>{item}</p>)}</>));
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    act(() => root.unmount());
+    expect(text).not.toContain("(month)");
+    expect(text).toContain("for example Spending in March 2026 so far");
+    expect(text).toContain("for example March 2026 by person");
   });
 });

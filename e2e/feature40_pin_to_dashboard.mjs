@@ -27,6 +27,9 @@ const app = await launchApp({ dbDir });
 try {
   const investmentsNav = await app.browser.$("button*=Investments");
   await investmentsNav.click();
+  // Allocation is in Investments' "Mix and targets" tab (VS-31).
+  await (await app.browser.$("#investments-tab-mix")).waitForDisplayed({ timeout: 10000 });
+  await (await app.browser.$("#investments-tab-mix")).click();
 
   const cardHead = await app.browser.$("//div[contains(@class,'card-head')][span[text()='Allocation']]");
   await cardHead.waitForExist({ timeout: 10000 });

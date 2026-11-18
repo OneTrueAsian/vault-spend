@@ -77,7 +77,7 @@ struct ValidatedProtectedPackage {
 fn validate_protected_package(
     package_dir: &std::path::Path,
     password: &str,
-    sessions: &crate::protection_session::Sessions,
+    sessions: &crate::protection::session::Sessions,
 ) -> Result<ValidatedProtectedPackage, String> {
     use budget_core::protection::package::{sha256_file, DATABASE_FILENAME, MANIFEST_FILENAME};
     use budget_core::protection::PACKAGE_FORMAT;
@@ -118,7 +118,7 @@ fn parse_amount(amount: &str) -> Result<Decimal, String> {
 }
 
 /// A date typed into the app. Kept to the years 1900-2100, the same range the date fields allow
-/// (`src/dateRange.ts`), so a typo like year 9643 is refused instead of saved.
+/// (`src/shared/lib/dateRange.ts`), so a typo like year 9643 is refused instead of saved.
 fn parse_date(date: &str) -> Result<chrono::NaiveDate, String> {
     use chrono::Datelike;
     let parsed = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")

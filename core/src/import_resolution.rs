@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 /// A guess (a rule or the auto-categorizer) less sure than this is not applied on import: the
 /// row waits on the review screen for the person to choose. The review list's own "Unsure" mark
-/// (`LOW_CONFIDENCE` = 0.7 in `src/importInbox.ts`) is a separate, later check: a guess from 0.5
+/// (`LOW_CONFIDENCE` = 0.7 in `src/features/imports/importInbox.ts`) is a separate, later check: a guess from 0.5
 /// up to 0.7 is saved, and still marked "Unsure" there for a second look.
 pub const IMPORT_CHOICE_BELOW: f64 = 0.5;
 

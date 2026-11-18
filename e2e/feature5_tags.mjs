@@ -6,6 +6,7 @@
 
 import { chooseRowAction, launchApp, menuOptionLabels, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { openReportsTab } from "./lib/reportsTabs.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -55,6 +56,7 @@ try {
   const reportsNav = await app.browser.$("button*=Reports");
   await reportsNav.click();
 
+  await openReportsTab(app.browser, "people");
   const tagsTable = await app.browser.$("[data-report-tags]");
   await tagsTable.waitForExist({ timeout: 10000 });
   await app.browser.waitUntil(async () => (await tagsTable.getText()).includes("vacation"), {

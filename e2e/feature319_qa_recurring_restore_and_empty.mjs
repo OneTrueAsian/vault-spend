@@ -17,6 +17,9 @@ let app = await launchApp();
 try {
   const b = app.browser;
   await nav(b, "Cash Flow");
+  // Income vs. expenses is in Cash Flow's "Month by month" tab (VS-31).
+  await (await b.$("#cashflow-tab-by-month")).waitForDisplayed({ timeout: 10000 });
+  await (await b.$("#cashflow-tab-by-month")).click();
   await waitUntilOrDiagnose(b, async () => (await text(b)).includes("No income or spending in this period."), { timeout: 10000, timeoutMsg: "empty cash flow explains that there is no activity" });
   assert.equal(await b.$(".chart-bar").isExisting(), false);
   assert.ok(!(await text(b)).includes("Click a bar"));

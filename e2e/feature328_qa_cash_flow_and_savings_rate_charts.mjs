@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { launchApp, waitUntilOrDiagnose, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { openReportsTab } from "./lib/reportsTabs.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -50,6 +51,9 @@ const tooltips = async title => {
 try {
   await b.setWindowSize(1280, 900);
   await nav('Cash Flow');
+  // Income vs. expenses is in Cash Flow's "Month by month" tab (VS-31).
+  await (await b.$('#cashflow-tab-by-month')).waitForDisplayed({ timeout: 10000 });
+  await (await b.$('#cashflow-tab-by-month')).click();
   const c = await card('Income vs. expenses');
   await c.waitForDisplayed({ timeout: 10000 });
   await waitUntilOrDiagnose(b, async () => (await (await card('Income vs. expenses')).getText()).includes('Income · $1,600.00'), { timeout: 10000, timeoutMsg: 'legend income is 800 + 800' });
@@ -63,6 +67,7 @@ try {
   assert.deepEqual(find(0), ['Income: $0', 'Expenses: $100'], JSON.stringify(bars));
 
   await nav('Reports');
+  await openReportsTab(b, 'savings');
   const trend = await card('Savings rate trend');
   await trend.waitForDisplayed({ timeout: 10000 });
   const rates = await tooltips('Savings rate trend');

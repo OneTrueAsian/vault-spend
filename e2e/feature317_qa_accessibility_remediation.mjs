@@ -23,6 +23,7 @@ import { seedFixture } from "./lib/seed.mjs";
 import { startImportInto } from "./lib/importAccount.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
+import { openReportsTab } from "./lib/reportsTabs.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -105,6 +106,7 @@ try {
     // A11Y-002
     await nav("Reports");
     await browser.$("[data-reports-hub]").waitForExist({ timeout: 15000 });
+    await openReportsTab(browser, "categories");
     await browser.$("[data-report-table]").waitForExist({ timeout: 15000 });
     await browser.pause(500);
     assert.deepEqual(await axeViolations(["scrollable-region-focusable"]), [], `${width}px: scrollable regions are focusable`);
@@ -163,6 +165,7 @@ try {
     },
     { timeout: 20000, timeoutMsg: "the review opens (answering the amounts-direction question if asked)" },
   );
+  await browser.$('[data-import-review-tab="rows"]').click();
   const names = await browser.execute(() => [...document.querySelectorAll("[role='dialog'] tbody input[type='checkbox']")].map((i) => i.getAttribute("aria-label")));
   assert.equal(names.length, 3, "one checkbox per row");
   assert.ok(names.every((n) => n && n.length > 0), "every row checkbox is named");

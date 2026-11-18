@@ -143,11 +143,11 @@ try {
 
   const householdNav = await app.browser.$("button*=Household");
   await householdNav.click();
-  const incomeCard = await app.browser.$("//h2[contains(.,'Income by person')]/parent::div");
+  const incomeCard = await app.browser.$("[data-month-by-person]");
   await incomeCard.waitForExist({ timeout: 10000 });
-  const incomeText = await incomeCard.getText();
+  const incomeText = await app.browser.execute(() => [...document.querySelectorAll('[data-month-by-person] tbody tr')].map(tr => `${tr.cells[0].textContent}: ${tr.cells[1].textContent}`).join("\n"));
   if (!incomeText.includes("4,000.00")) throw new Error(`expected Joint's $4,000.00 income, got:\n${incomeText}`);
-  if (incomeText.includes("Alex")) throw new Error(`Alex has no income this month and must not appear, got:\n${incomeText}`);
+  if (!incomeText.includes("Alex: $0.00")) throw new Error(`Alex has no income this month and must show zero, got:\n${incomeText}`);
 
   const spendingCard = await app.browser.$("//h2[contains(.,'Spending by person')]/parent::div");
   const spendingText = await spendingCard.getText();
@@ -171,7 +171,10 @@ try {
 
   const cashFlowNav = await app.browser.$("button*=Cash Flow");
   await cashFlowNav.click();
-  const legend = await app.browser.$(".chart-legend");
+  // Income vs. expenses is in Cash Flow's "Month by month" tab (VS-31).
+  await (await app.browser.$("#cashflow-tab-by-month")).waitForDisplayed({ timeout: 10000 });
+  await (await app.browser.$("#cashflow-tab-by-month")).click();
+  const legend = await app.browser.$("#cashflow-panel-by-month .chart-legend");
   await legend.waitForExist({ timeout: 10000 });
   const legendText = await legend.getText();
   if (!legendText.includes("4,000.00")) throw new Error(`expected Cash Flow Income $4,000.00, got:\n${legendText}`);

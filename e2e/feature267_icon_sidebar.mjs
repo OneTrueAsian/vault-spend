@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 // Icon-only sidebar below 1000px (UI review suggestion 13, 1.3.0).
 //
 // - At the default window size (1280x800) the sidebar shows its names, and "Show names" is not there.
@@ -420,3 +421,19 @@ try {
 } finally {
   await app.close();
 }
+
+// Step 1 empty profiles on each changed page.
+const emptyApp = await launchApp({windowSize: {width: 720, height: 520}});
+const emptyBrowser = emptyApp.browser;
+try {
+  for (const [page, text] of [["dashboard", "No transactions yet"], ["accounts", "No accounts yet"], ["budget", "No budget lines yet"], ["household", "Add a family member"]]) {
+    await emptyBrowser.$(`.nav-item[data-tab="${page}"]`).click();
+    await waitUntilOrDiagnose(emptyBrowser, () => emptyBrowser.execute(text => document.querySelector('.main').textContent.includes(text), text), {timeoutMsg: `${page}: meaningful empty state`});
+    const result = await emptyBrowser.execute(() => ({text: document.querySelector('.main').textContent, overflow: document.querySelector('.main').scrollWidth - document.querySelector('.main').clientWidth}));
+    assert.ok(!result.text.includes('NaN') && !result.text.includes('Infinity'), `${page}: no invalid figures`);
+    assert.ok(result.overflow <= 1, `${page}: empty profile fits minimum width`);
+  }
+  assert.equal(await emptyBrowser.$('button=Add person').isExisting(), true);
+  assert.equal(await emptyBrowser.$('input[aria-label="Household month"]').isExisting(), true);
+  console.log("Empty pages: four empty pages at 720x520 retain their states and actions");
+} finally { await emptyApp.close(); }
