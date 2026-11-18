@@ -31,12 +31,14 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
       "The Dashboard has a Spending this month so far card that compares this month with the same days last month and names your biggest one-off cost, plus a Savings goals card with every goal's progress.",
       "Budget has a Spending against the plan card that shows each category's spending against what you planned, and says how much of your planned income isn't given a job yet. The Income, Fixed, Flexible and Non-Monthly groups are now cards showing Planned, Spent and Left.",
       "Household shows Spending by person as a stacked chart with a tick for what each person earned, and a People card where you can add, rename or remove people.",
+      "Point at a section of a chart bar to see its exact amount: on Cash Flow's Six months at a glance, Household's Spending by person and What your investments are in on Investments. Click it or press Enter to keep the details open, use the Left and Right arrow keys to move between sections, and press Escape or click outside to close them. When Hide amounts is on, the details hide amounts too.",
     ],
     Enhancements: [
       "The import screen now has Bank categories, Needs a category and Transactions tabs. Bank categories you already matched to one of your own aren't asked again; choose Change on the import screen to see and change your remembered choices. The number of rows under each bank category is now a button: click it to see those transactions (date, description and amount) before you choose. Rows that are not being imported are listed too, marked Not importing. A small info icon beside \"The app will remember it next time.\" explains that choosing \"Let the app guess\" is not remembered, so the app will ask about that bank category again on a later import. The Help page says the same.",
       "Links on Dashboard cards now open the right tab: Top merchants opens Look at one month, Open payoff planner opens Debt payoff, Allocation opens Mix and targets, and Net worth by member opens Tags and people.",
       "Print and Save as PDF on Reports include every section of the report, whichever tab you have open.",
       "Ask the Vault's Show all answers now open in the wide window, so long answer tables are easier to read. In a narrow window the table scrolls sideways inside its own box instead of squeezing the columns.",
+      "The Default style has a refreshed light and dark look. Tables, summary tiles and chart frames line up, cards side by side on the Dashboard are the same width, and Customize keeps every card's size. Futuristic and Retro look the same as before.",
     ],
     "Bug fixes": [
       "An import is no longer refused when a remembered category was deleted. That bank category starts on Let the app guess so you can choose again.",
@@ -45,6 +47,7 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
       "Reports: a status message that happens to be showing is no longer printed on the report. This now applies to every printout from the app.",
       "Recurring: a long name stays on one line in a wide window. Before, it could wrap onto a second line on some dates.",
       "Dashboard: the Net worth trend no longer shows \"$NaN\" before its history has loaded. Until there is history, it says the trend fills in as the months go by.",
+      "Security updates for the app's built-in database engine (SQLite with SQLCipher encryption) and a networking component.",
     ],
   },
   "1.3.2": {
