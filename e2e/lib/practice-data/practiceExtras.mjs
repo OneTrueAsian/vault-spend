@@ -15,7 +15,8 @@ cur.execute("INSERT INTO family_members (name) VALUES ('Alex')")
 alex = cur.lastrowid
 cur.execute("UPDATE transactions SET member_id = ? WHERE description IN ('ACME CORP PAYROLL', 'Shell Oil')", (alex,))
 
-# Rows a rule sorted ("Sorted by: Your rule"); the Shell Oil rule itself is added below.
+# Rows a rule sorted ("Sorted by: Your rule"). The Shell Oil rule itself is added below; Netflix has no rule left, as
+# if one was deleted after it ran, so the Rules list still has only one entry to practise on.
 cur.execute("UPDATE transactions SET category_source = 'rule' WHERE description IN ('Shell Oil', 'Netflix')")
 
 pfp = [0]

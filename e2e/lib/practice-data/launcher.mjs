@@ -5,7 +5,7 @@
 //   (no flag)  rebuild the practice data, then open the app
 //   --keep     reopen on the existing practice data (keeps your changes)
 //   --seed     rebuild the practice data only, do not open the app
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { demoEnv } from "../demoEnv.mjs";
@@ -39,11 +39,20 @@ export async function runPracticeLauncher({ repoRoot, args, extraNote }) {
     appRunning: !(args.has("--keep") && fs.existsSync(path.join(dataDir, "profiles.json"))) && vaultSpendRunning(),
   });
   if (plan.action === "refuse") {
-    console.error("Vault Spend is already running. Close it (including from the tray icon), then run this again, or add --keep to reopen your existing practice data.");
+    console.error("Vault Spend is already running (the installed app counts too). Close it, including from the tray icon, then run this again, or add --keep to reopen your existing practice data.");
     process.exit(1);
   }
   if (plan.action === "build") {
-    fs.rmSync(dataDir, { recursive: true, force: true });
+    // Always, so an older helper without --protect (the Locked profile) is brought up to date; cheap when current.
+    console.log("Checking the database seeding helper...");
+    const helper = spawnSync("node", ["e2e/with-access.mjs", "demo-init-db", "--", "cargo", "build", "-p", "budget_core", "--bin", "init_db"], { stdio: "inherit", shell: true, cwd: repoRoot });
+    if (helper.status !== 0) process.exit(helper.status ?? 1);
+    try {
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    } catch (e) {
+      console.error(`Could not clear ${dataDir}: ${e.message}\nClose Vault Spend (including from the tray icon) and anything else using that folder, then try again.`);
+      process.exit(1);
+    }
     fs.mkdirSync(dataDir, { recursive: true });
     console.log("Building the practice data (relative to today)...");
     await buildPracticeData(dataDir);

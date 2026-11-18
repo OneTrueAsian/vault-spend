@@ -56,6 +56,9 @@ mod tests {
         let recovery = protect(&plain, &dest, "practice password 1", &KdfParams::FAST_FOR_TESTS);
 
         assert!(!plain.exists());
+        for sidecar in ["vaultspend.db-wal", "vaultspend.db-shm"] {
+            assert!(!dir.join(sidecar).exists(), "{sidecar} left behind");
+        }
         assert!(!recovery.is_empty());
         let key_file = KeyFile::read(&key_file_path_for(&dest)).unwrap();
         assert!(key_file.unlock_with_password("wrong").is_err());

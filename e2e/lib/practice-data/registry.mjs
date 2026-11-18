@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { seedFixtureInto } from "../seed.mjs";
 import { writePracticeFiles } from "./files.mjs";
-import { seedMainHousehold } from "./mainHousehold.mjs";
+import { localToday, seedMainHousehold } from "./mainHousehold.mjs";
 import { SAM_PY } from "./sam.mjs";
 
 export const MAIN_HOUSEHOLD_NAME = "Rivera household";
@@ -17,8 +17,19 @@ cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES 
 acct = cur.lastrowid
 for n, (desc, amt) in enumerate((("Paycheck", "1200.00"), ("Grocery Store", "-86.20"), ("Coffee", "-4.75"))):
     cur.execute("INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?,?,?,?,?,?,?)",
-                (acct, "${new Date().toISOString().slice(0, 7)}-01", desc, amt, None, None, f"locked-{n}"))
+                (acct, "${localToday().slice(0, 7)}-01", desc, amt, None, None, f"locked-{n}"))
 `;
+
+/** Throws unless `init_db --protect` really turned `lockedDir` into a protected profile (an older init_db ignores it). */
+export function checkLockedProfile(lockedDir, recoveryKey) {
+  const protectedDb = path.join(lockedDir, "vaultspend-protected.db");
+  if (!recoveryKey || !fs.existsSync(protectedDb) || !fs.existsSync(`${protectedDb}.key`)) {
+    throw new Error("The Locked practice profile was not protected. Rebuild the seeding helper (cargo build -p budget_core --bin init_db) and try again.");
+  }
+  if (fs.existsSync(path.join(lockedDir, "vaultspend.db"))) {
+    throw new Error("The Locked practice profile still has a plaintext vaultspend.db next to its protected copy (init_db).");
+  }
+}
 
 function backupStamp(daysAgo) {
   const d = new Date();
@@ -61,6 +72,7 @@ export async function buildPracticeData(dir, { today } = {}) {
     env: { ...process.env, VAULTSPEND_PRACTICE_PASSWORD: password },
     encoding: "utf8",
   }).trim();
+  checkLockedProfile(lockedDir, recoveryKey);
 
   const profiles = [
     { id: "household-0", name: MAIN_HOUSEHOLD_NAME, dir: householdDir, db: path.join(householdDir, "vaultspend.db"), protection: null },
