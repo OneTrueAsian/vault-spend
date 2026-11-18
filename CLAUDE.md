@@ -50,7 +50,7 @@ Touch only what you must. Clean up only your own mess. The test: every changed l
 
 - Commit, push, merge, tag and release only when told. "Push out the new build" means the full release pipeline start to finish without stopping for confirmation. Stage explicit paths, never `git add -A`. Never merge to `main` without being asked. Release notes are split into New features / Enhancements / Bug fixes.
 - Preserve unrelated and concurrent work; do not discard branches or stashes. Two sessions may share the checkout, so recheck status and log if HEAD moves; use an isolated worktree for concurrent release work. Do not kill the owner's installed app to unlock a build.
-- Release infra: public repo, unsigned Authenticode builds, macOS built by CI (no Mac available), signed update manifests, notify-only updater by design.
+- Release infra: public repo, unsigned Authenticode builds, macOS built by CI (no Mac available), signed update manifests. The updater downloads a release, verifies it against the signed manifest and starts the installer only after the user chooses to install (not notify-only).
 
 ### UI copy and UAT
 
