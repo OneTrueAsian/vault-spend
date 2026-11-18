@@ -29,3 +29,18 @@ it.each([0,1,2])("undo alone reports the actual restored count without placehold
  const ids=Array.from({length:count},(_,i)=>i+1);mount([]);act(()=>owner.setUndoToast({text:"Earlier deletion",ids}));call.mockResolvedValueOnce(null);
  await act(async()=>owner.handleUndoBulkDelete());expect(onStatus).toHaveBeenLastCalledWith(`Restored ${count} transaction${count===1?"":"s"}.`,"success");
 });
+it("bulk exclude says transfers were skipped only when fewer rows changed and a transfer was selected",async()=>{
+ const rows=[{id:1,category:"Food",transfer_counterpart_id:null},{id:2,category:"Food",transfer_counterpart_id:null},{id:3,category:"Transfer",transfer_counterpart_id:null}];
+ const p={data:{call,refresh,refreshRows:vi.fn(),setTransactions:vi.fn(),snapshot:{transactions:rows}},list:{selectedIds:new Set([1,2,3]),setSelectedIds:vi.fn()},onStatus,onBusy:vi.fn(),askNewCategory:vi.fn(),refreshRecurring:vi.fn()} as unknown as Parameters<typeof useTransactionBulkActions>[0];
+ function Probe(){owner=useTransactionBulkActions(p);return null;}
+ act(()=>root.render(<Probe/>));
+ call.mockResolvedValueOnce(2);
+ await act(async()=>owner.handleBulkSetExcludedFromBudget(true));
+ expect(call).toHaveBeenLastCalledWith("set_transactions_excluded_from_budget",{ids:[1,2,3],excluded:true});
+ expect(onStatus).toHaveBeenLastCalledWith("Transfers are already left out of your budget, so they were skipped.","info");
+});
+it("bulk include does not mention transfers when none were selected",async()=>{
+ mount([1,2,3]);call.mockResolvedValueOnce(1);onStatus.mockClear();
+ await act(async()=>owner.handleBulkSetExcludedFromBudget(false));
+ expect(onStatus).not.toHaveBeenCalled();
+});

@@ -378,6 +378,7 @@ function App({
     commitDateEdit,
     commitDescriptionEdit,
     handleMemberChangeForTransaction,
+    handleSetExcludedFromBudget,
     handleDeleteTransaction,
     startApplyingDebtPayment,
     handleApplyDebtPayment,
@@ -807,6 +808,7 @@ function App({
     handleCreateManualTransaction,
     handleRecategorize,
     handleBulkMemberChange,
+    handleBulkSetExcludedFromBudget,
     handleBulkAddTag,
     handleBulkCategoryChange,
     handleBulkDelete,
@@ -1489,7 +1491,7 @@ function App({
   const budgetMonthKey = `${budgetYear}-${budgetMonthNum}`;
   const budgetSnapshot = budgetRead.data?.key === budgetMonthKey ? budgetRead.data.value : null;
   const budgetMonthActuals = budgetSnapshot?.actuals ?? [];
-  const budgetMonthFlow = budgetSnapshot?.flow ?? null;
+  const budgetTotals = budgetSnapshot?.budgetTotals ?? null;
   const budgetAlerts = budgetSnapshot?.alerts ?? [];
   const memberBudgetActuals = budgetSnapshot?.members ?? [];
   const refreshBudgetMonthActuals = useCallback(async (year: number, month: number) => {
@@ -2411,6 +2413,8 @@ function App({
               selectedPairForLink={selectedPairForLink}
               handleLinkSelectedAsTransfer={handleLinkSelectedAsTransfer}
               setSelectedIds={setSelectedIds}
+              budgetExclusionEnabled={appSettings.budget_exclusion_enabled}
+              handleBulkSetExcludedFromBudget={handleBulkSetExcludedFromBudget}
             />
           )}
 
@@ -2468,6 +2472,7 @@ function App({
               handleAccountChangeForTransaction={async (id, accountId) => transactionMove.open([id], Number(accountId), { clearSelection: false })}
               familyMembers={familyMembers}
               handleMemberChangeForTransaction={handleMemberChangeForTransaction}
+              handleSetExcludedFromBudget={handleSetExcludedFromBudget}
               categoryOptions={categoryOptions}
               handleCategoryChange={handleCategoryChange}
               toggleSplitEditor={toggleSplitEditor}
@@ -2579,7 +2584,7 @@ function App({
                 onRetryRead={() => void refreshBudgetMonthActuals(budgetYear, budgetMonthNum).catch(() => {})}
                 categories={usedCategories}
                 budgetActuals={budgetMonthActuals}
-                monthFlow={budgetMonthFlow}
+                budgetTotals={budgetTotals}
                 budgetAlerts={budgetAlerts}
                 monthLabel={budgetMonthLabel}
                 year={budgetYear}

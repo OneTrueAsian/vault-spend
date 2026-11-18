@@ -1,7 +1,7 @@
 import "./BudgetAndGoals.css";
 import "./BudgetGroupCards.css";
 import { DragEvent, FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { BudgetAlert, BudgetSuggestions, CashFlow, ReportBudgetLine } from "../../shared/lib/types";
+import type { BudgetAlert, BudgetSuggestions, ReportBudgetLine } from "../../shared/lib/types";
 import { formatAmount } from "../../shared/lib/format";
 import { useAutoCancelDelete } from "../../shared/hooks/useAutoCancelDelete";
 import { Sparkline } from "../../shared/ui/charts";
@@ -552,7 +552,7 @@ function BudgetRow({
 export function BudgetView({
   categories,
   budgetActuals,
-  monthFlow,
+  budgetTotals,
   budgetAlerts,
   monthLabel,
   year,
@@ -579,7 +579,8 @@ export function BudgetView({
 }: {
   categories: string[];
   budgetActuals: ReportBudgetLine[];
-  monthFlow: CashFlow | null;
+  /** Income and spending counted toward the budget (rows marked Exclude from budget are left out). */
+  budgetTotals: { income: string; expense: string } | null;
   budgetAlerts: BudgetAlert[];
   monthLabel: string;
   /** The month `budgetActuals` is scoped to — only used to work out how
@@ -625,7 +626,7 @@ export function BudgetView({
   const alertByCategory = new Map(budgetAlerts.map((a) => [a.category, a.level]));
   const elapsed = monthElapsed(year, month, new Date());
   const allocation = budgetAllocation(budgetActuals);
-  const netSummary = monthFlow ? budgetNetSummary(budgetActuals, monthFlow.total_income, monthFlow.total_expense) : null;
+  const netSummary = budgetTotals ? budgetNetSummary(budgetActuals, budgetTotals.income, budgetTotals.expense) : null;
   const viewed = viewedMonth(year, month, new Date());
   const actualLabel = viewed === "past" ? "Money left (final)" : viewed === "future" ? "Money left (future month)" : "Money left so far";
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);

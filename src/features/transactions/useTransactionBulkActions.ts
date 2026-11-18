@@ -3,6 +3,7 @@ import { useAutoCancelDelete } from "../../shared/hooks/useAutoCancelDelete";
 import { errorMessage } from "../../shared/lib/errorMessage";
 import { distinctMerchants, similarOfferText } from "./similarRules";
 import { setLastUsedAccountId } from "../../shared/native/appStorage";
+import { isTransferTransaction } from "../../shared/lib/transfers";
 import type { useTransactionData } from "./useTransactionData";
 import type { useTransactionList } from "./useTransactionList";
 import type { StatusKind } from "../../shared/native/appTypes";
@@ -166,6 +167,24 @@ export function useTransactionBulkActions({ data, list, onStatus: setStatus, onB
     }
   }
 
+  async function handleBulkSetExcludedFromBudget(excluded: boolean) {
+    const ids = Array.from(selectedIds);
+    const hadTransfer = ids.some((id) => {
+      const t = transactions.find((row) => row.id === id);
+      return t !== undefined && isTransferTransaction(t);
+    });
+    try {
+      const changed = await callTransaction<number>("set_transactions_excluded_from_budget", { ids, excluded });
+      setSelectedIds(new Set());
+      await refreshRows(ids);
+      if (hadTransfer && changed < ids.length) {
+        setStatus("Transfers are already left out of your budget, so they were skipped.", "info");
+      }
+    } catch (e) {
+      setStatus(errorMessage(e));
+    }
+  }
+
   async function handleBulkAddTag(tag: string) {
     const trimmed = tag.trim();
     if (!trimmed) return;
@@ -269,6 +288,7 @@ export function useTransactionBulkActions({ data, list, onStatus: setStatus, onB
     handleCreateManualTransaction,
     handleRecategorize,
     handleBulkMemberChange,
+    handleBulkSetExcludedFromBudget,
     handleBulkAddTag,
     handleBulkCategoryChange,
     handleBulkDelete,

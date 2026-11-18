@@ -92,6 +92,7 @@ function baseProps(transactions: Transaction[], familyMembers: FamilyMember[]): 
     handleAccountChangeForTransaction: vi.fn(),
     familyMembers,
     handleMemberChangeForTransaction: vi.fn(),
+    handleSetExcludedFromBudget: vi.fn(),
     categoryOptions: ["Dining Out", "Groceries"],
     handleCategoryChange: vi.fn(),
     toggleSplitEditor: vi.fn(),
@@ -218,6 +219,25 @@ describe("TransactionsTable", () => {
     expect(uncategorized.classList.contains("row-field-needs")).toBe(true);
     expect(uncategorized.textContent).toContain("Needs a category");
     expect(container.querySelector("[aria-label='Category for \"Coffee Shop\"']")!.classList.contains("row-field-needs")).toBe(false);
+  });
+
+  it("tags a marked row Not in budget only while the switch is on", () => {
+    const marked = [txn({ id: 1, excluded_from_budget: true })];
+    const props = baseProps(marked, [{ id: 1, name: "Alex" }]);
+    show({ ...props, appSettings: { ...props.appSettings, budget_exclusion_enabled: true } });
+    expect(container.textContent).toContain("Not in budget");
+    show(baseProps(marked, [{ id: 1, name: "Alex" }]));
+    expect(container.textContent).not.toContain("Not in budget");
+  });
+
+  it("offers Include in budget on a marked row and sends it for that row", () => {
+    const marked = [txn({ id: 1, excluded_from_budget: true })];
+    const props = baseProps(marked, [{ id: 1, name: "Alex" }]);
+    const handle = vi.fn();
+    show({ ...props, appSettings: { ...props.appSettings, budget_exclusion_enabled: true }, handleSetExcludedFromBudget: handle });
+    act(() => rows()[0].querySelector<HTMLButtonElement>("[data-row-menu]")!.click());
+    act(() => menuItem("Include in budget")!.click());
+    expect(handle).toHaveBeenCalledWith(1, false);
   });
 
   it("shows the inline Delete confirm in place of the ⋯ when Delete is chosen", () => {

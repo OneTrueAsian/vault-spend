@@ -17,7 +17,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 
 import { BudgetView } from "./BudgetView";
 import { startPrivacyMask } from "../../shared/lib/privacy";
-import type { CashFlow, ReportBudgetLine } from "../../shared/lib/types";
+import type { ReportBudgetLine } from "../../shared/lib/types";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -34,13 +34,7 @@ function line(over: Partial<ReportBudgetLine>): ReportBudgetLine {
   };
 }
 
-const monthFlow: CashFlow = {
-  months: [],
-  top_categories: [],
-  top_merchants: [],
-  total_income: "5000.00",
-  total_expense: "1690.00",
-};
+const budgetTotals = { income: "5000.00", expense: "1690.00" };
 
 type Props = ComponentProps<typeof BudgetView>;
 
@@ -52,7 +46,7 @@ function props(over: Partial<Props> = {}): Props {
       line({ category: "Insurance", budgeted: "120.00", actual: "90.00" }),
       line({ category: "Paycheck", budget_group: "income", budgeted: "5200.00", actual: "5000.00" }),
     ],
-    monthFlow,
+    budgetTotals,
     budgetAlerts: [],
     monthLabel: "March 2026",
     year: 2026,
@@ -242,8 +236,14 @@ describe("BudgetView Spending against the plan", () => {
     expect(onCategoryClick).toHaveBeenCalledWith("Insurance");
   });
 
+  it("sums the net from the budget totals, which can differ from Cash Flow when rows are excluded", async () => {
+    await render(props({ budgetTotals: { income: "4000.00", expense: "900.00" } }));
+    const note = card().querySelector<HTMLElement>("[data-budget-summary-note]")!;
+    expect(note.textContent).toContain("$4,000.00 recorded income − $900.00 recorded spending");
+  });
+
   it("says so in words when the month has no budget", async () => {
-    await render(props({ budgetActuals: [], monthFlow: { ...monthFlow, total_income: "0.00", total_expense: "0.00" } }));
+    await render(props({ budgetActuals: [], budgetTotals: { income: "0.00", expense: "0.00" } }));
     expect(card().textContent).toContain("Nothing is planned for spending in March 2026 yet.");
     expect(card().querySelector(".category-bars")).toBeNull();
     expect(card().querySelector("[data-plan-total]")).toBeNull();
@@ -662,7 +662,7 @@ describe("BudgetView colours", () => {
     await render(
       props({
         budgetActuals: lowIncome.map((l) => (l.budget_group === "income" ? { ...l, budgeted: "1000.00" } : l)),
-        monthFlow: { ...monthFlow, total_income: "1500.00", total_expense: "1601.56" },
+        budgetTotals: { income: "1500.00", expense: "1601.56" },
         year: 2026,
         month: 10,
       }),
@@ -680,7 +680,7 @@ describe("BudgetView colours", () => {
     await render(
       props({
         budgetActuals: lowIncome.map((l) => (l.budget_group === "income" ? { ...l, budgeted: "1000.00" } : l)),
-        monthFlow: { ...monthFlow, total_income: "1500.00", total_expense: "1601.56" },
+        budgetTotals: { income: "1500.00", expense: "1601.56" },
       }),
     );
     expect(container.querySelector("[data-planned-net]")!.classList.contains("report-over-budget")).toBe(true);

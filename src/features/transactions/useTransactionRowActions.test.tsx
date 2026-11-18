@@ -53,3 +53,8 @@ it("starts a new debt application on a visible debt, never the first hidden one"
   act(() => actions.startApplyingDebtPayment(row));
   expect(actions.applyDebtForm.accountId).toBe("");
 });
+it("marking one row calls the shared command and refreshes that row",async()=>{
+  await act(async()=>{await actions.handleSetExcludedFromBudget(1,true);});
+  expect(call).toHaveBeenCalledWith("set_transactions_excluded_from_budget",{ids:[1],excluded:true});
+  expect(refreshRows).toHaveBeenCalledWith([1]);
+});

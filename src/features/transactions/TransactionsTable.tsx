@@ -10,6 +10,7 @@ import { AppliedPaymentDetails } from "./AppliedPaymentDetails";
 
 import { RowFieldDropdown } from "./RowFieldDropdown";
 import { RowMenu, type RowMenuItem } from "../../shared/ui/RowMenu";
+import { isTransferTransaction } from "../../shared/lib/transfers";
 import { transactionRowActions, type TransactionRowActionId } from "./transactionRowActions";
 
 import { SortableTh } from "./SortableTh";
@@ -54,6 +55,7 @@ interface TransactionsTableProps {
   handleAccountChangeForTransaction: (id: number, accountId: string) => Promise<void>;
   familyMembers: FamilyMember[];
   handleMemberChangeForTransaction: (id: number, memberId: string) => Promise<void>;
+  handleSetExcludedFromBudget: (id: number, excluded: boolean) => Promise<void>;
   categoryOptions: string[];
   handleCategoryChange: (id: number, value: string) => Promise<void>;
   toggleSplitEditor: (t: Transaction) => Promise<void>;
@@ -133,6 +135,7 @@ export function TransactionsTable({
   handleAccountChangeForTransaction,
   familyMembers,
   handleMemberChangeForTransaction,
+  handleSetExcludedFromBudget,
   categoryOptions,
   handleCategoryChange,
   toggleSplitEditor,
@@ -418,12 +421,14 @@ export function TransactionsTable({
                 </button>
               </span>
             ) : null;
+            const notInBudget = appSettings.budget_exclusion_enabled && t.excluded_from_budget;
             const runAction: Record<TransactionRowActionId, () => void> = {
               split: () => void toggleSplitEditor(t),
               principal: () => startEditingPrincipal(t),
               applyDebt: () => startApplyingDebtPayment(t),
               note: () => setNotesDialogFor(t),
               tag: () => setTaggingId(t.id),
+              budget: () => void handleSetExcludedFromBudget(t.id, !t.excluded_from_budget),
               delete: () => setConfirmingDeleteId(t.id),
             };
             const actionItems: RowMenuItem[] = transactionRowActions(t, {
@@ -434,6 +439,8 @@ export function TransactionsTable({
               canApplyToDebt: pickableAccounts(debtAccounts).length > 0 && rowAccount?.account_type !== "credit",
               hasPrincipalOverride: t.principal_amount !== null,
               hasAppliedDebt: t.applied_to_debt !== null,
+              budgetExclusionEnabled: appSettings.budget_exclusion_enabled,
+              isTransfer: isTransferTransaction(t),
             }).map((action) => ({ label: action.label, onSelect: runAction[action.id], danger: action.id === "delete" }));
             const menuItems: RowMenuItem[] = onlyMember
               ? [
@@ -531,10 +538,11 @@ export function TransactionsTable({
                         ⇄ Transfer ×
                       </button>
                     )}
-                    {(t.tags.length > 0 || t.notes || taggingId === t.id || debtState) && (
+                    {(t.tags.length > 0 || t.notes || taggingId === t.id || debtState || notInBudget) && (
                       <div className="transaction-description-meta">
-                        {(t.tags.length > 0 || taggingId === t.id) && (
+                        {(t.tags.length > 0 || taggingId === t.id || notInBudget) && (
                           <div className="tag-pills">
+                            {notInBudget && <span className="tag-pill">Not in budget</span>}
                             {t.tags.map((tag) => (
                               <span key={tag} className="tag-pill">
                                 {tag}
