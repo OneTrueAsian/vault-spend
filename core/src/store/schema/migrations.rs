@@ -649,6 +649,26 @@ impl Store {
         Ok(())
     }
 
+    /// "Exclude from budget": a per-transaction mark and the profile switch that
+    /// makes it count. Both are off (`0`) for every pre-existing row and profile,
+    /// so nothing changes until a person turns the switch on.
+    pub(super) fn migrate_add_budget_exclusion_if_missing(&self) -> rusqlite::Result<()> {
+        let columns_of = |table: &str| -> rusqlite::Result<Vec<String>> {
+            let mut stmt = self.conn.prepare(&format!("PRAGMA table_info({table})"))?;
+            let names = stmt.query_map([], |row| row.get::<_, String>(1))?.collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(names)
+        };
+        if !columns_of("transactions")?.iter().any(|c| c == "excluded_from_budget") {
+            self.conn
+                .execute("ALTER TABLE transactions ADD COLUMN excluded_from_budget INTEGER NOT NULL DEFAULT 0", [])?;
+        }
+        if !columns_of("app_settings")?.iter().any(|c| c == "budget_exclusion_enabled") {
+            self.conn
+                .execute("ALTER TABLE app_settings ADD COLUMN budget_exclusion_enabled INTEGER NOT NULL DEFAULT 0", [])?;
+        }
+        Ok(())
+    }
+
     /// Opt-in auto-linking of transfers. The switch is off (`0`) for every
     /// pre-existing database. `transfer_links.auto` marks a link the app made
     /// itself (`0` = a person linked it) and `reviewed` says whether a person

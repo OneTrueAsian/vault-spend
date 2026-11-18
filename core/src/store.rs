@@ -223,6 +223,9 @@ pub struct StoredRecurring {
 /// `auto_link_transfers` is the one opt-IN switch here (off by default): when
 /// on, clear-cut transfer pairs are linked without asking — see
 /// `Store::auto_link_transfers`.
+/// `budget_exclusion_enabled` is opt-IN too (off by default): off suspends every
+/// transaction's "Exclude from budget" mark without rewriting it, so turning
+/// it back on restores exactly what was marked before.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StoredAppSettings {
     pub apply_to_debt_enabled: bool,
@@ -231,6 +234,7 @@ pub struct StoredAppSettings {
     pub rollover_enabled: bool,
     pub auto_link_transfers: bool,
     pub safe_to_spend_enabled: bool,
+    pub budget_exclusion_enabled: bool,
 }
 
 /// The first day of `d`'s month.

@@ -234,6 +234,7 @@ impl Store {
                 rollover_enabled INTEGER NOT NULL DEFAULT 1,
                 auto_link_transfers INTEGER NOT NULL DEFAULT 0,
                 safe_to_spend_enabled INTEGER NOT NULL DEFAULT 1,
+                budget_exclusion_enabled INTEGER NOT NULL DEFAULT 0,
                 inflation_pct TEXT NOT NULL DEFAULT '3'
             );
             CREATE TABLE IF NOT EXISTS investment_plans (
@@ -305,6 +306,7 @@ impl Store {
         self.migrate_add_background_settings_if_missing()?;
         self.migrate_add_rollover_setting_if_missing()?;
         self.migrate_add_safe_to_spend_setting_if_missing()?;
+        self.migrate_add_budget_exclusion_if_missing()?;
         self.migrate_add_auto_link_support_if_missing()?;
         self.migrate_add_inflation_setting_if_missing()?;
         self.migrate_add_bucket_icon_key_if_missing()?;

@@ -1864,3 +1864,111 @@ fn a_bill_due_today_that_has_already_posted_is_not_reminded() {
 
     assert!(reminder_names(&store, "2026-09-18", 3).is_empty());
 }
+
+// Exclude from budget — a per-transaction mark plus a profile switch.
+
+fn excluded_flag(store: &Store, id: i64) -> bool {
+    store.all_transactions().unwrap().iter().find(|t| t.id == id).unwrap().excluded_from_budget
+}
+
+#[test]
+fn budget_exclusion_migration_adds_columns_once() {
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    store.init_schema().unwrap();
+    assert!(!store.get_app_settings().unwrap().budget_exclusion_enabled);
+    store.save_transactions(account, &[tx("2026-08-20", "Coffee", "-4.00")]).unwrap();
+    assert!(!store.all_transactions().unwrap()[0].excluded_from_budget);
+}
+
+#[test]
+fn set_budget_exclusion_enabled_round_trips() {
+    let store = Store::open_in_memory().unwrap();
+    store.set_budget_exclusion_enabled(true).unwrap();
+    assert!(store.get_app_settings().unwrap().budget_exclusion_enabled);
+    store.set_budget_exclusion_enabled(false).unwrap();
+    assert!(!store.get_app_settings().unwrap().budget_exclusion_enabled);
+}
+
+#[test]
+fn marking_skips_transfers_and_debt_payment_rows() {
+    let store = Store::open_in_memory().unwrap();
+    let checking = test_account(&store);
+    let loan = store.get_or_create_account("Car Loan", AccountType::Loan).unwrap();
+    store.set_account_starting_balance(loan, "10000.00".parse().unwrap()).unwrap();
+    store
+        .save_transactions(
+            checking,
+            &[tx("2026-08-20", "Groceries", "-40.00"), tx("2026-08-21", "Move money", "-100.00"), tx("2026-08-22", "Loan Payment", "-500.00")],
+        )
+        .unwrap();
+    let all = store.all_transactions().unwrap();
+    let (purchase, transfer, payment) = (all[0].id, all[1].id, all[2].id);
+    store.set_category(transfer, "Transfer", CategorySource::User, None).unwrap();
+    store.apply_debt_payment(payment, loan, "500.00".parse().unwrap(), "2026-08-22".parse().unwrap()).unwrap();
+    let generated: i64 = store
+        .conn
+        .query_row("SELECT generated_transaction_id FROM debt_payments", [], |r| r.get(0))
+        .unwrap();
+
+    let changed = store.set_transactions_excluded_from_budget(&[purchase, transfer, generated], true).unwrap();
+
+    assert_eq!(changed, 1);
+    assert!(excluded_flag(&store, purchase));
+    assert!(!excluded_flag(&store, transfer));
+    let generated_flag: bool = store
+        .conn
+        .query_row("SELECT excluded_from_budget FROM transactions WHERE id = ?1", [generated], |r| r.get(0))
+        .unwrap();
+    assert!(!generated_flag);
+}
+
+#[test]
+fn marking_skips_a_live_linked_transfer_leg() {
+    let store = Store::open_in_memory().unwrap();
+    let checking = test_account(&store);
+    let savings = store.get_or_create_account("Savings", AccountType::Savings).unwrap();
+    store.save_transactions(checking, &[tx("2026-08-20", "To savings", "-100.00")]).unwrap();
+    store.save_transactions(savings, &[tx("2026-08-20", "From checking", "100.00")]).unwrap();
+    let all = store.all_transactions().unwrap();
+    store.link_transfer(all[0].id, all[1].id).unwrap();
+
+    assert_eq!(store.set_transactions_excluded_from_budget(&[all[0].id, all[1].id], true).unwrap(), 0);
+}
+
+#[test]
+fn unmarking_clears_the_mark() {
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    store.save_transactions(account, &[tx("2026-08-20", "Groceries", "-40.00")]).unwrap();
+    let id = store.all_transactions().unwrap()[0].id;
+    store.set_transactions_excluded_from_budget(&[id], true).unwrap();
+    assert!(excluded_flag(&store, id));
+
+    store.set_transactions_excluded_from_budget(&[id], false).unwrap();
+
+    assert!(!excluded_flag(&store, id));
+}
+
+#[test]
+fn mark_survives_delete_and_restore() {
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    store.save_transactions(account, &[tx("2026-08-20", "Groceries", "-40.00")]).unwrap();
+    let id = store.all_transactions().unwrap()[0].id;
+    store.set_transactions_excluded_from_budget(&[id], true).unwrap();
+
+    store.delete_transaction(id, test_now()).unwrap();
+    store.restore_transactions(&[id]).unwrap();
+
+    assert!(excluded_flag(&store, id));
+}
+
+#[test]
+fn budget_exclusion_sql_follows_the_switch() {
+    let store = Store::open_in_memory().unwrap();
+    assert_eq!(store.budget_exclusion_sql("t.").unwrap(), "");
+    store.set_budget_exclusion_enabled(true).unwrap();
+    assert_eq!(store.budget_exclusion_sql("t.").unwrap(), " AND t.excluded_from_budget = 0");
+    assert_eq!(store.budget_exclusion_sql("").unwrap(), " AND excluded_from_budget = 0");
+}

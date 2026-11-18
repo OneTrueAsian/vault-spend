@@ -118,7 +118,7 @@ impl Store {
     /// before this setting existed.
     pub fn get_app_settings(&self) -> rusqlite::Result<StoredAppSettings> {
         let row = match self.conn.query_row(
-            "SELECT apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled, rollover_enabled, auto_link_transfers, safe_to_spend_enabled FROM app_settings WHERE id = 1",
+            "SELECT apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled, rollover_enabled, auto_link_transfers, safe_to_spend_enabled, budget_exclusion_enabled FROM app_settings WHERE id = 1",
             [],
             |row| {
                 Ok((
@@ -128,6 +128,7 @@ impl Store {
                     row.get::<_, bool>(3)?,
                     row.get::<_, bool>(4)?,
                     row.get::<_, bool>(5)?,
+                    row.get::<_, bool>(6)?,
                 ))
             },
         ) {
@@ -135,9 +136,9 @@ impl Store {
             Err(rusqlite::Error::QueryReturnedNoRows) => None,
             Err(e) => return Err(e),
         };
-        // Everything defaults on except auto-linking, which is opt-in.
-        let (apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled, rollover_enabled, auto_link_transfers, safe_to_spend_enabled) =
-            row.unwrap_or((true, true, true, true, false, true));
+        // Everything defaults on except auto-linking and budget exclusion, which are opt-in.
+        let (apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled, rollover_enabled, auto_link_transfers, safe_to_spend_enabled, budget_exclusion_enabled) =
+            row.unwrap_or((true, true, true, true, false, true, false));
         Ok(StoredAppSettings {
             apply_to_debt_enabled,
             split_purchases_enabled,
@@ -145,6 +146,7 @@ impl Store {
             rollover_enabled,
             auto_link_transfers,
             safe_to_spend_enabled,
+            budget_exclusion_enabled,
         })
     }
 
@@ -176,6 +178,17 @@ impl Store {
         self.conn.execute(
             "INSERT INTO app_settings (id, safe_to_spend_enabled) VALUES (1, ?1)
              ON CONFLICT(id) DO UPDATE SET safe_to_spend_enabled = ?1",
+            params![enabled],
+        )?;
+        Ok(())
+    }
+
+    /// See the doc comment on `StoredAppSettings` — off suspends every
+    /// transaction's stored "Exclude from budget" mark; none is rewritten.
+    pub fn set_budget_exclusion_enabled(&self, enabled: bool) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "INSERT INTO app_settings (id, budget_exclusion_enabled) VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET budget_exclusion_enabled = ?1",
             params![enabled],
         )?;
         Ok(())
