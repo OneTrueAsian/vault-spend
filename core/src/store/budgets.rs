@@ -301,7 +301,7 @@ impl Store {
             }
             months_used += 1;
             let last = next_first.pred_opt().expect("a month's last day exists");
-            for (category, spent) in self.spending_by_category(first, last)? {
+            for (category, spent) in self.budget_spending_by_category(first, last)? {
                 *totals.entry(category).or_insert(Decimal::ZERO) += spent;
             }
         }
@@ -345,9 +345,9 @@ impl Store {
     /// transaction never counts as one), and whether the review was already
     /// finished.
     pub fn month_review(&self, year: i32, month: u32) -> rusqlite::Result<MonthReview> {
-        let (income, expenses) = self.monthly_totals(year, month)?;
+        let (income, expenses) = self.monthly_budget_totals(year, month)?;
         let (prev_year, prev_month) = if month == 1 { (year - 1, 12) } else { (year, month - 1) };
-        let (prev_income, prev_expenses) = self.monthly_totals(prev_year, prev_month)?;
+        let (prev_income, prev_expenses) = self.monthly_budget_totals(prev_year, prev_month)?;
 
         let mut over_budget: Vec<OverBudgetLine> = self
             .monthly_budget_actuals(year, month)?
@@ -499,19 +499,20 @@ impl Store {
         // SQL `SUM()`, since `amount` is stored as TEXT and SQLite's SUM
         // would do the addition in floating point rather than exact
         // decimal arithmetic.
-        let mut stmt = self.conn.prepare(
+        let (excluded, excluded_t) = (self.budget_exclusion_sql("")?, self.budget_exclusion_sql("t.")?);
+        let mut stmt = self.conn.prepare(&format!(
             "SELECT category, amount FROM transactions
              WHERE date >= ?1 AND date < ?2
                    AND id NOT IN (SELECT DISTINCT transaction_id FROM transaction_splits)
                    AND id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND deleted_at IS NULL
+                   AND deleted_at IS NULL{excluded}
              UNION ALL
              SELECT ts.category, ts.amount FROM transaction_splits ts
              JOIN transactions t ON t.id = ts.transaction_id
              WHERE t.date >= ?1 AND t.date < ?2
                    AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND t.deleted_at IS NULL",
-        )?;
+                   AND t.deleted_at IS NULL{excluded_t}"
+        ))?;
         let rows = stmt.query_map(params![first.to_string(), next_first.to_string()], |row| {
             Ok((row.get::<_, Option<String>>(0)?, row.get::<_, String>(1)?))
         })?;
@@ -609,19 +610,20 @@ impl Store {
     /// number — the same split-aware, debt-payment-exclusion-aware sum
     /// `monthly_budget_actuals` uses, for a single category.
     fn expense_spent_in_month(&self, category: &str, month_key: &str) -> rusqlite::Result<Decimal> {
-        let mut stmt = self.conn.prepare(
+        let (excluded, excluded_t) = (self.budget_exclusion_sql("")?, self.budget_exclusion_sql("t.")?);
+        let mut stmt = self.conn.prepare(&format!(
             "SELECT amount FROM transactions
              WHERE category = ?1 AND substr(date, 1, 7) = ?2
                    AND id NOT IN (SELECT DISTINCT transaction_id FROM transaction_splits)
                    AND id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND deleted_at IS NULL
+                   AND deleted_at IS NULL{excluded}
              UNION ALL
              SELECT ts.amount FROM transaction_splits ts
              JOIN transactions t ON t.id = ts.transaction_id
              WHERE ts.category = ?1 AND substr(t.date, 1, 7) = ?2
                    AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND t.deleted_at IS NULL",
-        )?;
+                   AND t.deleted_at IS NULL{excluded_t}"
+        ))?;
         let rows = stmt.query_map(params![category, month_key], |row| row.get::<_, String>(0))?;
         let mut raw = Decimal::ZERO;
         for row in rows {
@@ -654,19 +656,20 @@ impl Store {
         let budgets = self.list_budgets(&month_key)?;
         let member_names: std::collections::HashMap<i64, String> = self.list_family_members()?.into_iter().map(|m| (m.id, m.name)).collect();
 
-        let mut stmt = self.conn.prepare(
+        let (excluded, excluded_t) = (self.budget_exclusion_sql("")?, self.budget_exclusion_sql("t.")?);
+        let mut stmt = self.conn.prepare(&format!(
             "SELECT amount, member_id FROM transactions
              WHERE category = ?1 AND substr(date, 1, 7) = ?2
                    AND id NOT IN (SELECT DISTINCT transaction_id FROM transaction_splits)
                    AND id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND deleted_at IS NULL
+                   AND deleted_at IS NULL{excluded}
              UNION ALL
              SELECT ts.amount, t.member_id FROM transaction_splits ts
              JOIN transactions t ON t.id = ts.transaction_id
              WHERE ts.category = ?1 AND substr(t.date, 1, 7) = ?2
                    AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND t.deleted_at IS NULL",
-        )?;
+                   AND t.deleted_at IS NULL{excluded_t}"
+        ))?;
 
         let mut result = Vec::new();
         for line in budgets {
@@ -706,19 +709,20 @@ impl Store {
     /// point rather than being skipped, so a sparkline never has to
     /// special-case a missing month.
     pub fn budget_actuals_trend(&self, category: &str, year: i32, month: u32, months: u32) -> rusqlite::Result<Vec<(String, Decimal)>> {
-        let mut stmt = self.conn.prepare(
+        let (excluded, excluded_t) = (self.budget_exclusion_sql("")?, self.budget_exclusion_sql("t.")?);
+        let mut stmt = self.conn.prepare(&format!(
             "SELECT amount FROM transactions
              WHERE category = ?1 AND substr(date, 1, 7) = ?2
                    AND id NOT IN (SELECT DISTINCT transaction_id FROM transaction_splits)
                    AND id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND deleted_at IS NULL
+                   AND deleted_at IS NULL{excluded}
              UNION ALL
              SELECT ts.amount FROM transaction_splits ts
              JOIN transactions t ON t.id = ts.transaction_id
              WHERE ts.category = ?1 AND substr(t.date, 1, 7) = ?2
                    AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND t.deleted_at IS NULL",
-        )?;
+                   AND t.deleted_at IS NULL{excluded_t}"
+        ))?;
         let is_income = self
             .list_budgets(&format!("{year:04}-{month:02}"))?
             .into_iter()
@@ -754,14 +758,15 @@ impl Store {
     /// first.
     pub fn transactions_for_category_in_month(&self, category: &str, year: i32, month: u32) -> rusqlite::Result<Vec<CategoryTransaction>> {
         let month_key = format!("{year:04}-{month:02}");
-        let mut stmt = self.conn.prepare(
+        let excluded = self.budget_exclusion_sql("t.")?;
+        let mut stmt = self.conn.prepare(&format!(
             "SELECT t.id, t.date, t.description, t.amount, a.name, 0, NULL
              FROM transactions t
              JOIN accounts a ON a.id = t.account_id
              WHERE t.category = ?1 AND substr(t.date, 1, 7) = ?2
                    AND t.id NOT IN (SELECT DISTINCT transaction_id FROM transaction_splits)
                    AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND t.deleted_at IS NULL
+                   AND t.deleted_at IS NULL{excluded}
              UNION ALL
              SELECT t.id, t.date, t.description, ts.amount, a.name, 1, ts.note
              FROM transaction_splits ts
@@ -769,9 +774,9 @@ impl Store {
              JOIN accounts a ON a.id = t.account_id
              WHERE ts.category = ?1 AND substr(t.date, 1, 7) = ?2
                    AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND t.deleted_at IS NULL
-             ORDER BY 2",
-        )?;
+                   AND t.deleted_at IS NULL{excluded}
+             ORDER BY 2"
+        ))?;
         let rows = stmt.query_map(params![category, month_key], |row| {
             Ok((
                 row.get::<_, i64>(0)?,
@@ -808,6 +813,7 @@ impl Store {
             return Ok(Vec::new());
         }
         let (first, next_first) = month_bounds(year, month);
+        let excluded = self.budget_exclusion_sql("t.")?;
         let mut stmt = self.conn.prepare(&format!(
             "SELECT t.id, t.date, t.description, t.amount, a.name, 0, NULL
              FROM transactions t JOIN accounts a ON a.id = t.account_id
@@ -815,7 +821,7 @@ impl Store {
                    AND t.date >= ?2 AND t.date < ?3
                    AND t.id NOT IN (SELECT DISTINCT transaction_id FROM transaction_splits)
                    AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL}) AND t.deleted_at IS NULL
+                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL}) AND t.deleted_at IS NULL{excluded}
              UNION ALL
              SELECT t.id, t.date, t.description, ts.amount, a.name, 1, ts.note
              FROM transaction_splits ts
@@ -824,7 +830,7 @@ impl Store {
              WHERE COALESCE(ts.category, 'Uncategorized') = ?1 AND (ts.category IS NULL OR ts.category <> 'Transfer')
                    AND t.date >= ?2 AND t.date < ?3
                    AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL}) AND t.deleted_at IS NULL
+                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL}) AND t.deleted_at IS NULL{excluded}
              ORDER BY 2, 1"
         ))?;
         let rows = stmt.query_map(params![category, first.to_string(), next_first.to_string()], |row| {

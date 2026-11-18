@@ -12,6 +12,7 @@ mod ask_vault_m6;
 mod ask_vault_retirement;
 mod assets;
 mod buckets;
+mod budget_exclusion;
 mod budgets;
 mod categories;
 mod cross_view;

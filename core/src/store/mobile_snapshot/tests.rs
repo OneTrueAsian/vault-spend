@@ -712,3 +712,23 @@ fn projection_observes_one_sqlite_snapshot_even_when_another_connection_changes_
     // SQLite removes its WAL/SHM files when the last connection closes.
     std::fs::remove_dir(directory).unwrap();
 }
+
+#[test]
+fn mobile_snapshot_budget_leaves_marked_rows_out() {
+    let store = Store::open_in_memory().unwrap();
+    let account = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
+    store.set_budget_exclusion_enabled(true).unwrap();
+    store.set_budget("Medical", "2026-09", Decimal::from(200), "flexible").unwrap();
+    let er = tx(&store, account, "2026-09-03", "-3000", Some("Medical"), "City ER");
+    tx(&store, account, "2026-09-05", "-50", Some("Medical"), "Pharmacy");
+    let split = tx(&store, account, "2026-09-10", "-90", None, "Clinic");
+    store.set_transaction_splits(split, &[("Medical".into(), Decimal::from(-90), None)]).unwrap();
+    store.set_transactions_excluded_from_budget(&[er, split], true).unwrap();
+    let spent = |store: &Store| {
+        let snapshot = store.build_mobile_snapshot(&context(), today()).unwrap();
+        snapshot.budgets.iter().find(|b| b.month == "2026-09").unwrap().lines[0].actual.clone()
+    };
+    assert_eq!(spent(&store), "50");
+    store.set_budget_exclusion_enabled(false).unwrap();
+    assert_eq!(spent(&store), "3140");
+}
