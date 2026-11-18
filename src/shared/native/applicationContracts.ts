@@ -107,6 +107,7 @@ export const applicationChecks: Record<string, Check> = {
     rollover_enabled: boolean,
     auto_link_transfers: boolean,
     safe_to_spend_enabled: boolean,
+    budget_exclusion_enabled: boolean,
   }),
   get_background_settings: object({ tray_enabled: boolean, autostart_enabled: boolean, autostart_supported: boolean }),
   get_live_price_settings: object({

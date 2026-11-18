@@ -21,6 +21,7 @@ function tx(overrides: Partial<Transaction> = {}): Transaction {
     member_id: 3,
     member_name: "Joint",
     notes: null,
+    excluded_from_budget: false,
     ...overrides,
   };
 }

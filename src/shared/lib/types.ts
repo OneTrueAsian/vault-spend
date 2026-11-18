@@ -79,6 +79,8 @@ export type AppSettings = {
   /** Opt-in (off by default): link clear-cut transfer pairs automatically. */
   auto_link_transfers: boolean;
   safe_to_spend_enabled: boolean;
+  /** The global "Exclude from budget" switch; off by default. */
+  budget_exclusion_enabled: boolean;
 };
 
 /** Purely a per-viewer display preference (like `Theme` in App.tsx) — stored
@@ -123,6 +125,8 @@ export type Transaction = {
    * for categorization, transfer matching, or import dedup. `null` means
    * no note. See `update_transaction_notes`. */
   notes: string | null;
+  /** Marked "Exclude from budget": left out of budget tracking only. */
+  excluded_from_budget: boolean;
 };
 
 export type TransactionSplit = {

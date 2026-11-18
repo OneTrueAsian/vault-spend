@@ -15,7 +15,7 @@ function row(id: number, overrides: Partial<Transaction> = {}): Transaction {
   return { id, account_id: 1, account_name: "Checking", date: "2026-10-01", description: `Purchase ${id}`,
     amount: "-5.00", category: "Food", category_source: "user", confidence: null,
     transfer_counterpart_id: null, applied_to_debt: null, principal_amount: null, split_count: 0,
-    tags: [], member_id: null, member_name: null, notes: null, ...overrides };
+    tags: [], member_id: null, member_name: null, notes: null, excluded_from_budget: false, ...overrides };
 }
 let root: Root;
 let ledger: ReturnType<typeof useTransactionList>;

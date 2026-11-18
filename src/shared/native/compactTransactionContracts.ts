@@ -27,7 +27,7 @@ export function validateTransactionWireSnapshot(value: unknown): TransactionSnap
   const tuple = (row: unknown, length: number): unknown[] =>
     Array.isArray(row) && row.length === length ? row : invalid();
   const transactions = wire.rows.map((value) => {
-    const r = tuple(value, 17),
+    const r = tuple(value, 18),
       debt = r[10] === null ? null : tuple(r[10], 4);
     if (!Array.isArray(r[13])) return invalid();
     return {
@@ -50,6 +50,7 @@ export function validateTransactionWireSnapshot(value: unknown): TransactionSnap
       member_id: r[14],
       member_name: optional(r[15]),
       notes: optional(r[16]),
+      excluded_from_budget: r[17],
     };
   });
   const flags = wire.flags.map((value) => {

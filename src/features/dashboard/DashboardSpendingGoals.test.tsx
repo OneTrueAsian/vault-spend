@@ -83,6 +83,7 @@ function txn(over: Partial<Transaction> & Pick<Transaction, "id" | "date">): Tra
     member_id: null,
     member_name: null,
     notes: null,
+    excluded_from_budget: false,
     ...over,
   };
 }

@@ -518,7 +518,7 @@ describe("v9 recent transactions", () => {
     const onOpenTransactions = vi.fn();
     await render(props({ layoutWidgets: ["recent_transactions"], onOpenTransactions,
       transactions: [{ id: 91, date: "2026-11-14", description: "Local market", amount: "-12.00", category: null,
-        account_id: 1, account_name: "Everyday checking", tags: [], split_count: 0, transfer_counterpart_id: null, category_source: "user", confidence: null, applied_to_debt: null, principal_amount: null, member_id: null, member_name: null, notes: null }],
+        account_id: 1, account_name: "Everyday checking", tags: [], split_count: 0, transfer_counterpart_id: null, category_source: "user", confidence: null, applied_to_debt: null, principal_amount: null, member_id: null, member_name: null, notes: null, excluded_from_budget: false }],
     }));
     const widget = container.querySelector('[data-widget-id="recent_transactions"]')!;
     expect(widget.querySelector("table")).toBeNull();

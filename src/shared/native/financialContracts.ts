@@ -33,6 +33,7 @@ export type BudgetSnapshot = Envelope & {
   alerts: BudgetAlert[];
   flow: CashFlow;
   members: MemberBudgetActual[];
+  budgetTotals: { income: string; expense: string };
 };
 export type ReportSnapshot = Envelope & {
   fromYear: number;
@@ -94,6 +95,7 @@ const budget = object({
       actual: decimal,
     }),
   ),
+  budgetTotals: object({ income: decimal, expense: decimal }),
 });
 const report = object({
   ...envelope,

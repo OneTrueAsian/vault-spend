@@ -8,6 +8,7 @@ const TOGGLE_SETTING_IDS: Record<keyof AppSettings, string> = {
   rollover_enabled: "rollover-unspent",
   auto_link_transfers: "link-transfers",
   safe_to_spend_enabled: "safe-to-spend",
+  budget_exclusion_enabled: "exclude-from-budget",
 };
 
 export function FeatureTogglesSection({

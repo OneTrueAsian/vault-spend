@@ -7,7 +7,7 @@ import type { Transaction } from "../../shared/lib/types";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root; let actions: ReturnType<typeof useTransactionRowActions>;
 const call=vi.fn(); const refresh=vi.fn(); const refreshRows=vi.fn(); const status=vi.fn();
-const row: Transaction = { id: 1, date: "2026-10-01", description: "Fixture", amount: "-12.34", account_id: 1, account_name: "Checking", category: "Food", category_source: "user", confidence: null, transfer_counterpart_id: null, applied_to_debt: null, principal_amount: null, split_count: 0, tags: [], member_id: null, member_name: null, notes: null };
+const row: Transaction = { id: 1, date: "2026-10-01", description: "Fixture", amount: "-12.34", account_id: 1, account_name: "Checking", category: "Food", category_source: "user", confidence: null, transfer_counterpart_id: null, applied_to_debt: null, principal_amount: null, split_count: 0, tags: [], member_id: null, member_name: null, notes: null, excluded_from_budget: false };
 function Harness() { actions=useTransactionRowActions({ data: { call,refresh,refreshRows }, accounts: [], categories: ["Food"], onStatus: status }); return null; }
 beforeEach(() => { vi.resetAllMocks(); call.mockResolvedValue(null); refresh.mockResolvedValue(null); refreshRows.mockResolvedValue(null); root=createRoot(document.createElement("div")); act(() => root.render(<Harness/>)); });
 afterEach(() => act(() => root.unmount()));

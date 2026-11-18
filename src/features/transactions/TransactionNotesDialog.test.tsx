@@ -32,6 +32,7 @@ function txn(overrides: Partial<Transaction> = {}): Transaction {
     member_id: null,
     member_name: null,
     notes: null,
+    excluded_from_budget: false,
     ...overrides,
   };
 }

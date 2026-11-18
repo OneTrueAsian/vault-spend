@@ -29,7 +29,7 @@ const HEADINGS: Record<string, string[]> = {
 const ALL_HEADINGS = Object.values(HEADINGS).flat();
 
 const account = { id: 1, name: "Checking", account_type: "checking", starting_balance: "0", current_balance: "100", institution: null, mask: null, interest_rate: null, excluded_from_debt_payoff: false, member_id: null, member_name: null, checkpoint_date: null, icon_key: null, import_flip_signs: null, hidden: false };
-const tx = (id: number, date: string, amount: string, category: string, extra: object = {}) => ({ id, transfer_counterpart_id: null, date, description: `T${id}`, amount, category, category_source: "user" as const, confidence: null, account_id: 1, account_name: "Checking", applied_to_debt: null, principal_amount: null, split_count: 0, tags: [], member_id: null, member_name: null, notes: null, ...extra });
+const tx = (id: number, date: string, amount: string, category: string, extra: object = {}) => ({ id, transfer_counterpart_id: null, date, description: `T${id}`, amount, category, category_source: "user" as const, confidence: null, account_id: 1, account_name: "Checking", applied_to_debt: null, principal_amount: null, split_count: 0, tags: [], member_id: null, member_name: null, notes: null, excluded_from_budget: false, ...extra });
 
 function snapshotFor(today: Date, preset: RangePreset = "last_6") {
   const { from, to } = presetRange(preset, today);

@@ -516,6 +516,7 @@ function App({
     rollover_enabled: true,
     auto_link_transfers: false, // the one opt-in switch
     safe_to_spend_enabled: true,
+    budget_exclusion_enabled: false,
   });
   const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
 

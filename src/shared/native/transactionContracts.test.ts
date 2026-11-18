@@ -6,7 +6,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 const row = { id: 1, transfer_counterpart_id: null, date: "2026-10-01", description: "Fixture", amount: "9007199254740992.01",
   category: null, category_source: null, confidence: null, account_id: 1, account_name: "Checking",
-  applied_to_debt: null, principal_amount: null, split_count: 0, tags: [], member_id: null, member_name: null, notes: null };
+  applied_to_debt: null, principal_amount: null, split_count: 0, tags: [], member_id: null, member_name: null, notes: null, excluded_from_budget: false };
 
 it("keeps decimal-string money and required nullable fields unchanged", async () => {
   vi.mocked(invoke).mockResolvedValue([sharedFixture]);
@@ -14,10 +14,15 @@ it("keeps decimal-string money and required nullable fields unchanged", async ()
 });
 
 it("rejects numeric money, missing nullable fields, unsafe identifiers and invalid calendar dates", async () => {
-  for (const change of [{ amount: 12.34 }, { notes: undefined }, { id: Number.MAX_SAFE_INTEGER + 1 }, { date: "2026-02-30" }, { tags: [null] }]) {
+  for (const change of [{ amount: 12.34 }, { notes: undefined }, { excluded_from_budget: undefined }, { excluded_from_budget: "yes" }, { id: Number.MAX_SAFE_INTEGER + 1 }, { date: "2026-02-30" }, { tags: [null] }]) {
     vi.mocked(invoke).mockResolvedValue([{ ...row, ...change }]);
     await expect(transactionReads.list()).rejects.toMatchObject({ code: "invalid_response" });
   }
+});
+
+it("accepts a transaction marked Exclude from budget", async () => {
+  vi.mocked(invoke).mockResolvedValue([{ ...row, excluded_from_budget: true }]);
+  expect(await transactionReads.list()).toEqual([{ ...row, excluded_from_budget: true }]);
 });
 
 it("retains machine-readable refusals when user-facing wording changes", async () => {

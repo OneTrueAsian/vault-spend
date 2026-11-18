@@ -33,6 +33,7 @@ function txn(over: Partial<Transaction> = {}): Transaction {
     member_id: null,
     member_name: null,
     notes: null,
+    excluded_from_budget: false,
     ...over,
   };
 }
@@ -71,6 +72,7 @@ function baseProps(transactions: Transaction[], familyMembers: FamilyMember[]): 
       rollover_enabled: true,
       auto_link_transfers: false,
       safe_to_spend_enabled: true,
+      budget_exclusion_enabled: false,
     },
     selectAllBatch: null,
     selectedIds: new Set(),
