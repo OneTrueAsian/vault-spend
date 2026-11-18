@@ -97,10 +97,10 @@ reviewed. A spec that kept none has not been reviewed, which is not the same as 
 `npm run e2e:review -- [folder]` then reviews every PNG in the folder (default: the newest kept run) with a local vision model,
 Ollama's `qwen3.6:35b` with thinking off, and writes `summary.md` (counts plus only the flagged and unsure screenshots) and
 `verdicts.json` into it. It takes about 5 seconds per screenshot and unloads the model when done. Run it after an E2E run, never
-during one. Exit 0 when reviewed, 3 when Ollama or the model is unavailable, 1 otherwise; `--host=` and `--model=` override the
+during one. If Ollama is not answering on this machine, it starts `ollama serve` in the background (from PATH or the default install folder), waits up to 30 seconds and leaves it running. Exit 0 when reviewed, 3 when Ollama still cannot be reached or the model is missing, 1 otherwise; `--host=` and `--model=` override the
 defaults. It works on any folder of screenshots, such as a UAT capture.
 
-To review E2E or UAT screenshots, run the specs with `--keep-screens` (or use the UAT shots folder), then `npm run e2e:review -- [folder]`, read its `summary.md`, and open only the flagged screenshots plus at least two passed ones per spec. If the review is unavailable (exit 3), open the screenshots directly. A local pass is a hint, never acceptance or sign-off, and it does not notice missing content (spec DOM checks cover that). Measured on 17 November 2026: 9 of 12 seeded faults caught, 1 of 64 good screens flagged, about 85% fewer Claude tokens than viewing every screenshot.
+To review E2E or UAT screenshots, run the specs with `--keep-screens` (or use the UAT shots folder), then `npm run e2e:review -- [folder]`, read its `summary.md`, and open only the flagged screenshots plus at least two passed ones per spec. The review starts Ollama itself if it is not running; if it still cannot run (exit 3), open the screenshots directly. A local pass is a hint, never acceptance or sign-off, and it does not notice missing content (spec DOM checks cover that). Measured on 17 November 2026: 9 of 12 seeded faults caught, 1 of 64 good screens flagged, about 85% fewer Claude tokens than viewing every screenshot.
 
 ## Running a spec
 

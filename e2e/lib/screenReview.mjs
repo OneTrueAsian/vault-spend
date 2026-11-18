@@ -2,6 +2,7 @@
 // agent opens only the flagged ones instead of loading every image. The prompt is the one measured in the 17 November 2026 trial:
 // 9 of 12 seeded faults caught, 1 of 64 good screens flagged. It does not notice missing content (spec 415's DOM checks cover that).
 // A pass is a hint, never acceptance.
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -30,6 +31,30 @@ const FORMAT = {
   properties: { verdict: { type: "string", enum: ["pass", "fail", "unsure"] }, issues: { type: "array", items: { type: "string" } } },
   required: ["verdict", "issues"],
 };
+
+// Where the Windows installer puts Ollama when it is not on PATH.
+const installedOllama = () => {
+  const local = process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, "Programs", "Ollama", "ollama.exe");
+  const onPath = (process.env.PATH ?? "").split(path.delimiter).map((d) => path.join(d, process.platform === "win32" ? "ollama.exe" : "ollama"));
+  return [...onPath, local].find((p) => p && fs.existsSync(p));
+};
+
+// Returns "running" (already up), "started" (we launched ollama serve and it answered) or "not-started" (the review will then exit 3).
+// Only a server on this machine is started; it is left running afterwards, like the Ollama tray app would.
+export async function ensureOllama({ host = DEFAULT_HOST, fetchImpl = fetch, spawnImpl = spawn, ollamaPath = installedOllama(), pollMs = 500, waitMs = 30000, log = console.log } = {}) {
+  const answers = async () => { try { return (await fetchImpl(`${host}/api/version`)).ok; } catch { return false; } };
+  if (await answers()) return "running";
+  if (!/^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(host) || !ollamaPath || !fs.existsSync(ollamaPath)) return "not-started";
+  log(`Ollama is not running; starting ${ollamaPath} serve`);
+  const child = spawnImpl(ollamaPath, ["serve"], { detached: true, stdio: "ignore", windowsHide: true });
+  child.on("error", () => {});
+  child.unref();
+  for (const end = Date.now() + waitMs; Date.now() < end; ) {
+    await new Promise((r) => setTimeout(r, pollMs));
+    if (await answers()) return "started";
+  }
+  return "not-started";
+}
 
 export function findScreens(dir) {
   return fs.readdirSync(dir, { recursive: true })

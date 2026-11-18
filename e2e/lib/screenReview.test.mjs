@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ModelUnavailableError, findScreens, promptFor, reviewScreens } from "./screenReview.mjs";
+import { ModelUnavailableError, ensureOllama, findScreens, promptFor, reviewScreens } from "./screenReview.mjs";
 
 let dir;
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), "vs-review-")); });
@@ -109,5 +109,39 @@ describe("reviewing", () => {
     expect(verdicts).toEqual([]);
     expect(summary).toContain("No screenshots found");
     expect(calls).toEqual([]);
+  });
+});
+
+// If Ollama is not running, the review starts it (ollama serve, in the background) and waits for it, instead of giving up with exit 3.
+describe("starting Ollama", () => {
+  const up = { ok: true, status: 200, json: async () => ({ version: "0.40.16" }) };
+  const down = new TypeError("fetch failed");
+  const server = (...answers) => { const urls = []; return { urls, fetchImpl: async (url) => { urls.push(url); const a = answers[Math.min(urls.length, answers.length) - 1]; if (a instanceof Error) throw a; return a; } }; };
+  const spawner = () => { const runs = []; return { runs, spawnImpl: (cmd, args, opts) => { runs.push({ cmd, args, opts }); return { unref() {}, on() {} }; } }; };
+  const exe = () => { const f = path.join(dir, "ollama.exe"); fs.writeFileSync(f, ""); return f; };
+
+  it("leaves a running server alone", async () => {
+    const s = server(up), p = spawner();
+    expect(await ensureOllama({ fetchImpl: s.fetchImpl, spawnImpl: p.spawnImpl, ollamaPath: exe(), log: quiet })).toBe("running");
+    expect(s.urls[0]).toBe("http://127.0.0.1:11434/api/version");
+    expect(p.runs).toHaveLength(0);
+  });
+  it("starts ollama serve in the background when the server is down and waits until it answers", async () => {
+    const s = server(down, down, up), p = spawner(), ollama = exe();
+    expect(await ensureOllama({ fetchImpl: s.fetchImpl, spawnImpl: p.spawnImpl, ollamaPath: ollama, pollMs: 1, log: quiet })).toBe("started");
+    expect(p.runs).toEqual([{ cmd: ollama, args: ["serve"], opts: expect.objectContaining({ detached: true, stdio: "ignore", windowsHide: true }) }]);
+  });
+  it("reports not-started when Ollama is not installed", async () => {
+    const p = spawner();
+    expect(await ensureOllama({ fetchImpl: server(down).fetchImpl, spawnImpl: p.spawnImpl, ollamaPath: path.join(dir, "missing.exe"), log: quiet })).toBe("not-started");
+    expect(p.runs).toHaveLength(0);
+  });
+  it("reports not-started when the server never answers in time", async () => {
+    expect(await ensureOllama({ fetchImpl: server(down).fetchImpl, spawnImpl: spawner().spawnImpl, ollamaPath: exe(), pollMs: 1, waitMs: 20, log: quiet })).toBe("not-started");
+  });
+  it("does not start anything for a host on another machine", async () => {
+    const p = spawner();
+    expect(await ensureOllama({ host: "http://192.168.1.20:11434", fetchImpl: server(down).fetchImpl, spawnImpl: p.spawnImpl, ollamaPath: exe(), log: quiet })).toBe("not-started");
+    expect(p.runs).toHaveLength(0);
   });
 });

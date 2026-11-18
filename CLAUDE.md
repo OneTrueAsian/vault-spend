@@ -56,7 +56,7 @@ Touch only what you must. Clean up only your own mess. The test: every changed l
 
 - UI copy is plain language for non-financial users. Match shared ModalShell / MenuSelect / DateField and theme tokens.
 - UAT plans are published pages with screenshots, Do→Expect checks, Pass/Fail marks and sign-off (template in `Implementations/uat-template/`). Screenshot new screens and review them as below; jsdom does not prove geometry or contrast.
-- Screenshot review saves image tokens: run the specs with `--keep-screens` (or use the UAT shots folder), then `npm run e2e:review -- [folder]`, read its `summary.md`, and open only the flagged screenshots plus at least two passed ones per spec. If the review is unavailable (exit 3), open the screenshots directly. A local pass is a hint, never acceptance or sign-off, and it does not notice missing content (spec DOM checks cover that).
+- Screenshot review saves image tokens: run the specs with `--keep-screens` (or use the UAT shots folder), then `npm run e2e:review -- [folder]`, read its `summary.md`, and open only the flagged screenshots plus at least two passed ones per spec. The review starts Ollama itself if it is not running; if it still cannot run (exit 3), open the screenshots directly. A local pass is a hint, never acceptance or sign-off, and it does not notice missing content (spec DOM checks cover that).
 - Research and spike plans and reports go to `E:/misc/Programming/Agents/Implementations`, never into the repo.
 
 ### Long-running and remote work
