@@ -1,6 +1,7 @@
 // The main practice household (see COVERAGE.md): the profile every demo, UAT walk-through and hands-on launch
 // opens. Fictional data only. Every date is relative to `today`, and every amount is fixed (seeded random).
 import { seedFixtureInto } from "../seed.mjs";
+import { PRACTICE_PY } from "./practiceExtras.mjs";
 
 const PY = (today) => `
 import datetime, random
@@ -228,7 +229,7 @@ export async function seedTidyHousehold(dbDir, { today } = {}) {
 
 /** The main practice household: the tidy household plus every feature's practice data (see COVERAGE.md). */
 export async function seedMainHousehold(dbDir, { today } = {}) {
-  await seedTidyHousehold(dbDir, { today });
+  await seedFixtureInto(dbDir, PY(today ?? localToday()) + PRACTICE_PY);
 }
 
 function localToday() {

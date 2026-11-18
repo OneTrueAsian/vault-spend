@@ -65,3 +65,102 @@ describe.skipIf(!canBuild)("main practice household", () => {
     expect(future).toBe(0);
   }, 60000);
 });
+
+// One check per data-backed row in COVERAGE.md.
+describe.skipIf(!canBuild)("practice data covers every feature (COVERAGE.md)", () => {
+  let db;
+  const one = (sql) => query(db, sql)[0]?.[0];
+  const count = (sql) => one(`SELECT COUNT(*) FROM (${sql})`);
+  const acct = (name) => one(`SELECT id FROM accounts WHERE name = '${name.replace(/'/g, "''")}'`);
+  const thisMonth = TODAY.slice(0, 7);
+  const lastMonth = monthsBack(TODAY, 1).slice(0, 7);
+
+  it("builds", async () => { db = await build(TODAY); }, 60000);
+
+  it("Dashboard: quiet account, large charge, duplicate pair", () => {
+    expect(one("SELECT MAX(date) FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE a.name = 'Old Checking'")).toBe("2026-09-19");
+    expect(count("SELECT 1 FROM transactions WHERE description = 'Home Depot' AND amount = '-412.30'")).toBe(1);
+    expect(count("SELECT 1 FROM transactions WHERE description = 'Chipotle' AND amount = '-14.25' AND date = '2026-11-16'")).toBe(2);
+  });
+
+  it("Accounts: every type, statement practice accounts", () => {
+    const types = query(db, "SELECT DISTINCT account_type FROM accounts").map(([t]) => t).sort();
+    expect(types).toEqual(["checking", "credit", "investment", "loan", "savings"]);
+    for (const name of ["Statement Checking", "Practice Checking", "Riverbend Checking", "Corner Credit Union", "Harborview Brokerage", "Rewards Card", "Old Checking"]) expect(acct(name), name).toBeTruthy();
+    expect(count("SELECT 1 FROM accounts WHERE name = 'Everyday Checking'")).toBe(0);
+    expect(count(`SELECT 1 FROM transactions WHERE account_id = ${acct("Statement Checking")}`)).toBe(6);
+  });
+
+  it("Transactions: uncategorized trios, split, tags, notes", () => {
+    for (const name of ["Ferrywood Coffee", "Corner Cart", "Lunch Truck"]) expect(count(`SELECT 1 FROM transactions WHERE description = '${name}' AND category IS NULL`), name).toBe(3);
+    expect(count("SELECT 1 FROM transactions WHERE description IN ('SQ *MYSTERY VENDOR 8841', 'PAYPAL *INST XFER') AND category IS NULL")).toBe(2);
+    expect(count("SELECT DISTINCT transaction_id FROM transaction_splits")).toBeGreaterThanOrEqual(1);
+    expect(count("SELECT 1 FROM transaction_tags")).toBeGreaterThanOrEqual(2);
+    expect(count("SELECT 1 FROM transactions WHERE notes IS NOT NULL")).toBeGreaterThanOrEqual(1);
+  });
+
+  it("Transactions: Exclude from budget is on with the UAT rows marked", () => {
+    expect(one("SELECT budget_exclusion_enabled FROM app_settings WHERE id = 1")).toBe(1);
+    const marked = query(db, "SELECT description FROM transactions WHERE excluded_from_budget = 1 ORDER BY description").map(([d]) => d);
+    expect(marked).toEqual(["UAT City Hospital ER bill", "UAT Client dinner (work)", "UAT Employer reimbursement", "UAT Water heater replacement"]);
+    expect(count(`SELECT 1 FROM transactions WHERE description = 'UAT Pharmacy' AND date LIKE '${thisMonth}%'`)).toBe(1);
+    expect(count(`SELECT 1 FROM transactions WHERE description = 'UAT Water heater replacement' AND date LIKE '${lastMonth}%'`)).toBe(1);
+    expect(count(`SELECT 1 FROM budgets WHERE category = 'Medical' AND period = '${thisMonth}'`)).toBe(1);
+  });
+
+  it("Transactions: transfers to link by hand, to review, and auto-linked", () => {
+    expect(count("SELECT 1 FROM transactions WHERE description IN ('Venmo to Sam', 'Zelle from Sam')")).toBe(2);
+    expect(count("SELECT 1 FROM transactions t WHERE t.category = 'Savings Goal' AND t.id NOT IN (SELECT out_transaction_id FROM transfer_links UNION SELECT in_transaction_id FROM transfer_links)")).toBeGreaterThanOrEqual(4);
+    expect(one("SELECT auto_link_transfers FROM app_settings WHERE id = 1")).toBe(1);
+    expect(count("SELECT 1 FROM transfer_links WHERE auto = 1 AND reviewed = 0")).toBeGreaterThanOrEqual(1);
+    expect(count("SELECT 1 FROM transactions WHERE description LIKE 'Holiday Fund%'")).toBe(3);
+  });
+
+  it("Transactions: review inbox", () => {
+    expect(count("SELECT 1 FROM transactions WHERE description = 'Local Bakery Co' AND confidence < 0.6")).toBe(1);
+    expect(count("SELECT 1 FROM transactions WHERE description = 'STARBUCKS #1042 SEATTLE' AND category IS NULL")).toBe(1);
+  });
+
+  it("Recurring: late, missed, price change and steady bills", () => {
+    for (const m of ["Hulu", "Peak Climbing Gym", "CloudBox Storage", "Trash & Recycling"]) expect(count(`SELECT 1 FROM recurring WHERE merchant = '${m}'`), m).toBe(1);
+    expect(count("SELECT 1 FROM transactions WHERE description = 'HULU 877-8244858' AND amount = '-17.99'")).toBe(1);
+  });
+
+  it("Budget: rollover, caps, suggestions, month-end review", () => {
+    expect(one(`SELECT rollover_enabled FROM budgets WHERE category = 'Household' AND period = '${thisMonth}'`)).toBe(1);
+    expect(one("SELECT envelope_caps_enabled FROM app_settings WHERE id = 1")).toBe(1);
+    expect(one(`SELECT cap_enabled FROM budgets WHERE category = 'Dining Out' AND period = '${thisMonth}'`)).toBe(1);
+    expect(count("SELECT 1 FROM transactions WHERE category = 'Pet Care'")).toBe(3);
+    expect(count("SELECT 1 FROM budgets WHERE category = 'Pet Care'")).toBe(0);
+    expect(count(`SELECT 1 FROM transactions WHERE category IS NULL AND date LIKE '${lastMonth}%'`)).toBeGreaterThanOrEqual(2);
+    expect(count(`SELECT 1 FROM transactions WHERE description IN ('Big Box Outlet', 'Prime Steakhouse') AND date LIKE '${lastMonth}%'`)).toBe(2);
+  });
+
+  it("Goals: on track, behind, following an account, sinking fund", () => {
+    for (const g of ["Emergency Fund", "Japan Trip", "New Laptop", "Holiday Gifts", "Down Payment", "Car Registration"]) expect(count(`SELECT 1 FROM buckets WHERE name = '${g}'`), g).toBe(1);
+    expect(one("SELECT tracks_account FROM buckets WHERE name = 'Down Payment'")).toBe(1);
+    expect(one("SELECT sinking_amount FROM buckets WHERE name = 'Car Registration'")).toBeTruthy();
+  });
+
+  it("Investments: targets, value history, accumulation accounts and plans", () => {
+    expect(count("SELECT 1 FROM allocation_targets")).toBeGreaterThanOrEqual(3);
+    expect(count("SELECT 1 FROM portfolio_snapshots")).toBe(24);
+    for (const name of ["Sample Roth IRA", "Sam's 529", "Alex's 529", "Fidelity Brokerage"]) expect(acct(name), name).toBeTruthy();
+    expect(count("SELECT 1 FROM investment_plans")).toBe(2);
+    expect(count(`SELECT 1 FROM transactions WHERE account_id = ${acct("Fidelity Brokerage")}`)).toBe(0);
+  });
+
+  it("Safe to spend on, and 12+ completed months for Comparisons", () => {
+    expect(one("SELECT safe_to_spend_enabled FROM app_settings WHERE id = 1")).toBe(1);
+    expect(count("SELECT DISTINCT substr(date, 1, 7) FROM transactions WHERE CAST(amount AS REAL) < 0 AND category <> 'Transfer' AND date < '2026-11-01'")).toBeGreaterThanOrEqual(12);
+  });
+
+  it("Settings: a rule", () => {
+    expect(count("SELECT 1 FROM rules WHERE pattern = 'Shell Oil'")).toBe(1);
+    expect(count("SELECT 1 FROM rules WHERE pattern LIKE '%Ferrywood%'")).toBe(0); // left for the rules walk-through
+  });
+
+  it("no stored balance override, so every balance is its own rows", () => {
+    expect(count("SELECT 1 FROM balance_resets")).toBe(0);
+  });
+});
