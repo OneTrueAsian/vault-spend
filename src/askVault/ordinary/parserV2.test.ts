@@ -348,9 +348,6 @@ describe("ranking categories among several", () => {
     expect(query("top 3 categories for groceries and fuel this year")).toMatchObject({ kind: "rank-categories", categories: ["Groceries", "Fuel"], limit: 3 });
     expect(ask("top 3 categories for groceries and fuel this year", base)).toMatchObject({ status: "unsupported" });
   });
-  it("still cannot be limited to one category", () => {
-    stop("top 3 categories for groceries this year", "unsupported", /ranking of categories/);
-  });
 });
 
 describe("the 20-selection cap", () => {

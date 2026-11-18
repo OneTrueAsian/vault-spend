@@ -570,7 +570,7 @@ pub fn set_profile_icon(config_path: &Path, live_db_path: &Path, id: &str, icon_
 /// correct only when the path isn't moving (a brand-new protected profile, Task 6; conversion of an
 /// existing one moves the path too, via `commit_protection_conversion`). An unconditional update,
 /// not merge-only — same convention as `set_profile_icon`. Unknown id is a harmless no-op.
-#[allow(dead_code)] // not called until Task 6 (creating a brand-new protected profile)
+#[allow(dead_code)] // only the profile tests call this; the app records protection through register_prepared_profile (new) and commit_protection_conversion (existing)
 pub fn set_profile_protection(config_path: &Path, live_db_path: &Path, id: &str, protection: Option<Protection>) -> Result<(), String> {
     let mut entries = entries_or_synthesize(config_path, live_db_path);
     if !entries.iter().any(|p| p.id == id) {

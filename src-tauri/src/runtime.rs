@@ -126,7 +126,6 @@ impl AppRuntime {
     }
 
     /// Drops the open profile's state (its connection closes) and remembers which profile is locked.
-    #[allow(dead_code)] // used by the lock screen and auto-lock in Phases C and E
     pub fn lock_profile(&self, profile_id: &str) {
         self.clear_notice();
         let mut slot = self.slot.lock().unwrap_or_else(|e| e.into_inner());
