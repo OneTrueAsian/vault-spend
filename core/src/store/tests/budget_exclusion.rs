@@ -96,14 +96,10 @@ fn budget_by_member_trend_and_drilldowns_leave_marked_rows_out() {
     let trend = f.store.budget_actuals_trend("Medical", 2026, 11, 2).unwrap();
     assert_eq!(trend, vec![("2026-10".to_string(), dec("0")), ("2026-11".to_string(), dec("50"))]);
 
-    for rows in [
-        f.store.transactions_for_category_in_month("Medical", 2026, 11).unwrap(),
-        f.store.spending_transactions_for_category_in_month("Medical", 2026, 11).unwrap(),
-    ] {
-        assert_eq!(rows.len(), 1, "only the pharmacy row: {rows:?}");
-        assert_eq!(rows[0].description, "Pharmacy");
-        assert!(rows.iter().all(|r| r.transaction_id != f.er && r.transaction_id != f.split));
-    }
+    let rows = f.store.transactions_for_category_in_month("Medical", 2026, 11).unwrap();
+    assert_eq!(rows.len(), 1, "only the pharmacy row: {rows:?}");
+    assert_eq!(rows[0].description, "Pharmacy");
+    assert!(rows.iter().all(|r| r.transaction_id != f.er && r.transaction_id != f.split));
 }
 
 #[test]
@@ -139,6 +135,9 @@ fn everything_else_still_counts_marked_rows() {
     let spending = f.store.spending_by_category(start, end).unwrap();
     assert_eq!(spending.iter().find(|(c, _)| c == "Medical").unwrap().1, dec("3140"));
     assert_eq!(f.store.monthly_totals(2026, 11).unwrap(), (dec("1600"), dec("3140")));
+    let slice = f.store.spending_transactions_for_category_in_month("Medical", 2026, 11).unwrap();
+    assert!(slice.iter().any(|r| r.transaction_id == f.er), "Dashboard slice keeps the marked ER row: {slice:?}");
+    assert!(slice.iter().any(|r| r.transaction_id == f.split && r.is_split), "and the marked split line");
     let large_on = f.store.large_expenses_in_range(start, end).unwrap();
     f.store.set_budget_exclusion_enabled(false).unwrap();
     assert_eq!(f.store.large_expenses_in_range(start, end).unwrap(), large_on);

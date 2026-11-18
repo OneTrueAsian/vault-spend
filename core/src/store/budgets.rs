@@ -813,7 +813,6 @@ impl Store {
             return Ok(Vec::new());
         }
         let (first, next_first) = month_bounds(year, month);
-        let excluded = self.budget_exclusion_sql("t.")?;
         let mut stmt = self.conn.prepare(&format!(
             "SELECT t.id, t.date, t.description, t.amount, a.name, 0, NULL
              FROM transactions t JOIN accounts a ON a.id = t.account_id
@@ -821,7 +820,7 @@ impl Store {
                    AND t.date >= ?2 AND t.date < ?3
                    AND t.id NOT IN (SELECT DISTINCT transaction_id FROM transaction_splits)
                    AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL}) AND t.deleted_at IS NULL{excluded}
+                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL}) AND t.deleted_at IS NULL
              UNION ALL
              SELECT t.id, t.date, t.description, ts.amount, a.name, 1, ts.note
              FROM transaction_splits ts
@@ -830,7 +829,7 @@ impl Store {
              WHERE COALESCE(ts.category, 'Uncategorized') = ?1 AND (ts.category IS NULL OR ts.category <> 'Transfer')
                    AND t.date >= ?2 AND t.date < ?3
                    AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL}) AND t.deleted_at IS NULL{excluded}
+                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL}) AND t.deleted_at IS NULL
              ORDER BY 2, 1"
         ))?;
         let rows = stmt.query_map(params![category, first.to_string(), next_first.to_string()], |row| {
