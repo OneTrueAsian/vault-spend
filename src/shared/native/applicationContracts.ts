@@ -134,6 +134,7 @@ export const financialMutations = new Set([
   "set_budget_rollover",
   "delete_budget",
   "set_envelope_caps_enabled",
+  "set_budget_exclusion_enabled",
   "set_rollover_enabled",
   "set_safe_to_spend_enabled",
   "create_bucket",

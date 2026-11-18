@@ -66,6 +66,17 @@ export function useFeatureToggleActions({ invoke, refreshAppSettings, setStatus,
     }
   }
 
+  async function handleSetBudgetExclusionEnabled(enabled: boolean) {
+    try {
+      await invoke("set_budget_exclusion_enabled", { enabled });
+      await refreshAppSettings();
+      // Budget actuals depend on which transactions are marked, so reload the selected month.
+      await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
+    } catch (e) {
+      setStatus(errorMessage(e));
+    }
+  }
+
   async function handleSetAutoLinkTransfers(enabled: boolean) {
     try {
       const linkedNow = await invoke<number>("set_auto_link_transfers", { enabled });
@@ -87,5 +98,5 @@ export function useFeatureToggleActions({ invoke, refreshAppSettings, setStatus,
     }
   }
 
-  return { handleSetApplyToDebtEnabled, handleSetSplitPurchasesEnabled, handleSetEnvelopeCapsEnabled, handleSetRolloverEnabled, handleSetSafeToSpendEnabled, handleSetAutoLinkTransfers };
+  return { handleSetApplyToDebtEnabled, handleSetSplitPurchasesEnabled, handleSetEnvelopeCapsEnabled, handleSetRolloverEnabled, handleSetSafeToSpendEnabled, handleSetAutoLinkTransfers, handleSetBudgetExclusionEnabled };
 }

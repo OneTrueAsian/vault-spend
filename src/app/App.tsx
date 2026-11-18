@@ -1904,7 +1904,7 @@ function App({
 
   const { handleCreateProfile, handlePickExistingDataFile, handlePickExistingDatabase, handlePickProtectedPackage, handleAddExistingProfile, handleSwitchProfile, handleRenameProfile, handleSetProfileIcon, handleDeleteProfile } = useProfileActions({ onDataFileChanged, setStatus, setChoosingExistingSource, setPendingExistingIsProtected, setPendingExistingRequiresPassword, setPendingExistingDbPath, pendingExistingDbPath, pendingExistingIsProtected, pendingExistingRequiresPassword, profiles, setPendingProtectedSwitch, refreshProfiles });
 
-  const { handleSetApplyToDebtEnabled, handleSetSplitPurchasesEnabled, handleSetEnvelopeCapsEnabled, handleSetRolloverEnabled, handleSetSafeToSpendEnabled, handleSetAutoLinkTransfers } = useFeatureToggleActions({ invoke, refreshAppSettings, setStatus, refreshBudgetMonthActuals, budgetYear, budgetMonthNum, setSafeToSpendForecast, refresh });
+  const { handleSetApplyToDebtEnabled, handleSetSplitPurchasesEnabled, handleSetEnvelopeCapsEnabled, handleSetRolloverEnabled, handleSetSafeToSpendEnabled, handleSetAutoLinkTransfers, handleSetBudgetExclusionEnabled } = useFeatureToggleActions({ invoke, refreshAppSettings, setStatus, refreshBudgetMonthActuals, budgetYear, budgetMonthNum, setSafeToSpendForecast, refresh });
 
   const { handleSetStartingBalance, handleSetBalanceOverride, handleUpdateAccountType, handleSetAccountIcon, handleSetAccountHidden, handleDeleteAccount, handleSetAccountDetails, handleSetAccountInterestRate, handleSetAccountExcludedFromDebtPayoff, handleCalculateDebtPayoff, handleSetAccountMember } = useAccountActions({ invoke, refresh, setStatus, accounts });
 
@@ -2841,6 +2841,7 @@ function App({
                 onSetRolloverEnabled={handleSetRolloverEnabled}
                 onSetAutoLinkTransfers={handleSetAutoLinkTransfers}
                 onSetSafeToSpendEnabled={handleSetSafeToSpendEnabled}
+                onSetBudgetExclusionEnabled={handleSetBudgetExclusionEnabled}
                 themeStyle={themeStyle}
                 onSetThemeStyle={setThemeStyle}
                 appearance={appearance}

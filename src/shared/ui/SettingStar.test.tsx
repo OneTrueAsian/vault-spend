@@ -130,6 +130,7 @@ describe("Settings sections carry anchors, h2 titles and stars", () => {
             onSetRolloverEnabled={noop}
             onSetAutoLinkTransfers={noop}
             onSetSafeToSpendEnabled={noop}
+            onSetBudgetExclusionEnabled={noop}
             themeStyle="transparent"
             onSetThemeStyle={noop}
             appearance={DEFAULT_APPEARANCE_PREFS}

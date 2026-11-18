@@ -178,6 +178,14 @@ describe("SettingsPage", () => {
       for (const id of ["quick", "display", "profiles", "data", "features", "about"]) expect(panel(id).hidden).toBe(true);
     });
 
+    it("finds the Exclude from budget switch when searching for budget", async () => {
+      await mount();
+      typeInto(search() as HTMLInputElement, "budget");
+      const item = qa(".settings-result-item").find((r) => r.textContent?.includes("Exclude from budget"))!;
+      expect(item).toBeDefined();
+      expect(item.querySelector(".settings-path")?.textContent).toContain("Feature toggles");
+    });
+
     it("marks the typed letters in the card name too, so every result shows why it matched", async () => {
       await mount();
       typeInto(search() as HTMLInputElement, "background");

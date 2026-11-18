@@ -51,6 +51,7 @@ export function SettingsView({
   onSetRolloverEnabled,
   onSetAutoLinkTransfers,
   onSetSafeToSpendEnabled,
+  onSetBudgetExclusionEnabled,
   themeStyle,
   onSetThemeStyle,
   appearance,
@@ -120,6 +121,7 @@ export function SettingsView({
   onSetRolloverEnabled: (enabled: boolean) => void;
   onSetAutoLinkTransfers: (enabled: boolean) => void;
   onSetSafeToSpendEnabled: (enabled: boolean) => void;
+  onSetBudgetExclusionEnabled: (enabled: boolean) => void;
   themeStyle: ThemeStyle;
   onSetThemeStyle: (style: ThemeStyle) => void;
   appearance: AppearancePrefs;
@@ -207,6 +209,7 @@ export function SettingsView({
                 onSetRolloverEnabled={onSetRolloverEnabled}
                 onSetAutoLinkTransfers={onSetAutoLinkTransfers}
                 onSetSafeToSpendEnabled={onSetSafeToSpendEnabled}
+                onSetBudgetExclusionEnabled={onSetBudgetExclusionEnabled}
               />
               <BackgroundRemindersSection
                 settings={backgroundSettings}
