@@ -112,7 +112,8 @@ describe.skipIf(!canBuild)("practice data registry, profiles, files and README",
 
   it("writes the practice files", () => {
     const files = fs.readdirSync(result.filesDir).sort();
-    for (const f of ["1-northwind-month-1.pdf", "3-riverbend-month-1.pdf", "5-harborview-month-1.pdf", "7-picture-only.pdf", "8-corner-download-unfamiliar-headers.csv", "11-joint-checking-download.csv", "README.txt"]) expect(files, f).toContain(f);
+    for (const f of ["1-northwind-month-1.pdf", "3-riverbend-month-1.pdf", "5-harborview-month-1.pdf", "7-picture-only.pdf", "8-corner-download-unfamiliar-headers.csv", "11-joint-checking-download.csv", "12-sample-import.csv", "README.txt"]) expect(files, f).toContain(f);
+    expect(fs.statSync(path.join(dir, "second-copy")).isDirectory()).toBe(true);
     const readme = fs.readFileSync(path.join(result.filesDir, "README.txt"), "utf8");
     expect(readme).toContain("Practice Checking");
     expect(readme).not.toContain("Everyday Checking");

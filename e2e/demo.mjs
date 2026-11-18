@@ -1,39 +1,27 @@
-// `npm run demo` — opens the REAL compiled app (not a mock, not the dev
-// server) on freshly seeded demo data, so a phase of the enhancement program
-// can be tried out by hand with realistic data. The data is rebuilt from
-// scratch every launch, relative to today's date, so every run starts the
-// same and nothing you do in the demo can leak into real data: it uses a
-// throwaway folder (`.demo-data/`, gitignored) through the same
-// VAULTSPEND_DB_DIR switch the e2e suite uses, never your real AppData file.
-//
-// Since Phase C: seeds a real two-profile registry (Default, the full
-// feature-rich dataset every earlier phase's demo has used; Sam, a smaller
-// real profile with two plaintext backups, ready to turn password protection
-// on for live) — so the app opens on the profile selector first, not
-// straight into Default. That's the correct, intended behavior once a real
-// profiles.json exists (see the Phase C plan's Task 9 note).
+// `npm run demo` — opens the REAL compiled app (not a mock, not the dev server) on the shared practice data
+// (e2e/lib/practice-data/, every feature's data listed in COVERAGE.md): the main household, Sam, Fresh start and
+// Locked, plus practice files. It is rebuilt from scratch every launch, relative to today, in `.demo-data/`
+// (gitignored), with its own data and WebView2 storage (demoEnv), so nothing touches your real profile.
 //
 // Usage:
-//   npm run demo                # rebuild the demo data, launch the app
-//   npm run demo -- --keep      # relaunch on the existing demo data (keeps your changes)
+//   npm run demo                # rebuild the practice data, launch the app
+//   npm run demo -- --keep      # relaunch on the existing practice data (keeps your changes)
+//   npm run demo -- --seed      # rebuild the practice data only, do not launch
 //   npm run demo -- --build     # (re)build the app first
 //
 // Needs: python (for seeding — already required by the e2e suite) and a built
 // app (`npx tauri build --debug --no-bundle`; this script builds it if missing).
 
-import { spawn, spawnSync, execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { seedDemoRegistry } from "./lib/demo-seed.mjs";
-import { demoEnv } from "./lib/demoEnv.mjs";
+import { runPracticeLauncher } from "./lib/practice-data/launcher.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 process.chdir(repoRoot); // seed.mjs resolves target/debug/init_db.exe relative to cwd
 
 const exe = path.join(repoRoot, "target", "debug", "vaultspend.exe");
-const initDb = path.join(repoRoot, "target", "debug", "init_db.exe");
-const demoDir = path.join(repoRoot, ".demo-data");
 const args = new Set(process.argv.slice(2));
 
 function run(cmd, cmdArgs) {
@@ -48,61 +36,11 @@ if (args.has("--build") || !fs.existsSync(exe)) {
   console.log("Building the app (this takes a minute or two)...");
   run("npm", ["run", "build:app", ...(args.has("--build") ? ["--", "--force"] : [])]);
 }
-if (!fs.existsSync(initDb)) {
-  console.log("Building the database seeding helper...");
+// Always, so an older helper without --protect (the Locked practice profile) is brought up to date; cheap when current.
+{
+  console.log("Checking the database seeding helper...");
   run("node", ["e2e/with-access.mjs", "demo-init-db", "--", "cargo", "build", "-p", "budget_core", "--bin", "init_db"]);
 }
 
-// A demo already running would hold the database file open.
-try {
-  const running = execFileSync("powershell", ["-NoProfile", "-Command", "(Get-Process -Name vaultspend -ErrorAction SilentlyContinue | Measure-Object).Count"], { encoding: "utf8" }).trim();
-  if (Number(running) > 0 && !args.has("--keep")) {
-    console.error("Vault Spend is already running. Close it (a running copy would hold the demo data open), then run this again.");
-    process.exit(1);
-  }
-} catch {
-  /* the check is best-effort — carry on */
-}
-
-if (!args.has("--keep") || !fs.existsSync(path.join(demoDir, "profiles.json"))) {
-  fs.rmSync(demoDir, { recursive: true, force: true });
-  fs.mkdirSync(demoDir, { recursive: true });
-  console.log("Seeding demo data (relative to today)...");
-  await seedDemoRegistry(demoDir);
-}
-
-// Things to point the Phase 2 features at: a folder for the second backup copy,
-// and a small statement to import (which opens the review inbox afterwards).
-fs.mkdirSync(path.join(demoDir, "second-copy"), { recursive: true });
-const iso = (daysAgo) => {
-  const d = new Date();
-  d.setDate(d.getDate() - daysAgo);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
-fs.writeFileSync(
-  path.join(demoDir, "sample-import.csv"),
-  [
-    "Date,Description,Amount",
-    `${iso(2)},Kroger,-64.12`,
-    `${iso(2)},STARBUCKS #2210 BELLEVUE,-7.10`,
-    `${iso(1)},Zenith Plumbing Services,-185.00`,
-    `${iso(1)},PAYPAL *WHOLESALER,-46.80`,
-    `${iso(1)},Ferrywood Coffee,-4.55`,
-    `${iso(0)},Trader Joe's,-52.30`,
-    `${iso(0)},Local Thai Kitchen,-33.90`,
-    `${iso(0)},Amazon Marketplace,-312.00`,
-  ].join("\n") + "\n",
-);
-
-console.log(`\nLaunching Vault Spend on the demo data in ${demoDir}\n`);
-const child = spawn(exe, [], {
-  detached: true,
-  stdio: "ignore",
-  env: demoEnv(demoDir),
-});
-child.unref();
-console.log(`Second backup folder to try:  ${path.join(demoDir, "second-copy")}`);
-console.log(`Sample file to import:        ${path.join(demoDir, "sample-import.csv")}`);
-console.log("Two profiles are set up: Default (full data) and Sam (real, still plaintext — try turning on password protection for it).");
-console.log("Vault Spend is open. This is throwaway demo data — change anything you like.");
-console.log("Re-run `npm run demo` any time for a fresh copy.\n");
+// A demo already running would hold the practice data open; the launcher refuses to rebuild under it.
+await runPracticeLauncher({ repoRoot, args });

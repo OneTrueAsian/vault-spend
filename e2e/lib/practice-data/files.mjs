@@ -123,4 +123,22 @@ export function writePracticeFiles(filesDir) {
   // A normal download from the household's own bank, with headings the app already knows.
   write("11-joint-checking-download.csv", ["Date,Description,Amount", `${day(0, 1)},Corner Bookshop,-24.99`, `${day(0, 1)},Farmers Market,-31.50`, ""].join("\n"));
   fs.appendFileSync(path.join(filesDir, "README.txt"), "11-joint-checking-download.csv  A normal download for Joint Checking: imports straight away.\n");
+
+  // A small statement to import: a few rows the app has seen before and a few it hasn't, so the review list opens.
+  write(
+    "12-sample-import.csv",
+    [
+      "Date,Description,Amount",
+      `${day(0, 1)},Kroger,-64.12`,
+      `${day(0, 1)},STARBUCKS #2210 BELLEVUE,-7.10`,
+      `${day(0, 1)},Zenith Plumbing Services,-185.00`,
+      `${day(0, 1)},PAYPAL *WHOLESALER,-46.80`,
+      `${day(0, 1)},Ferrywood Coffee,-4.55`,
+      `${day(0, 1)},Trader Joe's,-52.30`,
+      `${day(0, 1)},Local Thai Kitchen,-33.90`,
+      `${day(0, 1)},Amazon Marketplace,-312.00`,
+      "",
+    ].join("\n"),
+  );
+  fs.appendFileSync(path.join(filesDir, "README.txt"), "12-sample-import.csv           A small statement for Joint Checking: some rows are recognised, some go to the review list.\n");
 }

@@ -82,6 +82,7 @@ export async function buildPracticeData(dir, { today } = {}) {
 
   const filesDir = path.join(dir, "files");
   writePracticeFiles(filesDir);
+  fs.mkdirSync(path.join(dir, "second-copy"), { recursive: true }); // a folder to try as the second backup copy
 
   const readmePath = path.join(dir, "README.txt");
   fs.writeFileSync(
