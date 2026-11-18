@@ -24,6 +24,11 @@ export const changelogNotes = (entry: ChangelogEntry): string[] => changelogSect
  * here as part of cutting each release, condensed from that release's
  * GitHub notes — a version with no entry here just shows nothing. */
 export const CHANGELOG: Record<string, ChangelogEntry> = {
+  "1.3.4": {
+    "Bug fixes": [
+      "Cash Flow and Household spending bars now start at the left edge, so they line up correctly with the income markers.",
+    ],
+  },
   "1.3.3": {
     "New features": [
       "Every main page has a fresh layout. Cash Flow, Investments and Reports now sit under tabs, so each page shows one thing at a time instead of one long scroll. Cash Flow has Forecast, Month by month, Look at one month, Compared with last year and Debt payoff. Investments has Holdings, Mix and targets, Growth calculator and Money put in. Reports has Where income went, Categories by month, Daily spending, Tags and people, Savings rate, Year by year and Comparisons. Help describes the new cards and tabs on each page.",

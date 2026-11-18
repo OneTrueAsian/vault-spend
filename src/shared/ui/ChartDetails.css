@@ -3,6 +3,7 @@
 .page button.chart-details-track:hover,
 .page button.chart-details-track:active {
   display: flex;
+  justify-content: flex-start;
   padding: 0;
   border: 0;
   min-height: 24px;
