@@ -5,7 +5,7 @@ use crate::commands::{AppState, AppStateHandle};
 use crate::config::AppPaths;
 use crate::device_settings::DeviceSettingsStore;
 use crate::profiles;
-use crate::protection::session::{Sessions, SetupChallenge};
+use crate::protection::session::{Sessions, SetupChallenge, SetupKind};
 use crate::startup::{self, LaunchStatus, StartupState};
 use budget_core::protection::keyfile::KeyFile;
 use budget_core::protection::recovery::RecoveryCode;
@@ -268,7 +268,7 @@ pub fn change_password(
     runtime: tauri::State<AppStateHandle>,
     sessions: tauri::State<Sessions>,
 ) -> Result<String, String> {
-    let (new_password, recovery_code, expected_generation) = sessions.take_verified_setup(&token, &answers)?;
+    let (new_password, recovery_code, expected_generation) = sessions.take_verified_setup(&token, &answers, SetupKind::Password)?;
     if paths.current_generation() != expected_generation {
         return Err("The active profile changed before the password could be changed.".to_string());
     }
@@ -318,7 +318,7 @@ pub fn begin_regenerate_recovery(
     if paths.current_generation() != expected_generation {
         return Err("The active profile changed before the password could be checked.".into());
     }
-    Ok(sessions.begin_setup(&current_password, expected_generation))
+    Ok(sessions.begin_setup(&current_password, expected_generation, SetupKind::Regenerate))
 }
 
 #[tauri::command]
@@ -330,7 +330,7 @@ pub fn commit_regenerate_recovery(
     runtime: tauri::State<AppStateHandle>,
     sessions: tauri::State<Sessions>,
 ) -> Result<String, String> {
-    let (current_password, recovery_code, expected_generation) = sessions.take_verified_setup(&token, &answers)?;
+    let (current_password, recovery_code, expected_generation) = sessions.take_verified_setup(&token, &answers, SetupKind::Regenerate)?;
     if paths.current_generation() != expected_generation {
         return Err("The active profile changed before the recovery key could be regenerated.".to_string());
     }
@@ -450,7 +450,7 @@ pub fn begin_recovery(
     if paths.current_generation() != expected_generation {
         return Err("Something else changed before recovery could continue.".into());
     }
-    Ok(sessions.begin_setup(&new_password, expected_generation))
+    Ok(sessions.begin_setup(&new_password, expected_generation, SetupKind::Recovery))
 }
 
 /// Finishes recovery for `id`: re-verifies `code` against the on-disk key file one more time (never
@@ -469,7 +469,7 @@ pub fn commit_recovery(
     paths: tauri::State<AppPaths>,
     sessions: tauri::State<Sessions>,
 ) -> Result<String, String> {
-    let (new_password, new_recovery_code, expected_generation) = sessions.take_verified_setup(&token, &answers)?;
+    let (new_password, new_recovery_code, expected_generation) = sessions.take_verified_setup(&token, &answers, SetupKind::Recovery)?;
     if paths.current_generation() != expected_generation {
         return Err("Something else changed before recovery could finish.".to_string());
     }
@@ -519,7 +519,7 @@ pub fn commit_recovery(
 #[tauri::command]
 pub fn begin_protection_setup(password: String, expected_generation: u64, sessions: tauri::State<Sessions>) -> Result<SetupChallenge, String> {
     crate::protection::password_rules::check_new_password(&password)?;
-    Ok(sessions.begin_setup(&password, expected_generation))
+    Ok(sessions.begin_setup(&password, expected_generation, SetupKind::Password))
 }
 
 #[tauri::command]
@@ -547,7 +547,7 @@ pub fn commit_protection_setup(
     status: tauri::State<LaunchStatus>,
     sessions: tauri::State<Sessions>,
 ) -> Result<StartupState, String> {
-    let (password, recovery_code, expected_generation) = sessions.take_verified_setup(&token, &answers)?;
+    let (password, recovery_code, expected_generation) = sessions.take_verified_setup(&token, &answers, SetupKind::Password)?;
     if paths.current_generation() != expected_generation {
         return Err("The active profile changed before setup could finish.".to_string());
     }
