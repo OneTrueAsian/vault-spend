@@ -138,6 +138,19 @@ Access is remembered. An unlocked phone can read saved copies. Browser storage c
 
 Support evidence is version-specific. The owner confirmed pairing and functionality on an iPhone 16 Pro using Google Chrome, including all saved data loading in airplane mode with Wi-Fi off. OS/browser versions, tab versus home-screen mode, Android and wider router/macOS acceptance remain separate checks. Do not treat automated desktop browser tests as all-phone support. See Help for the on-screen instructions and `mobile/README.md` for the implementation/testing boundaries.
 
+## Repository security
+
+This repository has GitHub's free security features turned on:
+
+- **Secret scanning** checks everything in the repository, including its history, for passwords and access keys that were committed by accident, and raises an alert so they can be changed.
+- **Push protection** checks new code before GitHub accepts it and refuses a push that contains a password or access key, so the secret never becomes public.
+- **Dependabot alerts** keep track of the outside code Vault Spend is built from and raise an alert when a known security flaw is found in any of it.
+- **Dependabot security updates** propose an update to a fixed version when such a flaw is found. Each update is reviewed and tested before it is accepted.
+
+**Non-provider patterns**, which extend secret scanning to generic secrets such as private keys and database passwords, are off. Turning them on did not take effect for this repository, likely because GitHub does not offer them for personal-account repositories.
+
+To report a security problem privately, see [SECURITY.md](SECURITY.md).
+
 ## Learn more
 
 For source development, start with the [architecture and invariants guide](Architecture.md)
