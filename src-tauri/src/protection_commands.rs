@@ -26,6 +26,94 @@ fn current_key_file(paths: &AppPaths, runtime: &AppStateHandle, expected_generat
     Ok((db_path, key))
 }
 
+const PASSWORD_SAVED_REOPEN_FAILED: &str =
+    "Your new password is saved, but Vault Spend couldn't reopen the profile. Unlock it with your new password.";
+const RECOVERY_KEY_SAVED_REOPEN_FAILED: &str =
+    "Your new recovery key is saved, but Vault Spend couldn't reopen the profile. Unlock it with your password.";
+const PROTECTION_ON_REOPEN_FAILED: &str =
+    "Password protection is on, but Vault Spend couldn't reopen the profile. Unlock it with your new password.";
+const PROTECTION_REMOVED_REOPEN_FAILED: &str =
+    "Password protection is off, but Vault Spend couldn't reopen the profile. Open it again from this list.";
+
+/// A protection change that has already gone through: the profile list points at the new file.
+#[derive(Clone, Copy)]
+enum Committed {
+    Password,
+    RecoveryKey,
+    ProtectionOn,
+    ProtectionOff,
+}
+
+impl Committed {
+    fn notice(self) -> &'static str {
+        match self {
+            Committed::Password => PASSWORD_SAVED_REOPEN_FAILED,
+            Committed::RecoveryKey => RECOVERY_KEY_SAVED_REOPEN_FAILED,
+            Committed::ProtectionOn => PROTECTION_ON_REOPEN_FAILED,
+            Committed::ProtectionOff => PROTECTION_REMOVED_REOPEN_FAILED,
+        }
+    }
+}
+
+/// Debug builds only: an E2E run with `VAULTSPEND_FAILPOINT=reopen_after_commit` makes opening the
+/// new file fail, so the path below can be driven end to end.
+fn reopen_failpoint<T>(reopened: Result<T, String>) -> Result<T, String> {
+    #[cfg(debug_assertions)]
+    if std::env::var_os("VAULTSPEND_DB_DIR").is_some() && std::env::var("VAULTSPEND_FAILPOINT").as_deref() == Ok("reopen_after_commit") {
+        return Err("failpoint: reopen_after_commit".to_string());
+    }
+    reopened
+}
+
+/// When a committed change's new file can't be opened, the old file must not stay open: anything
+/// written to it would be lost once the change finishes, and the usual lock would back it up with
+/// the old key. So the session at `session_generation` (none when recovering from the lock screen)
+/// closes without a backup, and the lock screen, or the profile list for an unprotected profile,
+/// says what happened.
+fn close_after_failed_reopen(
+    paths: &AppPaths,
+    runtime: &AppStateHandle,
+    profile_id: &str,
+    session_generation: Option<u64>,
+    new_db_path: &std::path::Path,
+    change: Committed,
+) {
+    if let Some(generation) = session_generation {
+        let closed = runtime.lock_open_profile(
+            profile_id,
+            || paths.current_generation() == generation,
+            |_| {
+                paths.bump_generation();
+                None
+            },
+        );
+        if let Err(reason) = closed {
+            eprintln!("couldn't close the profile after a failed reopen: {reason}");
+        }
+    }
+    *paths.db_path.lock().unwrap_or_else(|e| e.into_inner()) = new_db_path.to_path_buf();
+    if matches!(change, Committed::ProtectionOff) {
+        runtime.release_lock();
+    }
+    runtime.set_gate_notice(change.notice().to_string());
+}
+
+fn after_failed_reopen(
+    app: &tauri::AppHandle,
+    profile_id: &str,
+    session_generation: Option<u64>,
+    new_db_path: &std::path::Path,
+    change: Committed,
+    reason: &str,
+) {
+    use tauri::Manager;
+    eprintln!("the change is saved but its new file couldn't be opened: {reason}");
+    close_after_failed_reopen(&app.state::<AppPaths>(), &app.state::<AppStateHandle>(), profile_id, session_generation, new_db_path, change);
+    if let Some(generation) = session_generation {
+        app.state::<crate::auto_lock::AutoLockController>().disarm(profile_id, generation);
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct AutoLockSettingsDto {
     pub inactivity_minutes: u32,
@@ -231,9 +319,15 @@ pub(crate) fn enable_profile_protection_unchecked(
             chrono::Local::now().naive_local(),
         )?
     };
-    let dek = key_file.unlock_with_password(&password).map_err(|e| e.to_string())?;
-    let state = AppState::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string())?;
-    startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
+    let session_generation = paths.current_generation();
+    let reopened = key_file
+        .unlock_with_password(&password)
+        .map_err(|e| e.to_string())
+        .and_then(|dek| AppState::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string()));
+    match reopen_failpoint(reopened) {
+        Ok(state) => startup::activate(&app, startup::OpenedProfile { state, db_path: target_path }),
+        Err(reason) => after_failed_reopen(&app, &profile_id, Some(session_generation), &target_path, Committed::ProtectionOn, &reason),
+    }
     startup::broadcast_state(&app);
     Ok(recovery_code.display())
 }
@@ -291,9 +385,14 @@ pub fn change_password(
             chrono::Local::now().naive_local(),
         )?
     };
-    let dek = key_file.unlock_with_password(&new_password).map_err(|e| e.to_string())?;
-    let state = AppState::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string())?;
-    startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
+    let reopened = key_file
+        .unlock_with_password(&new_password)
+        .map_err(|e| e.to_string())
+        .and_then(|dek| AppState::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string()));
+    match reopen_failpoint(reopened) {
+        Ok(state) => startup::activate(&app, startup::OpenedProfile { state, db_path: target_path }),
+        Err(reason) => after_failed_reopen(&app, &profile_id, Some(expected_generation), &target_path, Committed::Password, &reason),
+    }
     if let Err(reason) = crate::protection::lifecycle::complete_committed_rotation(&paths.config_path) {
         eprintln!("password rotation committed; old-file cleanup will resume on restart: {reason}");
     }
@@ -351,14 +450,21 @@ pub fn commit_regenerate_recovery(
             chrono::Local::now().naive_local(),
         )?
     };
-    let dek = key_file.unlock_with_password(&current_password).map_err(|e| e.to_string())?;
-    let state = AppState::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string())?;
-    startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
-    // `activate` bumps the generation, so carry the weak-password nudge over to the new one.
-    sessions.note_unlock(
-        paths.current_generation(),
-        crate::protection::password_rules::below_minimum(&current_password),
-    );
+    let reopened = key_file
+        .unlock_with_password(&current_password)
+        .map_err(|e| e.to_string())
+        .and_then(|dek| AppState::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string()));
+    match reopen_failpoint(reopened) {
+        Ok(state) => {
+            startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
+            // `activate` bumps the generation, so carry the weak-password nudge over to the new one.
+            sessions.note_unlock(
+                paths.current_generation(),
+                crate::protection::password_rules::below_minimum(&current_password),
+            );
+        }
+        Err(reason) => after_failed_reopen(&app, &profile_id, Some(expected_generation), &target_path, Committed::RecoveryKey, &reason),
+    }
     if let Err(reason) = crate::protection::lifecycle::complete_committed_rotation(&paths.config_path) {
         eprintln!("recovery key rotation committed; old-file cleanup will resume on restart: {reason}");
     }
@@ -395,8 +501,10 @@ pub fn remove_protection(
             chrono::Local::now().naive_local(),
         )?
     };
-    let state = AppState::open(&target_path).map_err(|e| e.to_string())?;
-    startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
+    match reopen_failpoint(AppState::open(&target_path).map_err(|e| e.to_string())) {
+        Ok(state) => startup::activate(&app, startup::OpenedProfile { state, db_path: target_path }),
+        Err(reason) => after_failed_reopen(&app, &profile_id, Some(expected_generation), &target_path, Committed::ProtectionOff, &reason),
+    }
     if let Err(reason) = crate::protection::lifecycle::complete_committed_removal(&paths.config_path) {
         eprintln!("protection removal committed; encrypted-file cleanup will resume on restart: {reason}");
     }
@@ -500,9 +608,14 @@ pub fn commit_recovery(
     // old file (and the recovery key that was just invalidated) would then survive on disk until
     // the next launch. Drop it now, the same way `change_password`'s own test already knows to.
     drop(opened);
-    let new_dek = new_key_file.unlock_with_password(&new_password).map_err(|e| e.to_string())?;
-    let state = AppState::open_with_key(&target_path, DatabaseKey::Raw(new_dek.as_bytes())).map_err(|e| e.to_string())?;
-    startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
+    let reopened = new_key_file
+        .unlock_with_password(&new_password)
+        .map_err(|e| e.to_string())
+        .and_then(|dek| AppState::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string()));
+    match reopen_failpoint(reopened) {
+        Ok(state) => startup::activate(&app, startup::OpenedProfile { state, db_path: target_path }),
+        Err(reason) => after_failed_reopen(&app, &id, None, &target_path, Committed::Password, &reason),
+    }
     if let Err(reason) = crate::protection::lifecycle::complete_committed_rotation(&paths.config_path) {
         eprintln!("recovery committed; old-file cleanup will resume on restart: {reason}");
     }
@@ -557,8 +670,9 @@ pub fn commit_protection_setup(
             if id != active_id {
                 return Err("The active profile changed before setup could finish.".to_string());
             }
-            enable_profile_protection_with_recovery(password, recovery_code, app, paths, runtime)?;
-            Ok(StartupState::Open)
+            enable_profile_protection_with_recovery(password, recovery_code, app, paths.clone(), runtime.clone())?;
+            // Open, or the lock screen when the protected file couldn't be reopened.
+            Ok(startup::startup_state_for_registry(&paths.config_path, &runtime, &status, None))
         }
         (None, Some(name)) => {
             let live_db_path = current_db_path(&paths);
@@ -639,4 +753,93 @@ mod tests {
     // is therefore proved by: (a) the plain-function tests in `startup.rs`/`protection::session.rs`
     // that back every branch here, and (b) feature101/feature102 (Task 9), which drive the actual
     // compiled app through these exact commands over IPC.
+    use super::*;
+    use crate::runtime::RuntimeStatus;
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::AtomicU64;
+    use std::sync::Mutex;
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("vaultspend-reopen-test-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn now() -> chrono::NaiveDateTime {
+        chrono::NaiveDate::from_ymd_opt(2026, 11, 19).unwrap().and_hms_opt(9, 0, 0).unwrap()
+    }
+
+    fn file_count(dir: &Path) -> usize {
+        std::fs::read_dir(dir).map(|entries| entries.count()).unwrap_or(0)
+    }
+
+    /// A protected profile open in the runtime, as it is just before a password change commits.
+    fn open_protected(dir: &Path, password: &str) -> (String, PathBuf, AppPaths, AppStateHandle) {
+        let config_path = dir.join("config.json");
+        let (id, key_file, _code, db_path) =
+            crate::protection::transition::create_protected_profile(&config_path, &dir.join("v.db"), "Sam", password, now()).unwrap();
+        let dek = key_file.unlock_with_password(password).unwrap();
+        let runtime = AppStateHandle::no_profile_open();
+        runtime.install(AppState::open_with_key(&db_path, DatabaseKey::Raw(dek.as_bytes())).unwrap());
+        let paths = AppPaths {
+            config_path,
+            db_path: Mutex::new(db_path.clone()),
+            generation: AtomicU64::new(7),
+        };
+        (id, db_path, paths, runtime)
+    }
+
+    #[test]
+    fn a_failed_reopen_after_a_committed_password_change_locks_without_a_backup_and_lets_cleanup_finish() {
+        let dir = temp_dir("password");
+        let (id, old_db, paths, runtime) = open_protected(&dir, "old password 123");
+        let (_key_file, _code, new_db) = {
+            let session = runtime.lock().unwrap();
+            crate::protection::lifecycle::rotate_password(&paths.config_path, &id, &old_db, &session.store, "old password 123", "brand new password!!", now())
+                .unwrap()
+        };
+        let backups_dir = crate::backups::backups_dir_for(&new_db, true);
+        let backups_before = file_count(&backups_dir);
+
+        close_after_failed_reopen(&paths, &runtime, &id, Some(7), &new_db, Committed::Password);
+
+        assert!(matches!(runtime.status(), RuntimeStatus::Locked { profile_id } if profile_id == id));
+        assert_eq!(paths.current_generation(), 8, "requests from the old session must be refused");
+        assert_eq!(*paths.db_path.lock().unwrap(), new_db);
+        assert_eq!(runtime.gate_notice().as_deref(), Some(PASSWORD_SAVED_REOPEN_FAILED));
+        assert_eq!(file_count(&backups_dir), backups_before, "no backup may be written with the old database key");
+        crate::protection::lifecycle::complete_committed_rotation(&paths.config_path).unwrap();
+        assert!(!old_db.exists(), "the old file closes, so the old password stops opening anything");
+        assert!(!budget_core::protection::keyfile::key_file_path_for(&old_db).exists());
+    }
+
+    #[test]
+    fn a_failed_reopen_after_removing_protection_returns_to_the_profile_list() {
+        let dir = temp_dir("removal");
+        let (id, old_db, paths, runtime) = open_protected(&dir, "old password 123");
+        let new_db = {
+            let session = runtime.lock().unwrap();
+            crate::protection::lifecycle::remove_protection(&paths.config_path, &id, &old_db, &session.store, "old password 123", now()).unwrap()
+        };
+
+        close_after_failed_reopen(&paths, &runtime, &id, Some(7), &new_db, Committed::ProtectionOff);
+
+        assert!(matches!(runtime.status(), RuntimeStatus::NoProfileOpen));
+        assert_eq!(runtime.gate_notice().as_deref(), Some(PROTECTION_REMOVED_REOPEN_FAILED));
+        crate::protection::lifecycle::complete_committed_removal(&paths.config_path).unwrap();
+        assert!(!old_db.exists());
+    }
+
+    #[test]
+    fn a_failed_open_after_recovery_from_the_lock_screen_keeps_the_lock_screen() {
+        let dir = temp_dir("recovery");
+        let (id, _old_db, paths, runtime) = open_protected(&dir, "old password 123");
+        runtime.lock_profile(&id);
+
+        close_after_failed_reopen(&paths, &runtime, &id, None, &dir.join("new.db"), Committed::Password);
+
+        assert!(matches!(runtime.status(), RuntimeStatus::Locked { profile_id } if profile_id == id));
+        assert_eq!(runtime.gate_notice().as_deref(), Some(PASSWORD_SAVED_REOPEN_FAILED));
+    }
 }

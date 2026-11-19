@@ -34,8 +34,8 @@ export interface SelectorEntry {
 
 export type StartupState =
   | { status: "open" }
-  | { status: "selector"; profiles: SelectorEntry[]; last_used_id: string | null }
-  | { status: "locked"; profile_id: string; profile_name: string }
+  | { status: "selector"; profiles: SelectorEntry[]; last_used_id: string | null; notice?: string }
+  | { status: "locked"; profile_id: string; profile_name: string; notice?: string }
   | { status: "empty_registry" }
   | { status: "error"; error: LaunchError };
 

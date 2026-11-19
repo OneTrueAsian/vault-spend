@@ -34,6 +34,16 @@
   color: var(--text-muted);
 }
 
+/* Why a profile was closed (a saved change that couldn't reopen it). */
+.profile-gate-notice {
+  margin: 0 0 16px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--warning);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+}
+
 .profile-selector-card {
   width: min(640px, 100%);
 }

@@ -351,6 +351,7 @@
     "feature415_default_palette_layout.mjs": "drives menus that close when the window loses focus; uses the shared pointer (hover)",
     "feature416_exclude_from_budget.mjs": "depends on which window has OS focus; uses the shared keyboard; lib\\budgetRows.mjs: depends on which window has OS focus; lib\\budgetRows.mjs: drives menus that close when the window loses focus; lib\\budgetRows.mjs: uses the shared keyboard",
     "feature417_password_nudge.mjs": "not reviewed for parallel execution; exclusive until approved",
-    "feature418_mobile_trust_notice.mjs": "not reviewed for parallel execution; exclusive until approved"
+    "feature418_mobile_trust_notice.mjs": "not reviewed for parallel execution; exclusive until approved",
+    "feature419_reopen_after_commit.mjs": "not reviewed for parallel execution; exclusive until approved"
   }
 }

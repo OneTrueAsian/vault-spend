@@ -6,17 +6,19 @@ import { RecoverProfileDialog } from "./RecoverProfileDialog";
 import { getCurrentGeneration } from "../../shared/lib/profileUiState";
 import { showProfileSelector, unlockProfile } from "../../shared/lib/protection";
 import { useAutoCancelDelete } from "../../shared/hooks/useAutoCancelDelete";
-import type { StartupState } from "../../shared/lib/startup";
+import { getStartupState, type StartupState } from "../../shared/lib/startup";
 
 /** Shown instead of the app when the runtime holds a locked profile. Reuses `LaunchErrorScreen`'s
  * card shell — this is the same shape of thing, a full-screen gate. */
 export function ProfileLockScreen({
   profileId,
   profileName,
+  notice,
   onResolved,
 }: {
   profileId: string;
   profileName: string;
+  notice?: string;
   onResolved: (next: StartupState) => void;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -44,6 +46,11 @@ export function ProfileLockScreen({
         <h1 ref={headingRef} tabIndex={-1}>
           {profileName} is locked
         </h1>
+        {notice && (
+          <p className="profile-gate-notice" role="status" data-gate-notice>
+            {notice}
+          </p>
+        )}
         <p className="profile-gate-subtitle">Enter your password to continue.</p>
         <PasswordForm submitLabel="Unlock" onSubmit={async (password) => onResolved(await unlockProfile(profileId, password))} />
         <button
@@ -88,11 +95,9 @@ export function ProfileLockScreen({
           expectedGeneration={recoveryGeneration}
           onDone={() => {
             setRecoveryGeneration(null);
-            // commit_recovery only ever succeeds by hot-swapping to the newly-recovered profile —
-            // the same guarantee unlock_profile's own Ok(StartupState::Open) return codifies, just
-            // not threaded back through commitRecovery's return value (that's the one-time recovery
-            // code, checked above against what the dialog displayed).
-            onResolved({ status: "open" });
+            // Usually open; still locked, with a notice, when the new password was saved but the
+            // profile couldn't be reopened. commitRecovery returns the recovery code, not the state.
+            void getStartupState().then(onResolved);
           }}
           onCancel={() => setRecoveryGeneration(null)}
         />
