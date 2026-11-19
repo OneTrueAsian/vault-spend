@@ -34,21 +34,16 @@ export function useQuickSettings(isKnownId: (id: string) => boolean) {
   const saved = useRef<string[] | null>(null);
   const latest = useRef(0);
   const queue = useRef<Promise<void>>(Promise.resolve());
-  const owner = useRef<number | null>(null);
+  const owner = useRef<Promise<number> | null>(null);
   const alive = useRef(true);
   const known = useRef(isKnownId);
   known.current = isKnownId;
 
   useEffect(() => {
     alive.current = true;
-    getCurrentGeneration()
-      .then((generation) => {
-        owner.current = generation;
-      })
-      .catch(() => {
-        owner.current = null;
-      })
-      .then(() => getProfileUiState("quick_settings"))
+    owner.current = getCurrentGeneration();
+    owner.current.catch(() => undefined);
+    getProfileUiState("quick_settings")
       .then((raw) => parseQuickSettings(raw, known.current))
       .catch(() => parseQuickSettings(null, known.current))
       .then((list) => {
@@ -70,8 +65,16 @@ export function useQuickSettings(isKnownId: (id: string) => boolean) {
     queue.current = queue.current.then(async () => {
       if (!alive.current) return;
       try {
-        if (owner.current === null) throw new Error("The profile was not known when Quick settings loaded.");
-        await setProfileUiState("quick_settings", serializeQuickSettings(next), owner.current);
+        let generation: number;
+        try {
+          generation = await owner.current!;
+        } catch {
+          // The read at load failed, so no profile-bound value is known yet: one fresh read is safe.
+          owner.current = getCurrentGeneration();
+          owner.current.catch(() => undefined);
+          generation = await owner.current;
+        }
+        await setProfileUiState("quick_settings", serializeQuickSettings(next), generation);
         saved.current = next;
       } catch {
         if (mine !== latest.current) return;

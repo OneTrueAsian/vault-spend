@@ -215,6 +215,7 @@ describe("useQuickSettings", () => {
     getCurrentGeneration.mockResolvedValue(1);
     getProfileUiState.mockResolvedValue("[]");
     await mount();
+    // `release` only unblocks the first write; the `<= 1` assertion below is what proves the queued second write was dropped.
     let release!: () => void;
     setProfileUiState.mockImplementation(() => new Promise<void>((r) => (release = r)));
 
@@ -251,6 +252,27 @@ describe("useQuickSettings", () => {
     await act(async () => api.remove("a"));
     expect(api.ids).toEqual(["a", "b", "c"]);
     expect(api.error).toBe("Couldn't save your Quick settings. Try again.");
+  });
+
+  it("a write made before the generation is known waits for it and uses it", async () => {
+    let resolveGeneration!: (g: number) => void;
+    getCurrentGeneration.mockReturnValue(new Promise<number>((r) => (resolveGeneration = r)));
+    getProfileUiState.mockResolvedValue('["a"]');
+    await mount();
+    await act(async () => api.add("b"));
+    expect(setProfileUiState).not.toHaveBeenCalled();
+    await act(async () => resolveGeneration(5));
+    expect(setProfileUiState).toHaveBeenCalledTimes(1);
+    expect(setProfileUiState).toHaveBeenCalledWith("quick_settings", '["a","b"]', 5);
+  });
+
+  it("after a failed generation read at load, a later save still succeeds", async () => {
+    getCurrentGeneration.mockRejectedValueOnce(new Error("busy")).mockResolvedValue(9);
+    getProfileUiState.mockResolvedValue('["a"]');
+    await mount();
+    await act(async () => api.add("b"));
+    expect(setProfileUiState).toHaveBeenCalledWith("quick_settings", '["a","b"]', 9);
+    expect(api.error).toBeNull();
   });
 
   it("a failed read falls back to the defaults", async () => {
