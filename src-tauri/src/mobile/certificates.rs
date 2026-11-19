@@ -215,12 +215,21 @@ pub fn reset_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64) -> Resu
 fn create_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64) -> Result<CertificateBundle, String> {
     // Loopback is allowed only in debug builds, so the 127.0.0.1 test fixtures and E2E keep working;
     // a release root never vouches for it.
-    build_identity(store, ipv4, now, Some(cfg!(debug_assertions)))
+    build_identity(store, ipv4, now, RootShape::Computer { include_loopback: cfg!(debug_assertions) })
 }
-/// `constraints`: `Some(include_loopback)` builds a root limited to this computer; `None` builds the
-/// pre-1.3.4 unconstrained 10-year root (kept only so tests can seed an outdated identity).
-fn build_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64, constraints: Option<bool>) -> Result<CertificateBundle, String> {
-    let root_days = if constraints.is_some() { 730 } else { 3650 };
+enum RootShape {
+    /// Limited to this computer's names and private ranges, valid 730 days.
+    Computer { include_loopback: bool },
+    /// The pre-1.3.4 unconstrained 10-year root; exists only so tests can seed an outdated identity.
+    #[cfg(test)]
+    Legacy,
+}
+fn build_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64, shape: RootShape) -> Result<CertificateBundle, String> {
+    let (root_days, loopback) = match shape {
+        RootShape::Computer { include_loopback } => (730, Some(include_loopback)),
+        #[cfg(test)]
+        RootShape::Legacy => (3650, None),
+    };
     let mut id = [0u8; 16];
     getrandom::fill(&mut id).map_err(|_| INVALID)?;
     let id = id.iter().map(|n| format!("{n:02x}")).collect::<String>();
@@ -228,7 +237,7 @@ fn build_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64, constraints
     let mut root = CertificateParams::new(Vec::<String>::new()).map_err(|_| INVALID)?;
     dates(&mut root, now, root_days)?;
     root.is_ca = IsCa::Ca(BasicConstraints::Constrained(0));
-    if let Some(include_loopback) = constraints {
+    if let Some(include_loopback) = loopback {
         root.name_constraints = Some(NameConstraints {
             permitted_subtrees: permitted_subtrees(&id, include_loopback),
             excluded_subtrees: vec![],
@@ -259,7 +268,7 @@ fn build_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64, constraints
 }
 #[cfg(test)]
 pub fn legacy_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64) -> Result<CertificateBundle, String> {
-    build_identity(store, ipv4, now, None)
+    build_identity(store, ipv4, now, RootShape::Legacy)
 }
 #[cfg(test)]
 #[derive(Default)]
@@ -345,7 +354,7 @@ mod trust_tests {
     }
     #[test]
     fn new_root_only_vouches_for_this_installation() {
-        let bundle = build_identity(&MemorySecrets::default(), "192.168.1.20".parse().unwrap(), NOW, Some(true)).unwrap();
+        let bundle = build_identity(&MemorySecrets::default(), "192.168.1.20".parse().unwrap(), NOW, RootShape::Computer { include_loopback: true }).unwrap();
         assert_eq!(bundle.root_expires - NOW, 730 * DAY);
         assert!(!bundle.needs_trust_upgrade());
         check(&bundle.root_pem, &bundle.leaf_pem, ip(&bundle)).unwrap();
@@ -370,9 +379,10 @@ mod trust_tests {
         assert!(loopback(&permitted_subtrees(&id, true)));
         assert_eq!(permitted_subtrees(&id, false).len(), 4);
         let lo: Ipv4Addr = "127.0.0.1".parse().unwrap();
-        let release = build_identity(&MemorySecrets::default(), lo, NOW, Some(false)).unwrap();
-        assert!(check(&release.root_pem, &release.leaf_pem, ip(&release)).is_err());
-        let debug = build_identity(&MemorySecrets::default(), lo, NOW, Some(true)).unwrap();
+        let release = build_identity(&MemorySecrets::default(), lo, NOW, RootShape::Computer { include_loopback: false }).unwrap();
+        let error = check(&release.root_pem, &release.leaf_pem, ip(&release)).unwrap_err();
+        assert!(format!("{error:?}").contains("NameConstraint"), "{error:?}");
+        let debug = build_identity(&MemorySecrets::default(), lo, NOW, RootShape::Computer { include_loopback: true }).unwrap();
         check(&debug.root_pem, &debug.leaf_pem, ip(&debug)).unwrap();
     }
     #[test]
