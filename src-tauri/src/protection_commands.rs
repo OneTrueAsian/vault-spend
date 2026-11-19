@@ -160,8 +160,16 @@ pub fn unlock_profile(
             db_path: target.db_path,
         },
     );
+    sessions.note_unlock(paths.current_generation(), crate::protection::password_rules::below_minimum(&password));
     startup::broadcast_state(&app);
     Ok(StartupState::Open)
+}
+
+/// Whether the profile open at `expected_generation` was unlocked with a password shorter than the
+/// current minimum. Never persisted; a changed generation always answers false.
+#[tauri::command]
+pub fn password_nudge(expected_generation: u64, sessions: tauri::State<Sessions>) -> bool {
+    sessions.nudge_for(expected_generation)
 }
 
 /// Drops the open profile, requiring `expected_generation` to still match (a stale caller — e.g. a

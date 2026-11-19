@@ -94,6 +94,9 @@ fn random_token() -> String {
 pub struct Sessions {
     attempts: Mutex<HashMap<String, ProfileAttempts>>,
     pending: Mutex<Option<PendingSetup>>,
+    /// The generation of the last unlock that used a password shorter than the current minimum.
+    /// One in-memory number; never the password, never written to disk.
+    weak_unlock: Mutex<Option<u64>>,
 }
 
 impl Sessions {
@@ -147,7 +150,19 @@ impl Sessions {
         Sessions {
             attempts: Mutex::new(HashMap::new()),
             pending: Mutex::new(None),
+            weak_unlock: Mutex::new(None),
         }
+    }
+
+    /// Records how the profile just unlocked for `generation`. Each unlock replaces the last note.
+    pub fn note_unlock(&self, generation: u64, weak: bool) {
+        *self.weak_unlock.lock().unwrap_or_else(|e| e.into_inner()) = weak.then_some(generation);
+    }
+
+    /// True only while `generation` is still the one that unlocked with a shorter password. Any
+    /// later swap (password change, recovery, profile switch, lock) bumps the generation.
+    pub fn nudge_for(&self, generation: u64) -> bool {
+        *self.weak_unlock.lock().unwrap_or_else(|e| e.into_inner()) == Some(generation)
     }
 
     /// Starts a setup, invalidating any previous pending one. The two challenge indices are
@@ -238,6 +253,17 @@ impl Sessions {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn weak_unlock_nudge_is_tied_to_the_generation_it_was_noted_for() {
+        let sessions = Sessions::new();
+        assert!(!sessions.nudge_for(7));
+        sessions.note_unlock(7, true);
+        assert!(sessions.nudge_for(7));
+        assert!(!sessions.nudge_for(8));
+        sessions.note_unlock(7, false);
+        assert!(!sessions.nudge_for(7));
+    }
 
     #[test]
     fn reservations_serialize_one_profile_and_release_on_abort_without_counting_io_errors() {

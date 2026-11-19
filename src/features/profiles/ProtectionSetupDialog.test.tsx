@@ -67,19 +67,23 @@ describe("ProtectionSetupDialog", () => {
     return [...document.body.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === name)!;
   }
 
-  it("Continue is disabled under 8 characters or when the confirmation does not match", () => {
+  it("Continue is disabled under 12 characters or when the confirmation does not match", () => {
     show();
 
     typeInto(field("protection-setup-password"), "short");
     expect(button("Continue").disabled).toBe(true);
-    expect(document.body.textContent).toContain("At least 8 characters.");
+    expect(document.body.textContent).toContain("Use at least 12 characters. A few unrelated words works well.");
 
-    typeInto(field("protection-setup-password"), "eight ok!");
+    typeInto(field("protection-setup-password"), "elevenchars");
+    typeInto(field("protection-setup-confirm"), "elevenchars");
+    expect(button("Continue").disabled).toBe(true);
+
+    typeInto(field("protection-setup-password"), "twelve chars");
     typeInto(field("protection-setup-confirm"), "different");
     expect(button("Continue").disabled).toBe(true);
     expect(field("protection-setup-confirm").getAttribute("aria-invalid")).toBe("true");
     expect(document.body.textContent).toContain("Passwords do not match.");
-    typeInto(field("protection-setup-confirm"), "eight ok!");
+    typeInto(field("protection-setup-confirm"), "twelve chars");
     expect(button("Continue").disabled).toBe(false);
     expect(field("protection-setup-confirm").getAttribute("aria-invalid")).toBe("false");
     expect(document.body.textContent).not.toContain("Passwords do not match.");

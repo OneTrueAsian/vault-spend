@@ -3,6 +3,8 @@ import { invokeProfile } from "../native/profileIpc";
 export const showProfileSelector = () => invokeProfile("show_profile_selector");
 export const selectProfile = (id: string) => invokeProfile("select_profile", { id });
 export const unlockProfile = (id: string, password: string) => invokeProfile("unlock_profile", { id, password });
+export const passwordNudge = (expectedGeneration: number) =>
+  invokeProfile("password_nudge", { expectedGeneration });
 export const lockCurrentProfile = (expectedGeneration: number) =>
   invokeProfile("lock_current_profile", { expectedGeneration });
 export const verifyCurrentPassword = (password: string, expectedGeneration: number) =>

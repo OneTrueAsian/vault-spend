@@ -247,6 +247,7 @@ pub fn run() {
             protection_commands::show_profile_selector,
             protection_commands::select_profile,
             protection_commands::unlock_profile,
+            protection_commands::password_nudge,
             protection_commands::lock_current_profile,
             protection_commands::get_auto_lock_settings,
             protection_commands::set_auto_lock_settings,

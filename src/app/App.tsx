@@ -15,6 +15,7 @@ import { useFinancialRead } from "../shared/hooks/useFinancialRead";
 import type { DashboardSnapshot, ReportSummarySnapshot } from "../shared/native/financialContracts";
 import { FinancialReadState } from "../shared/native/FinancialReadState";
 import type { BudgetSnapshot } from "../shared/native/financialContracts";
+import { PasswordNudge } from "../features/profiles/PasswordNudge";
 import { captureManualLockGeneration, useManualProfileLock } from "../features/profiles/useManualProfileLock";
 // Eager stylesheet modules keep the original cascade and prevent lazy views from reloading base rules.
 import "../shared/ui/App.css";
@@ -2148,6 +2149,14 @@ function App({
           against the whole page under the Transparent style's backdrop-filter. */}
           {createPortal(
             <div className="toast-stack">
+              {profiles.find((p) => p.is_active)?.is_password_protected && (
+                <PasswordNudge
+                  onChangePassword={() => {
+                    setSettingsJump({ group: "profiles", nonce: Date.now() });
+                    setActiveTab("settings");
+                  }}
+                />
+              )}
               {status && <StatusBanner text={status.text} kind={status.kind} onDismiss={() => setStatusState(null)} />}
               {undoToast && (
                 <StatusBanner

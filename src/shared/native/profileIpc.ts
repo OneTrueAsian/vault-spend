@@ -30,6 +30,7 @@ const decoders = {
   show_profile_selector: validateStartupState,
   select_profile: validateStartupState,
   unlock_profile: validateStartupState,
+  password_nudge: validateFlag,
   lock_current_profile: validateStartupState,
   verify_current_password: validateVoid,
   change_password: validateRecoveryDisplay,
@@ -71,6 +72,7 @@ interface Arguments {
   locate_data_file: { path: string };
   select_profile: { id: string };
   unlock_profile: { id: string; password: string };
+  password_nudge: { expectedGeneration: number };
   lock_current_profile: { expectedGeneration: number };
   verify_current_password: { password: string; expectedGeneration: number };
   change_password: { currentPassword: string; token: string; answers: Answers };

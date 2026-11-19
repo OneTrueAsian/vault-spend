@@ -73,6 +73,19 @@ describe("ChangePasswordDialog", () => {
     expect(document.body.querySelector("#change-password-new")).toBeNull();
   });
 
+  it("Continue stays disabled at 11 characters and is enabled at 12, with the new hint", async () => {
+    show();
+    typeInto(field("change-password-current"), "old password");
+    await act(async () => button("Continue").click());
+    expect(document.body.textContent).toContain("Use at least 12 characters. A few unrelated words works well.");
+    typeInto(field("change-password-new"), "elevenchars");
+    typeInto(field("change-password-confirm"), "elevenchars");
+    expect(button("Continue").disabled).toBe(true);
+    typeInto(field("change-password-new"), "twelve chars");
+    typeInto(field("change-password-confirm"), "twelve chars");
+    expect(button("Continue").disabled).toBe(false);
+  });
+
   it("commits the exact backend-verified recovery challenge after all four steps", async () => {
     show();
     typeInto(field("change-password-current"), "old password");

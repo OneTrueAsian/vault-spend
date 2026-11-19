@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { MIN_PASSWORD_CHARS } from "../../shared/lib/passwordRules";
 import { ModalShell } from "../../shared/ui/Modal";
 import {
   beginProtectionSetup,
@@ -106,7 +107,7 @@ export function ChangePasswordDialog({
             <div className="password-form-field">
               <label htmlFor="change-password-new">New password</label>
               <input id="change-password-new" className="text-input" type="password" autoComplete="new-password" autoFocus value={newPassword} onChange={(event) => setNewPassword(event.target.value)} disabled={busy} />
-              <p className="protection-setup-hint">At least 8 characters.</p>
+              <p className="protection-setup-hint">Use at least 12 characters. A few unrelated words works well.</p>
             </div>
             <div className="password-form-field">
               <label htmlFor="change-password-confirm">Confirm new password</label>
@@ -116,7 +117,7 @@ export function ChangePasswordDialog({
             {error && <p className="launch-error-problem" role="alert">{error}</p>}
             <div className="modal-actions">
               <button type="button" className="modal-secondary" onClick={cancel} disabled={busy}>Cancel</button>
-              <button type="button" onClick={startRecovery} disabled={busy || scalarLength(newPassword) < 8 || !matches}>Continue</button>
+              <button type="button" onClick={startRecovery} disabled={busy || scalarLength(newPassword) < MIN_PASSWORD_CHARS || !matches}>Continue</button>
             </div>
           </>
         )}

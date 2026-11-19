@@ -73,6 +73,19 @@ describe("RecoverProfileDialog", () => {
     expect(document.body.querySelector("#recover-profile-new")).toBeNull();
   });
 
+  it("Continue stays disabled at 11 characters and is enabled at 12, with the new hint", async () => {
+    show();
+    typeInto(field("recover-profile-code"), "AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG");
+    await act(async () => button("Continue").click());
+    expect(document.body.textContent).toContain("Use at least 12 characters. A few unrelated words works well.");
+    typeInto(field("recover-profile-new"), "elevenchars");
+    typeInto(field("recover-profile-confirm"), "elevenchars");
+    expect(button("Continue").disabled).toBe(true);
+    typeInto(field("recover-profile-new"), "twelve chars");
+    typeInto(field("recover-profile-confirm"), "twelve chars");
+    expect(button("Continue").disabled).toBe(false);
+  });
+
   it("commits the exact backend-verified recovery challenge after all four steps", async () => {
     show();
     typeInto(field("recover-profile-code"), "AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG");
