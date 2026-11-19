@@ -36,6 +36,13 @@ describe("grouped release notes", () => {
     for (const part of [/Six months at a glance/, /What your investments are in/, /What you own and owe/, /Spending against the plan/, /Savings goals/, /Tags and people/, /Debt payoff/, /by person/]) expect(text).toMatch(part);
   });
 
+  it("writes 1.3.4 in the three labelled groups, covering the release's user-facing changes", () => {
+    const entry = CHANGELOG["1.3.4"];
+    expect(changelogSections(entry).map((s) => s.heading)).toEqual(["New features", "Enhancements", "Bug fixes"]);
+    const text = changelogNotes(entry).join("\n");
+    for (const part of [/Exclude from budget/, /12 characters/, /recovery key/, /set up your phone again/i, /Quick settings/, /debt payment/i, /icon/, /couldn't reopen/]) expect(text).toMatch(part);
+  });
+
   // Owner review of the 1.3.3 notes: a "(month)" placeholder would be shown to readers word for word.
   it("writes no (month) placeholder in the 1.3.3 notes", () => {
     const text = changelogNotes(CHANGELOG["1.3.3"]).join("\n");

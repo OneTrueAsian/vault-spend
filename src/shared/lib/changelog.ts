@@ -25,8 +25,20 @@ export const changelogNotes = (entry: ChangelogEntry): string[] => changelogSect
  * GitHub notes — a version with no entry here just shows nothing. */
 export const CHANGELOG: Record<string, ChangelogEntry> = {
   "1.3.4": {
+    "New features": [
+      "Exclude from budget: mark a transaction so it doesn't count toward your budget, such as a reimbursed work expense or a one-off medical bill. It still shows in Reports, Cash Flow and your balances. Turn it on in Settings → Features → Feature toggles, then choose Exclude from budget in a transaction's ⋯ menu, or tick several rows and use the same button in the bar above the table. Help explains how.",
+    ],
+    Enhancements: [
+      "Stronger passwords: a new or changed profile password needs at least 12 characters and can't be a commonly used password. A few unrelated words works well. Passwords you already use keep working. If yours is shorter, a reminder after you unlock offers to change it.",
+      "Making a new recovery key now fully replaces the old one. Your profile and its backups are re-encrypted, so the old recovery key no longer opens them, even if you restore an older backup. Copies in your second backup folder and files you exported earlier still open with the old key, so delete them if the old key may have been seen.",
+      "Mobile snapshots: the certificate your phone trusts now works only for this computer on your home network, and lasts two years. If you use Mobile snapshots, phone access pauses after this update. Open Settings → Mobile snapshots and choose Set up a phone: Vault Spend replaces the certificate and signs your phones out, so set up your phone again and remove the old Vault Spend certificate from your phone's settings.",
+    ],
     "Bug fixes": [
       "Cash Flow and Household spending bars now start at the left edge, so they line up correctly with the income markers.",
+      "A debt payment, or a change to a transaction's amount or splits, that fails partway no longer leaves half-made changes behind.",
+      "A change in Quick settings made just before switching profiles no longer ends up in the other profile.",
+      "A damaged or unknown icon setting no longer breaks a page. The default icon shows instead.",
+      "If a password change or new recovery key has been saved but Vault Spend couldn't reopen the profile, it now says so and asks you to unlock with the new password, instead of showing an error and leaving the old file open.",
     ],
   },
   "1.3.3": {
