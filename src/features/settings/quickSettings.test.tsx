@@ -254,7 +254,7 @@ describe("useQuickSettings", () => {
     expect(api.error).toBe("Couldn't save your Quick settings. Try again.");
   });
 
-  it("a write made before the generation is known waits for it and uses it", async () => {
+  it("the list is not read until the generation settles, and the first write uses that generation", async () => {
     let resolveGeneration!: (g: number) => void;
     getCurrentGeneration.mockReturnValue(new Promise<number>((r) => (resolveGeneration = r)));
     getProfileUiState.mockResolvedValue('["a"]');
