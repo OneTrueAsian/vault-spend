@@ -6,11 +6,9 @@
 // Run with: npm run e2e -- --spec=417
 
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { dismissFirstLaunchDialogs, dismissStatusMessages, launchApp, openSettingsGroup } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
+import { saveSecurityShot } from "./lib/securityShots.mjs";
 import { PROTECTION_FINISH_MS, seedPopulatedProfile } from "./lib/protection.mjs";
 
 const SHORT_PASSWORD = "elevenchars"; // 11 characters
@@ -18,7 +16,6 @@ const NEW_PASSWORD = "maple lantern river 42";
 const HINT = "Use at least 12 characters. A few unrelated words works well.";
 const NUDGE = "Your password is shorter than we now recommend. A longer one is much harder to guess.";
 const NUDGE_MARKER = "shorter than we now recommend";
-const SHOTS = process.env.VAULTSPEND_E2E_SHOTS ?? path.join(os.tmpdir(), "vaultspend-e2e-security-shots");
 
 async function invoke(browser, command, args = {}) {
   return browser.executeAsync((command, args, done) => {
@@ -77,7 +74,6 @@ async function lockAndUnlock(browser, password) {
 
 const testDbDir = freshTestDbDir();
 await seedPopulatedProfile(testDbDir);
-fs.mkdirSync(SHOTS, { recursive: true });
 
 // 1. The setup dialog shows the hint and refuses an 11-character password; then make the short-password profile.
 {
@@ -92,7 +88,7 @@ fs.mkdirSync(SHOTS, { recursive: true });
     await (await browser.$("#protection-setup-password")).setValue(SHORT_PASSWORD);
     await (await browser.$("#protection-setup-confirm")).setValue(SHORT_PASSWORD);
     assert.equal(await (await browser.$("button=Continue")).isEnabled(), false, "11 characters must keep Continue disabled");
-    await browser.saveScreenshot(path.join(SHOTS, "protection-setup-password-hint.png"));
+    await saveSecurityShot(browser, "protection-setup-password-hint.png");
     await (await browser.$("button=Cancel")).click();
     await browser.$("#protection-setup-password").waitForExist({ reverse: true, timeout: 5000 });
 
@@ -114,7 +110,7 @@ try {
   const nudge = await nudgeState(browser);
   assert.equal(nudge.text, NUDGE);
   assert.deepEqual(nudge.buttons, ["Change password", "Not now"]);
-  await browser.saveScreenshot(path.join(SHOTS, "password-nudge.png"));
+  await saveSecurityShot(browser, "password-nudge.png");
 
   await clickNudgeButton(browser, "Not now");
   await browser.waitUntil(async () => (await nudgeState(browser)) === null, { timeout: 5000, timeoutMsg: "Not now should hide the nudge" });
@@ -156,7 +152,9 @@ try {
   await lockAndUnlock(browser, NEW_PASSWORD);
   const afterGeneration = (await invoke(browser, "get_current_generation")).ok;
   assert.equal((await invoke(browser, "password_nudge", { expectedGeneration: afterGeneration })).ok, false, "a 12+ character password must not raise the nudge");
-  await browser.pause(1000); // the nudge asks the backend once the app is up; give a wrong answer time to appear
+  // A fixed pause on purpose: this checks that something does NOT appear, and the nudge's own backend question
+  // (PasswordNudge's effect) exposes no signal the spec can wait on, so a wrong answer needs time to show up.
+  await browser.pause(1000);
   assert.equal(await nudgeState(browser), null, "no nudge after unlocking with the new password");
 } finally {
   await app.close();

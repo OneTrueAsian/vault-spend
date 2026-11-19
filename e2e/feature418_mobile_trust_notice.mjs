@@ -1,20 +1,19 @@
 // Starting Mobile access with a phone-connection identity saved the pre-1.3.4 way (an unconstrained root)
 // replaces it instead of starting: paired phones are signed out and Mobile settings tells the person to set
-// their phone up again. The outdated identity comes from the debug-only debug_seed_outdated_mobile_identity
+// their phone up again. Launching the app with such an identity changes nothing, but Mobile settings shows
+// the same notice (and it is still there after another relaunch) until the person starts setup. The outdated identity comes from the debug-only debug_seed_outdated_mobile_identity
 // command (disposable data only). Screenshots go through saveScreenshot, so
 // `npm run e2e -- --spec=418 --keep-screens` keeps them.
 // Run with: npm run e2e -- --spec=418
 
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { launchApp, openSettingsGroup } from "./harness.mjs";
+import { freshTestDbDir } from "./lib/seed.mjs";
+import { saveSecurityShot } from "./lib/securityShots.mjs";
 import { client, ipc, pair } from "./mobileHttpsHarness.mjs";
 
 const NOTICE =
   "Vault Spend updated how your phone connects. Set up your phone again, and remove the old Vault Spend certificate from your phone's settings.";
-const SHOTS = process.env.VAULTSPEND_E2E_SHOTS ?? path.join(os.tmpdir(), "vaultspend-e2e-security-shots");
 
 const app = await launchApp();
 try {
@@ -57,10 +56,40 @@ try {
   assert.ok(order.noticeBottom <= order.buttonTop, "the notice must sit above the setup button");
   assert.ok((await browser.$("[data-mobile-settings]").getText()).includes("Mobile access is stopped"), "Mobile access stays stopped");
   await browser.execute(() => document.querySelector("[data-mobile-settings] .mobile-trust-notice").scrollIntoView({ block: "center" }));
-  fs.mkdirSync(SHOTS, { recursive: true });
-  await browser.saveScreenshot(path.join(SHOTS, "mobile-set-up-again-notice.png"));
+  await saveSecurityShot(browser, "mobile-set-up-again-notice.png");
 } finally {
   await app.close();
+}
+
+// Launch path: an outdated identity is left alone at launch, and the notice is waiting in Mobile settings,
+// across more than one relaunch, because it is read from the saved identity and not from this session.
+{
+  const dbDir = freshTestDbDir();
+  const seeding = await launchApp({ dbDir });
+  try {
+    await ipc(seeding, "debug_seed_outdated_mobile_identity");
+  } finally {
+    await seeding.close();
+  }
+  for (const launch of [1, 2]) {
+    const relaunched = await launchApp({ dbDir });
+    try {
+      const { browser } = relaunched;
+      await openSettingsGroup(browser, "data");
+      await browser.$("[data-mobile-settings]").waitForExist({ timeout: 5000 });
+      await browser.waitUntil(async () => (await browser.$(".mobile-trust-notice").isExisting()), {
+        timeout: 8000,
+        timeoutMsg: `relaunch ${launch}: Mobile settings should show the notice for an outdated identity`,
+      });
+      assert.equal((await browser.$(".mobile-trust-notice").getText()).trim(), NOTICE);
+      const status = await ipc(relaunched, "mobile_server_status");
+      assert.equal(status.running, false, "Mobile access must not run on the outdated identity");
+      assert.equal(status.trustReplaced, true);
+      if (launch === 1) await saveSecurityShot(browser, "mobile-set-up-again-pending.png");
+    } finally {
+      await relaunched.close();
+    }
+  }
 }
 
 console.log("FEATURE 418 E2E TEST PASSED");
