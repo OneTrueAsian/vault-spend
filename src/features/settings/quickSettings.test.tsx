@@ -259,20 +259,23 @@ describe("useQuickSettings", () => {
     getCurrentGeneration.mockReturnValue(new Promise<number>((r) => (resolveGeneration = r)));
     getProfileUiState.mockResolvedValue('["a"]');
     await mount();
-    await act(async () => api.add("b"));
-    expect(setProfileUiState).not.toHaveBeenCalled();
+    expect(api.ids).toBeNull();
+    expect(getProfileUiState).not.toHaveBeenCalled();
     await act(async () => resolveGeneration(5));
+    await act(async () => api.add("b"));
     expect(setProfileUiState).toHaveBeenCalledTimes(1);
     expect(setProfileUiState).toHaveBeenCalledWith("quick_settings", '["a","b"]', 5);
   });
 
-  it("after a failed generation read at load, a later save still succeeds", async () => {
+  it("after a failed generation read at load, a save fails, restores the list and never writes", async () => {
     getCurrentGeneration.mockRejectedValueOnce(new Error("busy")).mockResolvedValue(9);
     getProfileUiState.mockResolvedValue('["a"]');
     await mount();
     await act(async () => api.add("b"));
-    expect(setProfileUiState).toHaveBeenCalledWith("quick_settings", '["a","b"]', 9);
-    expect(api.error).toBeNull();
+    expect(setProfileUiState).not.toHaveBeenCalled();
+    expect(getCurrentGeneration).toHaveBeenCalledTimes(1);
+    expect(api.ids).toEqual(["a"]);
+    expect(api.error).toBe("Couldn't save your Quick settings. Try again.");
   });
 
   it("a failed read falls back to the defaults", async () => {
