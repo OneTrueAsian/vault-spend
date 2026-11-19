@@ -1987,3 +1987,52 @@ fn budget_exclusion_sql_follows_the_switch() {
     assert_eq!(store.budget_exclusion_sql("t.").unwrap(), " AND t.excluded_from_budget = 0");
     assert_eq!(store.budget_exclusion_sql("").unwrap(), " AND excluded_from_budget = 0");
 }
+
+#[test]
+fn applying_a_debt_payment_twice_changes_nothing_the_second_time() {
+    let store = Store::open_in_memory().unwrap();
+    let checking = test_account(&store);
+    let loan = store.get_or_create_account("Car Loan", AccountType::Loan).unwrap();
+    store.set_account_starting_balance(loan, "10000.00".parse().unwrap()).unwrap();
+    store.save_transactions(checking, &[tx("2026-08-20", "Loan Payment", "-500.00")]).unwrap();
+    let source_id = store.all_transactions().unwrap()[0].id;
+    let date: NaiveDate = "2026-08-20".parse().unwrap();
+    store.apply_debt_payment(source_id, loan, "500.00".parse().unwrap(), date).unwrap();
+
+    let payment_rows = |s: &Store| -> i64 { s.conn.query_row("SELECT COUNT(*) FROM debt_payments", [], |r| r.get(0)).unwrap() };
+    let balance = |s: &Store| s.list_accounts(far_future()).unwrap().iter().find(|a| a.id == loan).unwrap().current_balance;
+    let (txs, pays, bal) = (raw_transaction_count(&store), payment_rows(&store), balance(&store));
+
+    let err = store.apply_debt_payment(source_id, loan, "500.00".parse().unwrap(), date).unwrap_err();
+
+    assert!(err.to_string().contains("already applied"), "{err}");
+    assert_eq!(raw_transaction_count(&store), txs);
+    assert_eq!(payment_rows(&store), pays);
+    assert_eq!(balance(&store), bal);
+}
+
+#[test]
+fn an_amount_edit_that_overflows_while_rescaling_splits_leaves_the_row_and_splits_unchanged() {
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    let old: Decimal = "100000000000000000000".parse().unwrap();
+    let new = old + Decimal::ONE;
+    store.save_transactions(account, &[tx("2026-08-20", "Large amount", "100000000000000000000")]).unwrap();
+    let id = store.all_transactions().unwrap()[0].id;
+    store
+        .set_transaction_splits(id, &[("Big".to_string(), old, None), ("Zero".to_string(), Decimal::ZERO, None)])
+        .unwrap();
+    let fingerprint_of = |s: &Store| -> String { s.conn.query_row("SELECT fingerprint FROM transactions WHERE id = ?1", [id], |r| r.get(0)).unwrap() };
+    let balance = |s: &Store| s.list_accounts(far_future()).unwrap().iter().find(|a| a.id == account).unwrap().current_balance;
+    let (fp, bal) = (fingerprint_of(&store), balance(&store));
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| store.update_transaction_amount(id, new)));
+
+    assert!(matches!(result, Ok(Err(_))), "expected a clean error, not a panic or success");
+    assert_eq!(store.all_transactions().unwrap()[0].transaction.amount, old);
+    assert_eq!(fingerprint_of(&store), fp);
+    let splits = store.list_transaction_splits(id).unwrap();
+    assert_eq!(splits[0].amount, old);
+    assert_eq!(splits[1].amount, Decimal::ZERO);
+    assert_eq!(balance(&store), bal);
+}

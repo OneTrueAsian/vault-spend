@@ -3,7 +3,7 @@
 use super::{CategorySource, LIVE_TRANSFER_LEG_IDS_SQL, Store, fingerprint};
 use crate::models::Transaction;
 use chrono::{NaiveDate, NaiveDateTime};
-use rusqlite::params;
+use rusqlite::{OptionalExtension, params};
 use rust_decimal::Decimal;
 use std::str::FromStr;
 
@@ -115,6 +115,10 @@ pub(super) fn normalize_notes(notes: Option<&str>) -> Result<Option<String>, Not
         return Err(NotesError::Invalid(format!("Notes can be at most {NOTES_MAX_CHARS} characters.")));
     }
     Ok(Some(trimmed.to_string()))
+}
+
+fn split_overflow() -> rusqlite::Error {
+    rusqlite::Error::ToSqlConversionFailure("This amount is too large to split safely.".into())
 }
 
 impl Store {
@@ -476,6 +480,9 @@ impl Store {
             },
         );
 
+        // All-or-nothing: an overflow while rescaling the splits must not
+        // leave the new amount saved beside the old splits.
+        let sql_tx = self.conn.unchecked_transaction()?;
         let before = self.displayed_balance_for_log(account_id);
         self.conn.execute(
             "UPDATE transactions SET amount = ?1, fingerprint = ?2 WHERE id = ?3",
@@ -495,7 +502,10 @@ impl Store {
                 .iter()
                 .map(|(_, a)| Decimal::from_str(a).expect("split amount stored by this crate must be valid"))
                 .collect();
-            let split_total: Decimal = old_amounts.iter().sum();
+            let split_total = old_amounts
+                .iter()
+                .try_fold(Decimal::ZERO, |sum, a| sum.checked_add(*a))
+                .ok_or_else(split_overflow)?;
             if split_total != amount {
                 splits_reconciled = true;
                 let last = splits.len() - 1;
@@ -505,13 +515,20 @@ impl Store {
                         // Exact by construction: the new total minus every
                         // already-assigned split, whatever rounding those
                         // left over included.
-                        amount - running
+                        amount.checked_sub(running).ok_or_else(split_overflow)?
                     } else if split_total.is_zero() {
-                        (amount / Decimal::from(splits.len() as i64)).round_dp(2)
+                        amount
+                            .checked_div(Decimal::from(splits.len() as i64))
+                            .ok_or_else(split_overflow)?
+                            .round_dp(2)
                     } else {
-                        (old_amounts[i] * amount / split_total).round_dp(2)
+                        old_amounts[i]
+                            .checked_mul(amount)
+                            .and_then(|scaled| scaled.checked_div(split_total))
+                            .ok_or_else(split_overflow)?
+                            .round_dp(2)
                     };
-                    running += new_split_amount;
+                    running = running.checked_add(new_split_amount).ok_or_else(split_overflow)?;
                     self.conn.execute(
                         "UPDATE transaction_splits SET amount = ?1 WHERE id = ?2",
                         params![new_split_amount.to_string(), split_id],
@@ -527,6 +544,7 @@ impl Store {
         // balance until that override is cleared, which is exactly the
         // kind of surprise this log exists to surface.
         let after = self.displayed_balance_for_log(account_id);
+        sql_tx.commit()?;
         let snapshot = Self::describe_balance_snapshot(before, after);
         self.log_activity(&format!(
             "{}: transaction #{id} \"{description}\" amount corrected: {old_amount_str} -> {amount} — {snapshot}{}",
@@ -976,7 +994,23 @@ impl Store {
             params![source_transaction_id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )?;
+        let already_applied = self
+            .conn
+            .query_row(
+                "SELECT 1 FROM debt_payments WHERE source_transaction_id = ?1",
+                params![source_transaction_id],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some();
+        if already_applied {
+            return Err(rusqlite::Error::InvalidParameterName(
+                "This payment is already applied to a debt. Remove it first to change it.".into(),
+            ));
+        }
         let signed_amount = amount.abs();
+        // The generated row and its link row are written together or not at all.
+        let sql_tx = self.conn.unchecked_transaction()?;
         let before = self.displayed_balance_for_log(debt_account_id);
 
         let description = format!("Payment applied from: {source_description}");
@@ -1012,7 +1046,9 @@ impl Store {
                 date.to_string(),
             ],
         )?;
-        let snapshot = Self::describe_balance_snapshot(before, self.displayed_balance_for_log(debt_account_id));
+        let after = self.displayed_balance_for_log(debt_account_id);
+        sql_tx.commit()?;
+        let snapshot = Self::describe_balance_snapshot(before, after);
         self.log_activity(&format!(
             "{} -> {}: debt payment applied, amount={amount} (source transaction #{source_transaction_id}) — {snapshot}",
             self.account_name_for_log(source_account_id),
