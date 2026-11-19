@@ -59,12 +59,12 @@ async fn fetch_quotes_batch_from(
         .query(&[("symbols", joined.as_str()), ("api_token", api_key)])
         .send()
         .await
-        .map_err(|e| format!("network error fetching a quote for {joined}: {}", e.without_url()))?;
+        .map_err(|_| super::message::unreachable("StockData.org"))?;
     let status = response.status().as_u16();
     let body = response
         .text()
         .await
-        .map_err(|e| format!("failed to read the response for {joined}: {}", e.without_url()))?;
+        .map_err(|_| super::message::unusable("StockData.org"))?;
     parse_quotes_response(status, &body, symbols)
 }
 
@@ -90,19 +90,19 @@ async fn fetch_quotes_batch_from(
 /// batch rather than guessing which symbol was the actual problem.
 pub fn parse_quotes_response(status: u16, body: &str, requested: &[String]) -> Result<HashMap<String, Option<Decimal>>, String> {
     if status == 401 {
-        return Err(format!("StockData.org rejected the API key: {body}"));
+        return Err(super::message::key_rejected("StockData.org"));
     }
     if status == 403 {
         return Err("StockData.org's plan doesn't include one or more of these symbols".to_string());
     }
     if status == 429 {
-        return Err(format!("StockData.org's rate limit was hit: {body}"));
+        return Err(super::message::rate_limited("StockData.org"));
     }
     if status != 200 {
-        return Err(format!("unexpected response from StockData.org (HTTP {status}): {body}"));
+        return Err(super::message::unusable("StockData.org"));
     }
 
-    let value: Value = serde_json::from_str(body).map_err(|e| format!("unexpected response from StockData.org: {e}"))?;
+    let value: Value = serde_json::from_str(body).map_err(|_| super::message::unusable("StockData.org"))?;
     let data = value
         .get("data")
         .and_then(Value::as_array)
@@ -121,7 +121,7 @@ pub fn parse_quotes_response(status: u16, body: &str, requested: &[String]) -> R
             .as_f64()
             .ok_or_else(|| format!("StockData.org's response for {ticker} had a non-numeric price"))?;
         let decimal = Decimal::from_str(&price_value.to_string())
-            .map_err(|_| format!("StockData.org returned an unparseable price for {ticker}: {price_value}"))?;
+            .map_err(|_| super::message::unusable("StockData.org"))?;
         result.insert(ticker.to_string(), Some(decimal));
     }
     Ok(result)
@@ -142,7 +142,7 @@ mod tests {
         )
         .await
         .unwrap_err();
-        assert!(error.contains("failed to read the response for MSFT"));
+        assert!(error.contains("didn't send a usable price"));
         assert!(!error.contains("QA_SECRET_KEY_DO_NOT_SHOW"));
         server.finish(&[("symbols", "MSFT"), ("api_token", "QA_SECRET_KEY_DO_NOT_SHOW")]);
     }
@@ -153,7 +153,7 @@ mod tests {
         let error = fetch_quotes_batch_from(&client, "QA_SECRET_KEY_DO_NOT_SHOW", &["MSFT".to_string()], "http://127.0.0.1:0/quote")
             .await
             .unwrap_err();
-        assert!(error.contains("network error fetching a quote for MSFT"));
+        assert!(error.contains("Couldn't reach"));
         assert!(
             !error.contains("QA_SECRET_KEY_DO_NOT_SHOW"),
             "request credentials must not reach the user-visible error"
@@ -166,15 +166,15 @@ mod tests {
         let client = crate::live_prices::quote_http_fixture::client();
         let requested = vec!["MS FT&?".to_owned(), "QA2".to_owned()];
         for (status, body, expected_error) in [
-            (401, "fixture rejected key", Some("rejected the API key")),
+            (401, "fixture rejected key", Some("didn't accept your API key")),
             (
                 403,
                 r#"{"error":{"message":"private wording"}}"#,
                 Some("plan doesn't include one or more"),
             ),
-            (429, "fixture rate limit", Some("rate limit was hit")),
-            (500, "fixture unavailable", Some("HTTP 500")),
-            (200, "not json", Some("unexpected response from StockData.org")),
+            (429, "fixture rate limit", Some("limit on price requests was reached")),
+            (500, "fixture unavailable", Some("didn't send a usable price")),
+            (200, "not json", Some("didn't send a usable price")),
             (200, r#"{"data":[{"ticker":"MS FT&?","price":123.45}]}"#, None),
         ] {
             let server = crate::live_prices::quote_http_fixture::QuoteServer::new(status, body);
@@ -262,7 +262,7 @@ mod tests {
                 label: "rate limit status",
                 status: 429,
                 body: r#"{"error": {"code": "rate_limit_reached", "message": "Too many requests in the past 60 seconds."}}"#,
-                expected_substring: Some("rate limit"),
+                expected_substring: Some("limit on price requests"),
                 case_insensitive: false,
             },
             Case {

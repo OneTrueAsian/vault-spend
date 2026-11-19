@@ -38,12 +38,12 @@ async fn fetch_quote_from(client: &reqwest::Client, api_key: &str, symbol: &str,
         .query(&[("symbol", symbol), ("apikey", api_key)])
         .send()
         .await
-        .map_err(|e| format!("network error fetching a quote for {symbol}: {}", e.without_url()))?;
+        .map_err(|_| super::message::unreachable("Twelve Data"))?;
     let status = response.status().as_u16();
     let body = response
         .text()
         .await
-        .map_err(|e| format!("failed to read the response for {symbol}: {}", e.without_url()))?;
+        .map_err(|_| super::message::unusable("Twelve Data"))?;
     parse_quote_response(status, &body)
 }
 
@@ -72,19 +72,19 @@ pub fn parse_quote_response(status: u16, body: &str) -> Result<Option<Decimal>, 
         return Ok(None); // recognized "not found" — unknown/unsupported symbol
     }
     if status == 401 {
-        return Err(format!("Twelve Data rejected the API key: {body}"));
+        return Err(super::message::key_rejected("Twelve Data"));
     }
     if status == 403 {
         return Err("Twelve Data's plan doesn't include this symbol".to_string());
     }
     if status == 429 {
-        return Err(format!("Twelve Data's rate limit was hit: {body}"));
+        return Err(super::message::rate_limited("Twelve Data"));
     }
     if status != 200 {
-        return Err(format!("unexpected response from Twelve Data (HTTP {status}): {body}"));
+        return Err(super::message::unusable("Twelve Data"));
     }
 
-    let value: Value = serde_json::from_str(body).map_err(|e| format!("unexpected response from Twelve Data: {e}"))?;
+    let value: Value = serde_json::from_str(body).map_err(|_| super::message::unusable("Twelve Data"))?;
 
     let price = value
         .get("price")
@@ -92,7 +92,7 @@ pub fn parse_quote_response(status: u16, body: &str) -> Result<Option<Decimal>, 
         .ok_or_else(|| "Twelve Data's response was missing a price field".to_string())?;
     Decimal::from_str(price)
         .map(Some)
-        .map_err(|_| format!("Twelve Data returned an unparseable price: {price}"))
+        .map_err(|_| super::message::unusable("Twelve Data"))
 }
 
 #[cfg(test)]
@@ -105,7 +105,7 @@ mod tests {
         let error = fetch_quote_from(&crate::live_prices::quote_http_fixture::client(), "QA_SECRET_KEY_DO_NOT_SHOW", "MSFT", &server.url)
             .await
             .unwrap_err();
-        assert!(error.contains("failed to read the response for MSFT"));
+        assert!(error.contains("didn't send a usable price"));
         assert!(!error.contains("QA_SECRET_KEY_DO_NOT_SHOW"));
         server.finish(&[("symbol", "MSFT"), ("apikey", "QA_SECRET_KEY_DO_NOT_SHOW")]);
     }
@@ -116,7 +116,7 @@ mod tests {
         let error = fetch_quote_from(&client, "QA_SECRET_KEY_DO_NOT_SHOW", "MSFT", "http://127.0.0.1:0/quote")
             .await
             .unwrap_err();
-        assert!(error.contains("network error fetching a quote for MSFT"));
+        assert!(error.contains("Couldn't reach"));
         assert!(
             !error.contains("QA_SECRET_KEY_DO_NOT_SHOW"),
             "request credentials must not reach the user-visible error"
@@ -128,11 +128,11 @@ mod tests {
     async fn native_quote_http_twelve_errors_and_success_preserve_request() {
         let client = crate::live_prices::quote_http_fixture::client();
         for (status, body, expected_error) in [
-            (401, "fixture rejected key", Some("rejected the API key")),
+            (401, "fixture rejected key", Some("didn't accept your API key")),
             (403, r#"{"message":"private provider wording"}"#, Some("plan doesn't include this symbol")),
-            (429, "fixture rate limit", Some("rate limit was hit")),
-            (500, "fixture unavailable", Some("HTTP 500")),
-            (200, "not json", Some("unexpected response from Twelve Data")),
+            (429, "fixture rate limit", Some("limit on price requests was reached")),
+            (500, "fixture unavailable", Some("didn't send a usable price")),
+            (200, "not json", Some("didn't send a usable price")),
             (200, r#"{"price":"123.45"}"#, None),
         ] {
             let server = crate::live_prices::quote_http_fixture::QuoteServer::new(status, body);
@@ -186,7 +186,7 @@ mod tests {
                 label: "invalid api key status",
                 status: 401,
                 body: r#"{"code": 401, "message": "Invalid apikey.", "status": "error"}"#,
-                expected_substring: Some("apikey"),
+                expected_substring: Some("api key"),
                 case_insensitive: true,
             },
             Case {
@@ -200,7 +200,7 @@ mod tests {
                 label: "rate limit status",
                 status: 429,
                 body: r#"{"code": 429, "message": "API rate limit reached.", "status": "error"}"#,
-                expected_substring: Some("rate limit"),
+                expected_substring: Some("limit on price requests"),
                 case_insensitive: false,
             },
             Case {

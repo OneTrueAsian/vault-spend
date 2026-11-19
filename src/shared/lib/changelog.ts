@@ -41,6 +41,7 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
       "Cash Flow and Household spending bars now start at the left edge, so they line up correctly with the income markers.",
       "A debt payment, or a change to a transaction's amount or splits, that fails partway no longer leaves half-made changes behind.",
       "A change in Quick settings made just before switching profiles no longer ends up in the other profile.",
+      "When live stock prices can't be fetched, Investments now says what went wrong in plain words, such as the price service not accepting your API key or a limit on requests being reached, instead of showing the service's raw reply.",
       "A damaged or unknown icon setting no longer breaks a page. The default icon shows instead.",
       "If a password change or new recovery key has been saved but Vault Spend couldn't reopen the profile, it now says so and asks you to unlock with the new password, instead of showing an error and leaving the old file open.",
     ],
