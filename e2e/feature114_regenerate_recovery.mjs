@@ -10,12 +10,16 @@
 
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { dismissFirstLaunchDialogs, launchApp, openSettingsGroup } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 import { enableProtectionThroughUI, killAtFailpoint, seedPopulatedProfile, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 
 const PASSWORD = "correct horse battery staple";
+const SHOTS = process.env.VAULTSPEND_E2E_SHOTS ?? path.join(os.tmpdir(), "vaultspend-e2e-security-shots");
+const REGENERATE_COPY =
+  "Write down this new recovery key. Your previous recovery key no longer opens this profile or its backups. Copies in your second backup folder and files you exported earlier still open with the old key, so delete them if the old key may have been seen.";
 
 async function invoke(browser, command, args = {}) {
   return browser.executeAsync((command, args, done) => {
@@ -39,6 +43,9 @@ try {
   await recoveryEl.waitForExist({ timeout: 10000 });
   const newRecovery = (await recoveryEl.getText()).trim();
   assert.notEqual(newRecovery, oldRecovery);
+  assert.equal((await browser.$(".regenerate-recovery-dialog .modal-message").getText()).trim(), REGENERATE_COPY);
+  fs.mkdirSync(SHOTS, { recursive: true });
+  await browser.saveScreenshot(path.join(SHOTS, "regenerate-recovery-key.png"));
 
   await (await browser.$("button=I've saved it")).click();
   const label0 = await browser.$("label[for='regenerate-recovery-answer-0']");

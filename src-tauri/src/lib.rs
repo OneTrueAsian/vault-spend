@@ -483,6 +483,10 @@ pub fn run() {
             debug_commands::debug_mobile_authorization_race,
             #[cfg(debug_assertions)]
             debug_commands::debug_mobile_database_digest,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_enable_protection_short_password,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_seed_outdated_mobile_identity,
             mobile_commands::mobile_server_status,
             mobile_commands::mobile_begin_pairing,
             mobile_commands::mobile_pending_pairings,

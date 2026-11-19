@@ -447,6 +447,23 @@ fn an_outdated_root_is_replaced_and_paired_phones_are_signed_out() {
 }
 
 #[test]
+fn the_debug_fixture_seeds_an_outdated_root_that_the_next_start_replaces() {
+    let (service, store, devices, directory, config) = outdated_service("seeded");
+    service.seed_outdated_identity().unwrap();
+    assert!(crate::mobile::certificates::trust_upgrade_due(
+        store.as_ref(),
+        chrono::Utc::now().timestamp()
+    ));
+    let seeded = installation(&store);
+    pair_one_phone(&devices);
+    service.configure(config).unwrap();
+    assert_ne!(installation(&store), seeded);
+    assert!(devices.list().unwrap().is_empty());
+    assert!(service.status().trust_replaced);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 fn the_guided_setup_start_also_replaces_an_outdated_root() {
     let (service, store, devices, directory, config) = outdated_service("guided");
     let old = legacy_identity(store.as_ref(), config.ipv4, chrono::Utc::now().timestamp()).unwrap();

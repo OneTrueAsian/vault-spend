@@ -220,14 +220,14 @@ fn create_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64) -> Result<
 enum RootShape {
     /// Limited to this computer's names and private ranges, valid 730 days.
     Computer { include_loopback: bool },
-    /// The pre-1.3.4 unconstrained 10-year root; exists only so tests can seed an outdated identity.
-    #[cfg(test)]
+    /// The pre-1.3.4 unconstrained 10-year root; exists only so tests and debug-build E2E fixtures can seed an outdated identity.
+    #[cfg(any(test, debug_assertions))]
     Legacy,
 }
 fn build_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64, shape: RootShape) -> Result<CertificateBundle, String> {
     let (root_days, loopback) = match shape {
         RootShape::Computer { include_loopback } => (730, Some(include_loopback)),
-        #[cfg(test)]
+        #[cfg(any(test, debug_assertions))]
         RootShape::Legacy => (3650, None),
     };
     let mut id = [0u8; 16];
@@ -266,7 +266,7 @@ fn build_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64, shape: Root
     store.write(&bytes)?;
     Ok(bundle)
 }
-#[cfg(test)]
+#[cfg(any(test, debug_assertions))]
 pub fn legacy_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64) -> Result<CertificateBundle, String> {
     build_identity(store, ipv4, now, RootShape::Legacy)
 }

@@ -433,6 +433,22 @@ impl MobileService {
         )?);
         Ok((self.status(), public))
     }
+    /// Compiled-app fixture only: saves an identity made the pre-1.3.4 way (unconstrained root) so a spec can
+    /// watch the automatic replacement. Requires the same disposable data override as the fixtures above.
+    #[cfg(debug_assertions)]
+    pub fn seed_outdated_identity_fixture(&self) -> Result<(), String> {
+        let override_dir = std::env::var_os("VAULTSPEND_DB_DIR").ok_or("A disposable test directory is required.")?;
+        if std::fs::canonicalize(override_dir).ok() != std::fs::canonicalize(&self.inner.directory).ok() {
+            return Err("A disposable test directory is required.".into());
+        }
+        self.seed_outdated_identity()
+    }
+    #[cfg(debug_assertions)]
+    fn seed_outdated_identity(&self) -> Result<(), String> {
+        let store = self.secrets();
+        let _guard = store.lock();
+        crate::mobile::certificates::legacy_identity(store.as_ref(), Ipv4Addr::LOCALHOST, chrono::Utc::now().timestamp()).map(|_| ())
+    }
     #[cfg(debug_assertions)]
     pub fn start_test_setup_fixture(&self) -> Result<crate::mobile::bootstrap::SetupInfo, String> {
         let _operation = self.inner.operations.lock().unwrap_or_else(|p| p.into_inner());

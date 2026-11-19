@@ -202,6 +202,18 @@ pub fn enable_profile_protection_with_recovery(
     runtime: tauri::State<AppStateHandle>,
 ) -> Result<String, String> {
     crate::protection::password_rules::check_new_password(&password)?;
+    enable_profile_protection_unchecked(password, recovery_code, app, paths, runtime)
+}
+
+/// The conversion itself, without the password rule. Only `enable_profile_protection_with_recovery` (which
+/// applies the rule) and the debug-only short-password fixture call it.
+pub(crate) fn enable_profile_protection_unchecked(
+    password: String,
+    recovery_code: budget_core::protection::recovery::RecoveryCode,
+    app: tauri::AppHandle,
+    paths: tauri::State<AppPaths>,
+    runtime: tauri::State<AppStateHandle>,
+) -> Result<String, String> {
     let db_path = current_db_path(&paths);
     let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
     let (key_file, recovery_code, target_path) = {
