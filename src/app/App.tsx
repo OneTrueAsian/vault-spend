@@ -222,6 +222,7 @@ import { errorMessage } from "../shared/lib/errorMessage";
 import { sumMoney } from "../shared/lib/money";
 import { holdingCount } from "../features/investments/holdingImport";
 import { StatusBanner } from "./StatusBanner";
+import { statusLifetimeMs } from "./statusLifetime";
 import { transactionColumnCount as computeTransactionColumnCount } from "../features/transactions/transactionHelpers";
 import {
   NAV_ORDER_STORAGE_KEY,
@@ -715,13 +716,12 @@ function App({
     setStatusState(text ? { text, kind } : null);
   }
 
-  // Auto-dismiss the status banner so it doesn't sit there stale forever —
-  // resets the clock every time a new message replaces it. Errors stay up
-  // longer than a routine confirmation since they're more likely to need
-  // actually reading (a raw error string), not just glancing at.
+  // Fade a routine status so it doesn't sit there stale; the clock restarts whenever a new message replaces it.
+  // An error stays until it is dismissed (statusLifetimeMs), so someone who looked away still sees it.
   useEffect(() => {
-    if (!status) return;
-    const timer = setTimeout(() => setStatusState(null), status.kind === "error" ? 20000 : 10000);
+    const lifetime = status ? statusLifetimeMs(status.kind) : null;
+    if (lifetime === null) return;
+    const timer = setTimeout(() => setStatusState(null), lifetime);
     return () => clearTimeout(timer);
   }, [status]);
 
