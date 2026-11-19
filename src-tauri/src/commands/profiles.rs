@@ -241,6 +241,10 @@ pub fn add_existing_profile(
         state.replace(new_state);
         *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = imported_db_path.clone();
         paths.bump_generation();
+        sessions.note_unlock(
+            paths.current_generation(),
+            crate::protection::password_rules::below_minimum(password.as_deref().unwrap_or_default()),
+        );
         let summary = crate::startup::after_profile_opened(
             &paths.config_path,
             &imported_db_path,
@@ -303,6 +307,10 @@ pub fn add_existing_profile(
         state.replace(new_state);
         *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = picked_path.clone();
         paths.bump_generation();
+        sessions.note_unlock(
+            paths.current_generation(),
+            crate::protection::password_rules::below_minimum(password.as_deref().unwrap_or_default()),
+        );
 
         let summary = crate::startup::after_profile_opened(
             &paths.config_path,
