@@ -211,6 +211,48 @@ describe("useQuickSettings", () => {
     });
   });
 
+  it("queued writes after unmount or a profile switch never reach the next profile", async () => {
+    getCurrentGeneration.mockResolvedValue(1);
+    getProfileUiState.mockResolvedValue("[]");
+    await mount();
+    let release!: () => void;
+    setProfileUiState.mockImplementation(() => new Promise<void>((r) => (release = r)));
+
+    await act(async () => {
+      api.add("a");
+      api.add("b");
+    });
+    getCurrentGeneration.mockResolvedValue(2);
+    act(() => root.unmount());
+    root = createRoot(container);
+    await act(async () => release());
+    await act(async () => undefined);
+
+    expect(setProfileUiState).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), 2);
+    expect(setProfileUiState.mock.calls.length).toBeLessThanOrEqual(1);
+    for (const call of setProfileUiState.mock.calls) expect(call[2]).toBe(1);
+  });
+
+  it("same-profile writes keep their order and a failed write still restores the saved list", async () => {
+    getCurrentGeneration.mockResolvedValue(1);
+    getProfileUiState.mockResolvedValue('["a"]');
+    await mount();
+    await act(async () => {
+      api.add("b");
+      api.add("c");
+    });
+    expect(setProfileUiState.mock.calls).toEqual([
+      ["quick_settings", '["a","b"]', 1],
+      ["quick_settings", '["a","b","c"]', 1],
+    ]);
+    expect(api.ids).toEqual(["a", "b", "c"]);
+
+    setProfileUiState.mockRejectedValueOnce(new Error("disk full"));
+    await act(async () => api.remove("a"));
+    expect(api.ids).toEqual(["a", "b", "c"]);
+    expect(api.error).toBe("Couldn't save your Quick settings. Try again.");
+  });
+
   it("a failed read falls back to the defaults", async () => {
     getProfileUiState.mockRejectedValue(new Error("locked"));
     await mount();
