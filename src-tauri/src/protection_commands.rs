@@ -193,9 +193,7 @@ pub fn enable_profile_protection_with_recovery(
     paths: tauri::State<AppPaths>,
     runtime: tauri::State<AppStateHandle>,
 ) -> Result<String, String> {
-    if password.chars().count() < 8 {
-        return Err("Choose a password of at least 8 characters.".to_string());
-    }
+    crate::protection::password_rules::check_new_password(&password)?;
     let db_path = current_db_path(&paths);
     let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
     let (key_file, recovery_code, target_path) = {
@@ -392,9 +390,7 @@ pub fn begin_recovery(
     paths: tauri::State<AppPaths>,
     sessions: tauri::State<Sessions>,
 ) -> Result<SetupChallenge, String> {
-    if new_password.chars().count() < 8 {
-        return Err("Choose a password of at least 8 characters.".to_string());
-    }
+    crate::protection::password_rules::check_new_password(&new_password)?;
     if paths.current_generation() != expected_generation {
         return Err("Something else changed before recovery could continue.".to_string());
     }
@@ -476,9 +472,7 @@ pub fn commit_recovery(
 /// (the password) and proof the recovery code was actually written down do.
 #[tauri::command]
 pub fn begin_protection_setup(password: String, expected_generation: u64, sessions: tauri::State<Sessions>) -> Result<SetupChallenge, String> {
-    if password.chars().count() < 8 {
-        return Err("Choose a password of at least 8 characters.".to_string());
-    }
+    crate::protection::password_rules::check_new_password(&password)?;
     Ok(sessions.begin_setup(&password, expected_generation))
 }
 

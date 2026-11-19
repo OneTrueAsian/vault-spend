@@ -5,5 +5,6 @@
 
 pub(crate) mod leftovers;
 pub(crate) mod lifecycle;
+pub(crate) mod password_rules;
 pub(crate) mod session;
 pub(crate) mod transition;
