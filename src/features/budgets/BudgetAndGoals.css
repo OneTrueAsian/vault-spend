@@ -216,6 +216,22 @@
   font-size: 12.5px;
 }
 
+/* "Where can I save money?": each fact group has its own small heading; a what-if sits beside the row's detail. */
+.ledger-qa-cut-back-section {
+  margin-top: 12px;
+}
+
+.ledger-qa-cut-back-section h3 {
+  margin: 0;
+  font-weight: 600;
+}
+
+.ledger-qa-rows li > .ledger-qa-link {
+  grid-column: 2 / 3;
+  justify-self: end;
+  font-size: 12.5px;
+}
+
 .ledger-qa-actions {
   display: flex;
   flex-wrap: wrap;

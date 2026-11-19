@@ -1751,6 +1751,18 @@ const FAQ_ENTRIES: FaqEntry[] = [
     ),
   },
   {
+    question: "Where can I save money?",
+    tags: ["ask the vault", "save money", "cut back", "overspending", "spend less", "over budget", "biggest spending"],
+    answer: (
+      <>
+        <p>On the Dashboard, ask <q>Where can I save money?</q> or <q>What can I cut back on?</q> Ask the Vault lists what is <strong>over budget this month</strong>,
+          what was <strong>higher than usual</strong> last month compared with the three months before, and your <strong>biggest flexible spending</strong> over the last three full months.</p>
+        <p>Categories in the Fixed and Income budget groups are left out. Each flexible category has a <strong>Try a what-if</strong> button that puts a question in the box, starting at about a tenth of a usual month; change the amount before you ask.
+          These are facts from your own records, not advice, and nothing is changed.</p>
+      </>
+    ),
+  },
+  {
     question: "How can I preview cuts to meet a savings target?",
     tags: ["ask the vault", "savings target", "cut back", "what if", "monthly floor", "maximum cut", "shortfall", "baseline"],
     answer: (

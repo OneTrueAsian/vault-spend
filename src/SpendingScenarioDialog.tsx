@@ -26,6 +26,7 @@ import {
   usualMonthText,
   wholeMonthsOnly,
 } from "./askVault/spending/spendingScenarioView";
+import { TryInstead } from "./askVault/cutBack/TryInstead";
 
 /** A complete, explicit schedule. The dialog never hands back an open or defaulted date. */
 export type ScenarioRange = { kind: "prospective" | "full-year-hypothetical"; from: string; to: string };
@@ -50,7 +51,8 @@ export type SpendingScenarioScreen =
   | { stage: "result"; calculation: Extract<SpendingScenarioCalculation, { kind: "preview" }> }
   | { stage: "refused"; intent: SpendingScenarioIntent; baseline: ScenarioBaseline }
   | { stage: "stale"; message: string }
-  | { stage: "error"; message: string };
+  /** `suggest`: the question itself could not be taken, so other questions are offered. */
+  | { stage: "error"; message: string; suggest?: true };
 
 export type SpendingScenarioDialogProps = {
   screen: SpendingScenarioScreen;
@@ -64,6 +66,8 @@ export type SpendingScenarioDialogProps = {
   /** "Start again" and "Try again". */
   onRestart: () => void;
   onClose: () => void;
+  /** Asks one of the offered questions instead. */
+  onTry?: (question: string) => void;
 };
 
 /** A plain amount a person can type: no signs, no separators, at most two decimals. */
@@ -172,7 +176,7 @@ function customProblem(from: string, to: string, today: string): string | null {
 
 const monthlyIntent = (from: string, to: string, kind: ScenarioRange["kind"] = "prospective") => ({ cadence: "monthly", horizon: { kind, from, to } }) as SpendingScenarioIntent;
 
-export function SpendingScenarioDialog({ screen, onChoices, onConfirm, onChangeTerm, onManualBaseline, onEdit, onRestart, onClose }: SpendingScenarioDialogProps) {
+export function SpendingScenarioDialog({ screen, onChoices, onConfirm, onChangeTerm, onManualBaseline, onEdit, onRestart, onClose, onTry }: SpendingScenarioDialogProps) {
   const group = useId();
   const [form, setForm] = useState<Form>(() => initialForm(screen));
   // A different screen (a new draft, another stage) starts clean: answers given for the last one must not carry over.
@@ -653,6 +657,7 @@ export function SpendingScenarioDialog({ screen, onChoices, onConfirm, onChangeT
         {stale ? screen.message : <><strong>{screen.message}</strong> Nothing was calculated.</>}
       </p>
       {stale && <p className="modal-message-secondary scenario-secondary">Nothing was saved or changed.</p>}
+      {!stale && screen.suggest && onTry && <TryInstead onTry={onTry} />}
     </ScenarioShell>
   );
 }

@@ -101,7 +101,7 @@ export function useSpendingScenario(props: {
       runtime.pending = { question, owner: origin, draft: { sourceText: question, category: null, reduction: null, cadence: null, horizon: null, partialMonth: null, missing: ["category"] } };
       setView({ question, owner: origin, screen: null, clarification: parsed.clarification });
     } else if (parsed.kind === "scenario-unsupported") {
-      setView({ question, owner: origin, screen: { stage: "error", message: parsed.reason }, clarification: null });
+      setView({ question, owner: origin, screen: { stage: "error", message: parsed.reason, suggest: true }, clarification: null });
     } else {
       const pending = { question, owner: origin, draft: parsed.draft };
       runtime.pending = pending;

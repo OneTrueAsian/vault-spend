@@ -12,6 +12,7 @@ import { sameScenarioSource } from "./askVault/spending/spendingScenarioBaseline
 import type { ScenarioBaseline, SpendingScenarioIntent } from "./askVault/spending/spendingScenarioContract";
 import "./SpendingScenarioDialog.css";
 import "./CutPreviewDialog.css";
+import { TryInstead } from "./askVault/cutBack/TryInstead";
 
 export type CutPreviewScreen =
   | { stage: "choices"; draft: CutPreviewDraft; today: string; categories: readonly string[] }
@@ -19,7 +20,9 @@ export type CutPreviewScreen =
   | { stage: "review"; scenario: Omit<ConfirmedCutPreview, "confirmed"> }
   | { stage: "result"; calculation: Extract<CutPreviewCalculation, { kind: "preview" }> }
   | { stage: "blocked"; calculation: Exclude<CutPreviewCalculation, { kind: "preview" }> }
-  | { stage: "stale" | "error"; message: string };
+  | { stage: "stale"; message: string }
+  /** `suggest`: the question itself could not be taken, so other questions are offered. */
+  | { stage: "error"; message: string; suggest?: true };
 export type CutPreviewDialogProps = {
   screen: CutPreviewScreen;
   onChoices: (intent: CutPreviewIntent) => void;
@@ -28,6 +31,8 @@ export type CutPreviewDialogProps = {
   onEdit: () => void;
   onRestart: () => void;
   onClose: () => void;
+  /** Asks one of the offered questions instead. */
+  onTry?: (question: string) => void;
 };
 type HistoryChoice = { kind: "recorded" | "manual" | null; amount: string };
 type ChoiceRow = Omit<CutPreviewDraft["categories"][number], "maximumReduction"> & {
@@ -59,7 +64,7 @@ function amountProblem(text: string, percent = false): string | undefined {
 function scheduleText(intent: CutPreviewIntent) { return datesText({ cadence: "monthly", horizon: intent.horizon, partialMonth: intent.partialMonth } as SpendingScenarioIntent); }
 
 /** Presentation and deliberate choices only. The controller must recheck live source/roster before reading or calculating. */
-export function CutPreviewDialog({ screen, onChoices, onConfirm, onRemoveCategory, onEdit, onRestart, onClose }: CutPreviewDialogProps) {
+export function CutPreviewDialog({ screen, onChoices, onConfirm, onRemoveCategory, onEdit, onRestart, onClose, onTry }: CutPreviewDialogProps) {
   const group = useId(), anchor = useRef<HTMLSpanElement>(null);
   const [form, setForm] = useState(() => initial(screen));
   const identity = JSON.stringify(screen), [seen, setSeen] = useState(identity);
@@ -102,6 +107,17 @@ export function CutPreviewDialog({ screen, onChoices, onConfirm, onRemoveCategor
     const selected = new Set(form.rows.map(row => row.category));
     const unknown = form.rows.some(row => !categories.includes(row.category) || form.exclusions.includes(row.category));
     const ready = check.ok && !unknown && dates.valid;
+    // The contract check reports a missing value as a generic amount problem; name the first missing choice instead.
+    const missingChoice = (() => {
+      if (!form.amount.trim()) return "Enter a savings target.";
+      if (!form.rows.length) return "Choose at least one category.";
+      for (const row of form.rows) {
+        if (!row.monthlyFloor?.trim()) return `Enter a monthly floor for ${row.category}.`;
+        if (!row.maximumReduction?.amount?.trim()) return `Enter a maximum cut for ${row.category}.`;
+        if (!row.maximumReduction.kind) return `Choose dollars or percent for the ${row.category} maximum cut.`;
+      }
+      return null;
+    })();
     const yearHint = draft.scheduleHints?.find(h => h.kind === "year-choice");
     const canFullYear = !yearHint || yearHint.kind !== "year-choice" || yearHint.choices.includes("full-year-hypothetical");
     return shell("Where would you like to cut back?", <>
@@ -123,7 +139,8 @@ export function CutPreviewDialog({ screen, onChoices, onConfirm, onRemoveCategor
                 {field(category + " monthly floor", row.monthlyFloor ?? "", monthlyFloor => update(category, { monthlyFloor }), amountProblem(row.monthlyFloor ?? ""))}
                 {field(category + " maximum cut", row.maximumReduction?.amount ?? "", amount => update(category, { maximumReduction: { kind: row.maximumReduction?.kind ?? null, amount } }), amountProblem(row.maximumReduction?.amount ?? "", row.maximumReduction?.kind === "percent"))}
                 <div className="modal-field"><span>{category} maximum cut unit</span><MenuSelect ariaLabel={category + " maximum cut unit"} value={row.maximumReduction?.kind ?? ""} placeholder="Choose dollars or percent" fill options={[{ value: "money", label: "Dollars per month" }, { value: "percent", label: "Percent of usual month" }]}
-                  onChange={kind => update(category, { maximumReduction: { kind: kind as "money" | "percent", amount: row.maximumReduction?.amount ?? "" } })} /></div>
+                  onChange={kind => update(category, { maximumReduction: { kind: kind as "money" | "percent", amount: row.maximumReduction?.amount ?? "" } })} />
+                  {row.maximumReduction?.amount?.trim() && !row.maximumReduction.kind && <small className="scenario-problem" data-unit-problem={category}>Choose dollars or percent.</small>}</div>
               </div>
               <button type="button" className="modal-secondary" onClick={() => update(category, { monthlyFloor: "0", maximumReduction: { kind: "percent", amount: "100" } })}>Allow up to 100% with floor $0 for {category}</button>
             </>}
@@ -146,7 +163,7 @@ export function CutPreviewDialog({ screen, onChoices, onConfirm, onRemoveCategor
         {option("part", "Count the part month by the day", form.part === "prorate", () => set({ part: "prorate" }), "Inclusive calendar days, using each month's actual length.")}
       </fieldset>}
       {resolvedHorizon && ready && <p className="scenario-banner">{scheduleText(intent as CutPreviewIntent)}</p>}
-      {!check.ok && form.rows.length > 0 && <p className="scenario-secondary">{check.reason}</p>}
+      {!check.ok && (missingChoice ? <p className="scenario-secondary" role="status" data-choices-missing>{missingChoice}</p> : form.rows.length > 0 && <p className="scenario-secondary">{check.reason}</p>)}
     </>, <button type="button" disabled={!ready} onClick={() => { if (ready) onChoices(structuredClone(intent) as CutPreviewIntent); }}>Review the details</button>);
   }
 
@@ -228,5 +245,6 @@ export function CutPreviewDialog({ screen, onChoices, onConfirm, onRemoveCategor
   }
   if (screen.stage === "reading") return shell("Reading spending records", <><p role="status">Reading {screen.categories.join(", ")}…</p><p>Nothing has been calculated yet.</p></>);
   if (screen.stage === "blocked") return shell("A few details need attention", <><p role="alert">Nothing was calculated.</p>{screen.calculation.kind === "needs-baseline" ? <p>Choose a usual month or remove: {screen.calculation.categories.join(", ")}.</p> : <ul>{screen.calculation.violations.map(v => <li key={v.category}>{v.category}: monthly floor {typedDollars(v.monthlyFloor)} is above the usual month {money(v.monthlyBaseline)} (rounded). Change the floor or usual month.</li>)}</ul>}</>, <button type="button" onClick={onEdit}>Change the details</button>);
-  return shell(screen.stage === "stale" ? CHANGED_HEADING : "I could not read those records", <><p className="scenario-banner" role="alert">{screen.message} Nothing was calculated.</p></>, <button type="button" onClick={onRestart}>Try again</button>);
+  const suggest = screen.stage === "error" && screen.suggest === true;
+  return shell(screen.stage === "stale" ? CHANGED_HEADING : suggest ? "I could not do that" : "I could not read those records", <><p className="scenario-banner" role="alert">{screen.message} Nothing was calculated.</p>{suggest && onTry && <TryInstead onTry={onTry} />}</>, <button type="button" onClick={onRestart}>Try again</button>);
 }

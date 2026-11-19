@@ -92,7 +92,7 @@ export function useCutPreview(props: { getContext: () => ParseContext; dataKey: 
     const p: Pending = { question, owner: owner(), draft: parsed.kind === "cut-preview" ? structuredClone(parsed.draft) : null, phase: "other" };
     runtime.pending = p;
     if (parsed.kind === "cut-preview-clarify") setView({ question, owner: p.owner, screen: null, clarification: structuredClone(parsed.clarification) });
-    else if (parsed.kind === "cut-preview-unsupported") publish(p, { stage: "error", message: parsed.reason });
+    else if (parsed.kind === "cut-preview-unsupported") publish(p, { stage: "error", message: parsed.reason, suggest: true });
     else showChoices(p); // Parsing never stands in for deliberate category/constraint review.
     return true;
   }

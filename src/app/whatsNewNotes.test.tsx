@@ -40,7 +40,7 @@ describe("grouped release notes", () => {
     const entry = CHANGELOG["1.3.4"];
     expect(changelogSections(entry).map((s) => s.heading)).toEqual(["New features", "Enhancements", "Bug fixes"]);
     const text = changelogNotes(entry).join("\n");
-    for (const part of [/Exclude from budget/, /12 characters/, /recovery key/, /set up your phone again/i, /Quick settings/, /debt payment/i, /icon/, /couldn't reopen/]) expect(text).toMatch(part);
+    for (const part of [/Exclude from budget/, /12 characters/, /recovery key/, /set up your phone again/i, /Quick settings/, /debt payment/i, /icon/, /couldn't reopen/, /Where can I save money\?/, /suggests questions it can answer/, /what is still missing/]) expect(text).toMatch(part);
   });
 
   // Owner review of the 1.3.3 notes: a "(month)" placeholder would be shown to readers word for word.
