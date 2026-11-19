@@ -44,7 +44,7 @@ const PROFILE_ICON_BY_KEY: Record<ProfileIconKey, IconEntry> = Object.fromEntrie
 ) as Record<ProfileIconKey, IconEntry>;
 
 export function isProfileIconKey(key: string): key is ProfileIconKey {
-  return Object.hasOwn(PROFILE_ICON_BY_KEY, key);
+  return Object.prototype.hasOwnProperty.call(PROFILE_ICON_BY_KEY, key);
 }
 
 /** `iconKey` (a profile's stored `icon_key`, if the user picked one) wins

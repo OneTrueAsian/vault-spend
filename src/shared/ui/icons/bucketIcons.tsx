@@ -55,7 +55,7 @@ const BUCKET_ICON_BY_KEY: Record<BucketIconKey, IconEntry> = Object.fromEntries(
 ) as Record<BucketIconKey, IconEntry>;
 
 export function isBucketIconKey(key: string): key is BucketIconKey {
-  return Object.hasOwn(BUCKET_ICON_BY_KEY, key);
+  return Object.prototype.hasOwnProperty.call(BUCKET_ICON_BY_KEY, key);
 }
 
 /** `iconKey` (a bucket's stored `icon_key`, if the user picked one

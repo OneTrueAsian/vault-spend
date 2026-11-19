@@ -34,7 +34,7 @@ const ACCOUNT_ICON_BY_KEY: Record<AccountIconKey, IconEntry> = Object.fromEntrie
 ) as Record<AccountIconKey, IconEntry>;
 
 export function isAccountIconKey(key: string): key is AccountIconKey {
-  return Object.hasOwn(ACCOUNT_ICON_BY_KEY, key);
+  return Object.prototype.hasOwnProperty.call(ACCOUNT_ICON_BY_KEY, key);
 }
 
 /** `iconKey` (an account's stored `icon_key`, if the user picked one
