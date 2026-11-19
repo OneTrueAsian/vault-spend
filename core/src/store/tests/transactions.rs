@@ -2043,9 +2043,10 @@ fn an_amount_edit_that_overflows_after_rewriting_an_earlier_split_leaves_every_s
     let store = Store::open_in_memory().unwrap();
     let account = test_account(&store);
     let big: Decimal = "100000000000000000000".parse().unwrap();
-    store.save_transactions(account, &[tx("2026-08-20", "Large amount", "100000000000000000000")]).unwrap();
+    let parent = big + Decimal::ONE;
+    store.save_transactions(account, &[tx("2026-08-20", "Large amount", "100000000000000000001")]).unwrap();
     let id = store.all_transactions().unwrap()[0].id;
-    // The first split rescales fine (1 x new total), the second overflows (1e20 x new total).
+    // The splits add up to the parent. The first rescales fine (1 x new total), the second overflows (1e20 x new total).
     store
         .set_transaction_splits(
             id,
@@ -2053,11 +2054,16 @@ fn an_amount_edit_that_overflows_after_rewriting_an_earlier_split_leaves_every_s
         )
         .unwrap();
     let before: Vec<Decimal> = store.list_transaction_splits(id).unwrap().iter().map(|s| s.amount).collect();
+    let fingerprint_of = |s: &Store| -> String { s.conn.query_row("SELECT fingerprint FROM transactions WHERE id = ?1", [id], |r| r.get(0)).unwrap() };
+    let balance = |s: &Store| s.list_accounts(far_future()).unwrap().iter().find(|a| a.id == account).unwrap().current_balance;
+    let (fp, bal) = (fingerprint_of(&store), balance(&store));
 
-    let err = store.update_transaction_amount(id, big + Decimal::from(2)).unwrap_err();
+    let err = store.update_transaction_amount(id, parent + Decimal::ONE).unwrap_err();
 
     assert_eq!(err.to_string(), "This amount is too large to split safely.");
-    assert_eq!(store.all_transactions().unwrap()[0].transaction.amount, big);
+    assert_eq!(store.all_transactions().unwrap()[0].transaction.amount, parent);
+    assert_eq!(fingerprint_of(&store), fp);
+    assert_eq!(balance(&store), bal);
     let after: Vec<Decimal> = store.list_transaction_splits(id).unwrap().iter().map(|s| s.amount).collect();
     assert_eq!(after, before);
 }
