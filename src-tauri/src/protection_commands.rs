@@ -313,19 +313,45 @@ pub fn begin_regenerate_recovery(
 pub fn commit_regenerate_recovery(
     token: String,
     answers: [String; 2],
+    app: tauri::AppHandle,
     paths: tauri::State<AppPaths>,
     runtime: tauri::State<AppStateHandle>,
     sessions: tauri::State<Sessions>,
 ) -> Result<String, String> {
     let (current_password, recovery_code, expected_generation) = sessions.take_verified_setup(&token, &answers)?;
-    let _open = runtime.lock()?;
     if paths.current_generation() != expected_generation {
         return Err("The active profile changed before the recovery key could be regenerated.".to_string());
     }
-    let recovery_display = recovery_code.display();
-    let db_path = current_db_path(&paths);
-    crate::protection::lifecycle::regenerate_recovery_with_code(&db_path, &current_password, recovery_code)?;
-    Ok(recovery_display)
+    let (db_path, _) = current_key_file(&paths, &runtime, expected_generation)?;
+    let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
+    let (key_file, committed_recovery_code, target_path) = {
+        let session = runtime.lock()?;
+        if paths.current_generation() != expected_generation {
+            return Err("The active profile changed before the recovery key could be regenerated.".to_string());
+        }
+        crate::protection::lifecycle::regenerate_recovery_with_rotation(
+            &paths.config_path,
+            &profile_id,
+            &db_path,
+            &session.store,
+            &current_password,
+            recovery_code,
+            chrono::Local::now().naive_local(),
+        )?
+    };
+    let dek = key_file.unlock_with_password(&current_password).map_err(|e| e.to_string())?;
+    let state = AppState::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string())?;
+    startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
+    // `activate` bumps the generation, so carry the weak-password nudge over to the new one.
+    sessions.note_unlock(
+        paths.current_generation(),
+        crate::protection::password_rules::below_minimum(&current_password),
+    );
+    if let Err(reason) = crate::protection::lifecycle::complete_committed_rotation(&paths.config_path) {
+        eprintln!("recovery key rotation committed; old-file cleanup will resume on restart: {reason}");
+    }
+    startup::broadcast_state(&app);
+    Ok(committed_recovery_code.display())
 }
 
 #[tauri::command]
