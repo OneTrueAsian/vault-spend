@@ -10,16 +10,15 @@
 
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { dismissFirstLaunchDialogs, launchApp, openSettingsGroup } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
+import { saveSecurityShot } from "./lib/securityShots.mjs";
 import { enableProtectionThroughUI, killAtFailpoint, seedPopulatedProfile, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 
 const PASSWORD = "correct horse battery staple";
-const SHOTS = process.env.VAULTSPEND_E2E_SHOTS ?? path.join(os.tmpdir(), "vaultspend-e2e-security-shots");
 const REGENERATE_COPY =
-  "Write down this new recovery key. Your previous recovery key no longer opens this profile or its backups. Copies in your second backup folder and files you exported earlier still open with the old key, so delete them if the old key may have been seen.";
+  "Write down this new recovery key. Once you finish, your previous recovery key will no longer open this profile or its backups. Copies in your second backup folder and files you exported earlier will still open with the old key, so delete them if the old key may have been seen.";
 
 async function invoke(browser, command, args = {}) {
   return browser.executeAsync((command, args, done) => {
@@ -44,8 +43,7 @@ try {
   const newRecovery = (await recoveryEl.getText()).trim();
   assert.notEqual(newRecovery, oldRecovery);
   assert.equal((await browser.$(".regenerate-recovery-dialog .modal-message").getText()).trim(), REGENERATE_COPY);
-  fs.mkdirSync(SHOTS, { recursive: true });
-  await browser.saveScreenshot(path.join(SHOTS, "regenerate-recovery-key.png"));
+  await saveSecurityShot(browser, "regenerate-recovery-key.png");
 
   await (await browser.$("button=I've saved it")).click();
   const label0 = await browser.$("label[for='regenerate-recovery-answer-0']");
@@ -56,7 +54,7 @@ try {
   await (await browser.$("#regenerate-recovery-answer-0")).setValue(groups[group0]);
   await (await browser.$("#regenerate-recovery-answer-1")).setValue(groups[group1]);
   await (await browser.$("button=Finish")).click();
-  await browser.$(".regenerate-recovery-dialog").waitForExist({ reverse: true, timeout: 15000 });
+  await browser.$(".regenerate-recovery-dialog").waitForExist({ reverse: true, timeout: PROTECTION_FINISH_MS });
 
   const generation = (await invoke(browser, "get_current_generation")).ok;
   assert.equal((await invoke(browser, "verify_current_password", { password: PASSWORD, expectedGeneration: generation })).error, undefined);
@@ -114,10 +112,19 @@ try {
   );
   await app.close();
 
-  assert.ok(fs.existsSync(path.join(crashDbDir, "protection-rotation-journal.json")));
+  const journalPath = path.join(crashDbDir, "protection-rotation-journal.json");
+  assert.ok(fs.existsSync(journalPath));
+  // The interrupted run left a staging folder and an unused protected database; startup must remove both.
+  const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
+  const stagingDir = path.join(path.dirname(journal.old_db_path), "backups", "protected", ".rotate-staging");
+  assert.ok(fs.existsSync(stagingDir), "the kill should leave the rotation staging folder behind");
+  assert.ok(fs.existsSync(journal.target_db_path), "the kill should leave the unused protected database behind");
   const relaunched = await launchApp({ dbDir: crashDbDir, ready: "[data-profile-selector]" });
   try {
     assert.ok(!fs.existsSync(path.join(crashDbDir, "protection-rotation-journal.json")), "startup should retire the pre-commit journal");
+    assert.ok(!fs.existsSync(stagingDir), "startup should remove the rotation staging folder");
+    assert.ok(!fs.existsSync(journal.target_db_path), "startup should remove the unused protected database");
+    assert.ok(!fs.existsSync(journal.target_key_path), "startup should remove the unused protected key file");
     await (await relaunched.browser.$("[data-profile-option]")).click();
     await (await relaunched.browser.$("#password-form-field")).setValue(PASSWORD);
     await (await relaunched.browser.$("button=Unlock")).click();

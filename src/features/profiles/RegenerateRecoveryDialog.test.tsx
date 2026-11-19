@@ -76,7 +76,7 @@ describe("RegenerateRecoveryDialog", () => {
     typeInto(field("regenerate-recovery-current"), "old password");
     await act(async () => button("Continue").click());
     expect(document.body.textContent).toContain("AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG");
-    expect(document.body.textContent).toContain("Write down this new recovery key. Your previous recovery key no longer opens this profile or its backups. Copies in your second backup folder and files you exported earlier still open with the old key, so delete them if the old key may have been seen.");
+    expect(document.body.textContent).toContain("Write down this new recovery key. Once you finish, your previous recovery key will no longer open this profile or its backups. Copies in your second backup folder and files you exported earlier will still open with the old key, so delete them if the old key may have been seen.");
     expect(document.activeElement).toBe(button("I've saved it"));
     act(() => button("I've saved it").click());
     typeInto(field("regenerate-recovery-answer-0"), "BBBB");
