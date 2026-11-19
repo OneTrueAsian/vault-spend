@@ -91,6 +91,8 @@ pub struct MobileStatus {
     pub fingerprint: Option<String>,
     pub leaf_expires: Option<i64>,
     pub error: Option<String>,
+    /// Set for the rest of this app session once an outdated phone certificate was replaced. Never saved.
+    pub trust_replaced: bool,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -116,7 +118,9 @@ pub struct MobileService {
 struct ServiceInner {
     routes: Mutex<Option<Arc<dyn crate::mobile::api::Routes>>>,
     directory: PathBuf,
-    secrets: Arc<OsSecrets>,
+    secrets: Arc<dyn SecretStore>,
+    devices: Arc<crate::mobile::devices::Devices>,
+    trust_replaced: std::sync::atomic::AtomicBool,
     operations: Mutex<()>,
     running: Mutex<Option<Running>>,
     setup: Mutex<Option<crate::mobile::bootstrap::Bootstrap>>,
@@ -125,11 +129,17 @@ struct ServiceInner {
     supervisor: Mutex<Option<thread::JoinHandle<()>>>,
 }
 impl MobileService {
-    pub fn new(directory: PathBuf) -> Self {
+    pub fn new(directory: PathBuf, devices: Arc<crate::mobile::devices::Devices>) -> Self {
+        let secrets = Arc::new(OsSecrets::new(directory.join("mobile-certificates.protected")));
+        Self::with_secrets(directory, devices, secrets)
+    }
+    fn with_secrets(directory: PathBuf, devices: Arc<crate::mobile::devices::Devices>, secrets: Arc<dyn SecretStore>) -> Self {
         Self {
             inner: Arc::new(ServiceInner {
                 routes: Mutex::new(None),
-                secrets: Arc::new(OsSecrets::new(directory.join("mobile-certificates.protected"))),
+                secrets,
+                devices,
+                trust_replaced: std::sync::atomic::AtomicBool::new(false),
                 operations: Mutex::new(()),
                 directory,
                 running: Mutex::new(None),
@@ -141,34 +151,53 @@ impl MobileService {
         }
     }
     pub fn status(&self) -> MobileStatus {
-        self.inner.status.lock().unwrap_or_else(|p| p.into_inner()).clone()
+        let mut status = self.inner.status.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        status.trust_replaced = self.inner.trust_replaced.load(std::sync::atomic::Ordering::SeqCst);
+        status
     }
     pub fn saved_config(&self) -> Result<Option<MobileConfig>, String> {
         self.load_config()
     }
-    pub fn reset_trust(&self, mut config: MobileConfig, devices: &crate::mobile::devices::Devices) -> Result<MobileStatus, String> {
+    pub fn reset_trust(&self, mut config: MobileConfig) -> Result<MobileStatus, String> {
         let _operation = self.inner.operations.lock().unwrap_or_else(|p| p.into_inner());
         config.validate()?;
         if !config.available() {
             return Err("Choose an available local network before resetting mobile trust.".into());
         }
+        self.replace_trust(&mut config)?;
+        Ok(self.status())
+    }
+    /// The one place trust is replaced, for the explicit reset and the automatic upgrade of an outdated root:
+    /// stop, save as disabled, sign every phone out, make a new root, remember it.
+    fn replace_trust(&self, config: &mut MobileConfig) -> Result<(), String> {
         self.stop_checked();
         config.hostname = None;
         config.enabled = false;
         // A failed reset stays disabled even after restarting the desktop.
-        self.save_config(&config)?;
-        devices.reset_trust()?;
+        self.save_config(config)?;
+        self.inner.devices.reset_trust()?;
         let bundle = crate::mobile::certificates::reset_identity(self.secrets().as_ref(), config.ipv4, chrono::Utc::now().timestamp())?;
         config.identity_initialized = true;
-        self.save_config(&config)?;
+        self.save_config(config)?;
         *self.inner.status.lock().unwrap_or_else(|p| p.into_inner()) = MobileStatus {
             running: false,
             origin: Some(config.origin()),
             fingerprint: Some(bundle.fingerprint()?),
             leaf_expires: Some(bundle.leaf_expires),
-            error: None,
+            ..MobileStatus::default()
         };
-        Ok(self.status())
+        Ok(())
+    }
+    /// A saved root made before roots were limited to this computer is replaced instead of started.
+    /// A bundle that does not validate is left alone, so its restore-or-reset error still shows.
+    /// After the replacement the new root is constrained, so a second call finds nothing to do.
+    fn upgrade_trust_if_due(&self, config: &mut MobileConfig) -> Result<bool, String> {
+        if !crate::mobile::certificates::trust_upgrade_due(self.secrets().as_ref(), chrono::Utc::now().timestamp()) {
+            return Ok(false);
+        }
+        self.replace_trust(config)?;
+        self.inner.trust_replaced.store(true, std::sync::atomic::Ordering::SeqCst);
+        Ok(true)
     }
     pub fn attach(&self, app: tauri::AppHandle) {
         let weak = Arc::downgrade(&self.inner);
@@ -194,7 +223,7 @@ impl MobileService {
     fn config_path(&self) -> PathBuf {
         self.inner.directory.join("mobile-network.json")
     }
-    fn secrets(&self) -> Arc<OsSecrets> {
+    fn secrets(&self) -> Arc<dyn SecretStore> {
         self.inner.secrets.clone()
     }
     fn load_config(&self) -> Result<Option<MobileConfig>, String> {
@@ -264,6 +293,9 @@ impl MobileService {
     pub fn configure_guided(&self, mut config: MobileConfig) -> Result<MobileStatus, String> {
         let _operation = self.inner.operations.lock().unwrap_or_else(|p| p.into_inner());
         config.validate()?;
+        if config.enabled && self.upgrade_trust_if_due(&mut config)? {
+            return Ok(self.status());
+        }
         if !config.enabled || !config.available() {
             return Err("Choose your available private home network.".into());
         }
@@ -319,6 +351,9 @@ impl MobileService {
             self.stop_checked();
             self.save_config(&config)?;
             self.inner.status.lock().unwrap_or_else(|p| p.into_inner()).error = None;
+            return Ok(self.status());
+        }
+        if self.upgrade_trust_if_due(&mut config)? {
             return Ok(self.status());
         }
         if !config.available() {
@@ -559,6 +594,7 @@ fn start_listener_with_app(
         fingerprint: Some(bundle.fingerprint()?),
         leaf_expires: Some(bundle.leaf_expires),
         error: None,
+        trust_replaced: false,
     };
     *status.lock().unwrap_or_else(|p| p.into_inner()) = initial;
     let status_on_failure = status.clone();

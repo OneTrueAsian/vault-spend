@@ -18,10 +18,9 @@ pub fn mobile_saved_config(service: State<'_, MobileService>) -> Result<Option<M
     service.saved_config()
 }
 #[tauri::command]
-pub async fn mobile_reset_trust(app: tauri::AppHandle, service: State<'_, MobileService>, config: MobileConfig) -> Result<MobileStatus, String> {
+pub async fn mobile_reset_trust(service: State<'_, MobileService>, config: MobileConfig) -> Result<MobileStatus, String> {
     let service = service.inner().clone();
-    let devices = app.state::<crate::mobile::api::MobileAccess>().devices.clone();
-    tauri::async_runtime::spawn_blocking(move || service.reset_trust(config, &devices))
+    tauri::async_runtime::spawn_blocking(move || service.reset_trust(config))
         .await
         .map_err(|_| "Mobile trust could not be reset.".to_string())?
 }

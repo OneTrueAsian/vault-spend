@@ -108,8 +108,9 @@ pub fn run() {
             // beside config.json, so a start with no profile open can still decide what the tray and
             // the window do without a database.
             app.manage(device_settings::DeviceSettingsStore::load(default_dir.join(device_settings::DEVICE_SETTINGS_FILENAME)));
-            let mobile = mobile::server::MobileService::new(default_dir.clone());
-            app.manage(mobile::api::MobileAccess::new(default_dir.clone()));
+            let mobile_access = mobile::api::MobileAccess::new(default_dir.clone());
+            let mobile = mobile::server::MobileService::new(default_dir.clone(), mobile_access.devices.clone());
+            app.manage(mobile_access);
             app.manage::<AppStateHandle>(runtime::AppRuntime::no_profile_open());
             app.manage(config::AppPaths {
                 config_path: config_path.clone(),

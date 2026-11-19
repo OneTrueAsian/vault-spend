@@ -42,6 +42,7 @@
 .mobile-desktop-settings p { margin: 0 0 8px; }
 .mobile-desktop-status { display: grid; gap: 4px; margin: 0 0 12px; }
 .mobile-desktop-status p { margin: 0; }
+.mobile-desktop-status .mobile-trust-notice { margin-top: 4px; border-left: 3px solid var(--warning); padding: 8px 12px; background: var(--surface-2); color: var(--text); }
 .mobile-desktop-settings .settings-actions { margin: 0 0 8px; }
 .mobile-desktop-settings details > :last-child { margin-bottom: 0; }
 .mobile-desktop-settings h3 { margin: 12px 0 6px; }
