@@ -71,6 +71,7 @@ mod tests {
         assert!(check_new_password("maple lantern river 42").is_ok());
         assert!(check_new_password("correct horse battery staple").is_ok());
     }
+
     #[test]
     fn a_shorter_existing_password_still_unlocks() {
         let dir = std::env::temp_dir().join(format!("vaultspend-password-rules-test-{}", std::process::id()));
