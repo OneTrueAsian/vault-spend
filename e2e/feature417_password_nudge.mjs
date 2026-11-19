@@ -26,6 +26,14 @@ async function invoke(browser, command, args = {}) {
   }, command, args);
 }
 
+// getText() reads "" while a dialog is still fading in, so wait until the element shows text.
+async function shownText(browser, selector) {
+  const element = await browser.$(selector);
+  await element.waitForDisplayed({ timeout: 5000 });
+  await browser.waitUntil(async () => (await element.getText()).trim() !== "", { timeout: 5000, timeoutMsg: `${selector} should show text` });
+  return (await element.getText()).trim();
+}
+
 // The nudge lives in the toast stack, so look there; Settings has its own "Change password" button.
 async function nudgeState(browser) {
   return browser.execute((marker) => {
@@ -80,7 +88,7 @@ fs.mkdirSync(SHOTS, { recursive: true });
     await dismissStatusMessages(browser); // the profile's opening message can cover the button
     await (await browser.$("button=Turn on password protection")).click();
     await (await browser.$("#protection-setup-password")).waitForExist({ timeout: 5000 });
-    assert.equal((await browser.$("#protection-setup-password-hint").getText()).trim(), HINT);
+    assert.equal(await shownText(browser, "#protection-setup-password-hint"), HINT);
     await (await browser.$("#protection-setup-password")).setValue(SHORT_PASSWORD);
     await (await browser.$("#protection-setup-confirm")).setValue(SHORT_PASSWORD);
     assert.equal(await (await browser.$("button=Continue")).isEnabled(), false, "11 characters must keep Continue disabled");
@@ -121,7 +129,7 @@ try {
   await (await browser.$("#change-password-current")).setValue(SHORT_PASSWORD);
   await (await browser.$("button=Continue")).click();
   await (await browser.$("#change-password-new")).waitForExist({ timeout: 10000 });
-  assert.equal((await browser.$(".change-password-dialog .protection-setup-hint").getText()).trim(), HINT);
+  assert.equal(await shownText(browser, ".change-password-dialog .protection-setup-hint"), HINT);
   await (await browser.$("#change-password-new")).setValue(SHORT_PASSWORD);
   await (await browser.$("#change-password-confirm")).setValue(SHORT_PASSWORD);
   assert.equal(await (await browser.$("button=Continue")).isEnabled(), false, "11 characters must keep Continue disabled");
@@ -130,13 +138,12 @@ try {
   await (await browser.$("button=Continue")).click();
   const recoveryEl = await browser.$(".change-password-dialog .protection-setup-key");
   await recoveryEl.waitForExist({ timeout: PROTECTION_FINISH_MS });
-  const recovery = (await recoveryEl.getText()).trim();
+  const recovery = await shownText(browser, ".change-password-dialog .protection-setup-key");
   await (await browser.$("button=I've saved it")).click();
   const groups = recovery.split("-");
   for (const index of [0, 1]) {
-    const label = await browser.$(`label[for='change-password-answer-${index}']`);
-    await label.waitForExist({ timeout: 5000 });
-    await (await browser.$(`#change-password-answer-${index}`)).setValue(groups[Number((await label.getText()).match(/\d+/)[0]) - 1]);
+    const labelText = await shownText(browser, `label[for='change-password-answer-${index}']`);
+    await (await browser.$(`#change-password-answer-${index}`)).setValue(groups[Number(labelText.match(/\d+/)[0]) - 1]);
   }
   await (await browser.$("button=Finish")).click();
   await browser.$(".change-password-dialog").waitForExist({ reverse: true, timeout: PROTECTION_FINISH_MS });
