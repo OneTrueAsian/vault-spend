@@ -1004,7 +1004,7 @@ impl Store {
             .optional()?
             .is_some();
         if already_applied {
-            return Err(rusqlite::Error::InvalidParameterName(
+            return Err(rusqlite::Error::ToSqlConversionFailure(
                 "This payment is already applied to a debt. Remove it first to change it.".into(),
             ));
         }

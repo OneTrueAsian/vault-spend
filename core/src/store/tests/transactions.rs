@@ -2005,7 +2005,7 @@ fn applying_a_debt_payment_twice_changes_nothing_the_second_time() {
 
     let err = store.apply_debt_payment(source_id, loan, "500.00".parse().unwrap(), date).unwrap_err();
 
-    assert!(err.to_string().contains("already applied"), "{err}");
+    assert_eq!(err.to_string(), "This payment is already applied to a debt. Remove it first to change it.");
     assert_eq!(raw_transaction_count(&store), txs);
     assert_eq!(payment_rows(&store), pays);
     assert_eq!(balance(&store), bal);
@@ -2028,11 +2028,36 @@ fn an_amount_edit_that_overflows_while_rescaling_splits_leaves_the_row_and_split
 
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| store.update_transaction_amount(id, new)));
 
-    assert!(matches!(result, Ok(Err(_))), "expected a clean error, not a panic or success");
+    let err = result.expect("overflow must be an error, not a panic").unwrap_err();
+    assert_eq!(err.to_string(), "This amount is too large to split safely.");
     assert_eq!(store.all_transactions().unwrap()[0].transaction.amount, old);
     assert_eq!(fingerprint_of(&store), fp);
     let splits = store.list_transaction_splits(id).unwrap();
     assert_eq!(splits[0].amount, old);
     assert_eq!(splits[1].amount, Decimal::ZERO);
     assert_eq!(balance(&store), bal);
+}
+
+#[test]
+fn an_amount_edit_that_overflows_after_rewriting_an_earlier_split_leaves_every_split_unchanged() {
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    let big: Decimal = "100000000000000000000".parse().unwrap();
+    store.save_transactions(account, &[tx("2026-08-20", "Large amount", "100000000000000000000")]).unwrap();
+    let id = store.all_transactions().unwrap()[0].id;
+    // The first split rescales fine (1 x new total), the second overflows (1e20 x new total).
+    store
+        .set_transaction_splits(
+            id,
+            &[("Small".to_string(), Decimal::ONE, None), ("Big".to_string(), big, None), ("Zero".to_string(), Decimal::ZERO, None)],
+        )
+        .unwrap();
+    let before: Vec<Decimal> = store.list_transaction_splits(id).unwrap().iter().map(|s| s.amount).collect();
+
+    let err = store.update_transaction_amount(id, big + Decimal::from(2)).unwrap_err();
+
+    assert_eq!(err.to_string(), "This amount is too large to split safely.");
+    assert_eq!(store.all_transactions().unwrap()[0].transaction.amount, big);
+    let after: Vec<Decimal> = store.list_transaction_splits(id).unwrap().iter().map(|s| s.amount).collect();
+    assert_eq!(after, before);
 }
