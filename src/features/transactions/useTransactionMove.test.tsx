@@ -467,14 +467,15 @@ describe("balances that have to be confirmed", () => {
 
   it("shows a problem native found next to the box and keeps what was typed", async () => {
     await needs();
-    type(1, "12,5");
+    // "1e5" passes the box's own check (VS-49 catches commas and letters before asking) but native refuses it.
+    type(1, "1e5");
     act(() => q('[data-move-keep="2"]')!.click());
     call.mockResolvedValueOnce(needsBalances({ confirmations: [confirmation(1, "Checking", { choice: "set", problem: "Use only digits and one decimal point, like 1250.40." }), confirmation(2, "Savings", { choice: "keep" })] }));
     await act(async () => { q("[data-move-review-balances]")!.click(); });
     expect(q('[data-move-balance-error="1"]')?.textContent).toBe("Use only digits and one decimal point, like 1250.40.");
     expect(q('[data-move-balance-error="1"]')?.getAttribute("role")).toBe("alert");
     expect(q('[data-move-balance-error="2"]')?.textContent).toBe("");
-    expect((document.getElementById("move-balance-1") as HTMLInputElement).value).toBe("12,5");
+    expect((document.getElementById("move-balance-1") as HTMLInputElement).value).toBe("1e5");
     expect(document.getElementById("move-balance-1")?.getAttribute("aria-invalid")).toBe("true");
   });
 

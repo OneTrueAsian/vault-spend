@@ -148,6 +148,30 @@ describe("AccountDetailView reconciling any account", () => {
     expect(start().disabled).toBe(false);
   });
 
+  it("says what is missing before reconciling can start, and how to fix a balance typed with a comma (VS-49)", async () => {
+    answer({ last_reconciliation: null });
+    await showAccount(account);
+    const type = (selector: string, value: string) =>
+      act(async () => {
+        const input = host.querySelector<HTMLInputElement>(selector)!;
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    const missing = () => host.querySelector("[data-reconcile-missing]")?.textContent ?? null;
+    expect(missing()).toBe("Enter the starting balance on the statement.");
+    await type("[data-statement-start-balance]", "1000.00");
+    expect(missing()).toBe("Enter the ending balance on the statement.");
+    await type("[data-statement-balance]", "1,150.00");
+    expect(host.querySelector<HTMLButtonElement>("[data-reconcile-start]")!.disabled).toBe(true);
+    expect(missing()).toBe("Check the ending balance on the statement.");
+    expect(host.querySelector("[data-statement-balance-problem]")!.textContent).toBe("Leave out the comma: 1150.00");
+    expect(host.querySelector("[data-statement-balance]")!.getAttribute("aria-invalid")).toBe("true");
+    await type("[data-statement-balance]", "1150.00");
+    expect(missing()).toBeNull();
+    expect(host.querySelector("[data-statement-balance-problem]")).toBeNull();
+    expect(host.querySelector<HTMLButtonElement>("[data-reconcile-start]")!.disabled).toBe(false);
+  });
+
   it("checks the balance as of the statement's end date, so an older month starts from the month before it", async () => {
     answer({
       last_reconciliation: { statement_date: "2026-09-30", statement_balance: "1170.00" },

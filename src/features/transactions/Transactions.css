@@ -1062,6 +1062,18 @@ table.ledger.report-table {
   gap: 12px;
 }
 
+/* VS-49: what is still missing, and how to fix a typed balance, each on a full-width line under the fields. */
+.reconcile-form .reconcile-note {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.reconcile-form .reconcile-note.field-problem {
+  color: var(--negative);
+}
+
 .reconcile-summary {
   display: flex;
   flex-wrap: wrap;

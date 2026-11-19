@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Account, AccountTransaction } from "../../shared/lib/types";
 import { LineChart } from "../../shared/ui/charts";
 import { formatAmount, formatDisplayDate, isValidDecimalString, shortMonthDay, toLocalIsoDate } from "../../shared/lib/format";
+import { amountTextProblem } from "../../shared/lib/amountProblem";
 import { addAmounts } from "../statements/reconcileMath";
 import { ModalShell } from "../../shared/ui/Modal";
 import { StatementReviewDialog } from "../statements/StatementReviewDialog";
@@ -165,6 +166,20 @@ export function AccountDetailView({
     isValidDecimalString(statementBalance) &&
     (!needsStart || (statementStart.trim() !== "" && isValidDecimalString(statementStart))) &&
     dates.valid;
+  // VS-49: say what is still missing beside the greyed-out button, and how to fix a balance that was typed.
+  const startProblem = needsStart ? amountTextProblem(statementStart) : null;
+  const endProblem = amountTextProblem(statementBalance);
+  const reconcileMissing = !dates.valid
+    ? "Enter the statement dates."
+    : needsStart && !statementStart.trim()
+      ? `Enter the ${words.start.toLowerCase()}.`
+      : startProblem
+        ? `Check the ${words.start.toLowerCase()}.`
+        : !statementBalance.trim()
+          ? `Enter the ${words.end.toLowerCase()}.`
+          : endProblem
+            ? `Check the ${words.end.toLowerCase()}.`
+            : null;
 
   async function startReconciling() {
     if (!balanceValid) return;
@@ -341,6 +356,7 @@ export function AccountDetailView({
                     value={statementStart}
                     onChange={(e) => setStatementStart(e.target.value)}
                     placeholder="0.00"
+                    aria-invalid={startProblem ? true : undefined}
                     data-statement-start-balance
                   />
                 </label>
@@ -352,12 +368,17 @@ export function AccountDetailView({
                   value={statementBalance}
                   onChange={(e) => setStatementBalance(e.target.value)}
                   placeholder="0.00"
+                  aria-invalid={endProblem ? true : undefined}
                   data-statement-balance
                 />
               </label>
               <button type="submit" disabled={!balanceValid} data-reconcile-start>
                 Start reconciling
               </button>
+              {/* Notes sit on their own line under the row, so they never move the fields above (the row lines up by its bottom edge). */}
+              {reconcileMissing && <p className="reconcile-note" role="status" data-reconcile-missing>{reconcileMissing}</p>}
+              {startProblem && <p className="reconcile-note field-problem" data-statement-start-balance-problem>{startProblem}</p>}
+              {endProblem && <p className="reconcile-note field-problem" data-statement-balance-problem>{endProblem}</p>}
             </form>
             <div className="reconcile-upload">
               <p className="modal-message-secondary">

@@ -32,6 +32,7 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
     Enhancements: [
       "When Ask the Vault can't work out a what-if or a savings target, it now suggests questions it can answer, and you can ask one with a click.",
       "The savings-target choices now say exactly what is still missing, such as choosing dollars or percent for a category's maximum cut, instead of a general message about amounts.",
+      "Reconcile, editing a recurring item and moving transactions to another account now say what is still missing when the button is greyed out, and how to fix an amount typed with a comma (leave the comma out, like 1250.40).",
       "Error messages at the bottom of the window now stay until you close them with ×, so one that appears while you're looking elsewhere isn't missed. Confirmations still fade on their own.",
       "Stronger passwords: a new or changed profile password needs at least 12 characters and can't be a commonly used password. A few unrelated words works well. Passwords you already use keep working. If yours is shorter, a reminder after you unlock offers to change it.",
       "Making a new recovery key now fully replaces the old one. Your profile and its backups are re-encrypted, so the old recovery key no longer opens them, even if you restore an older backup. Copies in your second backup folder and files you exported earlier still open with the old key, so delete them if the old key may have been seen.",

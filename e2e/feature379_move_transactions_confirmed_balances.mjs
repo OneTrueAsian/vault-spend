@@ -74,10 +74,15 @@ try {
   assert.equal(await (await b.$("[data-move-review-balances]")).getAttribute("disabled"), "true", "still waiting for the other account");
   await (await b.$(`[data-move-keep="${savingsId}"]`)).click();
   assert.equal(await (await b.$("[data-move-review-balances]")).getAttribute("disabled"), null);
-  await (await b.$(`#move-balance-${checkingId}`)).setValue("invalid");
+  // VS-49: a balance that isn't an amount is explained as it is typed, and Review the move waits for it; the note never moves the footer action.
   const actionBefore = await b.$("[data-move-review-balances]").getLocation();
-  await (await b.$("[data-move-review-balances]")).click();
-  await b.waitUntil(async () => (await b.$(`[data-move-balance-error="${checkingId}"]`).getText()).includes("digits"), { timeout: 10000, timeoutMsg: "one click should validate the entered balances" });
+  await (await b.$(`#move-balance-${checkingId}`)).setValue("1,030.00");
+  await b.waitUntil(async () => (await b.$(`[data-move-balance-error="${checkingId}"]`).getText()) === "Leave out the comma: 1030.00", { timeout: 10000, timeoutMsg: "a comma should be explained as it is typed" });
+  assert.equal(await (await b.$("[data-move-missing]")).getText(), "Checking: Leave out the comma: 1030.00");
+  assert.equal(await (await b.$("[data-move-review-balances]")).getAttribute("disabled"), "true", "Review waits for a usable balance");
+  await b.saveScreenshot(path.join(SHOTS, "confirm-balances-comma.png"));
+  await (await b.$(`#move-balance-${checkingId}`)).setValue("invalid");
+  await b.waitUntil(async () => (await b.$(`[data-move-balance-error="${checkingId}"]`).getText()) === "Enter an amount like 1250.40.", { timeout: 10000, timeoutMsg: "a balance that isn't an amount should be explained" });
   const actionAfter = await b.$("[data-move-review-balances]").getLocation();
   assert.ok(Math.abs(actionBefore.y - actionAfter.y) <= 1, "the error does not shift the footer action");
   await (await b.$(`#move-balance-${checkingId}`)).setValue("1030.00");
