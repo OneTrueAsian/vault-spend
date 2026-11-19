@@ -1,9 +1,8 @@
 import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 
-// Spec 157 can only see the loading placeholder if the first load outlasts the moment the spec starts watching. With 20,000 rows a fast hosted
-// runner had finished loading by then (the placeholder was never seen, 116 ms to the first row). It uses the 50,000-row size the original
-// QA report (H3) described, which widens that window.
+// Spec 157 reproduces the original QA report (H3): a 50,000-row profile. It no longer relies on the size to see the loading placeholder;
+// it starts watching before it opens the profile (VS-10).
 const source = fs.readFileSync(new URL("../feature157_loading_state.mjs", import.meta.url), "utf8");
 
 describe("spec 157's fixture", () => {
