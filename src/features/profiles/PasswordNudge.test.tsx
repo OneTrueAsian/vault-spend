@@ -73,6 +73,12 @@ describe("PasswordNudge", () => {
     expect(container.textContent).toBe("");
   });
 
+  it("renders nothing and does not throw when the backend call fails", async () => {
+    protection.passwordNudge.mockRejectedValue(new Error("boom"));
+    await show();
+    expect(container.textContent).toBe("");
+  });
+
   it("goes away when the profile is swapped (for example after the password is changed)", async () => {
     await show();
     expect(container.textContent).toContain("shorter than we now recommend");
