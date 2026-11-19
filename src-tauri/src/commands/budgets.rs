@@ -37,6 +37,7 @@ pub fn create_bucket(
     icon_key: Option<String>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<i64, String> {
+    crate::icon_keys::check_icon_key(icon_key.as_deref())?;
     let state = state.lock()?;
     let target_amount = target_amount.map(|a| parse_amount(&a)).transpose()?;
     let target_date = target_date.map(|d| parse_date(&d)).transpose()?;
@@ -113,6 +114,7 @@ pub fn update_bucket_details(
     icon_key: Option<String>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<(), String> {
+    crate::icon_keys::check_icon_key(icon_key.as_deref())?;
     let state = state.lock()?;
     let target_amount = target_amount.map(|a| parse_amount(&a)).transpose()?;
     let target_date = target_date.map(|d| parse_date(&d)).transpose()?;

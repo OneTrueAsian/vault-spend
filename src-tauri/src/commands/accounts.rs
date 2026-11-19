@@ -48,6 +48,7 @@ pub fn create_account(
     icon_key: Option<String>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<i64, String> {
+    crate::icon_keys::check_icon_key(icon_key.as_deref())?;
     let state = state.lock()?;
     let account_type = AccountType::parse(&account_type).unwrap_or(AccountType::Other);
     // Validated *before* the account is created — an invalid balance must

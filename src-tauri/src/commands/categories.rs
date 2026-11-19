@@ -132,6 +132,7 @@ pub fn list_categories_with_icons(state: tauri::State<AppStateHandle>) -> Result
 
 #[tauri::command]
 pub fn create_category(name: String, icon_key: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    crate::icon_keys::check_icon_key(icon_key.as_deref())?;
     let state = state.lock()?;
     state.store.create_category(&name, icon_key.as_deref()).map_err(|e| e.to_string())
 }

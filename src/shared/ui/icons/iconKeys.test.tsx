@@ -29,15 +29,48 @@ describe("icon key guards reject inherited Object keys", () => {
   }
 });
 
+describe("every picker key fits the native icon key policy", () => {
+  const policy = /^[a-z0-9][a-z0-9-]{0,63}$/;
+  const lists: [string, { key: string }[]][] = [
+    ["account", ACCOUNT_ICON_OPTIONS],
+    ["bucket", BUCKET_ICON_OPTIONS],
+    ["category", CATEGORY_ICON_OPTIONS],
+    ["profile", PROFILE_ICON_OPTIONS],
+  ];
+  for (const [name, options] of lists) {
+    it(`${name} keys`, () => {
+      expect(options.length).toBeGreaterThan(0);
+      for (const o of options) expect(o.key).toMatch(policy);
+    });
+  }
+});
+
 describe("icon lookups fall back for inherited keys", () => {
-  it("account", () => expect(iconForAccount("checking", "constructor")).toEqual(iconForAccount("checking", null)));
-  it("bucket", () => expect(iconForBucket("Rent", "constructor")).toEqual(iconForBucket("Rent", null)));
-  it("category", () => expect(iconForCategory("Food", "constructor")).toEqual(iconForCategory("Food", null)));
-  it("profile", () => expect(iconForProfile("constructor")).toEqual(iconForProfile(null)));
+  it("account", () => expect(iconForAccount("checking", "constructor")).toBe(iconForAccount("checking", null)));
+  it("bucket", () => expect(iconForBucket("Rent", "constructor")).toBe(iconForBucket("Rent", null)));
+  it("category", () => expect(iconForCategory("Food", "constructor")).toBe(iconForCategory("Food", null)));
+  it("profile", () => expect(iconForProfile("constructor")).toBe(iconForProfile(null)));
   it("budget group", () => expect(iconForBudgetGroup("constructor")).toBe(Receipt));
 });
 
 describe("IconEntryGlyph", () => {
+  function render(entry: unknown) {
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    act(() => root.render(<IconEntryGlyph entry={entry as never} />));
+    const html = host.innerHTML;
+    act(() => root.unmount());
+    return html;
+  }
+
+  it("still renders an svg for a real lucide entry", () => {
+    expect(render({ kind: "lucide", Icon: Receipt })).toContain("<svg");
+  });
+
+  it("renders nothing for a lucide entry with a missing Icon", () => {
+    expect(render({ kind: "lucide" })).toBe("");
+  });
+
   it("renders nothing for an unknown entry kind", () => {
     const host = document.createElement("div");
     const root = createRoot(host);

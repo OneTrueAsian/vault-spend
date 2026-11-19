@@ -27,4 +27,12 @@ mod tests {
         }
         assert!(valid_icon_key(&"a".repeat(64)));
     }
+
+    #[test]
+    fn check_icon_key_allows_none_and_valid_keys_and_rejects_others() {
+        assert_eq!(check_icon_key(None), Ok(()));
+        assert_eq!(check_icon_key(Some("piggy-bank")), Ok(()));
+        assert_eq!(check_icon_key(Some("constructor()")), Err("That icon isn't available.".to_string()));
+        assert_eq!(check_icon_key(Some("")), Err("That icon isn't available.".to_string()));
+    }
 }
