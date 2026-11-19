@@ -233,6 +233,7 @@
 
 /* VS-49: what Review the move is waiting for, on the left of the footer row so the buttons never move. */
 .modal-actions .move-missing {
+  order: -1;
   flex: 1 1 auto;
   min-width: 0;
   margin: 0;

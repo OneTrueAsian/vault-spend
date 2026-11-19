@@ -51,6 +51,20 @@ describe("move balances say what is missing", () => {
     expect(document.querySelector('[data-move-balance-error="1"]')!.textContent).toBe("Leave out the comma: 1000.50");
   });
 
+  // Found by the full desktop suite (spec 377): the note must not change which footer button React reuses, or the focused
+  // Review the move button turns into Move when the final review opens.
+  it("never leaves Move focused when the final review opens from a focused Review the move", () => {
+    const balances = { 1: { keep: false, value: "1000.50" }, 2: { keep: true, value: "" } };
+    show(balances);
+    act(() => review().focus());
+    const noop = vi.fn();
+    const reviewing = { ...state(balances), editingBalances: false, preview: { ...preview, canCommit: true, status: "ready" as const } };
+    act(() => root!.render(<MoveTransactionsDialog dialog={reviewing} hiddenByFilter={null} onCancel={noop} onConfirm={noop} onReviewAgain={noop} onReloadAndClose={noop}
+      onSetBalance={noop} onReviewBalances={noop} onChangeBalances={noop} />));
+    expect(document.querySelector("[data-move-confirm]")).not.toBeNull();
+    expect(document.activeElement?.hasAttribute("data-move-confirm")).toBe(false);
+  });
+
   it("says nothing once every balance is given", () => {
     show({ 1: { keep: false, value: "1000.50" }, 2: { keep: true, value: "" } });
     expect(review().disabled).toBe(false);

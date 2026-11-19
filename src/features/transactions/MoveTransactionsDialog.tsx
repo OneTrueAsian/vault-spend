@@ -243,9 +243,11 @@ export function MoveTransactionsDialog({ dialog, hiddenByFilter, onCancel, onCon
       </div>
     ) : choosing ? (
       <div className="modal-actions">
-        {balanceMissing && <p className="modal-message-secondary move-missing" role="status" data-move-missing>{balanceMissing}</p>}
         <button type="button" className="modal-secondary" onClick={onCancel}>Cancel</button>
         <button type="button" onClick={onReviewBalances} disabled={!everyBalanceGiven} data-move-review-balances>Review the move</button>
+        {/* Last in the markup, shown first by CSS: as an earlier child it shifted the buttons, so React reused the focused
+            Review the move button as Move when the final review opened (found by spec 377). */}
+        {balanceMissing && <p className="modal-message-secondary move-missing" role="status" data-move-missing>{balanceMissing}</p>}
       </div>
     ) : (
       <div className="modal-actions">
