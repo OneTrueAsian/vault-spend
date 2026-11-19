@@ -54,8 +54,15 @@ mod tests {
 
     #[test]
     fn a_listed_password_is_rejected_in_any_case() {
-        let entry = common_passwords().iter().find(|entry| entry.chars().any(|c| c.is_ascii_alphabetic())).expect("list has entries");
-        let mixed: String = entry.chars().enumerate().map(|(i, c)| if i % 2 == 0 { c.to_ascii_uppercase() } else { c }).collect();
+        let entry = common_passwords()
+            .iter()
+            .find(|entry| entry.chars().any(|c| c.is_ascii_alphabetic()))
+            .expect("list has entries");
+        let mixed: String = entry
+            .chars()
+            .enumerate()
+            .map(|(i, c)| if i % 2 == 0 { c.to_ascii_uppercase() } else { c })
+            .collect();
         let error = check_new_password(&mixed).unwrap_err();
         assert!(error.contains("common"), "{error}");
     }
