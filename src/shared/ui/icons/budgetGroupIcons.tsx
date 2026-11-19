@@ -11,7 +11,7 @@ const BUDGET_GROUP_ICONS: Record<string, LucideIcon> = {
 };
 
 export function iconForBudgetGroup(group: string): LucideIcon {
-  return BUDGET_GROUP_ICONS[group] ?? Receipt;
+  return Object.hasOwn(BUDGET_GROUP_ICONS, group) ? BUDGET_GROUP_ICONS[group] : Receipt;
 }
 
 export function BudgetGroupIcon({ group, className }: { group: string; className?: string }) {

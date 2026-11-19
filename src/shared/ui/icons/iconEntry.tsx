@@ -43,6 +43,7 @@ export function IconEntryGlyph({ entry, className }: { entry: IconEntry; classNa
       <img src={entry.src} alt="" className={className ? `${className} icon-img-color` : "icon-img-color"} aria-hidden="true" />
     );
   }
+  if (entry.kind !== "lucide" || !entry.Icon) return null;
   const Icon = entry.Icon;
   return <Icon className={className} aria-hidden="true" />;
 }

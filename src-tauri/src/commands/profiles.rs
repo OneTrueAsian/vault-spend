@@ -29,6 +29,7 @@ pub fn list_profiles(paths: tauri::State<crate::config::AppPaths>) -> Vec<Profil
 /// `profiles::set_profile_icon`.
 #[tauri::command]
 pub fn set_profile_icon(id: String, icon_key: Option<String>, paths: tauri::State<crate::config::AppPaths>) -> Result<(), String> {
+    crate::icon_keys::check_icon_key(icon_key.as_deref())?;
     crate::profiles::set_profile_icon(&paths.config_path, &current_db_path(&paths), &id, icon_key.as_deref())
 }
 
