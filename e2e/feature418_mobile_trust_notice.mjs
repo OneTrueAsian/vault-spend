@@ -85,7 +85,10 @@ try {
       const status = await ipc(relaunched, "mobile_server_status");
       assert.equal(status.running, false, "Mobile access must not run on the outdated identity");
       assert.equal(status.trustReplaced, true);
-      if (launch === 1) await saveSecurityShot(browser, "mobile-set-up-again-pending.png");
+      if (launch === 1) {
+        await browser.execute(() => document.querySelector("[data-mobile-settings] .mobile-trust-notice").scrollIntoView({ block: "center" }));
+        await saveSecurityShot(browser, "mobile-set-up-again-pending.png");
+      }
     } finally {
       await relaunched.close();
     }
