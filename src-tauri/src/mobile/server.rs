@@ -91,7 +91,8 @@ pub struct MobileStatus {
     pub fingerprint: Option<String>,
     pub leaf_expires: Option<i64>,
     pub error: Option<String>,
-    /// Set for the rest of this app session once an outdated phone certificate was replaced. Never saved.
+    /// True once an outdated phone certificate was replaced this session, or while a saved one is still waiting to be replaced
+    /// (read from the saved certificates, so it survives restarts until the user acts). Never saved itself.
     pub trust_replaced: bool,
 }
 #[derive(Serialize)]
@@ -152,8 +153,11 @@ impl MobileService {
     }
     pub fn status(&self) -> MobileStatus {
         let mut status = self.inner.status.lock().unwrap_or_else(|p| p.into_inner()).clone();
-        status.trust_replaced = self.inner.trust_replaced.load(std::sync::atomic::Ordering::SeqCst);
+        status.trust_replaced = self.inner.trust_replaced.load(std::sync::atomic::Ordering::SeqCst) || self.trust_upgrade_pending();
         status
+    }
+    fn trust_upgrade_pending(&self) -> bool {
+        crate::mobile::certificates::trust_upgrade_due(self.secrets().as_ref(), chrono::Utc::now().timestamp())
     }
     pub fn saved_config(&self) -> Result<Option<MobileConfig>, String> {
         self.load_config()
@@ -188,11 +192,12 @@ impl MobileService {
         };
         Ok(())
     }
-    /// A saved root made before roots were limited to this computer is replaced instead of started.
+    /// A saved root made before roots were limited to this computer, or close to expiring, is replaced instead of started.
+    /// Only a user-started path calls this; launch and network refresh leave a pending root alone (see `configure_checked`).
     /// A bundle that does not validate is left alone, so its restore-or-reset error still shows.
-    /// After the replacement the new root is constrained, so a second call finds nothing to do.
+    /// After the replacement the new root is constrained and fresh, so a second call finds nothing to do.
     fn upgrade_trust_if_due(&self, config: &mut MobileConfig) -> Result<bool, String> {
-        if !crate::mobile::certificates::trust_upgrade_due(self.secrets().as_ref(), chrono::Utc::now().timestamp()) {
+        if !self.trust_upgrade_pending() {
             return Ok(false);
         }
         self.replace_trust(config)?;
@@ -277,14 +282,14 @@ impl MobileService {
     fn resume_checked(&self) -> Result<(), String> {
         if let Some(config) = self.load_config()? {
             if config.enabled {
-                self.configure_checked(config)?;
+                self.configure_checked(config, false)?;
             }
         }
         Ok(())
     }
     pub fn configure(&self, config: MobileConfig) -> Result<MobileStatus, String> {
         let _operation = self.inner.operations.lock().unwrap_or_else(|p| p.into_inner());
-        let result = self.configure_checked(config);
+        let result = self.configure_checked(config, true);
         if let Err(error) = &result {
             self.inner.status.lock().unwrap_or_else(|p| p.into_inner()).error = Some(error.clone());
         }
@@ -306,7 +311,7 @@ impl MobileService {
         let bundle = ensure_guided_identity(self.secrets().as_ref(), config.ipv4, chrono::Utc::now().timestamp())?;
         config.hostname = bundle.hostname.clone();
         config.identity_initialized = true;
-        self.configure_checked(config)
+        self.configure_checked(config, true)
     }
     pub fn refresh_network(&self) -> Result<(), String> {
         let _operation = self.inner.operations.lock().unwrap_or_else(|p| p.into_inner());
@@ -323,7 +328,7 @@ impl MobileService {
         if candidates.len() == 1 && candidates[0].1 != config.ipv4 {
             self.stop_checked();
             config.ipv4 = candidates[0].1;
-            self.configure_checked(config)?;
+            self.configure_checked(config, false)?;
         } else if config.available()
             && !self.status().running
             && self
@@ -332,11 +337,13 @@ impl MobileService {
                 .as_deref()
                 .is_some_and(|e| e.starts_with("The selected network changed"))
         {
-            self.configure_checked(config)?;
+            self.configure_checked(config, false)?;
         }
         Ok(())
     }
-    fn configure_checked(&self, mut config: MobileConfig) -> Result<MobileStatus, String> {
+    /// `user_started` is false for launch and the automatic network refresh: they never replace trust,
+    /// so a pending replacement is left for the user to start (status reports it until then).
+    fn configure_checked(&self, mut config: MobileConfig, user_started: bool) -> Result<MobileStatus, String> {
         config.validate()?;
         self.inner.suspended.store(false, std::sync::atomic::Ordering::SeqCst);
         self.inner.setup.lock().unwrap_or_else(|p| p.into_inner()).take();
@@ -351,6 +358,10 @@ impl MobileService {
             self.stop_checked();
             self.save_config(&config)?;
             self.inner.status.lock().unwrap_or_else(|p| p.into_inner()).error = None;
+            return Ok(self.status());
+        }
+        if !user_started && self.trust_upgrade_pending() {
+            self.stop_checked();
             return Ok(self.status());
         }
         if self.upgrade_trust_if_due(&mut config)? {

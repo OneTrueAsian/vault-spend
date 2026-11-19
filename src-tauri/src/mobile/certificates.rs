@@ -12,6 +12,9 @@ use std::sync::Arc;
 use zeroize::{Zeroize, Zeroizing};
 
 const DAY: i64 = 86400;
+/// A root this close to expiring is replaced (with the notice) instead of being started.
+const ROOT_RENEW_DAYS: i64 = 91;
+const NEEDS_SETUP: &str = "Your phone connection needs to be set up again. Open Mobile access and choose Set up a phone.";
 const INVALID: &str =
     "Saved mobile certificates could not be verified. Mobile access remains stopped; restore the saved identity or explicitly reset trust.";
 #[derive(Clone, Serialize, Deserialize)]
@@ -143,8 +146,8 @@ pub fn ensure_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64) -> Res
         if bundle.ipv4 != ipv4 {
             return Err("The desktop address changed. Keep the previous origin or explicitly reset mobile setup; saved phone storage will not move to a new address.".into());
         }
-        if bundle.root_expires <= now + 91 * DAY {
-            return Err("The mobile root certificate needs an explicit trust reset. Mobile access remains stopped.".into());
+        if bundle.root_expires <= now + ROOT_RENEW_DAYS * DAY {
+            return Err(NEEDS_SETUP.into());
         }
         if bundle.leaf_expires <= now + 14 * DAY {
             renew(&mut bundle, now)?;
@@ -170,8 +173,8 @@ pub fn ensure_guided_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64)
         }
         None => create_identity(store, ipv4, now)?,
     };
-    if bundle.root_expires <= now + 91 * DAY {
-        return Err("The mobile root certificate needs an explicit trust reset.".into());
+    if bundle.root_expires <= now + ROOT_RENEW_DAYS * DAY {
+        return Err(NEEDS_SETUP.into());
     }
     let hostname = local_hostname(&bundle.installation_id);
     if bundle.hostname.as_ref().is_some_and(|saved| saved != &hostname) {
@@ -199,13 +202,13 @@ fn permitted_subtrees(id: &str, include_loopback: bool) -> Vec<GeneralSubtree> {
     }
     subtrees
 }
-/// True when a saved identity validates but its root predates the computer-only limit.
+/// True when a saved identity validates but its root predates the computer-only limit or is inside its last 91 days.
 pub fn trust_upgrade_due(store: &dyn SecretStore, now: i64) -> bool {
     let _guard = store.lock();
     let Ok(Some(bytes)) = store.read() else {
         return false;
     };
-    serde_json::from_slice::<CertificateBundle>(&bytes).is_ok_and(|bundle| bundle.validate(now).is_ok() && bundle.needs_trust_upgrade())
+    serde_json::from_slice::<CertificateBundle>(&bytes).is_ok_and(|bundle| bundle.validate(now).is_ok() && (bundle.needs_trust_upgrade() || bundle.root_expires <= now + ROOT_RENEW_DAYS * DAY))
 }
 /// Desktop-only explicit trust replacement; callers stop delivery and revoke all grants first.
 pub fn reset_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64) -> Result<CertificateBundle, String> {
@@ -269,6 +272,11 @@ fn build_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64, shape: Root
 #[cfg(any(test, debug_assertions))]
 pub fn legacy_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64) -> Result<CertificateBundle, String> {
     build_identity(store, ipv4, now, RootShape::Legacy)
+}
+/// Test seed: a current-shape root that has only `days_left` days before it expires.
+#[cfg(test)]
+pub fn near_expiry_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64, days_left: i64) -> Result<CertificateBundle, String> {
+    build_identity(store, ipv4, now - (730 - days_left) * DAY, RootShape::Computer { include_loopback: false })
 }
 #[cfg(test)]
 #[derive(Default)]
@@ -405,5 +413,19 @@ mod trust_tests {
         *store.bytes.lock().unwrap() = Some(b"broken".to_vec());
         assert!(!trust_upgrade_due(&store, NOW));
         assert!(!trust_upgrade_due(&MemorySecrets::default(), NOW));
+    }
+    #[test]
+    fn a_root_inside_its_last_91_days_is_due_for_replacement_but_a_fresh_one_is_not() {
+        let ip: Ipv4Addr = "192.168.1.20".parse().unwrap();
+        let near = MemorySecrets::default();
+        let bundle = near_expiry_identity(&near, ip, NOW, 90).unwrap();
+        assert!(!bundle.needs_trust_upgrade(), "the root is constrained; only its age is the problem");
+        assert!(trust_upgrade_due(&near, NOW));
+        let outside = MemorySecrets::default();
+        near_expiry_identity(&outside, ip, NOW, 92).unwrap();
+        assert!(!trust_upgrade_due(&outside, NOW));
+        let fresh = MemorySecrets::default();
+        ensure_guided_identity(&fresh, ip, NOW).unwrap();
+        assert!(!trust_upgrade_due(&fresh, NOW));
     }
 }

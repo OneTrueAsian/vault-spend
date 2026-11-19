@@ -486,3 +486,67 @@ fn a_damaged_saved_identity_is_never_replaced_by_the_upgrade() {
     assert!(!service.status().trust_replaced);
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+fn restarted(service: &MobileService, store: &Arc<MemorySecrets>, devices: &Arc<Devices>) -> MobileService {
+    MobileService::with_secrets(service.inner.directory.clone(), devices.clone(), store.clone())
+}
+
+#[test]
+fn launching_with_an_outdated_root_changes_nothing_and_keeps_the_notice_pending_across_restarts() {
+    let (service, store, devices, directory, config) = outdated_service("launch");
+    let old = legacy_identity(store.as_ref(), config.ipv4, chrono::Utc::now().timestamp()).unwrap();
+    pair_one_phone(&devices);
+    service.save_config(&config).unwrap();
+    let saved = std::fs::read(service.config_path()).unwrap();
+    service.resume();
+    assert_eq!(installation(&store), old.installation_id);
+    assert_eq!(devices.list().unwrap().len(), 1, "launch must not sign phones out");
+    assert_eq!(std::fs::read(service.config_path()).unwrap(), saved, "launch must not rewrite settings");
+    assert!(!service.status().running);
+    assert!(service.status().trust_replaced);
+    let relaunched = restarted(&service, &store, &devices);
+    relaunched.resume();
+    assert!(relaunched.status().trust_replaced);
+    assert_eq!(installation(&store), old.installation_id);
+    // Only the user starting setup replaces it; the notice then stays and the new root is not pending.
+    relaunched.configure(config.clone()).unwrap();
+    assert_ne!(installation(&store), old.installation_id);
+    assert!(devices.list().unwrap().is_empty());
+    assert!(relaunched.status().trust_replaced);
+    assert!(!restarted(&service, &store, &devices).status().trust_replaced);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn a_network_refresh_never_replaces_an_outdated_root() {
+    let (service, store, devices, directory, mut config) = outdated_service("refresh");
+    let old = legacy_identity(store.as_ref(), config.ipv4, chrono::Utc::now().timestamp()).unwrap();
+    config.hostname = Some(crate::mobile::certificates::local_hostname(&old.installation_id));
+    config.interface = interfaces().into_iter().next().map(|(name, _)| name).unwrap_or_else(|| "none".into());
+    pair_one_phone(&devices);
+    service.save_config(&config).unwrap();
+    service.refresh_network().unwrap();
+    assert_eq!(installation(&store), old.installation_id);
+    assert_eq!(devices.list().unwrap().len(), 1);
+    assert!(!service.status().running);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn a_root_near_expiry_is_pending_at_launch_and_replaced_by_a_user_start() {
+    let (service, store, devices, directory, config) = outdated_service("expiry");
+    let now = chrono::Utc::now().timestamp();
+    let old = crate::mobile::certificates::near_expiry_identity(store.as_ref(), config.ipv4, now, 30).unwrap();
+    pair_one_phone(&devices);
+    service.save_config(&config).unwrap();
+    service.resume();
+    assert_eq!(installation(&store), old.installation_id);
+    assert_eq!(devices.list().unwrap().len(), 1);
+    assert!(!service.status().running);
+    assert!(service.status().trust_replaced);
+    service.configure(config).unwrap();
+    assert_ne!(installation(&store), old.installation_id);
+    assert!(devices.list().unwrap().is_empty());
+    assert!(!restarted(&service, &store, &devices).status().trust_replaced);
+    std::fs::remove_dir_all(directory).unwrap();
+}
