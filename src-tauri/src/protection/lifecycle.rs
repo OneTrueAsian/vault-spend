@@ -689,12 +689,19 @@ mod tests {
         assert!(!backups.is_empty());
         for info in backups {
             let backup_path = backups_dir.join(&info.filename);
+            // Positive control: the new key does open this backup, so the refusals below are real.
+            let backup_key = KeyFile::read(&keyfile::key_file_path_for(&backup_path)).unwrap();
+            let new_backup_dek = backup_key.unlock_with_password("old password 123").unwrap();
+            assert!(
+                Store::open_with_key(&backup_path, DatabaseKey::Raw(new_backup_dek.as_bytes())).is_ok(),
+                "the new key opens backup {}",
+                info.filename
+            );
             assert!(
                 !old_code_opens(&old_copy, &old_code, &backup_path),
                 "old code must not open backup {}",
                 info.filename
             );
-            let backup_key = KeyFile::read(&keyfile::key_file_path_for(&backup_path)).unwrap();
             assert!(
                 backup_key.unlock_with_recovery(&old_code).is_err(),
                 "backup key file refuses the old code"
@@ -782,53 +789,13 @@ mod tests {
             .unwrap()
             .iter()
             .any(|t| t.transaction.description == "Market Basket"));
-        // The command pairs the restored data with the backup's own key file.
-        assert!(backup_key.unlock_with_recovery(&RecoveryCode::parse(&new_display).unwrap()).is_ok());
-        assert!(backup_key.unlock_with_recovery(&old_code).is_err());
-    }
-
-    #[test]
-    fn an_interrupted_regeneration_recovers_like_a_password_change() {
-        // The `rotation_after_staging` failpoint blocks the process forever and is driven by the
-        // e2e suite (feature113). In-process, the same interrupted state is built by hand: the
-        // journal, the exported new database and the new key file exist, but nothing is committed.
-        let dir = temp_dir("regenerate-interrupted");
-        let config_path = dir.join("config.json");
-        let (id, live_db_path, store, old_code) = protected_profile_with(&dir, "old password 123");
-        let target_db_path = unique_protected_path(&live_db_path);
-        let protection = keyfile::create_protection_with_recovery(
-            "old password 123",
-            RecoveryCode::generate(),
-            &KdfParams::FAST_FOR_TESTS,
-            "2026-09-24T09:00:00Z",
-        )
-        .unwrap();
-        store.export_encrypted_copy(&target_db_path, protection.dek.as_bytes()).unwrap();
-        protection.key_file.write_to(&keyfile::key_file_path_for(&target_db_path)).unwrap();
-        write_rotation_journal(
-            &config_path,
-            &RotationJournal {
-                format: 1,
-                profile_id: id,
-                old_db_path: live_db_path.display().to_string(),
-                old_key_path: keyfile::key_file_path_for(&live_db_path).display().to_string(),
-                target_db_path: target_db_path.display().to_string(),
-                target_key_path: keyfile::key_file_path_for(&target_db_path).display().to_string(),
-                staged_backup_filenames: Vec::new(),
-            },
-        )
-        .unwrap();
-
-        recover_interrupted_rotation(&config_path).unwrap();
-
-        assert!(!target_db_path.exists());
-        let key_file = KeyFile::read(&keyfile::key_file_path_for(&live_db_path)).unwrap();
-        assert!(key_file.unlock_with_password("old password 123").is_ok());
-        assert!(
-            old_code_opens(&key_file, &old_code, &live_db_path),
-            "nothing was committed, so the old code still works"
-        );
-        assert!(!rotation_journal_path_for(&config_path).exists());
+        // The command (commands/files.rs restore_backup) writes the backup's own key file next to the
+        // restored database; do the same and check what is on disk there.
+        backup_key.write_to(&keyfile::key_file_path_for(&restored_path)).unwrap();
+        let restored_key = KeyFile::read(&keyfile::key_file_path_for(&restored_path)).unwrap();
+        let by_code = restored_key.unlock_with_recovery(&RecoveryCode::parse(&new_display).unwrap()).unwrap();
+        assert_eq!(by_code.as_bytes(), backup_dek.as_bytes());
+        assert!(restored_key.unlock_with_recovery(&old_code).is_err());
     }
 
     #[test]
