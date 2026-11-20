@@ -10,7 +10,9 @@ let dir;
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), "vs-review-")); });
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
 const png = (rel) => { const f = path.join(dir, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, Buffer.from(rel)); return f; };
-const reply = (verdict, issues = []) => ({ ok: true, status: 200, json: async () => ({ model: "qwen3.6:35b", message: { role: "assistant", content: JSON.stringify({ verdict, issues }) }, done: true, prompt_eval_count: 1300, eval_count: 40 }) });
+// The model answers with a list of issues, each with where, what it saw, a problem type and whether it is sure; the verdict is worked out from that.
+const issue = (where, seen, sure = true, type = 2) => ({ where, seen, type, sure });
+const reply = (issues = []) => ({ ok: true, status: 200, json: async () => ({ model: "qwen3.6:35b", message: { role: "assistant", content: JSON.stringify({ issues }) }, done: true, prompt_eval_count: 1300, eval_count: 40 }) });
 const stub = (...replies) => {
   const calls = [];
   const fetchImpl = async (url, init) => { calls.push({ url, body: JSON.parse(init.body) }); const r = replies[calls.length - 1]; if (r instanceof Error) throw r; return r; };
@@ -37,6 +39,45 @@ describe("the prompt", () => {
     const text = promptFor(path.join(dir, "shot.png"));
     expect(text).not.toMatch(/light theme|dark theme/);
     expect(text).not.toMatch(/\d+px/);
+    expect(text).not.toMatch(/style/);
+  });
+  // Retro's grey bevelled borders and Futuristic's glow were the biggest source of false "border" and "theme" flags in the 19 Nov audit.
+  it("adds the style from the file name", () => {
+    expect(promptFor(path.join(dir, "accounts-retro-dark-720.png"))).toContain("the Retro style");
+    expect(promptFor(path.join(dir, "futuristic-light-1280x800-blocked.png"))).toContain("the Futuristic style");
+    expect(promptFor(path.join(dir, "household-budget-transparent-dark-720.png"))).toContain("the Default style");
+  });
+  it("reads the width from names like 1280x800", () => {
+    expect(promptFor(path.join(dir, "futuristic-dark-1280x800-blocked.png"))).toContain("1280px");
+  });
+});
+
+describe("what the model is asked", () => {
+  it("describes the deliberate design and asks for six kinds of problem, each with a quote and whether it is sure", async () => {
+    png("s/a.png");
+    const { fetchImpl, calls } = stub(reply());
+    await reviewScreens({ dir, fetchImpl, log: quiet });
+    const system = calls[0].body.messages[0].content;
+    expect(system).toMatch(/dialog is open, the page behind it is dimmed/);
+    expect(system).toMatch(/Retro style has grey panels with double, bevelled borders/);
+    expect(system).toMatch(/Raw technical text/);
+    expect(system).not.toMatch(/Panel by panel/);
+    expect(calls[0].body.format.properties.issues.items.required).toEqual(["where", "seen", "type", "sure"]);
+  });
+});
+
+describe("the verdict", () => {
+  it("is pass with no issues, fail when any issue is sure, unsure when none are", async () => {
+    png("s/a.png"); png("s/b.png"); png("s/c.png");
+    const { fetchImpl } = stub(reply(), reply([issue("Cash card", "$NaN"), issue("Cash card", "maybe cut", false)]), reply([issue("Budget table", "Utilit", false)]));
+    const { verdicts } = await reviewScreens({ dir, fetchImpl, log: quiet });
+    expect(verdicts.map((v) => v.verdict)).toEqual(["pass", "fail", "unsure"]);
+  });
+  it("writes each issue as where, the quoted text, and 'not sure' when the model is not sure", async () => {
+    png("s/a.png");
+    const { fetchImpl } = stub(reply([issue("Cash card", "$NaN"), issue("Budget table", "Utilit", false)]));
+    const { verdicts } = await reviewScreens({ dir, fetchImpl, log: quiet });
+    expect(verdicts[0].issues).toEqual(['Cash card: "$NaN"', 'Budget table: "Utilit" (not sure)']);
   });
 });
 
@@ -44,14 +85,14 @@ describe("reviewing", () => {
   it("marks a non-JSON reply as unsure and keeps going", async () => {
     png("s/a.png"); png("s/b.png");
     const garbled = { ok: true, status: 200, json: async () => ({ message: { role: "assistant", content: "oops" }, done: true }) };
-    const { fetchImpl } = stub(garbled, reply("pass"));
+    const { fetchImpl } = stub(garbled, reply());
     const { verdicts } = await reviewScreens({ dir, fetchImpl, log: quiet });
     expect(verdicts.map((v) => v.verdict)).toEqual(["unsure", "pass"]);
     expect(verdicts[0].issues.join(" ")).toContain("oops");
   });
   it("sends the screenshot, the model settings and keep_alive 0 only on the last request", async () => {
     png("s/a.png"); png("s/b.png");
-    const { fetchImpl, calls } = stub(reply("pass"), reply("pass"));
+    const { fetchImpl, calls } = stub(reply(), reply());
     await reviewScreens({ dir, fetchImpl, log: quiet });
     expect(calls.map((c) => c.url)).toEqual(["http://127.0.0.1:11434/api/chat", "http://127.0.0.1:11434/api/chat"]);
     expect(calls[0].body).toMatchObject({ model: "qwen3.6:35b", think: false, stream: false, options: { temperature: 0, num_ctx: 8192 } });
@@ -62,7 +103,7 @@ describe("reviewing", () => {
   it("a server error for one screenshot marks it unsure and keeps going", async () => {
     png("s/a.png"); png("s/b.png");
     const serverError = { ok: false, status: 500, json: async () => ({ error: "failed to decode image" }), text: async () => '{"error":"failed to decode image"}' };
-    const { fetchImpl } = stub(serverError, reply("pass"));
+    const { fetchImpl } = stub(serverError, reply());
     const { verdicts } = await reviewScreens({ dir, fetchImpl, log: quiet });
     expect(verdicts.map((v) => v.verdict)).toEqual(["unsure", "pass"]);
     expect(verdicts[0].issues.join(" ")).toContain("500");
@@ -70,18 +111,18 @@ describe("reviewing", () => {
   it("a reply body that is not JSON marks that screenshot unsure and keeps going", async () => {
     png("s/a.png"); png("s/b.png");
     const htmlBody = { ok: true, status: 200, json: async () => { throw new SyntaxError("Unexpected token <"); }, text: async () => "<html>" };
-    const { fetchImpl } = stub(htmlBody, reply("pass"));
+    const { fetchImpl } = stub(htmlBody, reply());
     const { verdicts } = await reviewScreens({ dir, fetchImpl, log: quiet });
     expect(verdicts.map((v) => v.verdict)).toEqual(["unsure", "pass"]);
   });
   it("keeps the verdicts so far when the model stops answering partway", async () => {
     png("s/a.png"); png("s/b.png");
-    const { fetchImpl } = stub(reply("fail", ["$NaN"]), new TypeError("fetch failed"));
+    const { fetchImpl } = stub(reply([issue("Cash card", "$NaN")]), new TypeError("fetch failed"));
     const error = await reviewScreens({ dir, fetchImpl, log: quiet }).catch((e) => e);
     expect(error).toBeInstanceOf(ModelUnavailableError);
     expect(error.partial.verdicts.map((v) => v.verdict)).toEqual(["fail"]);
     expect(error.partial.summary).toContain("Stopped after 1 of 2");
-    expect(error.partial.summary).toContain("s/a.png: $NaN");
+    expect(error.partial.summary).toContain('s/a.png: Cash card: "$NaN"');
   });
   it("throws ModelUnavailableError when the host refuses", async () => {
     png("s/a.png");
@@ -96,11 +137,11 @@ describe("reviewing", () => {
   });
   it("summary lists counts and only non-pass screens with their paths", async () => {
     png("f415/ok.png"); png("f415/bad.png"); png("f414/odd.png");
-    const { fetchImpl } = stub(reply("unsure", ["cannot tell the theme"]), reply("fail", ["$NaN in the Cash tile"]), reply("pass"));
+    const { fetchImpl } = stub(reply([issue("Main area", "cannot tell the theme", false)]), reply([issue("Cash tile", "$NaN")]), reply());
     const { summary } = await reviewScreens({ dir, fetchImpl, log: quiet });
     expect(summary).toContain("3 screenshots, 1 look right, 1 flagged, 1 unsure");
-    expect(summary).toContain("f415/bad.png: $NaN in the Cash tile");
-    expect(summary).toContain("f414/odd.png: cannot tell the theme");
+    expect(summary).toContain('f415/bad.png: Cash tile: "$NaN"');
+    expect(summary).toContain('f414/odd.png: Main area: "cannot tell the theme" (not sure)');
     expect(summary).not.toContain("ok.png");
   });
   it("an empty folder gives 'No screenshots found' and sends no requests", async () => {
