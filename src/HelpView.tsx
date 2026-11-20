@@ -1160,6 +1160,29 @@ const FAQ_ENTRIES: FaqEntry[] = [
     ),
   },
   {
+    question: 'Windows says "An Application Control policy has blocked this file" — what now?',
+    tags: ["windows", "smart app control", "application control", "blocked", "install", "installer", "security", "unsigned"],
+    answer: (
+      <>
+        <p>
+          Your computer has Smart App Control turned on. It only allows programs that carry a paid code-signing certificate, and
+          Vault Spend&apos;s installer doesn&apos;t have one yet, so Windows won&apos;t run it. This message has no &quot;Run anyway&quot;
+          option.
+        </p>
+        <p>
+          For now, Vault Spend can&apos;t be installed on a computer with Smart App Control on. You can see the setting in{" "}
+          <strong>Windows Security → App &amp; browser control → Smart App Control</strong>. Turning it off is your choice, but once
+          it is off, Windows can only turn it back on by reinstalling Windows, so we don&apos;t recommend changing it just for Vault
+          Spend.
+        </p>
+        <p>
+          This is different from the blue &quot;Windows protected your PC&quot; message (SmartScreen), where you can click{" "}
+          <strong>More info</strong>, then <strong>Run anyway</strong>.
+        </p>
+      </>
+    ),
+  },
+  {
     question: "Will I get a reminder before a bill is due?",
     tags: ["reminder", "notification", "bill", "recurring", "due date", "alert", "tray", "background", "startup", "autostart"],
     answer: (

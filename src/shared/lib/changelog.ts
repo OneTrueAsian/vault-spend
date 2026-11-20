@@ -24,6 +24,11 @@ export const changelogNotes = (entry: ChangelogEntry): string[] => changelogSect
  * here as part of cutting each release, condensed from that release's
  * GitHub notes — a version with no entry here just shows nothing. */
 export const CHANGELOG: Record<string, ChangelogEntry> = {
+  "1.3.5": {
+    Enhancements: [
+      "Help now explains what to do when Windows says \"An Application Control policy has blocked this file\" while installing Vault Spend. That message comes from Smart App Control, which blocks the installer and, unlike the \"Windows protected your PC\" warning, has no Run anyway option.",
+    ],
+  },
   "1.3.4": {
     "New features": [
       "Exclude from budget: mark a transaction so it doesn't count toward your budget, such as a reimbursed work expense or a one-off medical bill. It still shows in Reports, Cash Flow and your balances. Turn it on in Settings → Features → Feature toggles, then choose Exclude from budget in a transaction's ⋯ menu, or tick several rows and use the same button in the bar above the table. Help explains how.",

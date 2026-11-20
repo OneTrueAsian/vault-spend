@@ -84,6 +84,13 @@ describe("HelpView", () => {
     expect(text).toContain("checks that the installer really comes from Vault Spend");
   });
 
+  // VS-66: Smart App Control blocks the unsigned installer with no "Run anyway"; Help says so in plain words.
+  it("explains the Smart App Control block and how it differs from SmartScreen", () => {
+    const text = helpText();
+    expect(text).toContain('Windows says "An Application Control policy has blocked this file"');
+    for (const part of ["Smart App Control", "can't be installed on a computer with Smart App Control on", "Windows Security → App & browser control → Smart App Control", "reinstalling Windows", "More info", "Run anyway"]) expect(text).toContain(part);
+  });
+
   it("says reconciling works for investment accounts and where the saved statement layouts are managed", () => {
     const text = helpText();
     expect(text).toContain("investment accounts, including share counts");
@@ -528,6 +535,8 @@ describe("HelpView search finds the 1.3.2 features by the words people use", () 
     ["account move", "How do I move transactions to another account?"],
     ["move history", "How do I move transactions to another account?"],
     ["update", "How do I update Vault Spend?"],
+    ["smart app control", 'Windows says "An Application Control policy has blocked this file"'],
+    ["application control", 'Windows says "An Application Control policy has blocked this file"'],
   ])("finds the right help for %s", (query, heading) => {
     search(query);
     expect(container.textContent).toContain(heading);

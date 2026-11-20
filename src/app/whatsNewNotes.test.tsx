@@ -55,6 +55,13 @@ describe("grouped release notes", () => {
     expect(enhancements.slice(0, 3).some((n) => /set up your phone again/.test(n))).toBe(true);
   });
 
+  // VS-66: 1.3.5 opens with the Help note on installers that Smart App Control blocks.
+  it("lists the Smart App Control Help note in 1.3.5", () => {
+    const text = changelogNotes(CHANGELOG["1.3.5"]).join("\n");
+    expect(text).toMatch(/Smart App Control/);
+    expect(text).toMatch(/Help/);
+  });
+
   // Owner review of the 1.3.3 notes: a "(month)" placeholder would be shown to readers word for word.
   it("writes no (month) placeholder in the 1.3.3 notes", () => {
     const text = changelogNotes(CHANGELOG["1.3.3"]).join("\n");
