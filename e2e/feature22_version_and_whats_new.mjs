@@ -23,6 +23,12 @@ const entryMatch = new RegExp(`^  "${expectedVersion.replaceAll(".", "\\.")}": [
 if (!entryMatch) throw new Error(`src/shared/lib/changelog.ts has no entry for ${expectedVersion}`);
 const expectedBullets = [...entryMatch[1].matchAll(/^ {4,6}"(.*)",\s*$/gm)].map((m) => JSON.parse(`"${m[1]}"`));
 if (expectedBullets.length === 0) throw new Error(`the ${expectedVersion} changelog entry has no bullets`);
+// The dialog opens on the first three notes of each group (an older flat entry is one group); See more shows the rest.
+const expectedGroups = entryMatch[1]
+  .split(/^ {4}(?:"[^"]+"|\w+): \[\r?\n/m)
+  .filter((part) => /^ {6}"/m.test(part))
+  .map((part) => [...part.matchAll(/^ {4,6}"(.*)",\s*$/gm)].map((m) => JSON.parse(`"${m[1]}"`)));
+const expectedCollapsed = expectedGroups.length ? expectedGroups.flatMap((group) => group.slice(0, 3)) : expectedBullets.slice(0, 3);
 
 const app = await launchApp();
 try {
@@ -64,13 +70,26 @@ try {
     throw new Error(`expected the dialog to name the current version (${versionString}), got "${titleText}"`);
   }
 
-  const noteItems = await app.browser.$$(".modal-changelog-list li");
-  if (noteItems.length === 0) throw new Error("expected at least one changelog bullet in the dialog");
-  console.log(`dialog shows ${noteItems.length} changelog bullet(s)`);
-  const shownBullets = [];
-  for (const item of noteItems) shownBullets.push((await item.getText()).trim());
-  if (JSON.stringify(shownBullets) !== JSON.stringify(expectedBullets)) {
-    throw new Error(`the dialog should show exactly the ${expectedVersion} entry.\nexpected: ${JSON.stringify(expectedBullets)}\nshown:    ${JSON.stringify(shownBullets)}`);
+  const shownBullets = async () => {
+    const items = [];
+    for (const item of await app.browser.$$(".modal-changelog-list li")) items.push((await item.getText()).trim());
+    return items;
+  };
+  const collapsed = await shownBullets();
+  console.log(`dialog opens on ${collapsed.length} of ${expectedBullets.length} changelog bullet(s)`);
+  if (JSON.stringify(collapsed) !== JSON.stringify(expectedCollapsed)) {
+    throw new Error(`the dialog should open on the first three notes of each ${expectedVersion} group.\nexpected: ${JSON.stringify(expectedCollapsed)}\nshown:    ${JSON.stringify(collapsed)}`);
+  }
+  if (expectedCollapsed.length < expectedBullets.length) {
+    await (await app.browser.$("button=See more")).click();
+    await app.browser.waitUntil(async () => (await shownBullets()).length === expectedBullets.length, {
+      timeout: 5000,
+      timeoutMsg: "See more never showed the rest of the notes",
+    });
+  }
+  const expanded = await shownBullets();
+  if (JSON.stringify(expanded) !== JSON.stringify(expectedBullets)) {
+    throw new Error(`after See more the dialog should show exactly the ${expectedVersion} entry.\nexpected: ${JSON.stringify(expectedBullets)}\nshown:    ${JSON.stringify(expanded)}`);
   }
 
   const gotItBtn = await app.browser.$("button=Got it");
