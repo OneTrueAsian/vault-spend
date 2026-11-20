@@ -152,7 +152,7 @@
     "feature86_rollover_setting.mjs": "lib\\budgetRows.mjs: depends on which window has OS focus; lib\\budgetRows.mjs: drives menus that close when the window loses focus; lib\\budgetRows.mjs: uses the shared keyboard",
     "feature87_month_review_layout.mjs": "depends on which window has OS focus; uses the shared keyboard; reacts to blur (the window losing focus)",
     "feature88_text_inputs_match.mjs": "depends on which window has OS focus; uses the shared keyboard; reacts to blur (the window losing focus)",
-    "feature89_sankey_and_heatmap.mjs": "depends on which window has OS focus; uses the shared pointer (hover)",
+    "feature89_sankey_and_heatmap.mjs": "depends on which window has OS focus; uses the shared pointer (hover); uses the shared keyboard",
     "feature91_auto_link_transfers.mjs": "drives menus that close when the window loses focus; lib\\dateFieldInput.mjs: uses the shared keyboard",
     "feature92_accumulation_details.mjs": "depends on which window has OS focus; uses the shared pointer (hover); uses the shared keyboard",
     "feature94_accumulation_summary.mjs": "depends on which window has OS focus; uses the shared keyboard",
