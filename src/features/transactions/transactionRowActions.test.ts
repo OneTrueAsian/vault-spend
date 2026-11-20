@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { transactionRowActions } from "./transactionRowActions";
-const t = (over: Partial<{ amount: string; split_count: number; notes: string | null }> = {}) =>
-  ({ amount: "-20.00", split_count: 0, notes: null, ...over }) as never;
-const base = { splitEnabled: true, debtEnabled: true, isLoanAccount: false, canApplyToDebt: true, hasPrincipalOverride: false, hasAppliedDebt: false };
+const t = (over: Partial<{ amount: string; split_count: number; notes: string | null; excluded_from_budget: boolean }> = {}) =>
+  ({ amount: "-20.00", split_count: 0, notes: null, excluded_from_budget: false, ...over }) as never;
+const base = { splitEnabled: true, debtEnabled: true, isLoanAccount: false, canApplyToDebt: true, hasPrincipalOverride: false, hasAppliedDebt: false, budgetExclusionEnabled: false, isTransfer: false };
 
 describe("transactionRowActions", () => {
   it("offers split, apply to a debt, note, tag and delete for an ordinary purchase", () => {
@@ -28,5 +28,18 @@ describe("transactionRowActions", () => {
   });
   it("hides apply to a debt when no debt can take it", () => {
     expect(transactionRowActions(t(), { ...base, canApplyToDebt: false }).some((a) => a.id === "applyDebt")).toBe(false);
+  });
+  it("offers Exclude from budget just before Delete when the switch is on", () => {
+    const items = transactionRowActions(t(), { ...base, budgetExclusionEnabled: true });
+    expect(items.map((a) => a.id)).toEqual(["split", "applyDebt", "note", "tag", "budget", "delete"]);
+    expect(items.find((a) => a.id === "budget")?.label).toBe("Exclude from budget");
+  });
+  it("says Include in budget on a row that is already marked", () => {
+    const items = transactionRowActions(t({ excluded_from_budget: true }), { ...base, budgetExclusionEnabled: true });
+    expect(items.find((a) => a.id === "budget")?.label).toBe("Include in budget");
+  });
+  it("offers no budget item with the switch off, or on a transfer", () => {
+    expect(transactionRowActions(t(), base).some((a) => a.id === "budget")).toBe(false);
+    expect(transactionRowActions(t(), { ...base, budgetExclusionEnabled: true, isTransfer: true }).some((a) => a.id === "budget")).toBe(false);
   });
 });

@@ -296,6 +296,16 @@ try {
   );
   await browser.saveScreenshot(path.join(shotsDir, "272-more-filters-with-date.png"));
   assert.ok(panelFit.scrollHeight <= panelFit.clientHeight + 1, `More filters should show all its fields without scrolling: ${JSON.stringify(panelFit)}`);
+  // VS-55: opened at the right end of the toolbar, the panel stays inside the main area's visible width
+  // (it used to run under the scrollbar, cutting off the date icons and scrolling the page sideways).
+  const panelEdges = await browser.execute(() => {
+    const main = document.querySelector(".main");
+    const m = main.getBoundingClientRect();
+    const p = document.querySelector(".more-filters-panel").getBoundingClientRect();
+    return { panelLeft: p.left, panelRight: p.right, mainLeft: m.left + main.clientLeft, mainRight: m.left + main.clientLeft + main.clientWidth, sideways: main.scrollWidth - main.clientWidth };
+  });
+  assert.ok(panelEdges.panelRight <= panelEdges.mainRight + 1 && panelEdges.panelLeft >= panelEdges.mainLeft - 1, `More filters should open inside the main area: ${JSON.stringify(panelEdges)}`);
+  assert.ok(panelEdges.sideways <= 1, `opening More filters should not scroll the page sideways: ${JSON.stringify(panelEdges)}`);
   await browser.execute(() => [...document.querySelectorAll(".more-filters-panel button")].find((b) => b.textContent.trim() === "Clear all").click());
   await browser.keys("Escape");
 

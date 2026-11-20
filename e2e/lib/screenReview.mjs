@@ -1,7 +1,7 @@
 // npm run e2e:review: a local vision model (Ollama, qwen3.6:35b, thinking off) reviews kept screenshots and writes a short summary, so an
-// agent opens only the flagged ones instead of loading every image. The prompt is the one measured in the 17 November 2026 trial:
-// 9 of 12 seeded faults caught, 1 of 64 good screens flagged. It does not notice missing content (spec 415's DOM checks cover that).
-// A pass is a hint, never acceptance.
+// agent opens only the flagged ones instead of loading every image. The prompt was chosen on 19 November 2026 against 254 hand-labelled
+// screenshots from that day's full QA audit: it sent 34 of 40 real defects for a look (the earlier prompt: 33) and 65 of 98 known false
+// alarms (earlier: 93). It does not check for missing content (spec 415's DOM checks cover that). A pass is a hint, never acceptance.
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,24 +13,44 @@ export class ModelUnavailableError extends Error {
   constructor(message) { super(message); this.name = "ModelUnavailableError"; }
 }
 
-const SYSTEM = `You are a careful UI quality reviewer for the Vault Spend desktop budgeting app. You review one screenshot and report only problems you can actually see.
-Design facts (these are correct, never report them):
-- The left navigation sidebar is always dark navy, in both light and dark themes. Judge the theme from the main content area only.
-- Content continuing below the bottom of the window is normal scrolling. The scrollbar is normal.
-- Grouped rows such as "Everything else (5)" are intended summaries, not missing items.
-Check in this order:
-1. Theme: the main content area uses one theme everywhere (no panel or patch in the other theme), matching the expected theme if one is given.
-2. Panel by panel: every panel (a box with a heading) has content in its body. A heading with an empty body, or a chart area with axes or a frame but no lines or bars, is a defect.
-3. Edges: every line of text ends inside its panel's border. Text crossing a panel border, or cut off mid-word at an edge, is a defect. Nothing overlaps other content.
-4. Values and messages: money is formatted as currency (no "NaN", "undefined"), and there are no error messages.
-5. Alignment: panel edges and rows line up.
-If every check passes, verdict "pass" with no issues. If anything is clearly wrong, verdict "fail" and name each issue with where it is on screen. Use "unsure" only when the image does not let you tell.`;
+// Most false alarms on real screens were deliberate design read as a fault (dimmed page behind a dialog, menus and toasts on top,
+// Retro bevels, scrolling), so the prompt describes that design and asks only for six concrete kinds of problem.
+const SYSTEM = `You are a careful UI quality reviewer for the Vault Spend desktop budgeting app. You look at one screenshot and report only clear layout problems you can point to.
+How the app is meant to look. These are correct, never report them:
+- The left sidebar is dark navy in every theme. Judge light or dark from the main content area only.
+- When a dialog is open, the page behind it is dimmed or blurred on purpose. Judge the dialog itself and ignore the page behind it. Exception: if page text can be read through the dialog's own panel, report that.
+- Menus, dropdown lists, tooltips, popovers and pop-up messages sit on top of the page on purpose. Report one only if it covers a dialog's own buttons.
+- The Retro style has grey panels with double, bevelled borders and square corners. The Futuristic style has neon outlines and glows. These borders are correct.
+- Content running past the bottom of the window is normal scrolling, and scrollbars are normal. A wide table that scrolls sideways in a narrow window is normal.
+- A short sentence such as "No transactions yet" is the content of an empty panel. A grid of day numbers is the daily spending heatmap.
+- A note under a field that says what to type is intended. Very long names and very large amounts are test data.
+Report only these problems:
+1. Text drawn on top of other text, so that one of them is hard to read.
+2. Text, a number or a button cut off at the left or right edge of its panel, card or the window.
+3. One money amount split across two lines.
+4. A table whose row labels have scrolled out of view, leaving numbers with no label.
+5. A panel or patch in the other theme (a light box on a dark screen or the reverse), or a main area in the wrong theme when an expected theme is given. The dimmed page behind a dialog does not count.
+6. Raw technical text: "NaN", "undefined", "null", "[object Object]", a stack trace or an error code.
+For each problem give where it is (the panel heading or area), what you see (quote the visible text), the number of the problem type above, and whether you are sure. If you would need words like "may", "might", "appears" or "seems", set sure to false. If none of the six problems is visible, return an empty list.`;
 
 const FORMAT = {
   type: "object",
-  properties: { verdict: { type: "string", enum: ["pass", "fail", "unsure"] }, issues: { type: "array", items: { type: "string" } } },
-  required: ["verdict", "issues"],
+  properties: {
+    issues: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { where: { type: "string" }, seen: { type: "string" }, type: { type: "integer", minimum: 1, maximum: 6 }, sure: { type: "boolean" } },
+        required: ["where", "seen", "type", "sure"],
+      },
+    },
+  },
+  required: ["issues"],
 };
+
+// Any sure issue fails the screen; issues the model is not sure about send it for a look as "unsure".
+const verdictFor = (issues) => (issues.some((i) => i.sure) ? "fail" : issues.length ? "unsure" : "pass");
+const describeIssue = (i) => `${i.where}: "${i.seen}"${i.sure ? "" : " (not sure)"}`;
 
 // Where the Windows installer puts Ollama when it is not on PATH.
 const installedOllama = () => {
@@ -65,8 +85,9 @@ export function findScreens(dir) {
 export function promptFor(file) {
   const name = path.basename(file);
   const theme = name.match(/-(light|dark)-/)?.[1];
-  const width = name.match(/-(\d{3,4})(?:-\d+)?\.png$/i)?.[1];
-  const expected = [theme && `the ${theme} theme`, width && `a window ${width}px wide`].filter(Boolean).join(", ");
+  const width = name.match(/-(\d{3,4})(?:x\d+)?(?:-\d+)?\.png$/i)?.[1] ?? name.match(/-(\d{3,4})(?:x\d+)?-/)?.[1];
+  const style = /retro/i.test(name) ? "Retro" : /futuristic/i.test(name) ? "Futuristic" : /default|transparent/i.test(name) ? "Default" : null;
+  const expected = [style && `the ${style} style`, theme && `the ${theme} theme`, width && `a window ${width}px wide`].filter(Boolean).join(", ");
   return `Screenshot: ${name}.${expected ? ` Expected: ${expected}.` : ""}\n\nReview the screenshot and answer in JSON.`;
 }
 
@@ -90,8 +111,8 @@ async function askModel({ file, fetchImpl, model, host, last }) {
   catch (error) { return { verdict: "unsure", issues: [`unreadable Ollama reply: ${error.message}`] }; }
   try {
     const parsed = JSON.parse(content);
-    if (!["pass", "fail", "unsure"].includes(parsed.verdict)) throw new Error("no verdict");
-    return { verdict: parsed.verdict, issues: Array.isArray(parsed.issues) ? parsed.issues.map(String) : [] };
+    if (!Array.isArray(parsed.issues)) throw new Error("no issues list");
+    return { verdict: verdictFor(parsed.issues), issues: parsed.issues.map(describeIssue) };
   } catch { return { verdict: "unsure", issues: [`unparseable reply: ${content.slice(0, 200)}`] }; }
 }
 

@@ -452,20 +452,28 @@ pub fn rotate_password_with_recovery(
     )
 }
 
-/// Replaces only the recovery slot in the live key file. The current password proves authority and
-/// unwraps the existing DEK; the database, password slot, and backups are not changed. The caller
-/// supplies the code that its save-confirmation challenge displayed, so UI and disk cannot diverge.
-pub fn regenerate_recovery_with_code(live_db_path: &Path, current_password: &str, recovery_code: RecoveryCode) -> Result<KeyFile, String> {
-    let key_path = keyfile::key_file_path_for(live_db_path);
-    let key_file = KeyFile::read(&key_path).map_err(|e| e.to_string())?;
-    let dek = key_file
-        .unlock_with_password(current_password)
-        .map_err(|_| "That password didn't work.".to_string())?;
-    let renewed = key_file
-        .regenerate_recovery_with_code(&dek, &recovery_code, &KdfParams::PRODUCTION)
-        .map_err(|e| e.to_string())?;
-    renewed.write_to(&key_path).map_err(|e| e.to_string())?;
-    Ok(renewed)
+/// Regenerates the recovery key by rotating the database key as well, with the password unchanged.
+/// A key file that only swapped its recovery slot would leave the old code unwrapping the same
+/// database key for the live file and every backup; rotating makes the old code open nothing current.
+pub fn regenerate_recovery_with_rotation(
+    config_path: &Path,
+    profile_id: &str,
+    live_db_path: &Path,
+    store: &Store,
+    current_password: &str,
+    recovery_code: RecoveryCode,
+    now: NaiveDateTime,
+) -> Result<(KeyFile, RecoveryCode, PathBuf), String> {
+    rotate_password_with_recovery(
+        config_path,
+        profile_id,
+        live_db_path,
+        store,
+        current_password,
+        current_password,
+        recovery_code,
+        now,
+    )
 }
 
 #[cfg(test)]
@@ -485,11 +493,16 @@ mod tests {
     }
 
     fn protected_profile(dir: &Path) -> (String, PathBuf, Store) {
+        let (id, target, store, _) = protected_profile_with(dir, "old password 123");
+        (id, target, store)
+    }
+
+    fn protected_profile_with(dir: &Path, password: &str) -> (String, PathBuf, Store, RecoveryCode) {
         let config_path = dir.join("config.json");
         let live_db_path = dir.join("v.db");
-        let (id, key_file, _, target) =
-            crate::protection::transition::create_protected_profile(&config_path, &live_db_path, "Sam", "old password 123", now()).unwrap();
-        let dek = key_file.unlock_with_password("old password 123").unwrap();
+        let (id, key_file, recovery_code, target) =
+            crate::protection::transition::create_protected_profile(&config_path, &live_db_path, "Sam", password, now()).unwrap();
+        let dek = key_file.unlock_with_password(password).unwrap();
         let store = Store::open_with_key(&target, DatabaseKey::Raw(dek.as_bytes())).unwrap();
         let account = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
         store
@@ -505,7 +518,7 @@ mod tests {
             .unwrap();
         let backups_dir = backups::backups_dir_for(&target, true);
         backups::create_backup(&store, &target, &backups_dir, None, now() - chrono::Duration::days(1)).unwrap();
-        (id, target, store)
+        (id, target, store, recovery_code)
     }
 
     #[test]
@@ -642,37 +655,147 @@ mod tests {
         );
     }
 
+    fn old_code_opens(key_file: &KeyFile, code: &RecoveryCode, database: &Path) -> bool {
+        match key_file.unlock_with_recovery(code) {
+            Ok(dek) => Store::open_with_key(database, DatabaseKey::Raw(dek.as_bytes())).is_ok(),
+            Err(_) => false,
+        }
+    }
+
     #[test]
-    fn regenerating_the_recovery_key_uses_the_confirmed_code_and_leaves_the_database_untouched() {
-        let dir = temp_dir("regenerate");
-        let (_, live_db_path, store) = protected_profile(&dir);
-        let before = KeyFile::read(&keyfile::key_file_path_for(&live_db_path)).unwrap();
-        let old_dek = before.unlock_with_password("old password 123").unwrap();
-        let confirmed_code = RecoveryCode::generate();
-        let confirmed_display = confirmed_code.display();
+    fn regenerating_revokes_the_old_code_for_live_data_and_backups() {
+        let dir = temp_dir("regenerate-revokes");
+        let config_path = dir.join("config.json");
+        let (id, live_db_path, store, old_code) = protected_profile_with(&dir, "old password 123");
+        let backups_dir = backups::backups_dir_for(&live_db_path, true);
+        let old_copy = KeyFile::read(&keyfile::key_file_path_for(&live_db_path)).unwrap();
+        let old_display = old_code.display();
+        assert!(
+            old_code_opens(&old_copy, &old_code, &live_db_path),
+            "fixture: the old code opens before regenerating"
+        );
+        let new_code = RecoveryCode::generate();
+        let new_display = new_code.display();
 
-        let renewed = regenerate_recovery_with_code(&live_db_path, "old password 123", confirmed_code).unwrap();
-        let confirmed_code = RecoveryCode::parse(&confirmed_display).unwrap();
+        let (new_key_file, _, target_path) =
+            regenerate_recovery_with_rotation(&config_path, &id, &live_db_path, &store, "old password 123", new_code, now()).unwrap();
 
-        assert!(renewed.unlock_with_password("old password 123").is_ok(), "the password is unchanged");
-        assert_eq!(renewed.unlock_with_recovery(&confirmed_code).unwrap().as_bytes(), old_dek.as_bytes());
-        assert_ne!(renewed, before, "the recovery slot changes");
-        assert!(store.list_categories().is_ok(), "the database itself was never touched");
-        assert_eq!(KeyFile::read(&keyfile::key_file_path_for(&live_db_path)).unwrap(), renewed);
+        let old_code = RecoveryCode::parse(&old_display).unwrap();
+        assert!(
+            !old_code_opens(&old_copy, &old_code, &target_path),
+            "old key file + old code must not open the new live database"
+        );
+        let backups = backups::list_backups(&backups_dir, true).unwrap();
+        assert!(!backups.is_empty());
+        for info in backups {
+            let backup_path = backups_dir.join(&info.filename);
+            // Positive control: the new key does open this backup, so the refusals below are real.
+            let backup_key = KeyFile::read(&keyfile::key_file_path_for(&backup_path)).unwrap();
+            let new_backup_dek = backup_key.unlock_with_password("old password 123").unwrap();
+            assert!(
+                Store::open_with_key(&backup_path, DatabaseKey::Raw(new_backup_dek.as_bytes())).is_ok(),
+                "the new key opens backup {}",
+                info.filename
+            );
+            assert!(
+                !old_code_opens(&old_copy, &old_code, &backup_path),
+                "old code must not open backup {}",
+                info.filename
+            );
+            assert!(
+                backup_key.unlock_with_recovery(&old_code).is_err(),
+                "backup key file refuses the old code"
+            );
+        }
+        let new_code = RecoveryCode::parse(&new_display).unwrap();
+        let from_code = new_key_file.unlock_with_recovery(&new_code).unwrap();
+        let from_password = new_key_file.unlock_with_password("old password 123").unwrap();
+        assert_eq!(from_code.as_bytes(), from_password.as_bytes());
+        assert_ne!(
+            from_password.as_bytes(),
+            old_copy.unlock_with_password("old password 123").unwrap().as_bytes()
+        );
+        let opened = Store::open_with_key(&target_path, DatabaseKey::Raw(from_password.as_bytes())).unwrap();
+        assert!(opened
+            .all_transactions()
+            .unwrap()
+            .iter()
+            .any(|t| t.transaction.description == "Market Basket"));
+    }
+
+    #[test]
+    fn regenerating_works_for_a_password_shorter_than_the_new_minimum() {
+        let dir = temp_dir("regenerate-short-password");
+        let config_path = dir.join("config.json");
+        let (id, live_db_path, store, _) = protected_profile_with(&dir, "old pass");
+        let new_code = RecoveryCode::generate();
+        let new_display = new_code.display();
+
+        let (new_key_file, _, target_path) =
+            regenerate_recovery_with_rotation(&config_path, &id, &live_db_path, &store, "old pass", new_code, now()).unwrap();
+
+        let dek = new_key_file.unlock_with_password("old pass").unwrap();
+        assert!(new_key_file.unlock_with_recovery(&RecoveryCode::parse(&new_display).unwrap()).is_ok());
+        assert!(Store::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).is_ok());
     }
 
     #[test]
     fn a_wrong_password_refuses_to_regenerate_recovery() {
         let dir = temp_dir("regenerate-wrong-password");
-        let (_, live_db_path, _store) = protected_profile(&dir);
+        let config_path = dir.join("config.json");
+        let (id, live_db_path, store) = protected_profile(&dir);
         let before = KeyFile::read(&keyfile::key_file_path_for(&live_db_path)).unwrap();
 
-        let error = regenerate_recovery_with_code(&live_db_path, "not it", RecoveryCode::generate())
+        let error = regenerate_recovery_with_rotation(&config_path, &id, &live_db_path, &store, "not it", RecoveryCode::generate(), now())
             .map(|_| ())
             .unwrap_err();
 
         assert_eq!(error, "That password didn't work.");
         assert_eq!(KeyFile::read(&keyfile::key_file_path_for(&live_db_path)).unwrap(), before);
+        assert!(!rotation_journal_path_for(&config_path).exists());
+    }
+
+    #[test]
+    fn restoring_a_backup_after_regeneration_keeps_the_new_recovery_code() {
+        let dir = temp_dir("regenerate-then-restore");
+        let config_path = dir.join("config.json");
+        let (id, live_db_path, store, old_code) = protected_profile_with(&dir, "old password 123");
+        let new_code = RecoveryCode::generate();
+        let new_display = new_code.display();
+        let (new_key_file, _, target_path) =
+            regenerate_recovery_with_rotation(&config_path, &id, &live_db_path, &store, "old password 123", new_code, now()).unwrap();
+        drop(store);
+        complete_committed_rotation(&config_path).unwrap();
+        let dek = new_key_file.unlock_with_password("old password 123").unwrap();
+        let live = Store::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).unwrap();
+        let backups_dir = backups::backups_dir_for(&target_path, true);
+        let filename = backups::list_backups(&backups_dir, true).unwrap()[0].filename.clone();
+        let backup_key = KeyFile::read(&keyfile::key_file_path_for(&backups_dir.join(&filename))).unwrap();
+        let backup_dek = backup_key.unlock_with_password("old password 123").unwrap();
+
+        let restored_path = backups::restore_backup_with_key(
+            &live,
+            &backups_dir,
+            None,
+            &filename,
+            &target_path,
+            DatabaseKey::Raw(backup_dek.as_bytes()),
+        )
+        .unwrap();
+
+        let restored = Store::open_with_key(&restored_path, DatabaseKey::Raw(backup_dek.as_bytes())).unwrap();
+        assert!(restored
+            .all_transactions()
+            .unwrap()
+            .iter()
+            .any(|t| t.transaction.description == "Market Basket"));
+        // The command (commands/files.rs restore_backup) writes the backup's own key file next to the
+        // restored database; do the same and check what is on disk there.
+        backup_key.write_to(&keyfile::key_file_path_for(&restored_path)).unwrap();
+        let restored_key = KeyFile::read(&keyfile::key_file_path_for(&restored_path)).unwrap();
+        let by_code = restored_key.unlock_with_recovery(&RecoveryCode::parse(&new_display).unwrap()).unwrap();
+        assert_eq!(by_code.as_bytes(), backup_dek.as_bytes());
+        assert!(restored_key.unlock_with_recovery(&old_code).is_err());
     }
 
     #[test]

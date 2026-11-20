@@ -1,8 +1,8 @@
 // Captures the six style pictures shown in Settings > Appearance (one per style, in light and dark):
 // src/assets/style-previews/{transparent,futuristic,retro}-{light,dark}.webp.
 //
-// It opens the REAL compiled app on the household demo data (the same data `npm run demo:household`
-// builds, in a throwaway folder), shows the Dashboard at 1280x800 in each style, and turns each
+// It opens the REAL compiled app on the tidy household (seedHouseholdDatabase: the household without the practice
+// data's loose ends, in a throwaway folder), shows the Dashboard at 1280x800 in each style, and turns each
 // screenshot into a 480x300 WebP of at most 60 KB. The conversion runs on a canvas inside the app's
 // own WebView (no image library is installed), from the screenshot's bytes, not a URL.
 //

@@ -33,6 +33,30 @@ pub fn debug_retirement_fixture_allowed(paths: tauri::State<crate::config::AppPa
 }
 
 #[cfg(test)]
+mod short_password_fixture_tests {
+    use super::short_password_fixture_allowed;
+
+    #[test]
+    fn the_short_password_fixture_needs_a_short_password_and_a_disposable_profile() {
+        let root = std::env::temp_dir().join(format!("vaultspend-short-password-guard-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("vaultspend.db"), []).unwrap();
+        let config = root.join("config.json");
+        let database = root.join("vaultspend.db");
+        assert!(short_password_fixture_allowed("short", Some(&root), &config, &database));
+        assert!(!short_password_fixture_allowed(
+            "a password of twelve or more",
+            Some(&root),
+            &config,
+            &database
+        ));
+        assert!(!short_password_fixture_allowed("short", None, &config, &database));
+        assert!(!short_password_fixture_allowed("short", Some(&root.join("missing")), &config, &database));
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+}
+
+#[cfg(test)]
 mod retirement_fixture_tests {
     use super::retirement_fixture_paths_allowed;
     use std::path::PathBuf;
@@ -147,6 +171,51 @@ pub fn debug_recovery_code_unlocks(code: String, paths: tauri::State<crate::conf
         Err(_) => return Ok(false),
     };
     Ok(key_file.unlock_with_recovery(&parsed).is_ok())
+}
+
+/// Whether the short-password fixture may run: the password must really be one the rule now refuses (a
+/// compliant one would be made through the real flow), and the open profile must belong to the managed
+/// disposable data directory.
+#[cfg(debug_assertions)]
+pub(crate) fn short_password_fixture_allowed(
+    password: &str,
+    directory: Option<&std::path::Path>,
+    config_path: &std::path::Path,
+    database: &std::path::Path,
+) -> bool {
+    crate::protection::password_rules::below_minimum(password) && retirement_fixture_paths_allowed(directory, config_path, database)
+}
+
+/// Turns protection on for the open disposable profile with a password the real flow no longer accepts, so
+/// E2E can reach the post-unlock password nudge. Never registered in release builds.
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub fn debug_enable_protection_short_password(
+    password: String,
+    app: tauri::AppHandle,
+    paths: tauri::State<crate::config::AppPaths>,
+    runtime: tauri::State<crate::commands::AppStateHandle>,
+) -> Result<(), String> {
+    let directory = std::env::var_os("VAULTSPEND_DB_DIR").map(std::path::PathBuf::from);
+    let database = paths.db_path.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    if !short_password_fixture_allowed(&password, directory.as_deref(), &paths.config_path, &database) {
+        return Err("A disposable profile and a short password are required.".into());
+    }
+    crate::protection_commands::enable_profile_protection_unchecked(
+        password,
+        budget_core::protection::recovery::RecoveryCode::generate(),
+        app,
+        paths,
+        runtime,
+    )
+    .map(|_| ())
+}
+
+/// Saves an identity made the pre-1.3.4 way (unconstrained root) in the disposable mobile secret store.
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub fn debug_seed_outdated_mobile_identity(service: tauri::State<'_, crate::mobile::server::MobileService>) -> Result<(), String> {
+    service.seed_outdated_identity_fixture()
 }
 
 /// Advances only the managed automatic-lock clock. This deterministic seam is compiled out of

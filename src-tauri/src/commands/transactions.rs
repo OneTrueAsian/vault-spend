@@ -22,6 +22,7 @@ pub struct TransactionDto {
     pub member_id: Option<i64>,
     pub member_name: Option<String>,
     pub notes: Option<String>,
+    pub excluded_from_budget: bool,
 }
 
 #[derive(Serialize)]
@@ -371,6 +372,7 @@ pub(super) fn transaction_dto(s: budget_core::store::StoredTransaction) -> Trans
         member_id: s.member_id,
         member_name: s.member_name,
         notes: s.notes,
+        excluded_from_budget: s.excluded_from_budget,
     }
 }
 
@@ -529,6 +531,14 @@ pub fn set_transaction_member(id: i64, member_id: Option<i64>, state: tauri::Sta
 pub fn bulk_set_transaction_member(ids: Vec<i64>, member_id: Option<i64>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock()?;
     state.store.bulk_set_transaction_member(&ids, member_id).map_err(|e| e.to_string())
+}
+
+/// Marks or unmarks transactions as "Exclude from budget"; returns how many
+/// changed (transfers and generated debt rows are skipped by the store).
+#[tauri::command]
+pub fn set_transactions_excluded_from_budget(ids: Vec<i64>, excluded: bool, state: tauri::State<AppStateHandle>) -> Result<usize, String> {
+    let state = state.lock()?;
+    state.store.set_transactions_excluded_from_budget(&ids, excluded).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

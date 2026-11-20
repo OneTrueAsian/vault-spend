@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -41,6 +42,20 @@ describe("read-only mobile viewer", () => {
         expect(container.querySelector(".mobile-chart button")?.getAttribute("aria-label")).toContain("••••");
         expect(container.querySelector(".mobile-month-detail")?.textContent).not.toMatch(/\$/);
         expect(container.innerHTML).not.toMatch(/\$[\d,]+\.\d{2}/);
+    });
+    // VS-65: the Spending dot was drawn in the muted text colour while its bars use the second chart colour.
+    it("draws the legend's Spending dot in the spending bars' colour, keeping the word readable", () => {
+        render();
+        click("Reports");
+        const dot = container.querySelector(".mobile-legend .mobile-legend-spending-dot");
+        expect(dot?.textContent).toBe("●");
+        expect(dot?.getAttribute("aria-hidden")).toBe("true");
+        expect(container.querySelector(".mobile-legend")?.textContent).toBe("● Income ● Spending");
+        const css = readFileSync("src/mobile/MobileViewer.css", "utf8");
+        const rule = (selector: string) => { const start = css.indexOf(selector + " {"); return start < 0 ? "" : css.slice(css.indexOf("{", start) + 1, css.indexOf("}", start)); };
+        const barColour = rule(".mobile-bars i:nth-child(2)").match(/background:\s*([^;]+);/)?.[1];
+        expect(barColour).toBeTruthy();
+        expect(rule(".mobile-legend-spending-dot")).toContain(`color: ${barColour};`);
     });
     it("labels the Where it went charts with each category's name and amount, on screen", () => {
         render();

@@ -137,7 +137,7 @@ const CATEGORY_ICON_BY_KEY: Record<CategoryIconKey, IconEntry> = Object.fromEntr
 ) as Record<CategoryIconKey, IconEntry>;
 
 export function isCategoryIconKey(key: string): key is CategoryIconKey {
-  return key in CATEGORY_ICON_BY_KEY;
+  return Object.prototype.hasOwnProperty.call(CATEGORY_ICON_BY_KEY, key);
 }
 
 /** `iconKey` (a category's stored `icon_key`, if the user picked one

@@ -21,7 +21,7 @@ afterEach(() => {
   host.remove();
 });
 
-function render(moveDestinations: { value: string; label: string }[], onMoveToAccount = vi.fn(), count = 3) {
+function render(moveDestinations: { value: string; label: string }[], onMoveToAccount = vi.fn(), count = 3, budget: { enabled?: boolean; handle?: ReturnType<typeof vi.fn> } = {}) {
   const noop = vi.fn();
   act(() =>
     root.render(
@@ -48,6 +48,8 @@ function render(moveDestinations: { value: string; label: string }[], onMoveToAc
         selectedPairForLink={null}
         handleLinkSelectedAsTransfer={noop}
         setSelectedIds={noop}
+        budgetExclusionEnabled={budget.enabled ?? false}
+        handleBulkSetExcludedFromBudget={(budget.handle ?? noop) as (excluded: boolean) => Promise<void>}
       />,
     ),
   );
@@ -101,5 +103,22 @@ describe("a selection too large for anything but a move", () => {
     act(() => trigger("Move to account")!.click());
     act(() => document.querySelector<HTMLElement>('[role="menuitemradio"], [role="menuitem"], .menu-select-option')!.click());
     expect(onMove).toHaveBeenCalledWith("2");
+  });
+});
+
+describe("Exclude from budget in the selection bar", () => {
+  const button = (label: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === label);
+  it("shows neither button with the switch off", () => {
+    render([], vi.fn(), 3, { enabled: false });
+    expect(button("Exclude from budget")).toBeUndefined();
+    expect(button("Include in budget")).toBeUndefined();
+  });
+  it("sends true for Exclude and false for Include with the switch on", () => {
+    const handle = vi.fn();
+    render([], vi.fn(), 3, { enabled: true, handle });
+    act(() => button("Exclude from budget")!.click());
+    expect(handle).toHaveBeenLastCalledWith(true);
+    act(() => button("Include in budget")!.click());
+    expect(handle).toHaveBeenLastCalledWith(false);
   });
 });

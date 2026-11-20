@@ -23,6 +23,9 @@ try {
     const geometry=await b.execute(()=>[...document.querySelectorAll('.dashboard-stat-row .stat-value')].filter(e=>e.textContent==='-$9,999,999,002.99').map(e=>{const tile=e.closest('.stat').getBoundingClientRect();const r=document.createRange();r.selectNodeContents(e);return {text:e.textContent,tile:{left:tile.left,right:tile.right,top:tile.top,bottom:tile.bottom},lines:[...r.getClientRects()].map(x=>({left:x.left,right:x.right,top:x.top,bottom:x.bottom}))};}));
     assert.equal(geometry.length,2);
     for(const value of geometry)for(const line of value.lines)assert.ok(line.left>=value.tile.left-1&&line.right<=value.tile.right+1&&line.top>=value.tile.top-1&&line.bottom<=value.tile.bottom+1,JSON.stringify({palette,theme,width,value}));
+    // VS-60: the figure may wrap only after a thousands comma; no piece of it (a digit group, or the cents) is split across lines.
+    const splitPieces=await b.execute(()=>[...document.querySelectorAll('.dashboard-stat-row .stat-value')].filter(e=>e.textContent==='-$9,999,999,002.99').flatMap(e=>{const out=[];const walker=document.createTreeWalker(e,NodeFilter.SHOW_TEXT);for(let n=walker.nextNode();n;n=walker.nextNode()){const r=document.createRange();r.selectNodeContents(n);if(new Set([...r.getClientRects()].map(x=>Math.round(x.top))).size>1)out.push(n.textContent);}return out;}));
+    assert.deepEqual(splitPieces,[],`${palette} ${theme} ${width}: a figure was split inside a digit group: ${JSON.stringify(splitPieces)}`);
     if(shots)await b.saveScreenshot(path.join(shots,`feature320-${palette}-${theme}-${width}.png`));
    }
   }

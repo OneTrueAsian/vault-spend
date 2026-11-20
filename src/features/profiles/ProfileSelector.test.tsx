@@ -66,6 +66,14 @@ describe("ProfileSelector", () => {
     return [...container.querySelectorAll<HTMLButtonElement>("[data-profile-option]")];
   }
 
+  it("shows why the profile was closed when the backend gives a notice", () => {
+    act(() => {
+      root.render(<ProfileSelector profiles={THREE} lastUsedId={null} notice="Password protection is off." onResolved={onResolved} />);
+    });
+
+    expect(container.querySelector("[data-gate-notice]")!.textContent).toBe("Password protection is off.");
+  });
+
   it("shows a card per profile, with a lock indicator only on protected ones", () => {
     show(THREE);
 

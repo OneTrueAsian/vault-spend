@@ -152,7 +152,7 @@
     "feature86_rollover_setting.mjs": "lib\\budgetRows.mjs: depends on which window has OS focus; lib\\budgetRows.mjs: drives menus that close when the window loses focus; lib\\budgetRows.mjs: uses the shared keyboard",
     "feature87_month_review_layout.mjs": "depends on which window has OS focus; uses the shared keyboard; reacts to blur (the window losing focus)",
     "feature88_text_inputs_match.mjs": "depends on which window has OS focus; uses the shared keyboard; reacts to blur (the window losing focus)",
-    "feature89_sankey_and_heatmap.mjs": "depends on which window has OS focus; uses the shared pointer (hover)",
+    "feature89_sankey_and_heatmap.mjs": "depends on which window has OS focus; uses the shared pointer (hover); uses the shared keyboard",
     "feature91_auto_link_transfers.mjs": "drives menus that close when the window loses focus; lib\\dateFieldInput.mjs: uses the shared keyboard",
     "feature92_accumulation_details.mjs": "depends on which window has OS focus; uses the shared pointer (hover); uses the shared keyboard",
     "feature94_accumulation_summary.mjs": "depends on which window has OS focus; uses the shared keyboard",
@@ -348,6 +348,12 @@
     "feature412_dashboard_links_open_the_right_tab.mjs": "not reviewed for parallel execution; exclusive until approved",
     "feature413_import_review_tabs.mjs": "reviewed: drives shared keyboard, menus and screenshots; exclusive desktop access; detected: depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared keyboard; lib\\importAccount.mjs: drives menus that close when the window loses focus",
     "feature414_chart_segment_details.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared pointer (hover); uses the shared keyboard",
-    "feature415_default_palette_layout.mjs": "drives menus that close when the window loses focus; uses the shared pointer (hover)"
+    "feature415_default_palette_layout.mjs": "drives menus that close when the window loses focus; uses the shared pointer (hover)",
+    "feature416_exclude_from_budget.mjs": "depends on which window has OS focus; uses the shared keyboard; lib\\budgetRows.mjs: depends on which window has OS focus; lib\\budgetRows.mjs: drives menus that close when the window loses focus; lib\\budgetRows.mjs: uses the shared keyboard",
+    "feature417_password_nudge.mjs": "not reviewed for parallel execution; exclusive until approved",
+    "feature418_mobile_trust_notice.mjs": "not reviewed for parallel execution; exclusive until approved",
+    "feature419_reopen_after_commit.mjs": "not reviewed for parallel execution; exclusive until approved",
+    "feature420_ask_cut_back.mjs": "not reviewed for parallel execution; exclusive until approved",
+    "feature421_profiles_actions_narrow.mjs": "drives menus that close when the window loses focus"
   }
 }

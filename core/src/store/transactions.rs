@@ -1,9 +1,9 @@
 //! Transactions: saving, querying, editing, deleting and restoring them, plus tags, splits and debt payments.
 
-use super::{CategorySource, Store, fingerprint};
+use super::{CategorySource, LIVE_TRANSFER_LEG_IDS_SQL, Store, fingerprint};
 use crate::models::Transaction;
 use chrono::{NaiveDate, NaiveDateTime};
-use rusqlite::params;
+use rusqlite::{OptionalExtension, params};
 use rust_decimal::Decimal;
 use std::str::FromStr;
 
@@ -36,6 +36,10 @@ pub struct StoredTransaction {
     /// for categorization, transfer matching, or the import fingerprint.
     /// `None` means no note. See `Store::update_transaction_notes`.
     pub notes: Option<String>,
+    /// The person's "Exclude from budget" mark. Stored always; it only affects
+    /// budget math while `StoredAppSettings::budget_exclusion_enabled` is on.
+    /// See `Store::set_transactions_excluded_from_budget`.
+    pub excluded_from_budget: bool,
 }
 
 /// Which debt account this transaction's amount was applied toward paying
@@ -111,6 +115,10 @@ pub(super) fn normalize_notes(notes: Option<&str>) -> Result<Option<String>, Not
         return Err(NotesError::Invalid(format!("Notes can be at most {NOTES_MAX_CHARS} characters.")));
     }
     Ok(Some(trimmed.to_string()))
+}
+
+fn split_overflow() -> rusqlite::Error {
+    rusqlite::Error::ToSqlConversionFailure("This amount is too large to split safely.".into())
 }
 
 impl Store {
@@ -292,7 +300,7 @@ impl Store {
                         (SELECT l.out_transaction_id FROM transfer_links l
                          JOIN transactions o ON o.id = l.out_transaction_id
                          WHERE l.in_transaction_id = t.id AND o.deleted_at IS NULL)
-                    ), dp.date
+                    ), dp.date, t.excluded_from_budget
              FROM transactions t
              JOIN accounts a ON a.id = t.account_id
              LEFT JOIN debt_payments dp ON dp.source_transaction_id = t.id
@@ -325,6 +333,7 @@ impl Store {
                 row.get::<_, Option<String>>(17)?,
                 row.get::<_, Option<i64>>(18)?,
                 row.get::<_, Option<String>>(19)?,
+                row.get::<_, bool>(20)?,
             ))
         })?;
 
@@ -351,6 +360,7 @@ impl Store {
                 notes,
                 transfer_counterpart_id,
                 applied_date,
+                excluded_from_budget,
             ) = row?;
             let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").expect("date stored by this crate must be valid");
             let amount = Decimal::from_str(&amount_str).expect("amount stored by this crate must be valid");
@@ -385,9 +395,43 @@ impl Store {
                 member_id,
                 member_name,
                 notes,
+                excluded_from_budget,
             });
         }
         Ok(result)
+    }
+
+    /// Sets or clears the "Exclude from budget" mark on exactly these ids and
+    /// returns how many rows it changed. Only live spending rows qualify: a
+    /// "Transfer", a live linked transfer leg and an `apply_debt_payment`
+    /// generated row are skipped, since they never count toward a budget
+    /// anyway. The mark is kept through delete and restore.
+    pub fn set_transactions_excluded_from_budget(&self, ids: &[i64], excluded: bool) -> rusqlite::Result<usize> {
+        let mut changed = 0;
+        for &id in ids {
+            changed += self.conn.execute(
+                &format!(
+                    "UPDATE transactions SET excluded_from_budget = ?1
+                     WHERE id = ?2 AND deleted_at IS NULL
+                       AND COALESCE(category, '') <> 'Transfer'
+                       AND id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
+                       AND id NOT IN (SELECT generated_transaction_id FROM debt_payments)"
+                ),
+                params![excluded, id],
+            )?;
+        }
+        Ok(changed)
+    }
+
+    /// The SQL fragment budget queries append to leave marked rows out:
+    /// empty while the switch is off. `column_prefix` is `""` or a table
+    /// alias such as `"t."`.
+    pub fn budget_exclusion_sql(&self, column_prefix: &str) -> rusqlite::Result<String> {
+        if self.get_app_settings()?.budget_exclusion_enabled {
+            Ok(format!(" AND {column_prefix}excluded_from_budget = 0"))
+        } else {
+            Ok(String::new())
+        }
     }
 
     /// Corrects a transaction's amount after the fact (a wrong sign or a
@@ -436,6 +480,9 @@ impl Store {
             },
         );
 
+        // All-or-nothing: an overflow while rescaling the splits must not
+        // leave the new amount saved beside the old splits.
+        let sql_tx = self.conn.unchecked_transaction()?;
         let before = self.displayed_balance_for_log(account_id);
         self.conn.execute(
             "UPDATE transactions SET amount = ?1, fingerprint = ?2 WHERE id = ?3",
@@ -455,7 +502,10 @@ impl Store {
                 .iter()
                 .map(|(_, a)| Decimal::from_str(a).expect("split amount stored by this crate must be valid"))
                 .collect();
-            let split_total: Decimal = old_amounts.iter().sum();
+            let split_total = old_amounts
+                .iter()
+                .try_fold(Decimal::ZERO, |sum, a| sum.checked_add(*a))
+                .ok_or_else(split_overflow)?;
             if split_total != amount {
                 splits_reconciled = true;
                 let last = splits.len() - 1;
@@ -465,13 +515,20 @@ impl Store {
                         // Exact by construction: the new total minus every
                         // already-assigned split, whatever rounding those
                         // left over included.
-                        amount - running
+                        amount.checked_sub(running).ok_or_else(split_overflow)?
                     } else if split_total.is_zero() {
-                        (amount / Decimal::from(splits.len() as i64)).round_dp(2)
+                        amount
+                            .checked_div(Decimal::from(splits.len() as i64))
+                            .ok_or_else(split_overflow)?
+                            .round_dp(2)
                     } else {
-                        (old_amounts[i] * amount / split_total).round_dp(2)
+                        old_amounts[i]
+                            .checked_mul(amount)
+                            .and_then(|scaled| scaled.checked_div(split_total))
+                            .ok_or_else(split_overflow)?
+                            .round_dp(2)
                     };
-                    running += new_split_amount;
+                    running = running.checked_add(new_split_amount).ok_or_else(split_overflow)?;
                     self.conn.execute(
                         "UPDATE transaction_splits SET amount = ?1 WHERE id = ?2",
                         params![new_split_amount.to_string(), split_id],
@@ -487,6 +544,7 @@ impl Store {
         // balance until that override is cleared, which is exactly the
         // kind of surprise this log exists to surface.
         let after = self.displayed_balance_for_log(account_id);
+        sql_tx.commit()?;
         let snapshot = Self::describe_balance_snapshot(before, after);
         self.log_activity(&format!(
             "{}: transaction #{id} \"{description}\" amount corrected: {old_amount_str} -> {amount} — {snapshot}{}",
@@ -936,7 +994,23 @@ impl Store {
             params![source_transaction_id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )?;
+        let already_applied = self
+            .conn
+            .query_row(
+                "SELECT 1 FROM debt_payments WHERE source_transaction_id = ?1",
+                params![source_transaction_id],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some();
+        if already_applied {
+            return Err(rusqlite::Error::ToSqlConversionFailure(
+                "This payment is already applied to a debt. Remove it first to change it.".into(),
+            ));
+        }
         let signed_amount = amount.abs();
+        // The generated row and its link row are written together or not at all.
+        let sql_tx = self.conn.unchecked_transaction()?;
         let before = self.displayed_balance_for_log(debt_account_id);
 
         let description = format!("Payment applied from: {source_description}");
@@ -972,7 +1046,9 @@ impl Store {
                 date.to_string(),
             ],
         )?;
-        let snapshot = Self::describe_balance_snapshot(before, self.displayed_balance_for_log(debt_account_id));
+        let after = self.displayed_balance_for_log(debt_account_id);
+        sql_tx.commit()?;
+        let snapshot = Self::describe_balance_snapshot(before, after);
         self.log_activity(&format!(
             "{} -> {}: debt payment applied, amount={amount} (source transaction #{source_transaction_id}) — {snapshot}",
             self.account_name_for_log(source_account_id),

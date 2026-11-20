@@ -2,6 +2,7 @@ import { pickableAccounts } from "../../shared/lib/hiddenAccounts";
 import { FormEvent, useState } from "react";
 import type { Account, FamilyMember, Recurring, RecurringCandidate, RecurringMatch, RecurringTotals } from "../../shared/lib/types";
 import { formatAmount, formatDisplayDate, toLocalIsoDate } from "../../shared/lib/format";
+import { amountTextProblem } from "../../shared/lib/amountProblem";
 import { DateField } from "../../shared/ui/DateField";
 import { fmtMoneyShort } from "../../shared/ui/charts";
 import { useAutoCancelDelete } from "../../shared/hooks/useAutoCancelDelete";
@@ -276,7 +277,13 @@ function EditRecurringRow({
   const [accountId, setAccountId] = useState(item.account_id !== null ? String(item.account_id) : "");
   const [memberId, setMemberId] = useState(item.member_id !== null ? String(item.member_id) : "");
 
-  const valid = merchant.trim() !== "" && amount.trim() !== "" && anchorDate !== "" && dateUsable;
+  // VS-49: the first thing stopping Save, said beside it instead of only greying it out.
+  const missing = !merchant.trim()
+    ? "Enter a name."
+    : !amount.trim()
+      ? "Enter an amount."
+      : amountTextProblem(amount) ?? (anchorDate === "" || !dateUsable ? "Enter the whole next due date." : null);
+  const valid = missing === null;
 
   function handleSave() {
     if (!valid) return;
@@ -353,6 +360,7 @@ function EditRecurringRow({
             Save
           </button>
         </span>
+        {missing && <small className="field-problem" role="status" data-recurring-missing>{missing}</small>}
       </td>
     </tr>
   );

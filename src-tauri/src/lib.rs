@@ -9,6 +9,7 @@ mod config;
 mod debug_commands;
 mod device_settings;
 mod holding_import;
+mod icon_keys;
 mod launch_commands;
 mod legacy_migration;
 mod live_prices;
@@ -107,8 +108,9 @@ pub fn run() {
             // beside config.json, so a start with no profile open can still decide what the tray and
             // the window do without a database.
             app.manage(device_settings::DeviceSettingsStore::load(default_dir.join(device_settings::DEVICE_SETTINGS_FILENAME)));
-            let mobile = mobile::server::MobileService::new(default_dir.clone());
-            app.manage(mobile::api::MobileAccess::new(default_dir.clone()));
+            let mobile_access = mobile::api::MobileAccess::new(default_dir.clone());
+            let mobile = mobile::server::MobileService::new(default_dir.clone(), mobile_access.devices.clone());
+            app.manage(mobile_access);
             app.manage::<AppStateHandle>(runtime::AppRuntime::no_profile_open());
             app.manage(config::AppPaths {
                 config_path: config_path.clone(),
@@ -246,6 +248,7 @@ pub fn run() {
             protection_commands::show_profile_selector,
             protection_commands::select_profile,
             protection_commands::unlock_profile,
+            protection_commands::password_nudge,
             protection_commands::lock_current_profile,
             protection_commands::get_auto_lock_settings,
             protection_commands::set_auto_lock_settings,
@@ -347,6 +350,7 @@ pub fn run() {
             commands::list_all_tags,
             commands::set_transaction_member,
             commands::bulk_set_transaction_member,
+            commands::set_transactions_excluded_from_budget,
             commands::create_bucket,
             commands::list_buckets,
             commands::update_bucket_details,
@@ -426,6 +430,7 @@ pub fn run() {
             commands::set_apply_to_debt_enabled,
             commands::set_split_purchases_enabled,
             commands::set_envelope_caps_enabled,
+            commands::set_budget_exclusion_enabled,
             commands::set_rollover_enabled,
             commands::set_safe_to_spend_enabled,
             commands::fetch_live_quote,
@@ -478,6 +483,10 @@ pub fn run() {
             debug_commands::debug_mobile_authorization_race,
             #[cfg(debug_assertions)]
             debug_commands::debug_mobile_database_digest,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_enable_protection_short_password,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_seed_outdated_mobile_identity,
             mobile_commands::mobile_server_status,
             mobile_commands::mobile_begin_pairing,
             mobile_commands::mobile_pending_pairings,

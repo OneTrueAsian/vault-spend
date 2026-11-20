@@ -14,7 +14,7 @@ let open: (id: number) => Promise<void>;
 let mounted: boolean;
 const ready = vi.fn();
 const error = vi.fn();
-const source = { id: 1, transfer_counterpart_id: null, date: "2026-10-01", description: "Fixture", amount: "-12.34", category: null, category_source: null, confidence: null, account_id: 1, account_name: "Checking", applied_to_debt: { date: "2026-10-01", debt_account_id: 2, debt_account_name: "Loan", amount: "12.34" }, principal_amount: null, split_count: 0, tags: [], member_id: null, member_name: null, notes: null };
+const source = { id: 1, transfer_counterpart_id: null, date: "2026-10-01", description: "Fixture", amount: "-12.34", category: null, category_source: null, confidence: null, account_id: 1, account_name: "Checking", applied_to_debt: { date: "2026-10-01", debt_account_id: 2, debt_account_name: "Loan", amount: "12.34" }, principal_amount: null, split_count: 0, tags: [], member_id: null, member_name: null, notes: null, excluded_from_budget: false };
 function Harness() { open = usePaymentSource(ready, error); return null; }
 beforeEach(() => {
   vi.resetAllMocks();

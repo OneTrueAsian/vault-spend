@@ -12,6 +12,7 @@ const response = () => ({
   actuals: [],
   alerts: [],
   members: [],
+  budgetTotals: { income: "0", expense: "12.34" },
   flow: {
     months: [{ year: 2026, month: 10, month_label: "Oct", income: "0", expense: "0" }],
     top_categories: [],

@@ -43,6 +43,7 @@ struct CompactRow(
     Option<i64>,
     Option<usize>,
     Option<usize>,
+    bool,
 );
 #[derive(Serialize)]
 struct CompactFlag(i64, usize, usize);
@@ -89,6 +90,7 @@ impl From<TransactionSnapshot> for CompactTransactionSnapshot {
                     r.member_id,
                     pool.optional(r.member_name),
                     pool.optional(r.notes),
+                    r.excluded_from_budget,
                 )
             })
             .collect();

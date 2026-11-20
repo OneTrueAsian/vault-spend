@@ -15,6 +15,7 @@ import { AppearanceSection } from "./AppearanceSection";
 import { BackupsBlock } from "../backups/BackupsBlock";
 import { CardFeedbackProvider } from "../../shared/ui/CardFeedback";
 import { DataFileBlock } from "./DataSection";
+import { FeatureTogglesSection } from "./FeatureTogglesSection";
 import { IconCreditsSection } from "./AboutSections";
 import { ProfilesSection } from "../profiles/ProfilesSection";
 import { DEFAULT_APPEARANCE_PREFS, type AppearancePrefs } from "../../shared/lib/themeBootstrap";
@@ -607,5 +608,48 @@ describe("Settings Second copy: a refused folder keeps what was typed", () => {
     show("D:/OneDrive/VaultSpend", onSetCopyDir);
     show(null, onSetCopyDir); // stopped copying later: the field starts empty again
     expect(field().value).toBe("");
+  });
+});
+
+
+describe("Settings FeatureTogglesSection Exclude from budget", () => {
+  let host: HTMLDivElement;
+  let root: Root;
+  beforeEach(() => {
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  it("shows the Exclude from budget switch off by default and reports a change", () => {
+    const onSetBudgetExclusionEnabled = vi.fn();
+    const noop = vi.fn();
+    act(() =>
+      root.render(
+        <FeatureTogglesSection
+          appSettings={{ apply_to_debt_enabled: true, split_purchases_enabled: true, envelope_caps_enabled: false, rollover_enabled: false, auto_link_transfers: false, safe_to_spend_enabled: true, budget_exclusion_enabled: false }}
+          onSetApplyToDebtEnabled={noop}
+          onSetSplitPurchasesEnabled={noop}
+          onSetEnvelopeCapsEnabled={noop}
+          onSetRolloverEnabled={noop}
+          onSetAutoLinkTransfers={noop}
+          onSetSafeToSpendEnabled={noop}
+          onSetBudgetExclusionEnabled={onSetBudgetExclusionEnabled}
+        />,
+      ),
+    );
+    const row = host.querySelector<HTMLElement>('[data-feature-toggle="budget_exclusion_enabled"]')!;
+    expect(row.querySelector(".feature-toggle-label")?.textContent).toBe("Exclude from budget");
+    expect(row.querySelector(".modal-message-secondary")?.textContent).toBe(
+      "Lets you mark a transaction so it doesn't count toward your budget, such as a reimbursed work expense or a one-off medical bill. It still shows in Reports, Cash Flow and your balances.",
+    );
+    const box = row.querySelector<HTMLInputElement>("input")!;
+    expect(box.checked).toBe(false);
+    act(() => box.click());
+    expect(onSetBudgetExclusionEnabled).toHaveBeenCalledWith(true);
   });
 });

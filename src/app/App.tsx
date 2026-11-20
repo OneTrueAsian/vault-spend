@@ -15,6 +15,7 @@ import { useFinancialRead } from "../shared/hooks/useFinancialRead";
 import type { DashboardSnapshot, ReportSummarySnapshot } from "../shared/native/financialContracts";
 import { FinancialReadState } from "../shared/native/FinancialReadState";
 import type { BudgetSnapshot } from "../shared/native/financialContracts";
+import { PasswordNudge } from "../features/profiles/PasswordNudge";
 import { captureManualLockGeneration, useManualProfileLock } from "../features/profiles/useManualProfileLock";
 // Eager stylesheet modules keep the original cascade and prevent lazy views from reloading base rules.
 import "../shared/ui/App.css";
@@ -221,6 +222,7 @@ import { errorMessage } from "../shared/lib/errorMessage";
 import { sumMoney } from "../shared/lib/money";
 import { holdingCount } from "../features/investments/holdingImport";
 import { StatusBanner } from "./StatusBanner";
+import { statusLifetimeMs } from "./statusLifetime";
 import { transactionColumnCount as computeTransactionColumnCount } from "../features/transactions/transactionHelpers";
 import {
   NAV_ORDER_STORAGE_KEY,
@@ -378,6 +380,7 @@ function App({
     commitDateEdit,
     commitDescriptionEdit,
     handleMemberChangeForTransaction,
+    handleSetExcludedFromBudget,
     handleDeleteTransaction,
     startApplyingDebtPayment,
     handleApplyDebtPayment,
@@ -516,6 +519,7 @@ function App({
     rollover_enabled: true,
     auto_link_transfers: false, // the one opt-in switch
     safe_to_spend_enabled: true,
+    budget_exclusion_enabled: false,
   });
   const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
 
@@ -712,13 +716,12 @@ function App({
     setStatusState(text ? { text, kind } : null);
   }
 
-  // Auto-dismiss the status banner so it doesn't sit there stale forever —
-  // resets the clock every time a new message replaces it. Errors stay up
-  // longer than a routine confirmation since they're more likely to need
-  // actually reading (a raw error string), not just glancing at.
+  // Fade a routine status so it doesn't sit there stale; the clock restarts whenever a new message replaces it.
+  // An error stays until it is dismissed (statusLifetimeMs), so someone who looked away still sees it.
   useEffect(() => {
-    if (!status) return;
-    const timer = setTimeout(() => setStatusState(null), status.kind === "error" ? 20000 : 10000);
+    const lifetime = status ? statusLifetimeMs(status.kind) : null;
+    if (lifetime === null) return;
+    const timer = setTimeout(() => setStatusState(null), lifetime);
     return () => clearTimeout(timer);
   }, [status]);
 
@@ -806,6 +809,7 @@ function App({
     handleCreateManualTransaction,
     handleRecategorize,
     handleBulkMemberChange,
+    handleBulkSetExcludedFromBudget,
     handleBulkAddTag,
     handleBulkCategoryChange,
     handleBulkDelete,
@@ -1005,21 +1009,19 @@ function App({
     return () => clearTimeout(timer);
   }, [highlightedPaymentRow]);
 
+  // VS-56: data-theme always names the mode on screen. With System chosen it follows Windows, so each style's
+  // own light or dark design applies exactly as if that mode were chosen by hand. The saved choice stays "system".
+  const resolvedTheme = useResolvedTheme(theme);
   useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "light" || theme === "dark") {
-      root.setAttribute("data-theme", theme);
-    } else {
-      root.removeAttribute("data-theme");
-    }
+    document.documentElement.setAttribute("data-theme", resolvedTheme);
+  }, [resolvedTheme]);
+  useEffect(() => {
     try {
       localStorage.setItem(THEME_STORAGE_KEY, theme);
     } catch {
       // per-viewer preference only — fine to skip if storage is unavailable
     }
   }, [theme]);
-
-  const resolvedTheme = useResolvedTheme(theme);
 
   function setTheme(next: Theme) {
     setThemeState(next);
@@ -1488,7 +1490,7 @@ function App({
   const budgetMonthKey = `${budgetYear}-${budgetMonthNum}`;
   const budgetSnapshot = budgetRead.data?.key === budgetMonthKey ? budgetRead.data.value : null;
   const budgetMonthActuals = budgetSnapshot?.actuals ?? [];
-  const budgetMonthFlow = budgetSnapshot?.flow ?? null;
+  const budgetTotals = budgetSnapshot?.budgetTotals ?? null;
   const budgetAlerts = budgetSnapshot?.alerts ?? [];
   const memberBudgetActuals = budgetSnapshot?.members ?? [];
   const refreshBudgetMonthActuals = useCallback(async (year: number, month: number) => {
@@ -1903,7 +1905,7 @@ function App({
 
   const { handleCreateProfile, handlePickExistingDataFile, handlePickExistingDatabase, handlePickProtectedPackage, handleAddExistingProfile, handleSwitchProfile, handleRenameProfile, handleSetProfileIcon, handleDeleteProfile } = useProfileActions({ onDataFileChanged, setStatus, setChoosingExistingSource, setPendingExistingIsProtected, setPendingExistingRequiresPassword, setPendingExistingDbPath, pendingExistingDbPath, pendingExistingIsProtected, pendingExistingRequiresPassword, profiles, setPendingProtectedSwitch, refreshProfiles });
 
-  const { handleSetApplyToDebtEnabled, handleSetSplitPurchasesEnabled, handleSetEnvelopeCapsEnabled, handleSetRolloverEnabled, handleSetSafeToSpendEnabled, handleSetAutoLinkTransfers } = useFeatureToggleActions({ invoke, refreshAppSettings, setStatus, refreshBudgetMonthActuals, budgetYear, budgetMonthNum, setSafeToSpendForecast, refresh });
+  const { handleSetApplyToDebtEnabled, handleSetSplitPurchasesEnabled, handleSetEnvelopeCapsEnabled, handleSetRolloverEnabled, handleSetSafeToSpendEnabled, handleSetAutoLinkTransfers, handleSetBudgetExclusionEnabled } = useFeatureToggleActions({ invoke, refreshAppSettings, setStatus, refreshBudgetMonthActuals, budgetYear, budgetMonthNum, setSafeToSpendForecast, refresh });
 
   const { handleSetStartingBalance, handleSetBalanceOverride, handleUpdateAccountType, handleSetAccountIcon, handleSetAccountHidden, handleDeleteAccount, handleSetAccountDetails, handleSetAccountInterestRate, handleSetAccountExcludedFromDebtPayoff, handleCalculateDebtPayoff, handleSetAccountMember } = useAccountActions({ invoke, refresh, setStatus, accounts });
 
@@ -2145,6 +2147,14 @@ function App({
           against the whole page under the Transparent style's backdrop-filter. */}
           {createPortal(
             <div className="toast-stack">
+              {profiles.find((p) => p.is_active)?.is_password_protected && (
+                <PasswordNudge
+                  onChangePassword={() => {
+                    setSettingsJump({ group: "profiles", nonce: Date.now() });
+                    setActiveTab("settings");
+                  }}
+                />
+              )}
               {status && <StatusBanner text={status.text} kind={status.kind} onDismiss={() => setStatusState(null)} />}
               {undoToast && (
                 <StatusBanner
@@ -2410,6 +2420,8 @@ function App({
               selectedPairForLink={selectedPairForLink}
               handleLinkSelectedAsTransfer={handleLinkSelectedAsTransfer}
               setSelectedIds={setSelectedIds}
+              budgetExclusionEnabled={appSettings.budget_exclusion_enabled}
+              handleBulkSetExcludedFromBudget={handleBulkSetExcludedFromBudget}
             />
           )}
 
@@ -2467,6 +2479,7 @@ function App({
               handleAccountChangeForTransaction={async (id, accountId) => transactionMove.open([id], Number(accountId), { clearSelection: false })}
               familyMembers={familyMembers}
               handleMemberChangeForTransaction={handleMemberChangeForTransaction}
+              handleSetExcludedFromBudget={handleSetExcludedFromBudget}
               categoryOptions={categoryOptions}
               handleCategoryChange={handleCategoryChange}
               toggleSplitEditor={toggleSplitEditor}
@@ -2578,7 +2591,7 @@ function App({
                 onRetryRead={() => void refreshBudgetMonthActuals(budgetYear, budgetMonthNum).catch(() => {})}
                 categories={usedCategories}
                 budgetActuals={budgetMonthActuals}
-                monthFlow={budgetMonthFlow}
+                budgetTotals={budgetTotals}
                 budgetAlerts={budgetAlerts}
                 monthLabel={budgetMonthLabel}
                 year={budgetYear}
@@ -2840,6 +2853,7 @@ function App({
                 onSetRolloverEnabled={handleSetRolloverEnabled}
                 onSetAutoLinkTransfers={handleSetAutoLinkTransfers}
                 onSetSafeToSpendEnabled={handleSetSafeToSpendEnabled}
+                onSetBudgetExclusionEnabled={handleSetBudgetExclusionEnabled}
                 themeStyle={themeStyle}
                 onSetThemeStyle={setThemeStyle}
                 appearance={appearance}

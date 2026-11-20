@@ -16,7 +16,7 @@ const wire = () => ({
   requestedIds: null,
   strings: [...strings],
   rows: [
-    [fixture.id, null, 0, 1, 2, null, null, null, fixture.account_id, 3, null, null, 0, [], null, null, null],
+    [fixture.id, null, 0, 1, 2, null, null, null, fixture.account_id, 3, null, null, 0, [], null, null, null, false],
   ] as unknown[][],
   stats: { total: 1, auto_categorized: 0, user_confirmed: 0, uncategorized: 1 },
   accounts: [],
@@ -84,6 +84,7 @@ describe("compact full-model wire contract", () => {
       4,
       10,
       11,
+      true,
     ] as (typeof value.rows)[number];
     const row = validateTransactionWireSnapshot(value).transactions[0];
     expect(row.applied_to_debt).toEqual({
@@ -96,5 +97,6 @@ describe("compact full-model wire contract", () => {
     expect(row.principal_amount).toBe("12.30");
     expect(row.notes).toBe("line one\n=literal");
     expect(row.transfer_counterpart_id).toBe(2);
+    expect(row.excluded_from_budget).toBe(true);
   });
 });

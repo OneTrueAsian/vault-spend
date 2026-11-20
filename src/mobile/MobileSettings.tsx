@@ -25,6 +25,7 @@ interface Status {
   fingerprint: string | null;
   leafExpires: number | null;
   error: string | null;
+  trustReplaced?: boolean;
 }
 
 interface Config {
@@ -198,6 +199,12 @@ export function MobileSettings() {
               the same trusted root while the service runs.
             </p>
           </>
+        )}
+        {status?.trustReplaced && (
+          <p className="mobile-trust-notice">
+            Vault Spend updated how your phone connects. Set up your phone again, and remove the old
+            Vault Spend certificate from your phone's settings.
+          </p>
         )}
       </div>
 

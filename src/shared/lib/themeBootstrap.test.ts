@@ -45,13 +45,28 @@ describe("applyStoredTheme", () => {
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
   });
 
-  it("leaves the system mode as no attribute, the way the app does", () => {
-    document.documentElement.setAttribute("data-theme", "dark");
+  // VS-56: each style's light and dark designs key on data-theme, so System has to name the mode Windows is
+  // using; with no attribute, System showed an older see-through look instead of the style's own design.
+  it("puts the mode Windows is using on the page when System is saved", () => {
     localStorage.setItem(THEME_STORAGE_KEY, "system");
+    for (const [prefersDark, expected] of [[true, "dark"], [false, "light"]] as const) {
+      vi.stubGlobal("matchMedia", (query: string) => ({ matches: query === "(prefers-color-scheme: dark)" && prefersDark }));
+
+      applyStoredTheme();
+
+      expect(document.documentElement.getAttribute("data-theme"), `Windows ${expected}`).toBe(expected);
+    }
+    vi.unstubAllGlobals();
+  });
+
+  it("uses light for System when the system setting can't be read", () => {
+    localStorage.setItem(THEME_STORAGE_KEY, "system");
+    vi.stubGlobal("matchMedia", undefined);
 
     applyStoredTheme();
 
-    expect(document.documentElement.hasAttribute("data-theme")).toBe(false);
+    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+    vi.unstubAllGlobals();
   });
 
   it("shows the Default look for the retired Slate style, for nothing saved, and for anything unknown", () => {
@@ -73,7 +88,8 @@ describe("applyStoredTheme", () => {
     });
 
     expect(() => applyStoredTheme()).not.toThrow();
-    expect(document.documentElement.hasAttribute("data-theme")).toBe(false);
+    // Nothing saved means System, which follows Windows (jsdom has no system setting, so light).
+    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
   });
 
   it("reads a saved style, mapping the retired Slate style and anything unknown to Default", () => {

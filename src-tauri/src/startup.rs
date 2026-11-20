@@ -311,10 +311,15 @@ pub enum StartupState {
     Selector {
         profiles: Vec<SelectorEntry>,
         last_used_id: Option<String>,
+        /// Why the page is here, when something had to close a profile (`AppRuntime::gate_notice`).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        notice: Option<String>,
     },
     Locked {
         profile_id: String,
         profile_name: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        notice: Option<String>,
     },
     /// `profiles.json` exists and parses, but lists no profiles — distinct from no file at all
     /// (which stays `Open`/`Error` via `startup_state` below). Never silently opens or invents a
@@ -356,6 +361,7 @@ pub fn startup_state_for_registry(config_path: &Path, runtime: &AppRuntime, stat
         return StartupState::Locked {
             profile_id,
             profile_name: name,
+            notice: runtime.gate_notice(),
         };
     }
     if !profiles::registry_file_exists(config_path) {
@@ -380,6 +386,7 @@ pub fn startup_state_for_registry(config_path: &Path, runtime: &AppRuntime, stat
             })
             .collect(),
         last_used_id,
+        notice: runtime.gate_notice(),
     }
 }
 
@@ -792,6 +799,7 @@ mod tests {
             StartupState::Locked {
                 profile_id: "alpha".into(),
                 profile_name: "Avery".into(),
+                notice: None,
             },
             StartupState::Selector {
                 profiles: vec![
@@ -809,6 +817,7 @@ mod tests {
                     },
                 ],
                 last_used_id: Some("alpha".into()),
+                notice: None,
             },
         ];
         for (kind, message, has_path, restore, other) in [
@@ -953,9 +962,40 @@ mod tests {
             state,
             StartupState::Locked {
                 profile_id: "alpha".to_string(),
-                profile_name: "Alpha".to_string()
+                profile_name: "Alpha".to_string(),
+                notice: None,
             }
         );
+    }
+
+    #[test]
+    fn the_lock_screen_and_profile_list_carry_the_runtime_gate_notice() {
+        let dir = temp_dir("gate-notice");
+        let alpha = dir.join("alpha").join("vaultspend.db");
+        make_database(&alpha);
+        write_registry(&dir, &[("alpha", "Alpha", alpha.clone())]);
+        let runtime = AppRuntime::no_profile_open();
+        runtime.lock_profile("alpha");
+        runtime.set_gate_notice("Saved.".to_string());
+        let status = LaunchStatus::new(dir.clone());
+
+        let locked = startup_state_for_registry(&dir.join("config.json"), &runtime, &status, None);
+        runtime.release_lock();
+        let selector = startup_state_for_registry(&dir.join("config.json"), &runtime, &status, None);
+
+        assert!(matches!(locked, StartupState::Locked { notice: Some(ref n), .. } if n == "Saved."));
+        assert!(matches!(selector, StartupState::Selector { notice: Some(ref n), .. } if n == "Saved."));
+        assert_eq!(serde_json::to_value(&locked).unwrap()["notice"], "Saved.");
+    }
+
+    #[test]
+    fn no_gate_notice_leaves_the_field_out_of_the_page_state() {
+        let state = StartupState::Locked {
+            profile_id: "alpha".into(),
+            profile_name: "Alpha".into(),
+            notice: None,
+        };
+        assert!(serde_json::to_value(&state).unwrap().get("notice").is_none());
     }
 
     #[test]

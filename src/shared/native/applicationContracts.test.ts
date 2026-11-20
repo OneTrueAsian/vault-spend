@@ -37,6 +37,13 @@ describe("legacy application read boundaries", () => {
     ];
     expect(validateApplicationResult("list_assets", rows)).toBe(rows);
   });
+  it("requires the Exclude from budget switch in app settings", () => {
+  const settings = { apply_to_debt_enabled: true, split_purchases_enabled: true, envelope_caps_enabled: true, rollover_enabled: true, auto_link_transfers: false, safe_to_spend_enabled: false, budget_exclusion_enabled: false };
+  expect(validateApplicationResult("get_app_settings", settings)).toBe(settings);
+  const { budget_exclusion_enabled: _missing, ...incomplete } = settings;
+  void _missing;
+  expect(() => validateApplicationResult("get_app_settings", incomplete)).toThrow();
+});
   it("invalidates financial settings/budget/asset mutations but not backup bookkeeping", () => {
     for (const command of ["set_budget", "update_asset_value", "refresh_live_prices", "create_recurring"])
       expect(financialMutations.has(command)).toBe(true);

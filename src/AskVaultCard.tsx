@@ -14,6 +14,7 @@ import { CutPreviewDialog } from "./CutPreviewDialog";
 import { useRetirementScenario } from "./askVault/retirement/useRetirementScenario";
 import type { RetirementClient } from "./askVault/retirement/retirementContextReader";
 import { RetirementScenarioDialog } from "./RetirementScenarioDialog";
+import { useCutBack, type CutBackClient } from "./askVault/cutBack/useCutBack";
 import type { AskMemberSelection, Correction, Interpretation, ParseContext } from "./askVault/common/types";
 
 /** Questions shown as one-click suggestions when something could not be understood. */
@@ -108,12 +109,13 @@ export function AskVaultCard({
   accountNames: Map<number, string>;
   /** Opens the Transactions tab filtered the same way as an answer; offered only when it can show exactly those purchases. */
   onOpenTransactions?: (filter: { category: string; accountIds: number[]; from: string; to: string }) => void;
-  createClient?: () => CutPreviewClient & RetirementClient;
+  createClient?: () => CutPreviewClient & RetirementClient & Partial<CutBackClient>;
 }) {
   const { view, details, checking, ask, openDetails, closeDetails, reset } = useAskVault({ getContext, legacyAsk, dataKey, reloadKey, createClient });
   const scenario = useSpendingScenario({ getContext, dataKey, reloadKey, createClient });
   const cut = useCutPreview({ getContext, dataKey, reloadKey, createClient });
   const retirement = useRetirementScenario({ getContext, dataKey, reloadKey, createClient });
+  const cutBack = useCutBack({ getContext, dataKey, reloadKey, createClient });
   const questionInput = useRef<HTMLInputElement | null>(null);
   const [question, setQuestion] = useState("");
   const [showExamples, setShowExamples] = useState(false);
@@ -161,11 +163,14 @@ export function AskVaultCard({
     cut.cancel();
     retirement.cancel();
     scenario.cancel();
+    cutBack.cancel();
     if (!members.length) {
       reset();
-      // Precedence: savings targets, then extra money into an investment account, then spending scenarios, then ordinary questions.
+      // Precedence: an open "where can I cut back?" question (no amount), then savings targets, then extra money into an
+      // investment account, then spending scenarios, then ordinary questions.
       const endTrace = import.meta.env.TAURI_ENV_DEBUG === "true" || import.meta.env.TAURI_ENV_DEBUG === true ? traceClaimStart() : null;
       try {
+        if (cutBack.ask(next)) return;
         if (cut.ask(next)) return;
         if (retirement.ask(next)) return;
         if (scenario.ask(next)) return;
@@ -182,7 +187,7 @@ export function AskVaultCard({
     questionInput.current?.focus();
   }
   function changeQuestion(next: string) {
-    cut.cancel(); retirement.cancel(); scenario.cancel(); setQuestion(next); setExampleFilled(false);
+    cut.cancel(); retirement.cancel(); scenario.cancel(); cutBack.cancel(); setQuestion(next); setExampleFilled(false);
   }
   // An example only fills the box: it is not asked until the person presses Ask. Say so, and move to the box so the next key press continues from there.
   function fillExample(example: string) {
@@ -228,6 +233,8 @@ export function AskVaultCard({
             usual-month amount; short history needs your explicit choice. You review everything before confirming.
             These are read-only spending illustrations, with no investment growth or automatic budget changes.
             To see what extra money in one investment account could add, name the account, the extra amount, monthly or once, and your retirement month. You confirm your saved plan first; this changes nothing.
+            Ask "Where can I save money?" or "What can I cut back on?" to see what is over budget this month, what was higher than
+            usual last month and your biggest flexible spending, each with a what-if you can try. These are facts from your records, not advice.
           </p>
           <ul className="ledger-qa-examples">
             {[...TRANSACTION_QA_EXAMPLES, ...MORE_EXAMPLES].map((example) => (
@@ -275,6 +282,54 @@ export function AskVaultCard({
           </div>
         )}
         {view.status === "loading" && <p className="ledger-qa-working">Looking that up…</p>}
+
+        {cutBack.view.status === "loading" && <p className="ledger-qa-working">Looking that up…</p>}
+        {cutBack.view.status === "answer" && (
+          <div className="ledger-qa-answer" data-cut-back>
+            <p className="ledger-qa-headline">{cutBack.view.answer.headline}</p>
+            {cutBack.view.answer.sections.map(section => (
+              <section key={section.id} className="ledger-qa-cut-back-section" data-cut-back-section={section.id}>
+                <h3 className="ledger-qa-detail">{section.heading}</h3>
+                <ol className="ledger-qa-rows">
+                  {section.rows.map(row => (
+                    <li key={row.category}>
+                      <span>{row.category}</span>
+                      <span className="ledger-qa-amount">{row.amount}</span>
+                      <span className="ledger-qa-sub">{row.detail}</span>
+                      {row.tryQuestion && (
+                        <button type="button" className="ledger-qa-link" onClick={() => fillExample(row.tryQuestion!)}>
+                          Try a what-if
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ))}
+            <details className="ledger-qa-notes">
+              <summary>What's counted</summary>
+              <ul>
+                {cutBack.view.answer.notes.map(note => <li key={note}>{note}</li>)}
+              </ul>
+            </details>
+          </div>
+        )}
+        {cutBack.view.status === "stale" && (
+          <p className="ledger-qa-banner" role="status">
+            <strong>{CHANGED_HEADING}</strong> {cutBack.view.message}{" "}
+            <button type="button" className="ledger-qa-link" onClick={() => runQuestion(question)}>
+              Ask again
+            </button>
+          </p>
+        )}
+        {cutBack.view.status === "error" && (
+          <p className="ledger-qa-banner ledger-qa-banner-error" role="alert">
+            <strong>{cutBack.view.message}</strong>{" "}
+            <button type="button" className="ledger-qa-link" onClick={() => runQuestion(question)}>
+              Try again
+            </button>
+          </p>
+        )}
 
         {view.status === "answer" && checking === view.result && <p className="ledger-qa-working">Checking that this is still up to date…</p>}
 
@@ -410,12 +465,12 @@ export function AskVaultCard({
       {scenario.screen && <SpendingScenarioDialog screen={scenario.screen}
         onChoices={answers => void scenario.choose(answers)} onConfirm={choice => void scenario.confirm(choice)}
         onChangeTerm={editScenario} onEdit={editScenario} onManualBaseline={scenario.manualBaseline}
-        onRestart={scenario.restart} onClose={editScenario} />}
+        onRestart={scenario.restart} onClose={editScenario} onTry={question => choose(question)} />}
       {retirement.screen && <RetirementScenarioDialog screen={retirement.screen} live={retirement.live} openReturnChoice={retirement.openReturnChoice}
         onChoices={event => void retirement.choices(event)} onConfirm={scenario => void retirement.confirm(scenario)} onExplore={retirement.explore} onBack={retirement.back}
         onEdit={request => retirement.edit(request)} onRestart={retirement.restart} onClose={closeRetirement} />}
       {cut.screen && <CutPreviewDialog screen={cut.screen} onChoices={intent => void cut.choose(intent)} onConfirm={confirmed => void cut.confirm(confirmed)}
-        onRemoveCategory={cut.remove} onEdit={cut.edit} onRestart={cut.restart} onClose={closeCut} />}
+        onRemoveCategory={cut.remove} onEdit={cut.edit} onRestart={cut.restart} onClose={closeCut} onTry={question => choose(question)} />}
 
       {allRowsOpen && view.status === "answer" && checking !== view.result && (
         <ModalShell

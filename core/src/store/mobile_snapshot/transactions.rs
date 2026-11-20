@@ -16,6 +16,7 @@ struct Row {
     description: String,
     kind: String,
     linked: bool,
+    excluded: bool,
 }
 fn decimal(s: &str) -> rusqlite::Result<Money> {
     Money::from_str(s).map_err(|_| rusqlite::Error::InvalidQuery)
@@ -39,7 +40,7 @@ fn breakdown(map: Totals) -> Vec<MonthBreakdown> {
 }
 pub(super) fn read(store: &Store, as_of: NaiveDate) -> rusqlite::Result<TransactionData> {
     // One parent pass; notes, masks, import metadata and payment identifiers are never fetched.
-    let mut stmt=store.conn.prepare(&format!("SELECT t.id,t.date,t.amount,t.category,t.account_id,t.member_id,t.description,a.account_type,t.id IN ({LIVE_TRANSFER_LEG_IDS_SQL}) FROM transactions t JOIN accounts a ON a.id=t.account_id WHERE t.deleted_at IS NULL AND t.date<=?1 AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments) ORDER BY t.date,t.id"))?;
+    let mut stmt=store.conn.prepare(&format!("SELECT t.id,t.date,t.amount,t.category,t.account_id,t.member_id,t.description,a.account_type,t.id IN ({LIVE_TRANSFER_LEG_IDS_SQL}),t.excluded_from_budget FROM transactions t JOIN accounts a ON a.id=t.account_id WHERE t.deleted_at IS NULL AND t.date<=?1 AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments) ORDER BY t.date,t.id"))?;
     let rows = stmt
         .query_map([as_of.to_string()], |r| {
             Ok(Row {
@@ -52,6 +53,7 @@ pub(super) fn read(store: &Store, as_of: NaiveDate) -> rusqlite::Result<Transact
                 description: r.get(6)?,
                 kind: r.get(7)?,
                 linked: r.get(8)?,
+                excluded: r.get(9)?,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -76,6 +78,8 @@ pub(super) fn read(store: &Store, as_of: NaiveDate) -> rusqlite::Result<Transact
     let mut categories: BTreeMap<(String, String), Money> = BTreeMap::new();
     let mut daily: BTreeMap<String, Money> = BTreeMap::new();
     let (mut accounts, mut members, mut tagged, mut merchants) = (Totals::new(), Totals::new(), Totals::new(), Totals::new());
+    // A marked row stays in every total below except the budget actuals (`raw`) while the switch is on.
+    let exclusion_on = store.get_app_settings()?.budget_exclusion_enabled;
     for row in &rows {
         let m = &row.date[..7];
         totals.entry(m.into()).or_default();
@@ -110,7 +114,7 @@ pub(super) fn read(store: &Store, as_of: NaiveDate) -> rusqlite::Result<Transact
         let parent = [(row.category.clone(), row.amount)];
         let lines = splits.get(&row.id).map(|v| v.as_slice()).unwrap_or(&parent);
         for (category, amount) in lines {
-            if let Some(category) = category {
+            if let Some(category) = category.as_ref().filter(|_| !(exclusion_on && row.excluded)) {
                 *raw.entry((m.into(), category.clone())).or_default() += *amount;
             }
             if !row.linked && category.as_deref() != Some("Transfer") && *amount < Money::ZERO {

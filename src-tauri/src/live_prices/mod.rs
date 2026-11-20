@@ -11,6 +11,23 @@ pub(crate) mod quote_http_fixture;
 pub(crate) mod stockdata;
 pub(crate) mod twelve_data;
 
+/// Plain wording for a quote that failed (VS-51). Never includes the provider's reply, an HTTP status or network-library text:
+/// those mean nothing to the person reading the Investments status line, and a reply can echo request details.
+pub(crate) mod message {
+    pub fn key_rejected(provider: &str) -> String {
+        format!("{provider} didn't accept your API key. Check it in Settings → Live stock prices.")
+    }
+    pub fn rate_limited(provider: &str) -> String {
+        format!("{provider}'s limit on price requests was reached. Try again later.")
+    }
+    pub fn unusable(provider: &str) -> String {
+        format!("{provider} didn't send a usable price. Try again later.")
+    }
+    pub fn unreachable(provider: &str) -> String {
+        format!("Couldn't reach {provider}. Check your internet connection and try again.")
+    }
+}
+
 use rust_decimal::Decimal;
 use serde_json::Value;
 use std::str::FromStr;
@@ -38,11 +55,11 @@ async fn fetch_quote_from(client: &reqwest::Client, api_key: &str, symbol: &str,
         .query(&[("function", "GLOBAL_QUOTE"), ("symbol", symbol), ("apikey", api_key)])
         .send()
         .await
-        .map_err(|e| format!("network error fetching a quote for {symbol}: {}", e.without_url()))?;
+        .map_err(|_| message::unreachable("Alpha Vantage"))?;
     let body = response
         .text()
         .await
-        .map_err(|e| format!("failed to read the response for {symbol}: {}", e.without_url()))?;
+        .map_err(|_| message::unusable("Alpha Vantage"))?;
     parse_global_quote_response(&body)
 }
 
@@ -60,7 +77,7 @@ async fn fetch_quote_from(client: &reqwest::Client, api_key: &str, symbol: &str,
 /// typo'd API key look identical to "this symbol doesn't exist," so they're
 /// checked first and surfaced as distinct, readable errors.
 pub fn parse_global_quote_response(body: &str) -> Result<Option<Decimal>, String> {
-    let value: Value = serde_json::from_str(body).map_err(|e| format!("unexpected response from Alpha Vantage: {e}"))?;
+    let value: Value = serde_json::from_str(body).map_err(|_| message::unusable("Alpha Vantage"))?;
 
     if let Some(note) = value.get("Note").and_then(Value::as_str) {
         return Err(note.to_string());
@@ -83,12 +100,47 @@ pub fn parse_global_quote_response(body: &str) -> Result<Option<Decimal>, String
         .ok_or_else(|| "Alpha Vantage's response was missing a price field".to_string())?;
     Decimal::from_str(price)
         .map(Some)
-        .map_err(|_| format!("Alpha Vantage returned an unparseable price: {price}"))
+        .map_err(|_| message::unusable("Alpha Vantage"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// VS-51: a failed price never shows the provider's raw reply, an HTTP status code or network-library text, and every
+    /// provider says the same plain thing for the same kind of problem.
+    #[test]
+    fn price_errors_are_plain_words_for_every_provider() {
+        const RAW: &str = r#"{"error":"RAW_PROVIDER_REPLY 9f3a"}"#;
+        let clean = |message: &str, provider: &str| {
+            assert!(!message.contains("RAW_PROVIDER_REPLY") && !message.contains('{'), "raw reply leaked: {message}");
+            assert!(!message.contains("HTTP") && !["401", "429", "500", "502"].iter().any(|code| message.contains(code)), "status leaked: {message}");
+            assert!(message.contains(provider), "{message} should name {provider}");
+        };
+        let tickers = vec!["MSFT".to_string()];
+        type Parse = Box<dyn Fn(u16, &str) -> Result<(), String>>;
+        let cases: Vec<(&str, Parse)> = vec![
+            ("Finnhub", Box::new(|status, body| finnhub::parse_quote_response(status, body).map(|_| ()))),
+            ("Twelve Data", Box::new(|status, body| twelve_data::parse_quote_response(status, body).map(|_| ()))),
+            ("StockData.org", Box::new(move |status, body| stockdata::parse_quotes_response(status, body, &tickers).map(|_| ()))),
+        ];
+        for (provider, parse) in &cases {
+            let key = parse(401, RAW).unwrap_err();
+            clean(&key, provider);
+            assert_eq!(key, format!("{provider} didn't accept your API key. Check it in Settings → Live stock prices."));
+            let limit = parse(429, RAW).unwrap_err();
+            clean(&limit, provider);
+            assert_eq!(limit, format!("{provider}'s limit on price requests was reached. Try again later."));
+            for (status, body) in [(500, RAW), (502, "<html>Bad gateway</html>"), (200, "not json")] {
+                let other = parse(status, body).unwrap_err();
+                clean(&other, provider);
+                assert_eq!(other, format!("{provider} didn't send a usable price. Try again later."));
+            }
+        }
+        let alpha = parse_global_quote_response("not json").unwrap_err();
+        clean(&alpha, "Alpha Vantage");
+        assert_eq!(alpha, "Alpha Vantage didn't send a usable price. Try again later.");
+    }
 
     #[tokio::test]
     async fn native_quote_http_body_errors_never_expose_api_key() {
@@ -96,7 +148,7 @@ mod tests {
         let error = fetch_quote_from(&crate::live_prices::quote_http_fixture::client(), "QA_SECRET_KEY_DO_NOT_SHOW", "MSFT", &server.url)
             .await
             .unwrap_err();
-        assert!(error.contains("failed to read the response for MSFT"));
+        assert!(error.contains("didn't send a usable price"));
         assert!(!error.contains("QA_SECRET_KEY_DO_NOT_SHOW"));
         server.finish(&[("function", "GLOBAL_QUOTE"), ("symbol", "MSFT"), ("apikey", "QA_SECRET_KEY_DO_NOT_SHOW")]);
     }
@@ -107,7 +159,7 @@ mod tests {
         let error = fetch_quote_from(&client, "QA_SECRET_KEY_DO_NOT_SHOW", "MSFT", "http://127.0.0.1:0/quote")
             .await
             .unwrap_err();
-        assert!(error.contains("network error fetching a quote for MSFT"));
+        assert!(error.contains("Couldn't reach"));
         assert!(
             !error.contains("QA_SECRET_KEY_DO_NOT_SHOW"),
             "request credentials must not reach the user-visible error"
@@ -122,9 +174,9 @@ mod tests {
             (200, r#"{"Note":"fixture rate limit"}"#, Some("fixture rate limit")),
             (200, r#"{"Information":"fixture information"}"#, Some("fixture information")),
             (200, r#"{"Error Message":"fixture invalid key"}"#, Some("fixture invalid key")),
-            (403, "forbidden", Some("unexpected response from Alpha Vantage")),
+            (403, "forbidden", Some("didn't send a usable price")),
             (429, r#"{"Note":"fixture limit"}"#, Some("fixture limit")),
-            (500, "not json", Some("unexpected response from Alpha Vantage")),
+            (500, "not json", Some("didn't send a usable price")),
             (200, r#"{"Global Quote":{"05. price":"123.45"}}"#, None),
         ] {
             let server = crate::live_prices::quote_http_fixture::QuoteServer::new(status, body);

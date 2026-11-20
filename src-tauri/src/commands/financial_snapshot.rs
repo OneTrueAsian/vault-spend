@@ -25,6 +25,12 @@ pub struct BudgetSnapshot {
     alerts: Vec<BudgetAlertDto>,
     flow: CashFlowDto,
     members: Vec<MemberBudgetActualDto>,
+    budget_totals: BudgetTotalsDto,
+}
+#[derive(Serialize)]
+pub struct BudgetTotalsDto {
+    income: String,
+    expense: String,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -114,6 +120,7 @@ fn budget_snapshot(store: &Store, context: FinancialContext, year: i32, month: u
                 })
                 .collect();
             let flow = reports::cash_flow_for_store(store, year, month, year, month).map_err(query_error)?;
+            let (budget_income, budget_expense) = store.monthly_budget_totals(year, month)?;
             Ok(BudgetSnapshot {
                 contract_version: 1,
                 context,
@@ -124,6 +131,10 @@ fn budget_snapshot(store: &Store, context: FinancialContext, year: i32, month: u
                 alerts,
                 flow,
                 members,
+                budget_totals: BudgetTotalsDto {
+                    income: budget_income.to_string(),
+                    expense: budget_expense.to_string(),
+                },
             })
         })
         .map_err(|e| e.to_string())

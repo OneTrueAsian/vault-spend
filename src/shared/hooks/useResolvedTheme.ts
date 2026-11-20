@@ -14,7 +14,7 @@ function systemPrefersDark(): boolean {
 }
 
 /** `resolveTheme` for the current system setting, updated when the system switches while System is
- * chosen. (App sets `data-theme` only for an explicit choice; CSS follows the system otherwise.) */
+ * chosen. App puts this on `data-theme`, so System shows each style's own light or dark design. */
 export function useResolvedTheme(theme: Theme): "light" | "dark" {
   const [prefersDark, setPrefersDark] = useState(systemPrefersDark);
   useEffect(() => {

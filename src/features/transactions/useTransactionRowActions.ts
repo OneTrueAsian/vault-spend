@@ -85,6 +85,15 @@ export function useTransactionRowActions({ data, accounts, categories: categoryO
     }
   }
 
+  async function handleSetExcludedFromBudget(id: number, excluded: boolean) {
+    try {
+      await data.call("set_transactions_excluded_from_budget", { ids: [id], excluded });
+      await refreshRows([id]);
+    } catch (e) {
+      setStatus(errorMessage(e));
+    }
+  }
+
   async function handleDeleteTransaction(id: number) {
     setConfirmingDeleteId(null);
     try {
@@ -282,6 +291,7 @@ useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
     commitDateEdit,
     commitDescriptionEdit,
     handleMemberChangeForTransaction,
+    handleSetExcludedFromBudget,
     handleDeleteTransaction,
     startApplyingDebtPayment,
     handleApplyDebtPayment,

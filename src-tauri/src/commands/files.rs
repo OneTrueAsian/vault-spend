@@ -356,6 +356,12 @@ pub fn restore_backup(
     crate::profiles::update_active_db_path(&paths.config_path, &live_db_path, &restored_path)?;
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = restored_path;
     paths.bump_generation();
+    if restored_dek.is_some() {
+        sessions.note_unlock(
+            paths.current_generation(),
+            crate::protection::password_rules::below_minimum(password.as_deref().unwrap_or_default()),
+        );
+    }
     // The page remounts after this and no longer runs the month's housekeeping itself. A backup from
     // an earlier month needs this month's roll-forward as much as a freshly opened profile does.
     runtime.set_notice(crate::maintenance::run_open_profile_maintenance(

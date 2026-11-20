@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ModalShell } from "../../shared/ui/Modal";
 import type { MoveDialogState } from "./useTransactionMove";
 import { formatDisplayDate } from "../../shared/lib/format";
+import { amountTextProblem } from "../../shared/lib/amountProblem";
 import { effectLine, effectReason, money, moveTransactionsText, type ConfirmationAccount, type MoveBlocker, type MovePreview } from "./transactionAccountMove";
 import "./MoveTransactionsDialog.css";
 
@@ -60,6 +61,8 @@ function BalanceInputs({ accounts, balances, onSet }: { accounts: readonly Confi
         const keep = Boolean(mine?.keep);
         const inputId = `move-balance-${c.accountId}`;
         const errorId = `move-balance-error-${c.accountId}`;
+        // A problem the app found (c.problem) comes first; otherwise how to fix what was typed (VS-49).
+        const problem = c.problem ?? (keep ? null : amountTextProblem(mine?.value ?? ""));
         return (
           <fieldset key={c.accountId} className="move-confirm-account" data-move-confirm-account={c.accountId}>
             <legend>{c.accountName}</legend>
@@ -79,7 +82,7 @@ function BalanceInputs({ accounts, balances, onSet }: { accounts: readonly Confi
                 autoComplete="off"
                 value={keep ? c.currentDisplay : mine?.value ?? ""}
                 disabled={keep}
-                aria-invalid={Boolean(c.problem)}
+                aria-invalid={Boolean(problem)}
                 aria-describedby={errorId}
                 placeholder="For example 1250.40"
                 onChange={(e) => onSet(c.accountId, { keep: false, value: e.target.value })}
@@ -89,7 +92,7 @@ function BalanceInputs({ accounts, balances, onSet }: { accounts: readonly Confi
               </button>
             </div>
             {/* The space is always reserved, so an error appearing never moves the buttons below it. */}
-            <p className="move-confirm-error" id={errorId} role={c.problem ? "alert" : undefined} data-move-balance-error={c.accountId}>{c.problem ?? ""}</p>
+            <p className="move-confirm-error" id={errorId} role={problem ? "alert" : undefined} data-move-balance-error={c.accountId}>{problem ?? ""}</p>
           </fieldset>
         );
       })}
@@ -204,10 +207,16 @@ export function MoveTransactionsDialog({ dialog, hiddenByFilter, onCancel, onCon
   const effective = preview?.effectiveCount ?? 0;
   const blocked = (preview?.blockers.length ?? 0) > 0;
   const choosing = preview?.mode === "confirmation" && preview.confirmations.length > 0 && preview.blockers.length === 0 && dialog.editingBalances;
-  const everyBalanceGiven = (preview?.confirmations ?? []).every((c) => {
+  // VS-49: the first balance still needed, or how to fix one that was typed, said beside the greyed-out Review button.
+  const balanceMissing = (preview?.confirmations ?? []).reduce<string | null>((found, c) => {
+    if (found) return found;
     const mine = dialog.balances[c.accountId];
-    return Boolean(mine && (mine.keep || mine.value.trim() !== ""));
-  });
+    if (mine?.keep) return null;
+    if (!mine || !mine.value.trim()) return `Enter the ${c.inputLabel.toLowerCase()} after the move for ${c.accountName}, or choose Keep this balance.`;
+    const problem = amountTextProblem(mine.value);
+    return problem ? `${c.accountName}: ${problem}` : null;
+  }, null);
+  const everyBalanceGiven = balanceMissing === null;
   const title = blocked ? `Can't move these to ${destinationName} yet` : choosing ? `Confirm balances to move these to ${destinationName}` : preview && effective > 0 ? `Move ${moveTransactionsText(effective)} to ${destinationName}?` : `Move to ${destinationName}`;
   const busy = phase === "committing";
   const canConfirm = phase === "ready" && Boolean(preview?.canCommit);
@@ -236,6 +245,9 @@ export function MoveTransactionsDialog({ dialog, hiddenByFilter, onCancel, onCon
       <div className="modal-actions">
         <button type="button" className="modal-secondary" onClick={onCancel}>Cancel</button>
         <button type="button" onClick={onReviewBalances} disabled={!everyBalanceGiven} data-move-review-balances>Review the move</button>
+        {/* Last in the markup, shown first by CSS: as an earlier child it shifted the buttons, so React reused the focused
+            Review the move button as Move when the final review opened (found by spec 377). */}
+        {balanceMissing && <p className="modal-message-secondary move-missing" role="status" data-move-missing>{balanceMissing}</p>}
       </div>
     ) : (
       <div className="modal-actions">

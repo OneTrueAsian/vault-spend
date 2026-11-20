@@ -6,8 +6,12 @@
 .cut-preview-category { min-width: 0; padding: 12px; margin: 0 0 14px; border: 1px solid var(--border-strong); border-radius: 10px; overflow-wrap: anywhere; }
 .cut-preview-selection { display: flex; align-items: flex-start; gap: 9px; margin: 0 0 8px; }
 .cut-preview-selection input { margin-top: 4px; flex-shrink: 0; }
-.cut-preview-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end; }
-.cut-preview-controls .modal-field { min-width: 0; }
+/* Each field shares three rows with its neighbours (label, box, note), so a wrapped label or a note under one field never moves the
+   others: labels sit on one baseline row, boxes on the next, notes below. */
+.cut-preview-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: auto; column-gap: 12px; row-gap: 0; }
+.cut-preview-controls .modal-field { min-width: 0; display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 4px; align-content: start; }
+.cut-preview-controls .modal-field > span { align-self: end; }
+.cut-preview-controls .modal-field > .scenario-problem { margin: 0; font-weight: 400; }
 .cut-preview-category .scenario-question { margin-top: 12px; }
 .cut-preview-category .scenario-problem { margin: 6px 0; }
 .cut-preview-results { table-layout: fixed; }

@@ -348,7 +348,9 @@ try {
   console.log("Widening the window ends Show names — OK");
 
   // The one-button theme switch.
-  const theme = () => browser.execute(() => document.documentElement.dataset.theme);
+  // The chosen setting (light, dark or system). data-theme names the mode on screen, which for System is the
+  // system's own mode (VS-56), so stepping from Dark to System on a dark system would not change it.
+  const theme = () => browser.execute(() => localStorage.getItem("meadow-theme"));
   const cycle = await browser.$(".sidebar-foot [data-theme-cycle]");
   await cycle.waitForDisplayed({ timeoutMsg: "the one-button theme switch should show in the icon-only sidebar" });
   const groupShown = () => browser.execute(() => getComputedStyle(document.querySelector(".sidebar-foot .theme-toggle")).display);

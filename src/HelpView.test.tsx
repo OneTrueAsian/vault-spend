@@ -404,7 +404,7 @@ describe("HelpView sections per tab (s12)", () => {
     search("budget");
     expect(container.querySelector<HTMLDetailsElement>("#help-budget")?.open).toBe(true);
     expect(container.querySelector("#help-investments")).toBeNull();
-    expect(container.querySelector("#help-settings")).toBeNull();
+    expect(container.querySelector("#help-recurring")).toBeNull();
   });
 
   it("still finds each tab by the words its old entry was tagged with", () => {

@@ -1,6 +1,6 @@
 import type { Transaction } from "../../shared/lib/types";
 
-export type TransactionRowActionId = "split" | "principal" | "applyDebt" | "note" | "tag" | "delete";
+export type TransactionRowActionId = "split" | "principal" | "applyDebt" | "note" | "tag" | "budget" | "delete";
 
 export interface TransactionRowActionContext {
   /** Settings > "Split purchases" is on. */
@@ -15,11 +15,15 @@ export interface TransactionRowActionContext {
   hasPrincipalOverride: boolean;
   /** The payment is already applied to a debt (Undo sits under the description). */
   hasAppliedDebt: boolean;
+  /** Settings > "Exclude from budget" is on. */
+  budgetExclusionEnabled: boolean;
+  /** The row is a transfer, which is already left out of the budget. */
+  isTransfer: boolean;
 }
 
 /** Which items a ledger row's `⋯` menu offers, in order. Pure, so the rules are tested on their own. */
 export function transactionRowActions(
-  t: Pick<Transaction, "amount" | "split_count" | "notes">,
+  t: Pick<Transaction, "amount" | "split_count" | "notes" | "excluded_from_budget">,
   ctx: TransactionRowActionContext,
 ): { id: TransactionRowActionId; label: string }[] {
   const actions: { id: TransactionRowActionId; label: string }[] = [];
@@ -31,6 +35,9 @@ export function transactionRowActions(
   }
   actions.push({ id: "note", label: t.notes ? "Edit note" : "Add note" });
   actions.push({ id: "tag", label: "Add tag" });
+  if (ctx.budgetExclusionEnabled && !ctx.isTransfer) {
+    actions.push({ id: "budget", label: t.excluded_from_budget ? "Include in budget" : "Exclude from budget" });
+  }
   actions.push({ id: "delete", label: "Delete" });
   return actions;
 }

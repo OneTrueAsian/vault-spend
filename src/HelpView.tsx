@@ -242,6 +242,15 @@ export const TAB_HELP: TabHelp[] = [
         ],
       },
       {
+        question: "How do I keep a transaction out of my budget?",
+        steps: [
+          <>Turn on <strong>Exclude from budget</strong> in Settings → Features → Feature toggles. It is off until you do.</>,
+          <>On the Transactions page, open the <strong>⋯</strong> menu on the row and choose <strong>Exclude from budget</strong>. To mark several at once, tick the rows and use the same button in the bar above the table.</>,
+          <>The row gets a <strong>Not in budget</strong> tag. The Budget page no longer counts it as spent, which suits a work expense you'll be paid back for or a one-off medical bill. It still shows in Reports, Cash Flow and your account balances.</>,
+          <>To count it again, choose <strong>Include in budget</strong> from the same menu or bar. Transfers between your own accounts are already left out of your budget, so they can't be marked.</>,
+        ],
+      },
+      {
         question: "How do I change many transactions at once?",
         steps: [
           <>Tick the rows, or the box at the top of the table for every matching row.</>,
@@ -293,7 +302,7 @@ export const TAB_HELP: TabHelp[] = [
       "density", "compact", "comfortable", "transfer", "link", "unlink", "possible transfers", "dismiss", "auto-link",
       "auto-linked", "review inbox", "inbox", "note", "notes", "annotate", "add transaction", "money out", "money in",
       "charge", "payment", "needs a category", "uncategorized", "apply to a debt", "split principal", "delete transaction",
-      "row menu", "account move", "account move history", "move history", "move transactions", "move to account",
+      "row menu", "exclude from budget", "not in budget", "include in budget", "account move", "account move history", "move history", "move transactions", "move to account",
     ],
   },
   {
@@ -658,13 +667,13 @@ export const TAB_HELP: TabHelp[] = [
     more: [
       <>Your <strong>categorization rules</strong> live here (see FAQ), with an optional live stock-price integration for the Investments tab.</>,
       <><strong>Privacy</strong> can also hide your amounts whenever the window isn't in front.</>,
-      <><strong>Feature toggles</strong> can hide Apply to Debt, Split, Envelope Caps and <strong>Rollover unspent</strong> (see FAQ) everywhere they appear, and turn on linking transfers automatically.</>,
+      <><strong>Feature toggles</strong> can hide Apply to Debt, Split, Envelope Caps and <strong>Rollover unspent</strong> (see FAQ) everywhere they appear, turn on linking transfers automatically, and let you mark a transaction <strong>Exclude from budget</strong> (see Transactions).</>,
     ],
     tags: [
       "settings", "profiles", "data file", "backups", "live stock prices", "move data file", "appearance", "theme",
       "dark mode", "light mode", "default", "futuristic", "transparent", "retro", "rules", "categorization rules",
       "privacy", "hide amounts", "second backup", "backup copy", "background reminders", "tray", "start with windows",
-      "setup data", "data", "feature toggles", "rollover unspent", "style", "light", "dark", "system",
+      "setup data", "data", "feature toggles", "exclude from budget", "rollover unspent", "style", "light", "dark", "system",
       "mobile snapshots", "phone", "pairing",
     ],
   },
@@ -1738,6 +1747,18 @@ const FAQ_ENTRIES: FaqEntry[] = [
           If you leave out how often or the dates, you choose them. Wording such as <q>Help me save $50 on Groceries each month</q> works the same way.</p>
         <p>You review the dates and your usual spending in that category before any result is shown. The result is an illustration of spending that much less. It is not advice, and it never changes your budget or your accounts.
           Editing the question, a new day, locking or switching profiles closes it, and you ask again.</p>
+      </>
+    ),
+  },
+  {
+    question: "Where can I save money?",
+    tags: ["ask the vault", "save money", "cut back", "overspending", "spend less", "over budget", "biggest spending"],
+    answer: (
+      <>
+        <p>On the Dashboard, ask <q>Where can I save money?</q> or <q>What can I cut back on?</q> Ask the Vault lists what is <strong>over budget this month</strong>,
+          what was <strong>higher than usual</strong> last month compared with the three months before, and your <strong>biggest flexible spending</strong> over the last three full months.</p>
+        <p>Categories in the Fixed and Income budget groups are left out. Each flexible category has a <strong>Try a what-if</strong> button that puts a question in the box, starting at about a tenth of a usual month; change the amount before you ask.
+          These are facts from your own records, not advice, and nothing is changed.</p>
       </>
     ),
   },

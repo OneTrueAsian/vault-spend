@@ -8,6 +8,7 @@ const TOGGLE_SETTING_IDS: Record<keyof AppSettings, string> = {
   rollover_enabled: "rollover-unspent",
   auto_link_transfers: "link-transfers",
   safe_to_spend_enabled: "safe-to-spend",
+  budget_exclusion_enabled: "exclude-from-budget",
 };
 
 export function FeatureTogglesSection({
@@ -18,6 +19,7 @@ export function FeatureTogglesSection({
   onSetRolloverEnabled,
   onSetAutoLinkTransfers,
   onSetSafeToSpendEnabled,
+  onSetBudgetExclusionEnabled,
 }: {
   appSettings: AppSettings;
   onSetApplyToDebtEnabled: (enabled: boolean) => void;
@@ -26,6 +28,7 @@ export function FeatureTogglesSection({
   onSetRolloverEnabled: (enabled: boolean) => void;
   onSetAutoLinkTransfers: (enabled: boolean) => void;
   onSetSafeToSpendEnabled: (enabled: boolean) => void;
+  onSetBudgetExclusionEnabled: (enabled: boolean) => void;
 }) {
   const toggles: { key: keyof AppSettings; label: string; description: string; onChange: (enabled: boolean) => void }[] = [
     {
@@ -65,6 +68,13 @@ export function FeatureTogglesSection({
       label: "Safe to spend",
       description: "Shows the Safe to spend Dashboard widget. Turning this off keeps its saved position and buffer for when you turn it back on.",
       onChange: onSetSafeToSpendEnabled,
+    },
+    {
+      key: "budget_exclusion_enabled",
+      label: "Exclude from budget",
+      description:
+        "Lets you mark a transaction so it doesn't count toward your budget, such as a reimbursed work expense or a one-off medical bill. It still shows in Reports, Cash Flow and your balances.",
+      onChange: onSetBudgetExclusionEnabled,
     },
   ];
 

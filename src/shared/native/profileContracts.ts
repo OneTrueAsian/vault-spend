@@ -44,6 +44,9 @@ const launchError = object({
   other_profiles: array(launchProfile),
 });
 
+/** Optional: absent, or a message saying why a profile was closed. */
+const optionalNotice = (state: Record<string, unknown>) => !("notice" in state) || nonempty(state.notice);
+
 /** Existing status-tagged wire contract; additive fields are compatible, unknown variants are not. */
 export function validateStartupState(value: unknown): StartupState {
   if (!value || typeof value !== "object" || Array.isArray(value)) return invalid();
@@ -53,10 +56,10 @@ export function validateStartupState(value: unknown): StartupState {
     case "empty_registry":
       break;
     case "locked":
-      if (!object({ profile_id: nonempty, profile_name: nonempty })(state)) return invalid();
+      if (!object({ profile_id: nonempty, profile_name: nonempty })(state) || !optionalNotice(state)) return invalid();
       break;
     case "selector": {
-      if (!object({ profiles: array(selectorEntry), last_used_id: nullable(nonempty) })(state)) return invalid();
+      if (!object({ profiles: array(selectorEntry), last_used_id: nullable(nonempty) })(state) || !optionalNotice(state)) return invalid();
       const profiles = state.profiles as { id: string }[];
       if (new Set(profiles.map((profile) => profile.id)).size !== profiles.length) return invalid();
       break;

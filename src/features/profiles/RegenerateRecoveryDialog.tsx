@@ -83,7 +83,7 @@ export function RegenerateRecoveryDialog({
         )}
         {step === "recovery" && challenge && (
           <>
-            <p className="modal-message">Write down this new recovery key. Your previous recovery key will stop working.</p>
+            <p className="modal-message">Write down this new recovery key. Once you finish, your previous recovery key will no longer open this profile or its backups. Copies in your second backup folder and files you exported earlier will still open with the old key, so delete them if the old key may have been seen.</p>
             <p className="path-box protection-setup-key">{challenge.recovery_display}</p>
             <div className="modal-actions">
               <button type="button" className="modal-secondary" onClick={cancel}>Cancel</button>

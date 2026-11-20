@@ -91,6 +91,9 @@ pub struct MobileStatus {
     pub fingerprint: Option<String>,
     pub leaf_expires: Option<i64>,
     pub error: Option<String>,
+    /// True once an outdated phone certificate was replaced this session, or while a saved one is still waiting to be replaced
+    /// (read from the saved certificates, so it survives restarts until the user acts). Never saved itself.
+    pub trust_replaced: bool,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -116,7 +119,9 @@ pub struct MobileService {
 struct ServiceInner {
     routes: Mutex<Option<Arc<dyn crate::mobile::api::Routes>>>,
     directory: PathBuf,
-    secrets: Arc<OsSecrets>,
+    secrets: Arc<dyn SecretStore>,
+    devices: Arc<crate::mobile::devices::Devices>,
+    trust_replaced: std::sync::atomic::AtomicBool,
     operations: Mutex<()>,
     running: Mutex<Option<Running>>,
     setup: Mutex<Option<crate::mobile::bootstrap::Bootstrap>>,
@@ -125,11 +130,17 @@ struct ServiceInner {
     supervisor: Mutex<Option<thread::JoinHandle<()>>>,
 }
 impl MobileService {
-    pub fn new(directory: PathBuf) -> Self {
+    pub fn new(directory: PathBuf, devices: Arc<crate::mobile::devices::Devices>) -> Self {
+        let secrets = Arc::new(OsSecrets::new(directory.join("mobile-certificates.protected")));
+        Self::with_secrets(directory, devices, secrets)
+    }
+    fn with_secrets(directory: PathBuf, devices: Arc<crate::mobile::devices::Devices>, secrets: Arc<dyn SecretStore>) -> Self {
         Self {
             inner: Arc::new(ServiceInner {
                 routes: Mutex::new(None),
-                secrets: Arc::new(OsSecrets::new(directory.join("mobile-certificates.protected"))),
+                secrets,
+                devices,
+                trust_replaced: std::sync::atomic::AtomicBool::new(false),
                 operations: Mutex::new(()),
                 directory,
                 running: Mutex::new(None),
@@ -141,34 +152,57 @@ impl MobileService {
         }
     }
     pub fn status(&self) -> MobileStatus {
-        self.inner.status.lock().unwrap_or_else(|p| p.into_inner()).clone()
+        let mut status = self.inner.status.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        status.trust_replaced = self.inner.trust_replaced.load(std::sync::atomic::Ordering::SeqCst) || self.trust_upgrade_pending();
+        status
+    }
+    fn trust_upgrade_pending(&self) -> bool {
+        crate::mobile::certificates::trust_upgrade_due(self.secrets().as_ref(), chrono::Utc::now().timestamp())
     }
     pub fn saved_config(&self) -> Result<Option<MobileConfig>, String> {
         self.load_config()
     }
-    pub fn reset_trust(&self, mut config: MobileConfig, devices: &crate::mobile::devices::Devices) -> Result<MobileStatus, String> {
+    pub fn reset_trust(&self, mut config: MobileConfig) -> Result<MobileStatus, String> {
         let _operation = self.inner.operations.lock().unwrap_or_else(|p| p.into_inner());
         config.validate()?;
         if !config.available() {
             return Err("Choose an available local network before resetting mobile trust.".into());
         }
+        self.replace_trust(&mut config)?;
+        Ok(self.status())
+    }
+    /// The one place trust is replaced, for the explicit reset and the automatic upgrade of an outdated root:
+    /// stop, save as disabled, sign every phone out, make a new root, remember it.
+    fn replace_trust(&self, config: &mut MobileConfig) -> Result<(), String> {
         self.stop_checked();
         config.hostname = None;
         config.enabled = false;
         // A failed reset stays disabled even after restarting the desktop.
-        self.save_config(&config)?;
-        devices.reset_trust()?;
+        self.save_config(config)?;
+        self.inner.devices.reset_trust()?;
         let bundle = crate::mobile::certificates::reset_identity(self.secrets().as_ref(), config.ipv4, chrono::Utc::now().timestamp())?;
         config.identity_initialized = true;
-        self.save_config(&config)?;
+        self.save_config(config)?;
         *self.inner.status.lock().unwrap_or_else(|p| p.into_inner()) = MobileStatus {
             running: false,
             origin: Some(config.origin()),
             fingerprint: Some(bundle.fingerprint()?),
             leaf_expires: Some(bundle.leaf_expires),
-            error: None,
+            ..MobileStatus::default()
         };
-        Ok(self.status())
+        Ok(())
+    }
+    /// A saved root made before roots were limited to this computer, or close to expiring, is replaced instead of started.
+    /// Only a user-started path calls this; launch and network refresh leave a pending root alone (see `configure_checked`).
+    /// A bundle that does not validate is left alone, so its restore-or-reset error still shows.
+    /// After the replacement the new root is constrained and fresh, so a second call finds nothing to do.
+    fn upgrade_trust_if_due(&self, config: &mut MobileConfig) -> Result<bool, String> {
+        if !self.trust_upgrade_pending() {
+            return Ok(false);
+        }
+        self.replace_trust(config)?;
+        self.inner.trust_replaced.store(true, std::sync::atomic::Ordering::SeqCst);
+        Ok(true)
     }
     pub fn attach(&self, app: tauri::AppHandle) {
         let weak = Arc::downgrade(&self.inner);
@@ -194,7 +228,7 @@ impl MobileService {
     fn config_path(&self) -> PathBuf {
         self.inner.directory.join("mobile-network.json")
     }
-    fn secrets(&self) -> Arc<OsSecrets> {
+    fn secrets(&self) -> Arc<dyn SecretStore> {
         self.inner.secrets.clone()
     }
     fn load_config(&self) -> Result<Option<MobileConfig>, String> {
@@ -248,14 +282,14 @@ impl MobileService {
     fn resume_checked(&self) -> Result<(), String> {
         if let Some(config) = self.load_config()? {
             if config.enabled {
-                self.configure_checked(config)?;
+                self.configure_checked(config, false)?;
             }
         }
         Ok(())
     }
     pub fn configure(&self, config: MobileConfig) -> Result<MobileStatus, String> {
         let _operation = self.inner.operations.lock().unwrap_or_else(|p| p.into_inner());
-        let result = self.configure_checked(config);
+        let result = self.configure_checked(config, true);
         if let Err(error) = &result {
             self.inner.status.lock().unwrap_or_else(|p| p.into_inner()).error = Some(error.clone());
         }
@@ -264,6 +298,9 @@ impl MobileService {
     pub fn configure_guided(&self, mut config: MobileConfig) -> Result<MobileStatus, String> {
         let _operation = self.inner.operations.lock().unwrap_or_else(|p| p.into_inner());
         config.validate()?;
+        if config.enabled && self.upgrade_trust_if_due(&mut config)? {
+            return Ok(self.status());
+        }
         if !config.enabled || !config.available() {
             return Err("Choose your available private home network.".into());
         }
@@ -274,7 +311,7 @@ impl MobileService {
         let bundle = ensure_guided_identity(self.secrets().as_ref(), config.ipv4, chrono::Utc::now().timestamp())?;
         config.hostname = bundle.hostname.clone();
         config.identity_initialized = true;
-        self.configure_checked(config)
+        self.configure_checked(config, true)
     }
     pub fn refresh_network(&self) -> Result<(), String> {
         let _operation = self.inner.operations.lock().unwrap_or_else(|p| p.into_inner());
@@ -291,7 +328,7 @@ impl MobileService {
         if candidates.len() == 1 && candidates[0].1 != config.ipv4 {
             self.stop_checked();
             config.ipv4 = candidates[0].1;
-            self.configure_checked(config)?;
+            self.configure_checked(config, false)?;
         } else if config.available()
             && !self.status().running
             && self
@@ -300,11 +337,13 @@ impl MobileService {
                 .as_deref()
                 .is_some_and(|e| e.starts_with("The selected network changed"))
         {
-            self.configure_checked(config)?;
+            self.configure_checked(config, false)?;
         }
         Ok(())
     }
-    fn configure_checked(&self, mut config: MobileConfig) -> Result<MobileStatus, String> {
+    /// `user_started` is false for launch and the automatic network refresh: they never replace trust,
+    /// so a pending replacement is left for the user to start (status reports it until then).
+    fn configure_checked(&self, mut config: MobileConfig, user_started: bool) -> Result<MobileStatus, String> {
         config.validate()?;
         self.inner.suspended.store(false, std::sync::atomic::Ordering::SeqCst);
         self.inner.setup.lock().unwrap_or_else(|p| p.into_inner()).take();
@@ -319,6 +358,13 @@ impl MobileService {
             self.stop_checked();
             self.save_config(&config)?;
             self.inner.status.lock().unwrap_or_else(|p| p.into_inner()).error = None;
+            return Ok(self.status());
+        }
+        if !user_started && self.trust_upgrade_pending() {
+            self.stop_checked();
+            return Ok(self.status());
+        }
+        if self.upgrade_trust_if_due(&mut config)? {
             return Ok(self.status());
         }
         if !config.available() {
@@ -397,6 +443,22 @@ impl MobileService {
             self.inner.routes.lock().unwrap_or_else(|p| p.into_inner()).clone(),
         )?);
         Ok((self.status(), public))
+    }
+    /// Compiled-app fixture only: saves an identity made the pre-1.3.4 way (unconstrained root) so a spec can
+    /// watch the automatic replacement. Requires the same disposable data override as the fixtures above.
+    #[cfg(debug_assertions)]
+    pub fn seed_outdated_identity_fixture(&self) -> Result<(), String> {
+        let override_dir = std::env::var_os("VAULTSPEND_DB_DIR").ok_or("A disposable test directory is required.")?;
+        if std::fs::canonicalize(override_dir).ok() != std::fs::canonicalize(&self.inner.directory).ok() {
+            return Err("A disposable test directory is required.".into());
+        }
+        self.seed_outdated_identity()
+    }
+    #[cfg(debug_assertions)]
+    fn seed_outdated_identity(&self) -> Result<(), String> {
+        let store = self.secrets();
+        let _guard = store.lock();
+        crate::mobile::certificates::legacy_identity(store.as_ref(), Ipv4Addr::LOCALHOST, chrono::Utc::now().timestamp()).map(|_| ())
     }
     #[cfg(debug_assertions)]
     pub fn start_test_setup_fixture(&self) -> Result<crate::mobile::bootstrap::SetupInfo, String> {
@@ -559,6 +621,7 @@ fn start_listener_with_app(
         fingerprint: Some(bundle.fingerprint()?),
         leaf_expires: Some(bundle.leaf_expires),
         error: None,
+        trust_replaced: false,
     };
     *status.lock().unwrap_or_else(|p| p.into_inner()) = initial;
     let status_on_failure = status.clone();

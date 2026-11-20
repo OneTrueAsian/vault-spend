@@ -42,6 +42,21 @@ test("Set up a phone sits right under the access status, and Pair a phone lives 
  expect(card.querySelectorAll("details")[0].contains(button("Pair a phone"))).toBe(false);
 });
 
+test("a replaced phone certificate is explained above the setup button, and only then", async () => {
+ const notice = "Vault Spend updated how your phone connects. Set up your phone again, and remove the old Vault Spend certificate from your phone's settings.";
+ await act(async () => root.render(<MobileSettings />));
+ expect(document.body.textContent).not.toContain(notice);
+ const base = invoke.getMockImplementation()!;
+ invoke.mockImplementation((command: string, args?: unknown) =>
+  command === "mobile_server_status" ? Promise.resolve({ running: false, origin: null, fingerprint: null, leafExpires: null, error: null, trustReplaced: true }) : base(command, args));
+ act(() => root.unmount());
+ root = createRoot(container);
+ await act(async () => root.render(<MobileSettings />));
+ const text = [...document.querySelectorAll("[data-mobile-settings] p")].find((p) => p.textContent === notice)!;
+ expect(text).toBeDefined();
+ expect(text.compareDocumentPosition(button("Set up a phone")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
 test("starting a pairing opens the setup section so the code is visible", async () => {
  await act(async () => root.render(<MobileSettings />));
  const setupSection = [...document.querySelectorAll("details")].find((d) => d.querySelector("summary")?.textContent === "Phone setup and certificate trust")!;

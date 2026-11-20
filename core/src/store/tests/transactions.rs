@@ -1864,3 +1864,206 @@ fn a_bill_due_today_that_has_already_posted_is_not_reminded() {
 
     assert!(reminder_names(&store, "2026-09-18", 3).is_empty());
 }
+
+// Exclude from budget — a per-transaction mark plus a profile switch.
+
+fn excluded_flag(store: &Store, id: i64) -> bool {
+    store.all_transactions().unwrap().iter().find(|t| t.id == id).unwrap().excluded_from_budget
+}
+
+#[test]
+fn budget_exclusion_migration_adds_missing_columns_on_upgrade_and_is_repeatable() {
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    store.save_transactions(account, &[tx("2026-08-20", "Coffee", "-4.00")]).unwrap();
+    store.set_envelope_caps_enabled(false).unwrap();
+    store
+        .conn
+        .execute_batch(
+            "ALTER TABLE transactions DROP COLUMN excluded_from_budget;
+             ALTER TABLE app_settings DROP COLUMN budget_exclusion_enabled;",
+        )
+        .unwrap();
+
+    store.init_schema().unwrap();
+    store.init_schema().unwrap();
+
+    let stored = store.all_transactions().unwrap();
+    assert_eq!(stored.len(), 1);
+    assert!(!stored[0].excluded_from_budget);
+    let settings = store.get_app_settings().unwrap();
+    assert!(!settings.budget_exclusion_enabled);
+    assert!(!settings.envelope_caps_enabled);
+}
+
+#[test]
+fn set_budget_exclusion_enabled_round_trips() {
+    let store = Store::open_in_memory().unwrap();
+    store.set_budget_exclusion_enabled(true).unwrap();
+    assert!(store.get_app_settings().unwrap().budget_exclusion_enabled);
+    store.set_budget_exclusion_enabled(false).unwrap();
+    assert!(!store.get_app_settings().unwrap().budget_exclusion_enabled);
+}
+
+#[test]
+fn marking_skips_transfers_and_debt_payment_rows() {
+    let store = Store::open_in_memory().unwrap();
+    let checking = test_account(&store);
+    let loan = store.get_or_create_account("Car Loan", AccountType::Loan).unwrap();
+    store.set_account_starting_balance(loan, "10000.00".parse().unwrap()).unwrap();
+    store
+        .save_transactions(
+            checking,
+            &[tx("2026-08-20", "Groceries", "-40.00"), tx("2026-08-21", "Move money", "-100.00"), tx("2026-08-22", "Loan Payment", "-500.00")],
+        )
+        .unwrap();
+    let all = store.all_transactions().unwrap();
+    let (purchase, transfer, payment) = (all[0].id, all[1].id, all[2].id);
+    store.set_category(transfer, "Transfer", CategorySource::User, None).unwrap();
+    store.apply_debt_payment(payment, loan, "500.00".parse().unwrap(), "2026-08-22".parse().unwrap()).unwrap();
+    let generated: i64 = store
+        .conn
+        .query_row("SELECT generated_transaction_id FROM debt_payments", [], |r| r.get(0))
+        .unwrap();
+
+    let changed = store.set_transactions_excluded_from_budget(&[purchase, transfer, generated], true).unwrap();
+
+    assert_eq!(changed, 1);
+    assert!(excluded_flag(&store, purchase));
+    assert!(!excluded_flag(&store, transfer));
+    let generated_flag: bool = store
+        .conn
+        .query_row("SELECT excluded_from_budget FROM transactions WHERE id = ?1", [generated], |r| r.get(0))
+        .unwrap();
+    assert!(!generated_flag);
+}
+
+#[test]
+fn marking_skips_a_live_linked_transfer_leg() {
+    let store = Store::open_in_memory().unwrap();
+    let checking = test_account(&store);
+    let savings = store.get_or_create_account("Savings", AccountType::Savings).unwrap();
+    store.save_transactions(checking, &[tx("2026-08-20", "To savings", "-100.00")]).unwrap();
+    store.save_transactions(savings, &[tx("2026-08-20", "From checking", "100.00")]).unwrap();
+    let all = store.all_transactions().unwrap();
+    store.link_transfer(all[0].id, all[1].id).unwrap();
+
+    assert_eq!(store.set_transactions_excluded_from_budget(&[all[0].id, all[1].id], true).unwrap(), 0);
+}
+
+#[test]
+fn unmarking_clears_the_mark() {
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    store.save_transactions(account, &[tx("2026-08-20", "Groceries", "-40.00")]).unwrap();
+    let id = store.all_transactions().unwrap()[0].id;
+    store.set_transactions_excluded_from_budget(&[id], true).unwrap();
+    assert!(excluded_flag(&store, id));
+
+    store.set_transactions_excluded_from_budget(&[id], false).unwrap();
+
+    assert!(!excluded_flag(&store, id));
+}
+
+#[test]
+fn mark_survives_delete_and_restore() {
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    store.save_transactions(account, &[tx("2026-08-20", "Groceries", "-40.00")]).unwrap();
+    let id = store.all_transactions().unwrap()[0].id;
+    store.set_transactions_excluded_from_budget(&[id], true).unwrap();
+
+    store.delete_transaction(id, test_now()).unwrap();
+    store.restore_transactions(&[id]).unwrap();
+
+    assert!(excluded_flag(&store, id));
+}
+
+#[test]
+fn budget_exclusion_sql_follows_the_switch() {
+    let store = Store::open_in_memory().unwrap();
+    assert_eq!(store.budget_exclusion_sql("t.").unwrap(), "");
+    store.set_budget_exclusion_enabled(true).unwrap();
+    assert_eq!(store.budget_exclusion_sql("t.").unwrap(), " AND t.excluded_from_budget = 0");
+    assert_eq!(store.budget_exclusion_sql("").unwrap(), " AND excluded_from_budget = 0");
+}
+
+#[test]
+fn applying_a_debt_payment_twice_changes_nothing_the_second_time() {
+    let store = Store::open_in_memory().unwrap();
+    let checking = test_account(&store);
+    let loan = store.get_or_create_account("Car Loan", AccountType::Loan).unwrap();
+    store.set_account_starting_balance(loan, "10000.00".parse().unwrap()).unwrap();
+    store.save_transactions(checking, &[tx("2026-08-20", "Loan Payment", "-500.00")]).unwrap();
+    let source_id = store.all_transactions().unwrap()[0].id;
+    let date: NaiveDate = "2026-08-20".parse().unwrap();
+    store.apply_debt_payment(source_id, loan, "500.00".parse().unwrap(), date).unwrap();
+
+    let payment_rows = |s: &Store| -> i64 { s.conn.query_row("SELECT COUNT(*) FROM debt_payments", [], |r| r.get(0)).unwrap() };
+    let balance = |s: &Store| s.list_accounts(far_future()).unwrap().iter().find(|a| a.id == loan).unwrap().current_balance;
+    let (txs, pays, bal) = (raw_transaction_count(&store), payment_rows(&store), balance(&store));
+
+    let err = store.apply_debt_payment(source_id, loan, "500.00".parse().unwrap(), date).unwrap_err();
+
+    assert_eq!(err.to_string(), "This payment is already applied to a debt. Remove it first to change it.");
+    assert_eq!(raw_transaction_count(&store), txs);
+    assert_eq!(payment_rows(&store), pays);
+    assert_eq!(balance(&store), bal);
+}
+
+#[test]
+fn an_amount_edit_that_overflows_while_rescaling_splits_leaves_the_row_and_splits_unchanged() {
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    let old: Decimal = "100000000000000000000".parse().unwrap();
+    let new = old + Decimal::ONE;
+    store.save_transactions(account, &[tx("2026-08-20", "Large amount", "100000000000000000000")]).unwrap();
+    let id = store.all_transactions().unwrap()[0].id;
+    store
+        .set_transaction_splits(id, &[("Big".to_string(), old, None), ("Zero".to_string(), Decimal::ZERO, None)])
+        .unwrap();
+    let fingerprint_of = |s: &Store| -> String { s.conn.query_row("SELECT fingerprint FROM transactions WHERE id = ?1", [id], |r| r.get(0)).unwrap() };
+    let balance = |s: &Store| s.list_accounts(far_future()).unwrap().iter().find(|a| a.id == account).unwrap().current_balance;
+    let (fp, bal) = (fingerprint_of(&store), balance(&store));
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| store.update_transaction_amount(id, new)));
+
+    let err = result.expect("overflow must be an error, not a panic").unwrap_err();
+    assert_eq!(err.to_string(), "This amount is too large to split safely.");
+    assert_eq!(store.all_transactions().unwrap()[0].transaction.amount, old);
+    assert_eq!(fingerprint_of(&store), fp);
+    let splits = store.list_transaction_splits(id).unwrap();
+    assert_eq!(splits[0].amount, old);
+    assert_eq!(splits[1].amount, Decimal::ZERO);
+    assert_eq!(balance(&store), bal);
+}
+
+#[test]
+fn an_amount_edit_that_overflows_after_rewriting_an_earlier_split_leaves_every_split_unchanged() {
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    let big: Decimal = "100000000000000000000".parse().unwrap();
+    let parent = big + Decimal::ONE;
+    store.save_transactions(account, &[tx("2026-08-20", "Large amount", "100000000000000000001")]).unwrap();
+    let id = store.all_transactions().unwrap()[0].id;
+    // The splits add up to the parent. The first rescales fine (1 x new total), the second overflows (1e20 x new total).
+    store
+        .set_transaction_splits(
+            id,
+            &[("Small".to_string(), Decimal::ONE, None), ("Big".to_string(), big, None), ("Zero".to_string(), Decimal::ZERO, None)],
+        )
+        .unwrap();
+    let before: Vec<Decimal> = store.list_transaction_splits(id).unwrap().iter().map(|s| s.amount).collect();
+    let fingerprint_of = |s: &Store| -> String { s.conn.query_row("SELECT fingerprint FROM transactions WHERE id = ?1", [id], |r| r.get(0)).unwrap() };
+    let balance = |s: &Store| s.list_accounts(far_future()).unwrap().iter().find(|a| a.id == account).unwrap().current_balance;
+    let (fp, bal) = (fingerprint_of(&store), balance(&store));
+
+    let err = store.update_transaction_amount(id, parent + Decimal::ONE).unwrap_err();
+
+    assert_eq!(err.to_string(), "This amount is too large to split safely.");
+    assert_eq!(store.all_transactions().unwrap()[0].transaction.amount, parent);
+    assert_eq!(fingerprint_of(&store), fp);
+    assert_eq!(balance(&store), bal);
+    let after: Vec<Decimal> = store.list_transaction_splits(id).unwrap().iter().map(|s| s.amount).collect();
+    assert_eq!(after, before);
+}

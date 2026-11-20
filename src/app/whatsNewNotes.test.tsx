@@ -36,6 +36,25 @@ describe("grouped release notes", () => {
     for (const part of [/Six months at a glance/, /What your investments are in/, /What you own and owe/, /Spending against the plan/, /Savings goals/, /Tags and people/, /Debt payoff/, /by person/]) expect(text).toMatch(part);
   });
 
+  it("writes 1.3.4 in the three labelled groups, covering the release's user-facing changes", () => {
+    const entry = CHANGELOG["1.3.4"];
+    expect(changelogSections(entry).map((s) => s.heading)).toEqual(["New features", "Enhancements", "Bug fixes"]);
+    const text = changelogNotes(entry).join("\n");
+    for (const part of [/Exclude from budget/, /12 characters/, /recovery key/, /set up your phone again/i, /Quick settings/, /debt payment/i, /icon/, /couldn't reopen/, /Where can I save money\?/, /suggests questions it can answer/, /what is still missing/, /stay until you close them/, /live stock prices can't be fetched/, /leave the comma out/]) expect(text).toMatch(part);
+  });
+
+  // VS-54 to VS-65: the 19 Nov QA fixes shipped in 1.3.4 are listed among its bug fixes.
+  it("lists the 19 Nov QA fixes among the 1.3.4 bug fixes", () => {
+    const fixes = changelogSections(CHANGELOG["1.3.4"]).find((s) => s.heading === "Bug fixes")!.notes.join("\n");
+    for (const part of [/theme set to System/, /Settings → Profiles/, /More filters panel/, /month's by-person table/, /Budget by person scrolls sideways/, /before you have any goals/, /only at a comma/, /greyed-out buttons now clearly look unavailable/, /add one on the Accounts page first/, /Spending dot/]) expect(fixes).toMatch(part);
+  });
+
+  // The dialog opens on the top three of each group, so a note that asks readers to act must be one of them.
+  it("puts the Mobile snapshots set-up note in the top three 1.3.4 enhancements", () => {
+    const enhancements = changelogSections(CHANGELOG["1.3.4"]).find((s) => s.heading === "Enhancements")!.notes;
+    expect(enhancements.slice(0, 3).some((n) => /set up your phone again/.test(n))).toBe(true);
+  });
+
   // Owner review of the 1.3.3 notes: a "(month)" placeholder would be shown to readers word for word.
   it("writes no (month) placeholder in the 1.3.3 notes", () => {
     const text = changelogNotes(CHANGELOG["1.3.3"]).join("\n");
@@ -121,6 +140,32 @@ describe("What's New dialog", () => {
     act(() => root!.render(<WhatsNewDialog version="9.9.9" notes={{ "New features": ["n"], "Bug fixes": ["f1", "f2"] }} onClose={() => {}} />));
     expect([...document.querySelectorAll(".modal-changelog-heading")].map((h) => h.textContent)).toEqual(["New features", "Bug fixes"]);
     expect([...document.querySelectorAll(".modal-changelog-list li")].map((li) => li.textContent)).toEqual(["n", "f1", "f2"]);
+  });
+
+  // Owner request (20 Nov): the dialog shows the top three of each group, and See more opens the rest.
+  it("shows the first three notes of each group until See more is chosen", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => root!.render(<WhatsNewDialog version="9.9.9" notes={{ "New features": ["n"], Enhancements: ["e1", "e2", "e3", "e4"], "Bug fixes": ["f1", "f2", "f3", "f4", "f5"] }} onClose={() => {}} />));
+    const shown = () => [...document.querySelectorAll(".modal-changelog-list li")].map((li) => li.textContent);
+    expect(shown()).toEqual(["n", "e1", "e2", "e3", "f1", "f2", "f3"]);
+    const more = [...document.querySelectorAll("button")].find((b) => b.textContent === "See more")!;
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    act(() => more.click());
+    expect(shown()).toEqual(["n", "e1", "e2", "e3", "e4", "f1", "f2", "f3", "f4", "f5"]);
+    expect(more.textContent).toBe("See less");
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+    act(() => more.click());
+    expect(shown()).toEqual(["n", "e1", "e2", "e3", "f1", "f2", "f3"]);
+  });
+
+  it("offers no See more when every group has three notes or fewer", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => root!.render(<WhatsNewDialog version="9.9.9" notes={{ "New features": ["n1", "n2", "n3"], "Bug fixes": ["f1"] }} onClose={() => {}} />));
+    expect([...document.querySelectorAll("button")].some((b) => /See (more|less)/.test(b.textContent ?? ""))).toBe(false);
   });
 
   it("still shows an older flat entry without headings", () => {

@@ -1,5 +1,9 @@
 use super::*;
-use crate::mobile::certificates::{ensure_identity, MemorySecrets};
+use crate::mobile::certificates::{ensure_identity, legacy_identity, MemorySecrets};
+use crate::mobile::devices::Devices;
+fn test_devices() -> Arc<Devices> {
+    Arc::new(Devices::new(Arc::new(MemorySecrets::default())))
+}
 #[test]
 fn explicit_root_replacement_changes_trust_and_origin_binding() {
     let store = MemorySecrets::default();
@@ -158,7 +162,7 @@ fn assets_have_an_exact_nonfinancial_allowlist_and_security_headers() {
 fn service_defaults_off_and_corrupt_settings_do_not_block_the_desktop() {
     let directory = std::env::temp_dir().join(format!("vault-mobile-task5-config-{}", std::process::id()));
     std::fs::create_dir_all(&directory).unwrap();
-    let service = MobileService::new(directory.clone());
+    let service = MobileService::new(directory.clone(), test_devices());
     service.resume();
     assert!(!service.status().running);
     assert!(service.status().error.is_none());
@@ -289,7 +293,7 @@ fn disappearance_of_selected_interface_stops_listener_with_actionable_status() {
 fn a_known_missing_identity_cannot_be_recreated_by_export_or_setup() {
     let directory = std::env::temp_dir().join(format!("vault-mobile-task5-missing-{}", std::process::id()));
     std::fs::create_dir_all(&directory).unwrap();
-    let service = MobileService::new(directory.clone());
+    let service = MobileService::new(directory.clone(), test_devices());
     let config = MobileConfig {
         enabled: false,
         ipv4: "192.168.1.103".parse().unwrap(),
@@ -385,9 +389,164 @@ fn local_origin_is_stable_and_arbitrary_local_names_are_rejected() {
     assert!(config.validate().is_err());
     let dir = std::env::temp_dir().join(format!("vault-mobile-guided-stop-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    let service = MobileService::new(dir.clone());
+    let service = MobileService::new(dir.clone(), test_devices());
     service.stop();
     service.refresh_network().unwrap();
     assert!(!service.status().running);
     std::fs::remove_dir(dir).unwrap();
+}
+
+fn outdated_service(label: &str) -> (MobileService, Arc<MemorySecrets>, Arc<Devices>, PathBuf, MobileConfig) {
+    let directory = std::env::temp_dir().join(format!("vault-mobile-vs37-{label}-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let store = Arc::new(MemorySecrets::default());
+    let devices = test_devices();
+    let service = MobileService::with_secrets(directory.clone(), devices.clone(), store.clone());
+    let config = MobileConfig {
+        enabled: true,
+        ipv4: "192.168.1.20".parse().unwrap(),
+        port: 8443,
+        interface: "deliberately-absent-test-interface".into(),
+        identity_initialized: true,
+        hostname: None,
+    };
+    (service, store, devices, directory, config)
+}
+fn pair_one_phone(devices: &Devices) {
+    let code = devices.begin(100).unwrap();
+    let claim = devices.redeem(&code, "Phone", 101).unwrap();
+    devices.decide(&devices.pending(101)[0].id, Some(vec!["personal".into()]), 102).unwrap();
+    devices.complete(&claim, "old-root", 103).unwrap();
+    assert_eq!(devices.list().unwrap().len(), 1);
+}
+fn installation(store: &MemorySecrets) -> String {
+    let value: serde_json::Value = serde_json::from_slice(store.bytes.lock().unwrap().as_ref().unwrap()).unwrap();
+    value["installation_id"].as_str().unwrap().to_string()
+}
+
+#[test]
+fn an_outdated_root_is_replaced_and_paired_phones_are_signed_out() {
+    let (service, store, devices, directory, config) = outdated_service("replace");
+    let old = legacy_identity(store.as_ref(), config.ipv4, chrono::Utc::now().timestamp()).unwrap();
+    assert!(old.needs_trust_upgrade());
+    pair_one_phone(&devices);
+    service.save_config(&config).unwrap();
+    service.configure(config.clone()).unwrap();
+    let new = ensure_identity(store.as_ref(), config.ipv4, chrono::Utc::now().timestamp()).unwrap();
+    assert_ne!(new.installation_id, old.installation_id);
+    assert!(!new.needs_trust_upgrade());
+    assert!(devices.list().unwrap().is_empty());
+    assert!(!service.load_config().unwrap().unwrap().enabled);
+    assert!(!service.status().running);
+    assert!(service.status().trust_replaced);
+    // A second start has nothing left to upgrade: no second reset, and the notice stays for the session.
+    let _ = service.configure(config.clone());
+    assert_eq!(installation(&store), new.installation_id);
+    assert!(service.status().trust_replaced);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn the_debug_fixture_seeds_an_outdated_root_that_the_next_start_replaces() {
+    let (service, store, devices, directory, config) = outdated_service("seeded");
+    service.seed_outdated_identity().unwrap();
+    assert!(crate::mobile::certificates::trust_upgrade_due(
+        store.as_ref(),
+        chrono::Utc::now().timestamp()
+    ));
+    let seeded = installation(&store);
+    pair_one_phone(&devices);
+    service.configure(config).unwrap();
+    assert_ne!(installation(&store), seeded);
+    assert!(devices.list().unwrap().is_empty());
+    assert!(service.status().trust_replaced);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn the_guided_setup_start_also_replaces_an_outdated_root() {
+    let (service, store, devices, directory, config) = outdated_service("guided");
+    let old = legacy_identity(store.as_ref(), config.ipv4, chrono::Utc::now().timestamp()).unwrap();
+    pair_one_phone(&devices);
+    service.configure_guided(config).unwrap();
+    assert_ne!(installation(&store), old.installation_id);
+    assert!(devices.list().unwrap().is_empty());
+    assert!(service.status().trust_replaced);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn a_damaged_saved_identity_is_never_replaced_by_the_upgrade() {
+    let (service, store, devices, directory, config) = outdated_service("damaged");
+    *store.bytes.lock().unwrap() = Some(b"broken protected identity".to_vec());
+    pair_one_phone(&devices);
+    assert!(service.configure(config).is_err());
+    assert_eq!(store.bytes.lock().unwrap().as_ref().unwrap(), b"broken protected identity");
+    assert_eq!(devices.list().unwrap().len(), 1);
+    assert!(!service.status().trust_replaced);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+fn restarted(service: &MobileService, store: &Arc<MemorySecrets>, devices: &Arc<Devices>) -> MobileService {
+    MobileService::with_secrets(service.inner.directory.clone(), devices.clone(), store.clone())
+}
+
+#[test]
+fn launching_with_an_outdated_root_changes_nothing_and_keeps_the_notice_pending_across_restarts() {
+    let (service, store, devices, directory, config) = outdated_service("launch");
+    let old = legacy_identity(store.as_ref(), config.ipv4, chrono::Utc::now().timestamp()).unwrap();
+    pair_one_phone(&devices);
+    service.save_config(&config).unwrap();
+    let saved = std::fs::read(service.config_path()).unwrap();
+    service.resume();
+    assert_eq!(installation(&store), old.installation_id);
+    assert_eq!(devices.list().unwrap().len(), 1, "launch must not sign phones out");
+    assert_eq!(std::fs::read(service.config_path()).unwrap(), saved, "launch must not rewrite settings");
+    assert!(!service.status().running);
+    assert!(service.status().trust_replaced);
+    let relaunched = restarted(&service, &store, &devices);
+    relaunched.resume();
+    assert!(relaunched.status().trust_replaced);
+    assert_eq!(installation(&store), old.installation_id);
+    // Only the user starting setup replaces it; the notice then stays and the new root is not pending.
+    relaunched.configure(config.clone()).unwrap();
+    assert_ne!(installation(&store), old.installation_id);
+    assert!(devices.list().unwrap().is_empty());
+    assert!(relaunched.status().trust_replaced);
+    assert!(!restarted(&service, &store, &devices).status().trust_replaced);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn a_network_refresh_never_replaces_an_outdated_root() {
+    let (service, store, devices, directory, mut config) = outdated_service("refresh");
+    let old = legacy_identity(store.as_ref(), config.ipv4, chrono::Utc::now().timestamp()).unwrap();
+    config.hostname = Some(crate::mobile::certificates::local_hostname(&old.installation_id));
+    config.interface = interfaces().into_iter().next().map(|(name, _)| name).unwrap_or_else(|| "none".into());
+    pair_one_phone(&devices);
+    service.save_config(&config).unwrap();
+    service.refresh_network().unwrap();
+    assert_eq!(installation(&store), old.installation_id);
+    assert_eq!(devices.list().unwrap().len(), 1);
+    assert!(!service.status().running);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn a_root_near_expiry_is_pending_at_launch_and_replaced_by_a_user_start() {
+    let (service, store, devices, directory, config) = outdated_service("expiry");
+    let now = chrono::Utc::now().timestamp();
+    let old = crate::mobile::certificates::near_expiry_identity(store.as_ref(), config.ipv4, now, 30).unwrap();
+    pair_one_phone(&devices);
+    service.save_config(&config).unwrap();
+    service.resume();
+    assert_eq!(installation(&store), old.installation_id);
+    assert_eq!(devices.list().unwrap().len(), 1);
+    assert!(!service.status().running);
+    assert!(service.status().trust_replaced);
+    service.configure(config).unwrap();
+    assert_ne!(installation(&store), old.installation_id);
+    assert!(devices.list().unwrap().is_empty());
+    assert!(!restarted(&service, &store, &devices).status().trust_replaced);
+    std::fs::remove_dir_all(directory).unwrap();
 }

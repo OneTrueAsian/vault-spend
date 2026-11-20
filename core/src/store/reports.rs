@@ -79,6 +79,19 @@ impl Store {
     /// either account type (negative) still counts as spending as normal —
     /// only the positive side is excluded here.
     pub fn monthly_totals(&self, year: i32, month: u32) -> rusqlite::Result<(Decimal, Decimal)> {
+        self.monthly_totals_filtered(year, month, "")
+    }
+
+    /// `monthly_totals` for budget tracking: the same income and expense
+    /// rules, minus every transaction marked "Exclude from budget" while the
+    /// profile's switch is on. Cash flow and reports keep using
+    /// `monthly_totals`, which counts the marked rows.
+    pub fn monthly_budget_totals(&self, year: i32, month: u32) -> rusqlite::Result<(Decimal, Decimal)> {
+        let excluded = self.budget_exclusion_sql("t.")?;
+        self.monthly_totals_filtered(year, month, &excluded)
+    }
+
+    fn monthly_totals_filtered(&self, year: i32, month: u32, excluded: &str) -> rusqlite::Result<(Decimal, Decimal)> {
         let (first, next_first) = month_bounds(year, month);
         let mut stmt = self.conn.prepare(&format!(
             "SELECT t.amount, a.account_type FROM transactions t
@@ -87,7 +100,7 @@ impl Store {
                    AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
                    AND (t.category IS NULL OR t.category <> 'Transfer')
                    AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
-                   AND t.deleted_at IS NULL"
+                   AND t.deleted_at IS NULL{excluded}"
         ))?;
         let rows = stmt.query_map(params![first.to_string(), next_first.to_string()], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
@@ -166,20 +179,39 @@ impl Store {
     /// "Transfer" (a split line included): money moving between the user's
     /// own accounts isn't spending, same as `monthly_totals`.
     pub fn spending_by_category(&self, start_date: NaiveDate, end_date: NaiveDate) -> rusqlite::Result<Vec<(String, Decimal)>> {
+        self.spending_by_category_filtered(start_date, end_date, "", "")
+    }
+
+    /// `spending_by_category` for budget tracking: minus every transaction
+    /// marked "Exclude from budget" while the profile's switch is on (a split
+    /// purchase leaves as a whole). Used where budgets are suggested from past
+    /// spending; the Reports and Dashboard views keep `spending_by_category`.
+    pub fn budget_spending_by_category(&self, start_date: NaiveDate, end_date: NaiveDate) -> rusqlite::Result<Vec<(String, Decimal)>> {
+        let (excluded, excluded_t) = (self.budget_exclusion_sql("")?, self.budget_exclusion_sql("t.")?);
+        self.spending_by_category_filtered(start_date, end_date, &excluded, &excluded_t)
+    }
+
+    fn spending_by_category_filtered(
+        &self,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+        excluded: &str,
+        excluded_t: &str,
+    ) -> rusqlite::Result<Vec<(String, Decimal)>> {
         let mut stmt = self.conn.prepare(&format!(
             "SELECT category, amount FROM transactions
              WHERE category IS NOT NULL AND category <> 'Transfer' AND date >= ?1 AND date <= ?2
                    AND id NOT IN (SELECT DISTINCT transaction_id FROM transaction_splits)
                    AND id NOT IN (SELECT generated_transaction_id FROM debt_payments)
                    AND id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
-                   AND deleted_at IS NULL
+                   AND deleted_at IS NULL{excluded}
              UNION ALL
              SELECT ts.category, ts.amount FROM transaction_splits ts
              JOIN transactions t ON t.id = ts.transaction_id
              WHERE ts.category IS NOT NULL AND ts.category <> 'Transfer' AND t.date >= ?1 AND t.date <= ?2
                    AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
                    AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
-                   AND t.deleted_at IS NULL"
+                   AND t.deleted_at IS NULL{excluded_t}"
         ))?;
         let rows = stmt.query_map(params![start_date.to_string(), end_date.to_string()], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))

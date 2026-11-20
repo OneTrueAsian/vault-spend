@@ -88,6 +88,26 @@ try {
 }
 ```
 
+For an app where every feature has data (UAT walk-throughs, screenshots of a
+realistic household), use the shared practice data instead of inventing rows
+(`e2e/lib/practice-data/`, every feature listed in its `COVERAGE.md`). Build
+the main household into your own temporary folder, so you never wipe the
+owner's `.demo-data/` while they use it:
+
+```js
+import fs from "node:fs";
+import { seedMainHousehold } from "./e2e/lib/practice-data/index.mjs";
+import { makeTempDir } from "./e2e/lib/tempDir.mjs";
+import { launchApp } from "./e2e/harness.mjs";
+const dbDir = makeTempDir("vaultspend-practice-");
+await seedMainHousehold(dbDir); // one profile: opens straight into the household
+const app = await launchApp({ dbDir });
+```
+
+`buildPracticeData(dir)` from the same module builds every practice profile
+(main household, Sam, Fresh start, Locked) with a profile selector, as
+`npm run demo` does for the owner.
+
 Use `--db` only for a known disposable fixture directory that still exists.
 Never pass a real profile directory. Filled values are not echoed by the
 exploration tool; `text`, `html` and `eval` can still print selected page data,

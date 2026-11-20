@@ -34,6 +34,8 @@ interface TransactionBulkActionsBarProps {
   selectedPairForLink: Transaction[] | null;
   handleLinkSelectedAsTransfer: () => Promise<void>;
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<number>>>;
+  budgetExclusionEnabled: boolean;
+  handleBulkSetExcludedFromBudget: (excluded: boolean) => Promise<void>;
 }
 
 export function TransactionBulkActionsBar({
@@ -59,6 +61,8 @@ export function TransactionBulkActionsBar({
   selectedPairForLink,
   handleLinkSelectedAsTransfer,
   setSelectedIds,
+  budgetExclusionEnabled,
+  handleBulkSetExcludedFromBudget,
 }: TransactionBulkActionsBarProps) {
   // More than a bulk change can carry: the selection can only be moved (see `MOVE_SELECTION_CAP`).
   const moveOnly = selectedIds.size > SELECT_ALL_CAP;
@@ -138,6 +142,16 @@ export function TransactionBulkActionsBar({
           Add tag
         </button>
       </span>
+      {budgetExclusionEnabled && (
+        <>
+          <button type="button" className="modal-secondary" onClick={() => handleBulkSetExcludedFromBudget(true)}>
+            Exclude from budget
+          </button>
+          <button type="button" className="modal-secondary" onClick={() => handleBulkSetExcludedFromBudget(false)}>
+            Include in budget
+          </button>
+        </>
+      )}
       {confirmingBulkDelete ? (
         <span className="row-delete-confirm">
           <button type="button" className="modal-secondary" onClick={() => setConfirmingBulkDelete(false)}>

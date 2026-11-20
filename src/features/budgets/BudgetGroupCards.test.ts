@@ -60,3 +60,13 @@ describe("Budget group card columns (VS-31 step 3)", () => {
     expect(mins.reduce((a, b) => a + b, 0) + 5 * 8).toBeLessThanOrEqual(489);
   });
 });
+
+// VS-58: the Goals starter cards are buttons, and the global button rule is nowrap, so a description ran past its card at 1280px.
+describe("Goals starter cards", () => {
+  it("let the description wrap inside the card", () => {
+    const css = readFileSync(new URL("./BudgetAndGoals.css", import.meta.url), "utf8");
+    const rule = css.match(/\.goals-empty \.goals-empty-starter\s*\{([^}]*)\}/);
+    expect(rule, "Goals starter card rule").not.toBeNull();
+    expect(rule![1]).toMatch(/white-space:\s*normal\s*;/);
+  });
+});

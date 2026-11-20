@@ -66,12 +66,23 @@ pub struct SetupChallenge {
     pub challenge_group_indices: [usize; 2],
 }
 
+/// Which flow made a pending setup. A token is only good for the commit of the flow that began it, so a
+/// regeneration token (which needs no password rule check) cannot finish an enable, create, change or recovery.
+/// Enabling protection, creating a protected profile and changing the password begin through the same command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SetupKind {
+    Password,
+    Recovery,
+    Regenerate,
+}
+
 /// A password and recovery code waiting on their 2-of-7 challenge to be answered correctly before
 /// anything is actually protected. Only one at a time (plan v2's architecture note) — starting a
 /// new one silently invalidates whatever was pending, so an abandoned setup can never be completed
 /// by mistake with the wrong target already forgotten.
 struct PendingSetup {
     token: String,
+    kind: SetupKind,
     password: Zeroizing<String>,
     recovery_code: RecoveryCode,
     challenge_group_indices: [usize; 2],
@@ -94,6 +105,9 @@ fn random_token() -> String {
 pub struct Sessions {
     attempts: Mutex<HashMap<String, ProfileAttempts>>,
     pending: Mutex<Option<PendingSetup>>,
+    /// The generation of the last unlock that used a password shorter than the current minimum.
+    /// One in-memory number; never the password, never written to disk.
+    weak_unlock: Mutex<Option<u64>>,
 }
 
 impl Sessions {
@@ -147,13 +161,25 @@ impl Sessions {
         Sessions {
             attempts: Mutex::new(HashMap::new()),
             pending: Mutex::new(None),
+            weak_unlock: Mutex::new(None),
         }
+    }
+
+    /// Records how the profile just unlocked for `generation`. Each unlock replaces the last note.
+    pub fn note_unlock(&self, generation: u64, weak: bool) {
+        *self.weak_unlock.lock().unwrap_or_else(|e| e.into_inner()) = weak.then_some(generation);
+    }
+
+    /// True only while `generation` is still the one that unlocked with a shorter password. Any
+    /// later swap (password change, recovery, profile switch, lock) bumps the generation.
+    pub fn nudge_for(&self, generation: u64) -> bool {
+        *self.weak_unlock.lock().unwrap_or_else(|e| e.into_inner()) == Some(generation)
     }
 
     /// Starts a setup, invalidating any previous pending one. The two challenge indices are
     /// distinct and drawn fresh each call, so cancelling and starting over always asks about a
     /// different pair of groups.
-    pub fn begin_setup(&self, password: &str, expected_generation: u64) -> SetupChallenge {
+    pub fn begin_setup(&self, password: &str, expected_generation: u64, kind: SetupKind) -> SetupChallenge {
         let recovery_code = RecoveryCode::generate();
         let display = recovery_code.display();
         let group_count = display.split('-').count();
@@ -166,6 +192,7 @@ impl Sessions {
         };
         *self.pending.lock().unwrap_or_else(|e| e.into_inner()) = Some(PendingSetup {
             token,
+            kind,
             password: Zeroizing::new(password.to_string()),
             recovery_code,
             challenge_group_indices: [a, b],
@@ -177,11 +204,11 @@ impl Sessions {
     /// Consumes the pending setup if `token` matches, checking both challenge answers against the
     /// actual groups (never a renderer-computed boolean — the backend verifies). Any mismatch, or
     /// no pending setup at all, leaves the slot untouched.
-    pub fn take_verified_setup(&self, token: &str, answers: &[String; 2]) -> Result<(String, RecoveryCode, u64), &'static str> {
+    pub fn take_verified_setup(&self, token: &str, answers: &[String; 2], kind: SetupKind) -> Result<(String, RecoveryCode, u64), &'static str> {
         let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
         let setup = pending
             .as_ref()
-            .filter(|p| p.token == token)
+            .filter(|p| p.token == token && p.kind == kind)
             .ok_or("This setup has expired or was already used.")?;
         let display = setup.recovery_code.display();
         let groups: Vec<&str> = display.split('-').collect();
@@ -238,6 +265,17 @@ impl Sessions {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn weak_unlock_nudge_is_tied_to_the_generation_it_was_noted_for() {
+        let sessions = Sessions::new();
+        assert!(!sessions.nudge_for(7));
+        sessions.note_unlock(7, true);
+        assert!(sessions.nudge_for(7));
+        assert!(!sessions.nudge_for(8));
+        sessions.note_unlock(7, false);
+        assert!(!sessions.nudge_for(7));
+    }
 
     #[test]
     fn reservations_serialize_one_profile_and_release_on_abort_without_counting_io_errors() {
@@ -364,7 +402,7 @@ mod pending_setup_tests {
     fn the_two_challenge_indices_are_always_distinct() {
         for _ in 0..50 {
             let sessions = Sessions::new();
-            let challenge = sessions.begin_setup("a password", 1);
+            let challenge = sessions.begin_setup("a password", 1, SetupKind::Password);
             assert_ne!(challenge.challenge_group_indices[0], challenge.challenge_group_indices[1]);
         }
     }
@@ -372,14 +410,14 @@ mod pending_setup_tests {
     #[test]
     fn the_correct_two_groups_complete_setup_and_return_the_password_and_generation() {
         let sessions = Sessions::new();
-        let challenge = sessions.begin_setup("hunter2 but eight chars", 7);
+        let challenge = sessions.begin_setup("hunter2 but eight chars", 7, SetupKind::Password);
         let groups: Vec<&str> = challenge.recovery_display.split('-').collect();
         let answers = [
             groups[challenge.challenge_group_indices[0]].to_string(),
             groups[challenge.challenge_group_indices[1]].to_string(),
         ];
 
-        let (password, recovery_code, generation) = sessions.take_verified_setup(&challenge.token, &answers).unwrap();
+        let (password, recovery_code, generation) = sessions.take_verified_setup(&challenge.token, &answers, SetupKind::Password).unwrap();
 
         assert_eq!(password, "hunter2 but eight chars");
         assert_eq!(recovery_code.display(), challenge.recovery_display);
@@ -389,10 +427,10 @@ mod pending_setup_tests {
     #[test]
     fn a_wrong_answer_is_refused_and_does_not_consume_the_pending_setup() {
         let sessions = Sessions::new();
-        let challenge = sessions.begin_setup("a password", 1);
+        let challenge = sessions.begin_setup("a password", 1, SetupKind::Password);
 
         assert!(sessions
-            .take_verified_setup(&challenge.token, &["WRONG".to_string(), "ALSO".to_string()])
+            .take_verified_setup(&challenge.token, &["WRONG".to_string(), "ALSO".to_string()], SetupKind::Password)
             .is_err());
         // still pending — the right answer still works afterward:
         let groups: Vec<&str> = challenge.recovery_display.split('-').collect();
@@ -400,35 +438,35 @@ mod pending_setup_tests {
             groups[challenge.challenge_group_indices[0]].to_string(),
             groups[challenge.challenge_group_indices[1]].to_string(),
         ];
-        assert!(sessions.take_verified_setup(&challenge.token, &answers).is_ok());
+        assert!(sessions.take_verified_setup(&challenge.token, &answers, SetupKind::Password).is_ok());
     }
 
     #[test]
     fn a_stale_or_unknown_token_is_refused() {
         let sessions = Sessions::new();
-        sessions.begin_setup("a password", 1);
+        sessions.begin_setup("a password", 1, SetupKind::Password);
 
         assert!(sessions
-            .take_verified_setup("not-a-real-token", &["AAAA".to_string(), "BBBB".to_string()])
+            .take_verified_setup("not-a-real-token", &["AAAA".to_string(), "BBBB".to_string()], SetupKind::Password)
             .is_err());
     }
 
     #[test]
     fn starting_a_new_setup_invalidates_the_previous_pending_one() {
         let sessions = Sessions::new();
-        let first = sessions.begin_setup("first", 1);
+        let first = sessions.begin_setup("first", 1, SetupKind::Password);
 
-        sessions.begin_setup("second", 2);
+        sessions.begin_setup("second", 2, SetupKind::Password);
 
         assert!(sessions
-            .take_verified_setup(&first.token, &["AAAA".to_string(), "BBBB".to_string()])
+            .take_verified_setup(&first.token, &["AAAA".to_string(), "BBBB".to_string()], SetupKind::Password)
             .is_err());
     }
 
     #[test]
     fn cancelling_clears_the_pending_setup() {
         let sessions = Sessions::new();
-        let challenge = sessions.begin_setup("a password", 1);
+        let challenge = sessions.begin_setup("a password", 1, SetupKind::Password);
 
         sessions.cancel_setup(&challenge.token);
 
@@ -437,7 +475,7 @@ mod pending_setup_tests {
             groups[challenge.challenge_group_indices[0]].to_string(),
             groups[challenge.challenge_group_indices[1]].to_string(),
         ];
-        assert!(sessions.take_verified_setup(&challenge.token, &answers).is_err());
+        assert!(sessions.take_verified_setup(&challenge.token, &answers, SetupKind::Password).is_err());
     }
 
     #[test]
@@ -445,13 +483,48 @@ mod pending_setup_tests {
         // The recovery alphabet is all uppercase; a person retyping it may not match case exactly,
         // and a pasted/typed answer may carry stray leading/trailing whitespace.
         let sessions = Sessions::new();
-        let challenge = sessions.begin_setup("a password", 1);
+        let challenge = sessions.begin_setup("a password", 1, SetupKind::Password);
         let groups: Vec<&str> = challenge.recovery_display.split('-').collect();
         let answers = [
             format!("  {}  ", groups[challenge.challenge_group_indices[0]].to_lowercase()),
             groups[challenge.challenge_group_indices[1]].to_lowercase(),
         ];
 
-        assert!(sessions.take_verified_setup(&challenge.token, &answers).is_ok());
+        assert!(sessions.take_verified_setup(&challenge.token, &answers, SetupKind::Password).is_ok());
+    }
+
+    fn answers_for(challenge: &SetupChallenge) -> [String; 2] {
+        let groups: Vec<&str> = challenge.recovery_display.split('-').collect();
+        [
+            groups[challenge.challenge_group_indices[0]].to_string(),
+            groups[challenge.challenge_group_indices[1]].to_string(),
+        ]
+    }
+
+    #[test]
+    fn a_token_is_accepted_only_by_the_flow_that_made_it() {
+        let kinds = [SetupKind::Password, SetupKind::Recovery, SetupKind::Regenerate];
+        for made_by in kinds {
+            for asked_by in kinds {
+                let sessions = Sessions::new();
+                let challenge = sessions.begin_setup("a password", 1, made_by);
+                let answers = answers_for(&challenge);
+                let result = sessions.take_verified_setup(&challenge.token, &answers, asked_by);
+                if made_by == asked_by {
+                    assert!(result.is_ok(), "{made_by:?} must accept its own token");
+                } else {
+                    assert_eq!(result.err(), Some("This setup has expired or was already used."), "{asked_by:?} must refuse a {made_by:?} token");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_refused_token_from_another_flow_stays_pending_for_its_own_flow() {
+        let sessions = Sessions::new();
+        let challenge = sessions.begin_setup("short", 1, SetupKind::Regenerate);
+        let answers = answers_for(&challenge);
+        assert!(sessions.take_verified_setup(&challenge.token, &answers, SetupKind::Password).is_err());
+        assert!(sessions.take_verified_setup(&challenge.token, &answers, SetupKind::Regenerate).is_ok());
     }
 }

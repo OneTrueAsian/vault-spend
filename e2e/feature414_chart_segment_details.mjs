@@ -32,6 +32,27 @@ try {
       await b.$(`.nav-item[aria-label="${page}"]`).click();
       await b.$(`${scope} ${segment}`).waitForExist({ timeout: 10000 });
       await dismissStatusMessages(b);
+      // Spending starts at the track's zero; income ticks use that same origin.
+      // A generic centered-button rule must never float a short bar in the middle.
+      const geometry = await b.execute(scope => [...document.querySelectorAll(`${scope} .chart-details-track`)].map(track => {
+        const bounds = track.getBoundingClientRect();
+        const style = getComputedStyle(track);
+        const first = track.querySelector('.stacked-rows-seg, .segment-bar-seg');
+        const tick = track.querySelector('.stacked-rows-tick');
+        const zero = bounds.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);
+        return {
+          offset: first ? first.getBoundingClientRect().left - zero : null,
+          tickError: tick ? tick.getBoundingClientRect().left - (bounds.left + parseFloat(style.borderLeftWidth)
+            + track.clientWidth * parseFloat(tick.style.left) / 100 + parseFloat(getComputedStyle(tick).marginLeft)) : null,
+        };
+      }), scope);
+      assert.ok(geometry.length > 0, `${page}: chart tracks exist`);
+      for (const row of geometry) {
+        assert.ok(row.offset !== null && Math.abs(row.offset) <= 1, `${page}/${theme}/${width}: spending starts at zero, offset=${row.offset}`);
+        if (row.tickError !== null) assert.ok(Math.abs(row.tickError) <= 1, `${page}: income tick shares the track origin`);
+      }
+      await b.$(scope).scrollIntoView({ block: "center" });
+      await b.saveScreenshot(path.join(shots, `alignment-${page.replaceAll(" ", "-")}-${theme}-${width}.png`));
       // Household's second row omits Rent: it must not use the first legend label.
       const target = `${scope} ${page === "Household" ? ".stacked-rows-row:nth-child(2) " : ""}${segment}`;
       const expected = await b.execute((selector, scope) => {

@@ -20,10 +20,12 @@ import { errorMessage } from "../../shared/lib/errorMessage";
 export function ProfileSelector({
   profiles,
   lastUsedId,
+  notice,
   onResolved,
 }: {
   profiles: SelectorEntry[];
   lastUsedId: string | null;
+  notice?: string;
   onResolved: (next: StartupState) => void;
 }) {
   const [entries, setEntries] = useState(profiles);
@@ -114,6 +116,11 @@ export function ProfileSelector({
         <h1 id="profile-selector-heading" tabIndex={-1}>
           Choose a profile
         </h1>
+        {notice && (
+          <p className="profile-gate-notice" role="status" data-gate-notice>
+            {notice}
+          </p>
+        )}
         <p className="profile-gate-subtitle">Pick a profile to continue, or add a new one.</p>
         <div className="profile-card-grid">
           {entries.map((p) => (

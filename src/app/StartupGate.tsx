@@ -92,9 +92,18 @@ export function StartupGate({ children }: { children: ReactNode }) {
   if (state === null) return null;
   if (state.status === "error") return <LaunchErrorScreen error={state.error} onResolved={resolve} />;
   if (state.status === "selector")
-    return <ProfileSelector profiles={state.profiles} lastUsedId={state.last_used_id} onResolved={resolve} />;
+    return (
+      <ProfileSelector profiles={state.profiles} lastUsedId={state.last_used_id} notice={state.notice} onResolved={resolve} />
+    );
   if (state.status === "locked")
-    return <ProfileLockScreen profileId={state.profile_id} profileName={state.profile_name} onResolved={resolve} />;
+    return (
+      <ProfileLockScreen
+        profileId={state.profile_id}
+        profileName={state.profile_name}
+        notice={state.notice}
+        onResolved={resolve}
+      />
+    );
   if (state.status === "empty_registry") return <EmptyRegistryScreen onResolved={resolve} />;
   return (
     <>

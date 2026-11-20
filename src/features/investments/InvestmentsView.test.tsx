@@ -144,6 +144,13 @@ describe("tabs", () => {
     expect(host.querySelector("#investments-tab-holdings")?.getAttribute("aria-selected")).toBe("true");
   });
 
+  // VS-63: the hint used to send people to the Reports tab, which can't add accounts.
+  it("points to the Accounts page to add an investment account before adding holdings", () => {
+    show([], { accounts: [] });
+    expect(panel("holdings").textContent).toContain("Add an investment account on the Accounts page first, then add holdings here.");
+    expect(panel("holdings").textContent).not.toContain("Reports tab");
+  });
+
   it("says so in words when there is no investment account, rather than an empty Money put in tab", () => {
     show([], { accounts: [] });
     openTab("money-in");

@@ -169,12 +169,34 @@ try {
   // The $500 transfer day is not spending.
   await expectReadout(hoverDay(10), "$0.00", "the day of the transfer should read $0.00");
 
-  // Keyboard: focusing a day (Tab lands on it) reads out the same total.
-  await expectReadout(
-    () => browser.execute((sel) => document.querySelector(sel).focus(), `[data-heatmap-day='${isoDay(8)}']`),
-    "$100.00",
-    "focusing the Dining Out day should show $100.00",
-  );
+  // Keyboard, as a user does it: Tab into the grid (it lands on one day), then the arrow keys walk to the
+  // Dining Out day (Left/Right a week, Up/Down a day), and its total is read out. The pointer stays where the
+  // hover above left it, as a real one would. The 1.3.4 release gate failed twice on a focus() call made
+  // directly by the spec, which passed here, so a failure now also says where focus and the grid's scroll were.
+  const focusState = () => browser.execute(() => {
+    const active = document.activeElement;
+    const frame = document.querySelector("[data-report-heatmap] .heatmap-grid")?.closest(".table-scroll");
+    return { day: active?.getAttribute("data-heatmap-day") ?? null, tag: active?.tagName ?? null, windowFocused: document.hasFocus(), scrollLeft: frame?.scrollLeft ?? null };
+  });
+  const dayNumber = (iso) => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 86400000;
+  await withFocusRetry(browser, async () => {
+    for (let presses = 0; !(await focusState()).day; presses++) {
+      if (presses >= 200) throw new Error(`Tab never reached a day in the heatmap (focus: ${JSON.stringify(await focusState())})`);
+      await browser.keys(["Tab"]);
+    }
+    const target = isoDay(8);
+    for (let steps = 0; ; steps++) {
+      const { day } = await focusState();
+      if (day === target) break;
+      if (steps >= 60) throw new Error(`the arrow keys never reached ${target} (focus: ${JSON.stringify(await focusState())})`);
+      const gap = dayNumber(day) - dayNumber(target);
+      await browser.keys([gap >= 7 ? "ArrowLeft" : gap <= -7 ? "ArrowRight" : gap > 0 ? "ArrowUp" : "ArrowDown"]);
+    }
+    let seen = "";
+    await browser.waitUntil(async () => (seen = await statusText()).includes("$100.00"), { timeout: 3000 }).catch(async () => {
+      throw new Error(`reaching the Dining Out day with the keyboard should show $100.00 (got "${seen}"; focus: ${JSON.stringify(await focusState())})`);
+    });
+  });
 
   // --- Labels: full width, then the half-window widths, with no sideways page scroll ---
   await openReportsTab(browser, "income");

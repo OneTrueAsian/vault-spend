@@ -11,6 +11,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const context = { contractVersion: 1 as const, generation: 3, sessionRevision: 7 };
 const row = { id: 1, transfer_counterpart_id: null, date: "2026-10-01", description: "Fixture", amount: "-12.34", category: null, category_source: null, confidence: null, account_id: 1, account_name: "Checking", applied_to_debt: null, principal_amount: null, split_count: 0, tags: [], member_id: null, member_name: null, notes: null,
+excluded_from_budget: false,
 };
 const snapshot = (local = 1): TransactionSnapshot => ({ contractVersion: 1, context, revision: { local, external: 1 }, requestedIds: null, transactions: [row], stats: { total: 1, auto_categorized: 0, user_confirmed: 0, uncategorized: 1 }, accounts: [], categories: [], categoryIcons: [], flags: [], tags: [], members: [],
 });

@@ -137,6 +137,17 @@ it("editing current property value changes the net-worth headline without rewrit
   expect(container.textContent).toContain("does not include property and valuables");
 });
 
+// VS-60: a figure too wide for its tile wrapped mid-number ("-$9,999,999,00" / "2.99"). It may now break only after a
+// thousands comma, so no digit group is ever split; the text itself is unchanged.
+it("lets a very large tile figure break only after a thousands comma", async () => {
+  const history = [{ month_label: "Oct 2026", as_of: "2026-10-27", value: "-9999999002.99", cash: "-9999999002.99", debt: "0.00", investments: "0.00" }];
+  await render(props({ netWorthHistory: history, layoutWidgets: ["stat_net_worth"] }));
+  const value = container.querySelector('[data-widget-id="stat_net_worth"] .stat-value')!;
+  expect(value.textContent).toBe("-$9,999,999,002.99");
+  expect(value.querySelectorAll("wbr")).toHaveLength(3);
+  for (const wbr of value.querySelectorAll("wbr")) expect(wbr.previousSibling?.textContent).toBe(",");
+});
+
 // VS-34: with no net-worth history yet, the Net worth trend card drew an empty chart whose axis read "$NaN".
 it("says the net worth trend fills in over time when there is no history yet, never $NaN", async () => {
   await render(props({ netWorthHistory: [], layoutWidgets: ["stat_net_worth", "trend_spending"] }));
@@ -518,7 +529,7 @@ describe("v9 recent transactions", () => {
     const onOpenTransactions = vi.fn();
     await render(props({ layoutWidgets: ["recent_transactions"], onOpenTransactions,
       transactions: [{ id: 91, date: "2026-11-14", description: "Local market", amount: "-12.00", category: null,
-        account_id: 1, account_name: "Everyday checking", tags: [], split_count: 0, transfer_counterpart_id: null, category_source: "user", confidence: null, applied_to_debt: null, principal_amount: null, member_id: null, member_name: null, notes: null }],
+        account_id: 1, account_name: "Everyday checking", tags: [], split_count: 0, transfer_counterpart_id: null, category_source: "user", confidence: null, applied_to_debt: null, principal_amount: null, member_id: null, member_name: null, notes: null, excluded_from_budget: false }],
     }));
     const widget = container.querySelector('[data-widget-id="recent_transactions"]')!;
     expect(widget.querySelector("table")).toBeNull();

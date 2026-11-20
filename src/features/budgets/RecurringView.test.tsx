@@ -142,6 +142,31 @@ describe("RecurringView edit row date", () => {
     expect(props.onUpdate).not.toHaveBeenCalled();
   });
 
+  it("says what is missing instead of only greying out Save (VS-49)", () => {
+    const props = render({ recurring: [item({ anchor_date: "2026-10-01" })] });
+    const row = editRow();
+    const note = () => row.querySelector("[data-recurring-missing]")?.textContent ?? null;
+    const name = row.querySelector<HTMLInputElement>("input.row-edit-input")!;
+    const amount = row.querySelector<HTMLInputElement>("input.amount-edit-input")!;
+    const date = () => row.querySelector<HTMLInputElement>("input.date-field-input")!;
+    expect(note()).toBeNull();
+    typeInto(name, " ");
+    expect(note()).toBe("Enter a name.");
+    typeInto(name, "Hulu");
+    typeInto(amount, "");
+    expect(note()).toBe("Enter an amount.");
+    typeInto(amount, "1,200");
+    expect(note()).toBe("Leave out the comma: 1200");
+    expect(save(row).disabled).toBe(true);
+    typeInto(amount, "1200");
+    typeInto(date(), "10/1");
+    expect(note()).toBe("Enter the whole next due date.");
+    typeInto(date(), "10/15/2026");
+    expect(note()).toBeNull();
+    act(() => save(row).click());
+    expect(props.onUpdate).toHaveBeenCalled();
+  });
+
   it("saves the new date once it is complete", () => {
     const props = render({ recurring: [item({ anchor_date: "2026-10-01" })] });
     const row = editRow();

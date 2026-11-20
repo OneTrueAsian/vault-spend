@@ -131,6 +131,34 @@ cur.execute("UPDATE transactions SET principal_amount = '900.00' WHERE id = ?", 
   ];
 
   /** Measures every text category in the dialog's current state; categories out of view at the top are measured with the body scrolled to its end. */
+  // VS-62: a greyed-out Move must look greyed out in every style. Its label, as drawn (opacity blended over the dialog),
+  // is dim against its own face: under 4:1, below the 4.5:1 an active label must reach (enabled ones measure 5.5:1 to 12:1).
+  // Before the fix the greyed-out label measured 4.57:1 in Futuristic dark, 4.87:1 in Retro light and 7.57:1 in Retro dark.
+  async function disabledLooksDisabled(where) {
+    const drawn = await b.execute(() => {
+      // rgb()/rgba() in 0-255, or color(srgb …) in 0-1 (what a color-mix() resolves to).
+      const parse = (c) => {
+        const srgb = c.match(/color\(srgb ([^)]+)\)/);
+        const p = (srgb ? srgb[1] : c.match(/rgba?\(([^)]+)\)/)[1]).split(/[ ,/]+/).filter(Boolean).map(Number);
+        const k = srgb ? 255 : 1;
+        return { r: p[0] * k, g: p[1] * k, b: p[2] * k, a: p.length > 3 ? p[3] : 1 };
+      };
+      const over = (top, under, a = top.a) => ({ r: top.r * a + under.r * (1 - a), g: top.g * a + under.g * (1 - a), b: top.b * a + under.b * (1 - a), a: 1 });
+      const lum = ({ r, g, b }) => [r, g, b].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+      const ratio = (x, y) => { const a = lum(x), c = lum(y); return (Math.max(a, c) + 0.05) / (Math.min(a, c) + 0.05); };
+      const panelBg = parse(getComputedStyle(document.querySelector("[data-move-dialog]")).backgroundColor);
+      const move = document.querySelector("[data-move-confirm]");
+      const cs = getComputedStyle(move), opacity = Number(cs.opacity);
+      // The whole button fades: each pixel is opacity × (its colour over the button's own face) + the rest of the dialog.
+      const ownFace = over(parse(cs.backgroundColor), panelBg);
+      const face = over(ownFace, panelBg, opacity);
+      const text = over(over(parse(cs.color), ownFace), panelBg, opacity);
+      return { disabled: move.disabled, opacity, ratio: Number(ratio(text, face).toFixed(2)) };
+    });
+    assert.equal(drawn.disabled, true, `${where}: Move is greyed out while something blocks the move`);
+    assert.ok(drawn.ratio < 4, `${where}: the greyed-out Move should look dim, its label under 4:1 against its face (got ${JSON.stringify(drawn)})`);
+  }
+
   async function contrast(where) {
     const root = "[data-move-dialog]";
     const scroll = (to) => b.execute((to) => { const body = document.querySelector("[data-move-dialog] .modal-body"); if (body) body.scrollTop = to === "end" ? body.scrollHeight : 0; }, to);
@@ -243,6 +271,7 @@ cur.execute("UPDATE transactions SET principal_amount = '900.00' WHERE id = ?", 
         await waitForReview(b);
         await waitUntilOrDiagnose(b, async () => (await b.$(sel.blockersTitle).isExisting()), { timeoutMsg: `${where}: the blocked review should appear` });
         await inspect(`${where}-blocked`);
+        await disabledLooksDisabled(`${where}-blocked`);
         await contrast(`${where}-blocked`);
         await keyboard(`${where}-blocked`);
         await b.keys("Escape");

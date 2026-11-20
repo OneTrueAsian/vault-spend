@@ -1,5 +1,6 @@
 import "./ProtectionSetupDialog.css";
 import { useState } from "react";
+import { MIN_PASSWORD_CHARS } from "../../shared/lib/passwordRules";
 import { ModalShell } from "../../shared/ui/Modal";
 import { beginProtectionSetup, cancelProtectionSetup, commitProtectionSetup, type SetupChallenge } from "../../shared/lib/protection";
 import type { StartupState } from "../../shared/lib/startup";
@@ -36,7 +37,7 @@ export function ProtectionSetupDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const lengthOk = scalarLength(password) >= 8;
+  const lengthOk = scalarLength(password) >= MIN_PASSWORD_CHARS;
   const matches = password === confirmValue;
 
   async function startRecovery() {
@@ -93,7 +94,7 @@ export function ProtectionSetupDialog({
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={busy}
               />
-              <p id="protection-setup-password-hint" className="protection-setup-hint">At least 8 characters.</p>
+              <p id="protection-setup-password-hint" className="protection-setup-hint">Use at least 12 characters. A few unrelated words works well.</p>
             </div>
             <div className="password-form-field">
               <label htmlFor="protection-setup-confirm">Confirm password</label>

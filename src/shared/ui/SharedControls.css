@@ -46,6 +46,14 @@
   cursor: not-allowed;
 }
 
+/* How to fix a value that was typed (VS-49), shown next to the field or the button it blocks. */
+.field-problem {
+  display: block;
+  color: var(--negative);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
 :is(input, select, textarea)[aria-invalid="true"] {
   border-color: var(--negative);
 }

@@ -157,3 +157,21 @@ describe("Futuristic chart bars and meters", () => {
     expect(halo).toMatch(/filter: blur\(calc\([0-9.]+px \* var\(--glow\)\)\);/);
   });
 });
+
+// VS-62: a greyed-out button kept its neon outline and glow in Futuristic dark and its near-white label in Retro dark,
+// so a blocked Move looked as live as Cancel. Spec 377 measures the drawn result; these keep the rules in place.
+describe("Greyed-out buttons", () => {
+  it("drop Futuristic's accent outline, glow and fill", () => {
+    const rule = css.match(/:where\(\[data-palette="futuristic"\]\) button:disabled\s*\{([^}]*)\}/);
+    expect(rule, "Futuristic disabled rule").not.toBeNull();
+    expect(rule![1]).toMatch(/border-color:\s*var\(--border\)/);
+    expect(rule![1]).toMatch(/box-shadow:\s*none/);
+    expect(rule![1]).toMatch(/color:\s*var\(--text-muted\)/);
+  });
+  it("dim Retro's label halfway to the button face", () => {
+    const app = read("../shared/ui/App.css");
+    const rule = app.match(/\[data-palette="retro"\] :where\(button\):disabled\s*\{([^}]*)\}/);
+    expect(rule, "Retro disabled rule").not.toBeNull();
+    expect(rule![1]).toMatch(/color:\s*color-mix\(in srgb, var\(--text-muted\) 50%, var\(--retro-face\)\)/);
+  });
+});

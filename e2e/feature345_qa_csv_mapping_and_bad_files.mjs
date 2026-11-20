@@ -179,8 +179,9 @@ try {
   // Files the reader cannot decode or whose rows differ in width: a plain message that says what to do, never the library's own wording.
   const technical = /panic|stream did not|invalid (data|utf)|CSV (parse )?error|record [0-9]|byte|0x[0-9a-f]+|\.rs:/i;
   const refusal = async (file) => {
-    // The previous refusal's message stays up for a while; wait for it to go so this file's own message is the one read.
-    await waitUntilOrDiagnose(browser, async () => (await browser.execute(() => document.querySelectorAll(".status .status-text").length)) === 0, { timeout: 30000, timeoutMsg: "earlier messages have cleared" });
+    // An error stays until it is dismissed (VS-53), so close the previous refusal with its x, as a person would, before reading this file's own message.
+    for (const dismiss of await browser.$$(".status .status-dismiss")) await dismiss.click();
+    await waitUntilOrDiagnose(browser, async () => (await browser.execute(() => document.querySelectorAll(".status .status-text").length)) === 0, { timeout: 5000, timeoutMsg: "earlier messages have been dismissed" });
     await startWith(file);
     const trail = [];
     for (let i = 0; i < 10; i++) {

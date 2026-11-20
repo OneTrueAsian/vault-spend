@@ -12,10 +12,13 @@ const profileUiState = vi.hoisted(() => ({ getCurrentGeneration: vi.fn() }));
 vi.mock("../../shared/lib/profileUiState", () => profileUiState);
 const invokeMock = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
+const startup = vi.hoisted(() => ({ getStartupState: vi.fn() }));
+vi.mock("../../shared/lib/startup", () => startup);
 vi.mock("./RecoverProfileDialog", () => ({
-  RecoverProfileDialog: ({ profileId, expectedGeneration }: { profileId: string; expectedGeneration: number }) => (
+  RecoverProfileDialog: ({ profileId, expectedGeneration, onDone }: { profileId: string; expectedGeneration: number; onDone: () => void }) => (
     <div data-recover-profile-dialog>
       {profileId}:{expectedGeneration}
+      <button type="button" data-finish-recovery onClick={onDone} />
     </div>
   ),
 }));
@@ -58,6 +61,30 @@ describe("ProfileLockScreen", () => {
       root.render(<ProfileLockScreen profileId="a" profileName="Alex" onResolved={onResolved} />);
     });
   }
+
+  it("shows why the profile was closed when the backend gives a notice", () => {
+    act(() => {
+      root.render(<ProfileLockScreen profileId="a" profileName="Alex" notice="Your new password is saved." onResolved={onResolved} />);
+    });
+
+    expect(container.querySelector("[data-gate-notice]")!.textContent).toBe("Your new password is saved.");
+  });
+
+  it("shows no notice by default", () => {
+    show();
+
+    expect(container.querySelector("[data-gate-notice]")).toBeNull();
+  });
+
+  it("after recovery, asks the backend where to go instead of assuming the profile opened", async () => {
+    startup.getStartupState.mockResolvedValue({ status: "locked", profile_id: "a", profile_name: "Alex", notice: "Saved." });
+    show();
+    await act(async () => container.querySelector<HTMLButtonElement>("[data-forgot-password]")!.click());
+
+    await act(async () => document.body.querySelector<HTMLButtonElement>("[data-finish-recovery]")!.click());
+
+    expect(onResolved).toHaveBeenCalledWith({ status: "locked", profile_id: "a", profile_name: "Alex", notice: "Saved." });
+  });
 
   it("focuses the heading on mount, naming the locked profile", () => {
     show();

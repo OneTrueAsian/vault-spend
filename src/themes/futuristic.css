@@ -529,6 +529,15 @@
   border-color: var(--btn-border-hover);
 }
 
+/* VS-62: a greyed-out button drops the accent outline, glow and fill, so in dark it no longer reads as a live neon
+   button; the shared rule's fade still applies. After :hover, so hovering a greyed-out button changes nothing. */
+:where([data-palette="futuristic"]) button:disabled {
+  border-color: var(--border);
+  background-color: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
 :where([data-palette="futuristic"]) .modal-secondary {
   background: transparent;
   border-color: var(--border-strong);

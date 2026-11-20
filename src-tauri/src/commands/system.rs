@@ -109,6 +109,7 @@ pub struct AppSettingsDto {
     pub rollover_enabled: bool,
     pub auto_link_transfers: bool,
     pub safe_to_spend_enabled: bool,
+    pub budget_exclusion_enabled: bool,
 }
 
 #[tauri::command]
@@ -122,6 +123,7 @@ pub fn get_app_settings(state: tauri::State<AppStateHandle>) -> Result<AppSettin
         rollover_enabled: settings.rollover_enabled,
         auto_link_transfers: settings.auto_link_transfers,
         safe_to_spend_enabled: settings.safe_to_spend_enabled,
+        budget_exclusion_enabled: settings.budget_exclusion_enabled,
     })
 }
 
@@ -150,6 +152,14 @@ pub fn set_envelope_caps_enabled(enabled: bool, state: tauri::State<AppStateHand
 pub fn set_rollover_enabled(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock()?;
     state.store.set_rollover_enabled(enabled).map_err(|e| e.to_string())
+}
+
+/// The global "Exclude from budget" switch (Settings). Off hides the mark and
+/// counts every transaction again; the marks themselves stay stored.
+#[tauri::command]
+pub fn set_budget_exclusion_enabled(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock()?;
+    state.store.set_budget_exclusion_enabled(enabled).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

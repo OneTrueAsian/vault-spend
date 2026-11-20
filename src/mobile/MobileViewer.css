@@ -58,6 +58,8 @@ body:has(.mobile-viewer) { margin: 0; display: block; min-width: 280px; backgrou
 .mobile-bars i:nth-child(2) { background: var(--cat-2, #90b7cf); }
 .mobile-legend { text-align: center; font-size: 11px; color: var(--accent); }
 .mobile-legend > span { padding-left: 15px; color: var(--text-muted); }
+/* VS-65: the dot matches the spending bars; the word keeps the readable muted colour. */
+.mobile-legend-spending-dot { color: var(--cat-2, #90b7cf); }
 .mobile-month-detail { padding: 12px 0; }
 .mobile-sankey { width: 100%; height: auto; display: block; margin: 4px 0 8px; }
 /* Each bar's name and amount, written beside it: a phone can't hover for them. */

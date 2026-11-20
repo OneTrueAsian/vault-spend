@@ -32,6 +32,9 @@ pub struct AppRuntime {
     /// What opening the current profile's housekeeping did, waiting for the page to show it once.
     /// Cleared whenever the slot changes hands, so it can never reach another profile or a locked one.
     notice: Mutex<MaintenanceSummary>,
+    /// A message for the lock screen or profile list, such as why a profile had to be closed. Kept
+    /// until a profile opens; never stored.
+    gate_notice: Mutex<Option<String>>,
 }
 
 /// The open state, held under the runtime's lock for as long as this value lives.
@@ -75,6 +78,7 @@ impl AppRuntime {
             revision: AtomicU64::new(0),
             slot: Mutex::new(Slot::NoProfileOpen),
             notice: Mutex::new(MaintenanceSummary::default()),
+            gate_notice: Mutex::new(None),
         }
     }
 
@@ -85,6 +89,15 @@ impl AppRuntime {
     /// Keeps what opening the profile just did until the page asks for it. Replaces any earlier one.
     pub fn set_notice(&self, summary: MaintenanceSummary) {
         *self.notice.lock().unwrap_or_else(|e| e.into_inner()) = summary;
+    }
+
+    /// Shows `message` on the lock screen or profile list until a profile opens.
+    pub fn set_gate_notice(&self, message: String) {
+        *self.gate_notice.lock().unwrap_or_else(|e| e.into_inner()) = Some(message);
+    }
+
+    pub fn gate_notice(&self) -> Option<String> {
+        self.gate_notice.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// Hands the pending notice to the page, once. Needs an open profile like every other read.
@@ -115,6 +128,7 @@ impl AppRuntime {
     /// Makes `state` the open profile, dropping whatever was there (its connection closes).
     pub fn install(&self, state: AppState) {
         self.clear_notice();
+        *self.gate_notice.lock().unwrap_or_else(|e| e.into_inner()) = None;
         let mut slot = self.slot.lock().unwrap_or_else(|e| e.into_inner());
         self.revision.fetch_add(1, Ordering::SeqCst);
         *slot = Slot::Open(state);
@@ -275,6 +289,21 @@ mod tests {
 
         assert_eq!(first.rolled.len(), 1);
         assert_eq!(second, MaintenanceSummary::default(), "a second read must not repeat the toast");
+    }
+
+    #[test]
+    fn the_gate_notice_stays_while_locked_and_clears_when_a_profile_opens() {
+        let runtime = open_runtime(open_state("gate-notice"));
+        runtime.lock_profile("work");
+        runtime.set_gate_notice("Your new password is saved.".to_string());
+        assert_eq!(runtime.gate_notice().as_deref(), Some("Your new password is saved."));
+        assert_eq!(runtime.gate_notice().as_deref(), Some("Your new password is saved."), "reading it must not consume it");
+        runtime.release_lock();
+        assert_eq!(runtime.gate_notice().as_deref(), Some("Your new password is saved."), "the profile list shows it too");
+
+        runtime.install(open_state("gate-notice-reopened"));
+
+        assert_eq!(runtime.gate_notice(), None);
     }
 
     #[test]

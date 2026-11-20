@@ -29,6 +29,7 @@ pub fn list_profiles(paths: tauri::State<crate::config::AppPaths>) -> Vec<Profil
 /// `profiles::set_profile_icon`.
 #[tauri::command]
 pub fn set_profile_icon(id: String, icon_key: Option<String>, paths: tauri::State<crate::config::AppPaths>) -> Result<(), String> {
+    crate::icon_keys::check_icon_key(icon_key.as_deref())?;
     crate::profiles::set_profile_icon(&paths.config_path, &current_db_path(&paths), &id, icon_key.as_deref())
 }
 
@@ -240,6 +241,10 @@ pub fn add_existing_profile(
         state.replace(new_state);
         *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = imported_db_path.clone();
         paths.bump_generation();
+        sessions.note_unlock(
+            paths.current_generation(),
+            crate::protection::password_rules::below_minimum(password.as_deref().unwrap_or_default()),
+        );
         let summary = crate::startup::after_profile_opened(
             &paths.config_path,
             &imported_db_path,
@@ -302,6 +307,10 @@ pub fn add_existing_profile(
         state.replace(new_state);
         *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = picked_path.clone();
         paths.bump_generation();
+        sessions.note_unlock(
+            paths.current_generation(),
+            crate::protection::password_rules::below_minimum(password.as_deref().unwrap_or_default()),
+        );
 
         let summary = crate::startup::after_profile_opened(
             &paths.config_path,

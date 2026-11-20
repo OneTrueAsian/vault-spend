@@ -1,7 +1,8 @@
 //! One protected installation identity; leaf renewal never silently replaces the trusted root.
 use crate::mobile::secrets::SecretStore;
 use rcgen::{
-    BasicConstraints, CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair, KeyUsagePurpose, PublicKeyData,
+    BasicConstraints, CertificateParams, CidrSubnet, DistinguishedName, DnType, ExtendedKeyUsagePurpose, GeneralSubtree, IsCa, Issuer, KeyPair,
+    KeyUsagePurpose, NameConstraints, PublicKeyData,
 };
 use rustls::pki_types::pem::PemObject;
 use serde::{Deserialize, Serialize};
@@ -11,6 +12,9 @@ use std::sync::Arc;
 use zeroize::{Zeroize, Zeroizing};
 
 const DAY: i64 = 86400;
+/// A root this close to expiring is replaced (with the notice) instead of being started.
+const ROOT_RENEW_DAYS: i64 = 91;
+const NEEDS_SETUP: &str = "Your phone connection needs to be set up again. Open Mobile access and choose Set up a phone.";
 const INVALID: &str =
     "Saved mobile certificates could not be verified. Mobile access remains stopped; restore the saved identity or explicitly reset trust.";
 #[derive(Clone, Serialize, Deserialize)]
@@ -53,6 +57,19 @@ impl CertificateBundle {
             .map_err(|_| INVALID)?;
         config.alpn_protocols = vec![b"http/1.1".to_vec()];
         Ok(Arc::new(config))
+    }
+    /// True for a root saved before roots were limited to this computer (no name-constraints extension).
+    pub fn needs_trust_upgrade(&self) -> bool {
+        let Ok(der) = pem_der(&self.root_pem) else {
+            return false;
+        };
+        let Ok((_, root)) = x509_parser::parse_x509_certificate(&der) else {
+            return false;
+        };
+        !root
+            .extensions()
+            .iter()
+            .any(|e| e.oid == x509_parser::oid_registry::OID_X509_EXT_NAME_CONSTRAINTS)
     }
     fn validate(&self, now: i64) -> Result<(), String> {
         if self.version != 1 || self.installation_id.len() != 32 || !self.installation_id.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -129,8 +146,8 @@ pub fn ensure_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64) -> Res
         if bundle.ipv4 != ipv4 {
             return Err("The desktop address changed. Keep the previous origin or explicitly reset mobile setup; saved phone storage will not move to a new address.".into());
         }
-        if bundle.root_expires <= now + 91 * DAY {
-            return Err("The mobile root certificate needs an explicit trust reset. Mobile access remains stopped.".into());
+        if bundle.root_expires <= now + ROOT_RENEW_DAYS * DAY {
+            return Err(NEEDS_SETUP.into());
         }
         if bundle.leaf_expires <= now + 14 * DAY {
             renew(&mut bundle, now)?;
@@ -156,8 +173,8 @@ pub fn ensure_guided_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64)
         }
         None => create_identity(store, ipv4, now)?,
     };
-    if bundle.root_expires <= now + 91 * DAY {
-        return Err("The mobile root certificate needs an explicit trust reset.".into());
+    if bundle.root_expires <= now + ROOT_RENEW_DAYS * DAY {
+        return Err(NEEDS_SETUP.into());
     }
     let hostname = local_hostname(&bundle.installation_id);
     if bundle.hostname.as_ref().is_some_and(|saved| saved != &hostname) {
@@ -172,19 +189,63 @@ pub fn ensure_guided_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64)
     }
     Ok(bundle)
 }
+/// Subtrees the root may vouch for: this installation's `.local` name and the private IPv4 ranges the desktop can pick.
+fn permitted_subtrees(id: &str, include_loopback: bool) -> Vec<GeneralSubtree> {
+    let mut subtrees = vec![
+        GeneralSubtree::DnsName(local_hostname(id)),
+        GeneralSubtree::IpAddress(CidrSubnet::V4([10, 0, 0, 0], [255, 0, 0, 0])),
+        GeneralSubtree::IpAddress(CidrSubnet::V4([172, 16, 0, 0], [255, 240, 0, 0])),
+        GeneralSubtree::IpAddress(CidrSubnet::V4([192, 168, 0, 0], [255, 255, 0, 0])),
+    ];
+    if include_loopback {
+        subtrees.push(GeneralSubtree::IpAddress(CidrSubnet::V4([127, 0, 0, 0], [255, 0, 0, 0])));
+    }
+    subtrees
+}
+/// True when a saved identity validates but its root predates the computer-only limit or is inside its last 91 days.
+pub fn trust_upgrade_due(store: &dyn SecretStore, now: i64) -> bool {
+    let _guard = store.lock();
+    let Ok(Some(bytes)) = store.read() else {
+        return false;
+    };
+    serde_json::from_slice::<CertificateBundle>(&bytes).is_ok_and(|bundle| bundle.validate(now).is_ok() && (bundle.needs_trust_upgrade() || bundle.root_expires <= now + ROOT_RENEW_DAYS * DAY))
+}
 /// Desktop-only explicit trust replacement; callers stop delivery and revoke all grants first.
 pub fn reset_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64) -> Result<CertificateBundle, String> {
     let _guard = store.lock();
     create_identity(store, ipv4, now)
 }
 fn create_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64) -> Result<CertificateBundle, String> {
+    // Loopback is allowed only in debug builds, so the 127.0.0.1 test fixtures and E2E keep working;
+    // a release root never vouches for it.
+    build_identity(store, ipv4, now, RootShape::Computer { include_loopback: cfg!(debug_assertions) })
+}
+enum RootShape {
+    /// Limited to this computer's names and private ranges, valid 730 days.
+    Computer { include_loopback: bool },
+    /// The pre-1.3.4 unconstrained 10-year root; exists only so tests and debug-build E2E fixtures can seed an outdated identity.
+    #[cfg(any(test, debug_assertions))]
+    Legacy,
+}
+fn build_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64, shape: RootShape) -> Result<CertificateBundle, String> {
+    let (root_days, loopback) = match shape {
+        RootShape::Computer { include_loopback } => (730, Some(include_loopback)),
+        #[cfg(any(test, debug_assertions))]
+        RootShape::Legacy => (3650, None),
+    };
     let mut id = [0u8; 16];
     getrandom::fill(&mut id).map_err(|_| INVALID)?;
     let id = id.iter().map(|n| format!("{n:02x}")).collect::<String>();
     let root_key = KeyPair::generate().map_err(|_| INVALID)?;
     let mut root = CertificateParams::new(Vec::<String>::new()).map_err(|_| INVALID)?;
-    dates(&mut root, now, 3650)?;
+    dates(&mut root, now, root_days)?;
     root.is_ca = IsCa::Ca(BasicConstraints::Constrained(0));
+    if let Some(include_loopback) = loopback {
+        root.name_constraints = Some(NameConstraints {
+            permitted_subtrees: permitted_subtrees(&id, include_loopback),
+            excluded_subtrees: vec![],
+        });
+    }
     root.key_usages = vec![KeyUsagePurpose::KeyCertSign, KeyUsagePurpose::CrlSign];
     root.distinguished_name = DistinguishedName::new();
     root.distinguished_name
@@ -199,7 +260,7 @@ fn create_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64) -> Result<
         root_key: root_key.serialize_pem(),
         leaf_pem: String::new(),
         leaf_key: String::new(),
-        root_expires: now + 3650 * DAY,
+        root_expires: now + root_days * DAY,
         leaf_expires: 0,
     };
     renew(&mut bundle, now)?;
@@ -207,6 +268,15 @@ fn create_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64) -> Result<
     let bytes = Zeroizing::new(serde_json::to_vec(&bundle).map_err(|_| INVALID)?);
     store.write(&bytes)?;
     Ok(bundle)
+}
+#[cfg(any(test, debug_assertions))]
+pub fn legacy_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64) -> Result<CertificateBundle, String> {
+    build_identity(store, ipv4, now, RootShape::Legacy)
+}
+/// Test seed: a current-shape root that has only `days_left` days before it expires.
+#[cfg(test)]
+pub fn near_expiry_identity(store: &dyn SecretStore, ipv4: Ipv4Addr, now: i64, days_left: i64) -> Result<CertificateBundle, String> {
+    build_identity(store, ipv4, now - (730 - days_left) * DAY, RootShape::Computer { include_loopback: false })
 }
 #[cfg(test)]
 #[derive(Default)]
@@ -260,5 +330,102 @@ mod guided_tests {
         let before = store.bytes.lock().unwrap().clone();
         assert!(ensure_guided_identity(&store, "192.168.1.3".parse().unwrap(), now).is_err());
         assert_eq!(before, *store.bytes.lock().unwrap());
+    }
+}
+
+#[cfg(test)]
+mod trust_tests {
+    use super::*;
+    use rustls::client::danger::ServerCertVerifier;
+    use rustls::pki_types::{ServerName, UnixTime};
+    const NOW: i64 = 1_800_000_000;
+    fn check(root_pem: &str, leaf_pem: &str, name: ServerName<'_>) -> Result<(), rustls::Error> {
+        let mut roots = rustls::RootCertStore::empty();
+        roots.add(rustls::pki_types::CertificateDer::from_pem_slice(root_pem.as_bytes()).unwrap()).unwrap();
+        let provider = Arc::new(rustls::crypto::ring::default_provider());
+        let verifier = rustls::client::WebPkiServerVerifier::builder_with_provider(Arc::new(roots), provider).build().unwrap();
+        let leaf = rustls::pki_types::CertificateDer::from_pem_slice(leaf_pem.as_bytes()).unwrap();
+        verifier
+            .verify_server_cert(&leaf, &[], &name, &[], UnixTime::since_unix_epoch(std::time::Duration::from_secs(NOW as u64 + 1)))
+            .map(|_| ())
+    }
+    fn ip(bundle: &CertificateBundle) -> ServerName<'static> {
+        ServerName::IpAddress(std::net::IpAddr::V4(bundle.ipv4).into())
+    }
+    /// A leaf for an unrelated site, signed with the installation's own root key (what a thief of the key could do).
+    fn foreign_leaf(bundle: &CertificateBundle, host: &str) -> String {
+        let issuer = Issuer::from_ca_cert_pem(&bundle.root_pem, KeyPair::from_pem(&bundle.root_key).unwrap()).unwrap();
+        let key = KeyPair::generate().unwrap();
+        let mut params = CertificateParams::new(vec![host.to_string()]).unwrap();
+        params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
+        params.signed_by(&key, &issuer).unwrap().pem()
+    }
+    #[test]
+    fn new_root_only_vouches_for_this_installation() {
+        let bundle = build_identity(&MemorySecrets::default(), "192.168.1.20".parse().unwrap(), NOW, RootShape::Computer { include_loopback: true }).unwrap();
+        assert_eq!(bundle.root_expires - NOW, 730 * DAY);
+        assert!(!bundle.needs_trust_upgrade());
+        check(&bundle.root_pem, &bundle.leaf_pem, ip(&bundle)).unwrap();
+        let bank = foreign_leaf(&bundle, "bank.example.com");
+        let error = check(&bundle.root_pem, &bank, ServerName::try_from("bank.example.com").unwrap()).unwrap_err();
+        assert!(format!("{error:?}").contains("NameConstraint"), "{error:?}");
+    }
+    #[test]
+    fn create_identity_issues_the_constrained_two_year_root() {
+        let store = MemorySecrets::default();
+        let bundle = create_identity(&store, "192.168.1.20".parse().unwrap(), NOW).unwrap();
+        assert_eq!(bundle.root_expires - NOW, 730 * DAY);
+        assert!(!bundle.needs_trust_upgrade());
+        let bank = foreign_leaf(&bundle, "bank.example.com");
+        assert!(check(&bundle.root_pem, &bank, ServerName::try_from("bank.example.com").unwrap()).is_err());
+    }
+    #[test]
+    fn release_roots_exclude_loopback_and_debug_roots_allow_it() {
+        let id = "a".repeat(32);
+        let loopback = |list: &[GeneralSubtree]| list.iter().any(|s| matches!(s, GeneralSubtree::IpAddress(CidrSubnet::V4(a, _)) if a[0] == 127));
+        assert!(!loopback(&permitted_subtrees(&id, false)));
+        assert!(loopback(&permitted_subtrees(&id, true)));
+        assert_eq!(permitted_subtrees(&id, false).len(), 4);
+        let lo: Ipv4Addr = "127.0.0.1".parse().unwrap();
+        let release = build_identity(&MemorySecrets::default(), lo, NOW, RootShape::Computer { include_loopback: false }).unwrap();
+        let error = check(&release.root_pem, &release.leaf_pem, ip(&release)).unwrap_err();
+        assert!(format!("{error:?}").contains("NameConstraint"), "{error:?}");
+        let debug = build_identity(&MemorySecrets::default(), lo, NOW, RootShape::Computer { include_loopback: true }).unwrap();
+        check(&debug.root_pem, &debug.leaf_pem, ip(&debug)).unwrap();
+    }
+    #[test]
+    fn network_change_keeps_the_constrained_root() {
+        let store = MemorySecrets::default();
+        let first = ensure_guided_identity(&store, "192.168.1.20".parse().unwrap(), NOW).unwrap();
+        let next = ensure_guided_identity(&store, "10.0.0.5".parse().unwrap(), NOW + 1).unwrap();
+        assert_eq!(first.installation_id, next.installation_id);
+        assert_eq!(first.root_pem, next.root_pem);
+        assert!(!next.needs_trust_upgrade());
+        check(&next.root_pem, &next.leaf_pem, ServerName::try_from(next.hostname.clone().unwrap()).unwrap()).unwrap();
+    }
+    #[test]
+    fn an_outdated_root_is_detected_and_only_when_it_validates() {
+        let store = MemorySecrets::default();
+        let old = legacy_identity(&store, "192.168.1.20".parse().unwrap(), NOW).unwrap();
+        assert!(old.needs_trust_upgrade());
+        assert_eq!(old.root_expires - NOW, 3650 * DAY);
+        assert!(trust_upgrade_due(&store, NOW));
+        *store.bytes.lock().unwrap() = Some(b"broken".to_vec());
+        assert!(!trust_upgrade_due(&store, NOW));
+        assert!(!trust_upgrade_due(&MemorySecrets::default(), NOW));
+    }
+    #[test]
+    fn a_root_inside_its_last_91_days_is_due_for_replacement_but_a_fresh_one_is_not() {
+        let ip: Ipv4Addr = "192.168.1.20".parse().unwrap();
+        let near = MemorySecrets::default();
+        let bundle = near_expiry_identity(&near, ip, NOW, 90).unwrap();
+        assert!(!bundle.needs_trust_upgrade(), "the root is constrained; only its age is the problem");
+        assert!(trust_upgrade_due(&near, NOW));
+        let outside = MemorySecrets::default();
+        near_expiry_identity(&outside, ip, NOW, 92).unwrap();
+        assert!(!trust_upgrade_due(&outside, NOW));
+        let fresh = MemorySecrets::default();
+        ensure_guided_identity(&fresh, ip, NOW).unwrap();
+        assert!(!trust_upgrade_due(&fresh, NOW));
     }
 }

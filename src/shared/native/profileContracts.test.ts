@@ -15,6 +15,16 @@ describe("profile IPC contracts", () => {
     expect(validateLeftovers(fixtures.leftovers)).toEqual(fixtures.leftovers);
   });
 
+  it("accepts a lock screen or profile list notice and refuses a malformed one", () => {
+    const selector = fixtures.startup.find((state) => state.status === "selector")!;
+    const locked = { status: "locked", profile_id: "a", profile_name: "Alex", notice: "Your new password is saved." };
+    expect(validateStartupState(locked)).toEqual(locked);
+    expect(validateStartupState({ ...selector, notice: "Saved." })).toEqual({ ...selector, notice: "Saved." });
+    for (const bad of [{ ...locked, notice: "" }, { ...locked, notice: 5 }, { ...selector, notice: null }]) {
+      expect(() => validateStartupState(bad)).toThrowError(expect.objectContaining({ code: "invalid_response" }));
+    }
+  });
+
   it("refuses unknown or incomplete states and malformed nested profile/error fields", () => {
     const selector = fixtures.startup.find((state) => state.status === "selector")!;
     const error = fixtures.startup.find((state) => state.status === "error")!;

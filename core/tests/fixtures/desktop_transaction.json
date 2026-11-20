@@ -15,5 +15,6 @@
   "tags": [],
   "member_id": null,
   "member_name": null,
-  "notes": null
+  "notes": null,
+  "excluded_from_budget": false
 }
