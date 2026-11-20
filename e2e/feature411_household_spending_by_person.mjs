@@ -120,6 +120,27 @@ const layoutIssues = () => b.execute(() => {
   for (const li of card.querySelectorAll(".stacked-rows-legend li")) {
     if (li.getBoundingClientRect().right > box.right + 0.5) issues.push({ kind: "legend outside the card", text: li.textContent });
   }
+  // VS-57: in "<month> by person" a long unbroken name stays in its own cell, never over that row's amounts.
+  for (const tr of document.querySelectorAll("[data-month-by-person] tbody tr")) {
+    const name = textRect(tr.cells[0]);
+    for (const cell of [...tr.cells].slice(1)) {
+      if (overlap(name, textRect(cell))) issues.push({ kind: "name over an amount in the month table", name: tr.cells[0].textContent.slice(0, 40) });
+    }
+    // Only the unbroken 39-letter name may break mid-word; "Montgomery-Wellington" wraps at its hyphen.
+    const words = splitWords(tr.cells[0]);
+    if (words.length) issues.push({ kind: "word split across lines in the month table", words });
+  }
+  // VS-61: "Budget by person" scrolled all the way sideways still shows every category name (the column stays put).
+  const budgetScroll = document.querySelector("[data-budget-by-person] .household-table-scroll");
+  if (budgetScroll && budgetScroll.scrollWidth > budgetScroll.clientWidth + 1) {
+    budgetScroll.scrollLeft = budgetScroll.scrollWidth;
+    const area = budgetScroll.getBoundingClientRect();
+    for (const tr of budgetScroll.querySelectorAll("tbody tr")) {
+      const label = textRect(tr.cells[0].querySelector(".cell-with-icon") ?? tr.cells[0]);
+      if (label.left < area.left - 0.5 || label.right > area.right + 0.5) issues.push({ kind: "category name scrolled out of Budget by person", category: tr.cells[0].textContent.trim() });
+    }
+    budgetScroll.scrollLeft = 0;
+  }
   return issues;
 });
 

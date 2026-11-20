@@ -64,6 +64,41 @@ describe("usePopover placement", () => {
     expect(panel.style.bottom).toBe("auto");
   });
 
+  // VS-55: More filters opened at the right end of the toolbar stayed inside the window but ran past the
+  // scrolling main area (it ends at its scrollbar), which cut the date icons off and scrolled the page sideways.
+  it("keeps a panel inside the scrolling area it opens in, not just inside the window", () => {
+    function InScroller() {
+      const { open, setOpen, rootRef, triggerRef } = usePopover();
+      return (
+        <div data-scroller style={{ overflowX: "auto" }}>
+          <div ref={rootRef}>
+            <button ref={triggerRef} type="button" onClick={() => setOpen((v) => !v)}>
+              Open
+            </button>
+            {open && <div className="account-filter-panel">filters</div>}
+          </div>
+        </div>
+      );
+    }
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1280 });
+    HTMLElement.prototype.getBoundingClientRect = function () {
+      const box = this.tagName === "BUTTON" ? { top: 100, bottom: 136, left: 1120, right: 1223 }
+        : this.hasAttribute("data-scroller") ? { top: 0, bottom: 800, left: 264, right: 1280 }
+        : this.classList.contains("account-filter-panel") ? { top: 142, bottom: 400, left: 1052, right: 1272 }
+        : { top: 0, bottom: 0, left: 0, right: 0 };
+      return { ...box, width: box.right - box.left, height: box.bottom - box.top, x: box.left, y: box.top, toJSON() {} } as DOMRect;
+    };
+    act(() => root.render(<InScroller />));
+    const scroller = container.querySelector<HTMLDivElement>("[data-scroller]")!;
+    // 1016px wide with a 17px scrollbar: the visible area ends at 264 + 999 = 1263.
+    Object.defineProperty(scroller, "clientWidth", { configurable: true, value: 999 });
+    act(() => container.querySelector<HTMLButtonElement>("button")!.click());
+    const panel = container.querySelector<HTMLDivElement>(".account-filter-panel")!;
+    // Moved left so its right edge sits 8px inside the visible area: 1272 - (1263 - 8) = 17.
+    expect(panel.style.left).toBe("-17px");
+    expect(panel.style.right).toBe("auto");
+  });
+
   it("grows with its contents: a row added while open (More filters' Clear all) is not cut off", async () => {
     function Growing() {
       const { open, setOpen, rootRef, triggerRef } = usePopover();

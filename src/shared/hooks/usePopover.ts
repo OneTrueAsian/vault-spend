@@ -49,7 +49,17 @@ export function usePopover() {
       }
       panel.style.maxHeight = `${Math.min(wanted, useAbove ? above : below)}px`;
       const rect = panel.getBoundingClientRect();
-      const shift = rect.left < 8 ? 8 - rect.left : Math.min(0, window.innerWidth - 8 - rect.right);
+      // VS-55: an ordinary panel stays inside the area that scrolls or clips it (the main area ends at its
+      // scrollbar, short of the window edge); a fixed panel, and one with no such area, inside the window.
+      let leftEdge = 0, rightEdge = window.innerWidth;
+      for (let el = fixed ? null : panel.parentElement; el && el !== document.body; el = el.parentElement) {
+        if (getComputedStyle(el).overflowX === "visible") continue;
+        const box = el.getBoundingClientRect();
+        leftEdge = Math.max(leftEdge, box.left + el.clientLeft);
+        rightEdge = Math.min(rightEdge, box.left + el.clientLeft + el.clientWidth);
+        break;
+      }
+      const shift = rect.left < leftEdge + 8 ? leftEdge + 8 - rect.left : Math.min(0, rightEdge - 8 - rect.right);
       if (shift) {
         panel.style.left = `${panel.offsetLeft + shift}px`;
         panel.style.right = "auto";

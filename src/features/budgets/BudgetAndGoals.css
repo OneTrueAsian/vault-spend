@@ -1253,6 +1253,8 @@
   font: inherit;
   font-weight: 400;
   text-align: left;
+  /* VS-58: the global button rule is nowrap; the description wraps inside the card instead. */
+  white-space: normal;
   cursor: pointer;
 }
 

@@ -1,7 +1,7 @@
 import { hiddenAccountCount } from "../../shared/lib/hiddenAccounts";
 import "./DashboardCards.css";
 import "./FirstRunChecklist.css";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Info, Leaf } from "lucide-react";
 import { CategoryIcon, BucketIcon, BudgetGroupIcon, IconEntryGlyph, flatIconEntry } from "../../shared/ui/icons";
 import type {
@@ -103,6 +103,12 @@ const wholeDollars = (amount: number) => {
   return `${dollars < 0 ? "-" : ""}$${Math.abs(dollars).toLocaleString("en-US")}`;
 };
 
+
+/** VS-60: a tile figure too wide for its tile may break only after a thousands comma, never inside a digit
+  group ("-$9,999,999,00" / "2.99" read as two numbers). The text itself is unchanged. */
+function TileAmount({ text }: { text: string }) {
+  return <>{text.split(",").map((part, i) => <Fragment key={i}>{i > 0 && <>,<wbr /></>}{part}</Fragment>)}</>;
+}
 export function DashboardView({
   accounts,
   netWorthHistory,
@@ -515,7 +521,7 @@ export function DashboardView({
           </span>
           <span className="stat-label">Net Worth</span>
         </div>
-        <span className="stat-value">{formatAmount(netWorthWithAssets)}</span>
+        <span className="stat-value"><TileAmount text={formatAmount(netWorthWithAssets)} /></span>
         {monthsSpan > 1 && (
           <span className={netWorthDelta >= 0 ? "stat-delta up" : "stat-delta down"}>
             {netWorthDelta >= 0 ? "▲" : "▼"} {fmtMoneyShort(Math.abs(netWorthDelta))} over {monthsSpan}mo
@@ -539,7 +545,7 @@ export function DashboardView({
           </span>
           <span className="stat-label">Cash</span>
         </div>
-        <span className="stat-value">{formatAmount(cash)}</span>
+        <span className="stat-value"><TileAmount text={formatAmount(cash)} /></span>
         {monthsSpan > 1 && (
           <span className={cashDelta >= 0 ? "stat-delta up" : "stat-delta down"}>
             {cashDelta >= 0 ? "▲" : "▼"} {fmtMoneyShort(Math.abs(cashDelta))} over {monthsSpan}mo
@@ -564,7 +570,7 @@ export function DashboardView({
           </span>
           <span className="stat-label">Debt</span>
         </div>
-        <span className="stat-value">{formatAmount(debt)}</span>
+        <span className="stat-value"><TileAmount text={formatAmount(debt)} /></span>
         {monthsSpan > 1 && (
           <span className={debtDelta <= 0 ? "stat-delta up" : "stat-delta down"}>
             {debtDelta <= 0 ? "▼" : "▲"} {fmtMoneyShort(Math.abs(debtDelta))} over {monthsSpan}mo
@@ -596,7 +602,7 @@ export function DashboardView({
           </span>
           <span className="stat-label">Investments</span>
         </div>
-        <span className="stat-value">{formatAmount(investments)}</span>
+        <span className="stat-value"><TileAmount text={formatAmount(investments)} /></span>
         {monthsSpan > 1 && (
           <span className={investmentsDelta >= 0 ? "stat-delta up" : "stat-delta down"}>
             {investmentsDelta >= 0 ? "▲" : "▼"} {fmtMoneyShort(Math.abs(investmentsDelta))} over {monthsSpan}mo

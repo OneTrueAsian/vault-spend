@@ -1009,21 +1009,19 @@ function App({
     return () => clearTimeout(timer);
   }, [highlightedPaymentRow]);
 
+  // VS-56: data-theme always names the mode on screen. With System chosen it follows Windows, so each style's
+  // own light or dark design applies exactly as if that mode were chosen by hand. The saved choice stays "system".
+  const resolvedTheme = useResolvedTheme(theme);
   useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "light" || theme === "dark") {
-      root.setAttribute("data-theme", theme);
-    } else {
-      root.removeAttribute("data-theme");
-    }
+    document.documentElement.setAttribute("data-theme", resolvedTheme);
+  }, [resolvedTheme]);
+  useEffect(() => {
     try {
       localStorage.setItem(THEME_STORAGE_KEY, theme);
     } catch {
       // per-viewer preference only — fine to skip if storage is unavailable
     }
   }, [theme]);
-
-  const resolvedTheme = useResolvedTheme(theme);
 
   function setTheme(next: Theme) {
     setThemeState(next);

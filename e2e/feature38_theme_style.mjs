@@ -145,11 +145,25 @@ try {
       }),
     { timeout: 5000, timeoutMsg: "choosing Dark in Settings should switch to dark, mark Dark in the sidebar and show the dark pictures" },
   );
+  // VS-56: System names the mode Windows is using, so the Default style shows its own light or dark design,
+  // exactly as when that mode is chosen by hand (it used to drop the attribute and fall back to see-through dialogs).
+  const systemMode = await app.browser.execute(() => (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+  const modeIs = (mode) =>
+    app.browser.waitUntil(() => app.browser.execute((m) => document.documentElement.getAttribute("data-theme") === m, mode), {
+      timeout: 5000,
+      timeoutMsg: `the page should be in ${mode} mode`,
+    });
+  const look = () =>
+    app.browser.execute(() => {
+      const css = getComputedStyle(document.documentElement);
+      return ["--bg", "--surface", "--modal-surface", "--text"].map((name) => `${name}: ${css.getPropertyValue(name).trim()}`).join("; ");
+    });
+  await chooseInSettings(systemMode === "dark" ? "Dark" : "Light");
+  await modeIs(systemMode);
+  const chosenLook = await look();
   await chooseInSettings("System");
-  await app.browser.waitUntil(() => app.browser.execute(() => !document.documentElement.hasAttribute("data-theme")), {
-    timeout: 5000,
-    timeoutMsg: "choosing System in Settings should follow the system again",
-  });
+  await modeIs(systemMode);
+  assert.equal(await look(), chosenLook, `System on a ${systemMode} Windows should look exactly like choosing ${systemMode} by hand`);
   console.log("Settings: Light / Dark / System switch drives the theme and the sidebar — OK");
 
   // Regression: Transparent's pill-button rule used a bare `button` type

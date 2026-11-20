@@ -370,7 +370,7 @@ function NewHoldingForm({
   if (investmentAccounts.length === 0) {
     return (
       <p className="modal-message-secondary">
-        Create an account with type "Investment" first (Reports tab) to add holdings.
+        Add an investment account on the Accounts page first, then add holdings here.
       </p>
     );
   }

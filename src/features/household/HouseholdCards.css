@@ -40,6 +40,11 @@
 .household-view [data-budget-by-person] .ledger td:nth-child(n+3) { min-width: 160px; }
 .household-view [data-budget-by-person] .ledger .amount-col { white-space: nowrap; }
 .household-view [data-budget-by-person] .household-person-bar { flex-shrink: 0; }
+/* VS-61: scrolled sideways (a narrow window), the category column stays put so every row keeps its name. A solid
+   fill keeps the scrolled amounts from showing through it; the styles' own header and striped-row fills still apply. */
+.household-view [data-budget-by-person] .ledger { overflow: clip; } /* hidden made the table its own scroll box, so nothing could stick */
+.household-view [data-budget-by-person] .ledger :is(th, td):first-child { position: sticky; left: 0; z-index: 1; }
+.household-view [data-budget-by-person] .ledger td:first-child { background: var(--status-base); }
 
 /* VS-31 step 3: the month's table keeps a person's name whole (it wraps between words, as Budget by person does)
    and its amounts whole; a table too narrow for its names scrolls inside its own region. */
@@ -47,4 +52,8 @@
 .household-view [data-month-by-person] .ledger td { overflow-wrap: normal; word-break: normal; }
 .household-view [data-month-by-person] .ledger th:first-child,
 .household-view [data-month-by-person] .ledger td:first-child { min-width: 120px; }
+/* VS-57: the ledger's fixed column shares never let this table widen, so a name longer than its third ran over that
+   row's amounts. Sized to its contents instead, the table keeps names and amounts whole, as above, and scrolls in its
+   own region when a name is too long for the card. */
+.household-view [data-month-by-person] .ledger { table-layout: auto; }
 .household-view [data-month-by-person] .ledger .amount-col { white-space: nowrap; }

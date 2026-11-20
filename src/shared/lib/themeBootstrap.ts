@@ -1,6 +1,6 @@
 // The saved appearance lives in browser storage and is normally applied by App once it mounts. The
 // launch error screen appears before that, so it applies the same saved values itself, with the same
-// rules: "system" (light/dark) means no attribute, and the style always goes on as data-palette.
+// rules: "system" (light/dark) puts the mode Windows is using on data-theme, and the style always goes on as data-palette.
 // The "meadow-" prefix on these browser-storage keys is the app's earliest name (Meadow, before Pennywise, Penny Worth and
 // Vault Spend). It is kept on purpose: renaming a key would reset everyone's saved theme, layout and filter choices.
 export const THEME_STORAGE_KEY = "meadow-theme";
@@ -25,8 +25,9 @@ export function applyStoredTheme(root: HTMLElement = document.documentElement): 
   } catch {
     // per-viewer preference only — fine to skip if storage is unavailable
   }
-  if (theme === "light" || theme === "dark") root.setAttribute("data-theme", theme);
-  else root.removeAttribute("data-theme");
+  // System (or nothing saved) names the mode Windows is using: each style's designs key on data-theme.
+  const systemPrefersDark = typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  root.setAttribute("data-theme", theme === "light" || theme === "dark" ? theme : systemPrefersDark ? "dark" : "light");
   root.setAttribute("data-palette", readThemeStyle(style));
   applyAppearancePrefs(readStoredAppearancePrefs(), root);
 }

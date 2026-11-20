@@ -62,9 +62,16 @@ try {
                 const r = x.getBoundingClientRect();
                 return r.left >= b.left - 1 && r.right <= b.right + 1;
               });
+              // VS-58: each starter's description wraps inside its card (it ran past the card at 1280).
+              const descriptionsInside = [...block.querySelectorAll(".goals-empty-starter")].every((card) => {
+                const c = card.getBoundingClientRect();
+                const d = card.querySelector("span").getBoundingClientRect();
+                return d.left >= c.left - 1 && d.right <= c.right + 1;
+              });
               return (
                 centred &&
                 buttonsInside &&
+                descriptionsInside &&
                 looksRight &&
                 ["Create a goal", "Emergency fund", "Holiday", "Once-a-year bill"].every((t) => texts.includes(t)) &&
                 !document.querySelector(".add-tile") &&

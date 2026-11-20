@@ -98,7 +98,7 @@ export function ProfilesSection({
         Each profile is its own separate data file. Nothing is shared between profiles.{" "}
         <MoreInfo>Switching loads a different set of accounts, transactions and everything else.</MoreInfo>
       </p>
-      <table className="ledger">
+      <table className="ledger profiles-table">
         <thead>
           <tr>
             <th>

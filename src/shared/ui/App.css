@@ -660,7 +660,8 @@
 
 [data-palette="retro"] :where(button):disabled {
   opacity: 1;
-  color: var(--text-muted);
+  /* VS-62: halfway to the face, the classic dim grey label; plain muted text still read as enabled in Retro dark. */
+  color: color-mix(in srgb, var(--text-muted) 50%, var(--retro-face));
   text-shadow: 1px 1px 0 var(--retro-hl);
 }
 

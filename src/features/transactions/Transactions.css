@@ -1954,6 +1954,18 @@ table.ledger.report-table {
    seven columns equal and the status buttons ran under Edit). Its columns size to their content.
    A name longer than its column wraps, and a single very long word breaks rather than widening
    the table. */
+/* VS-54: Settings > Profiles & security reuses the ledger table. Its fixed column shares left Switch, Rename
+   and Delete too little room at 720px (Delete ran past the table and took no clicks), so the columns size to
+   their contents and, if the row is still short of room, the buttons wrap onto a second line. */
+table.ledger.profiles-table {
+  table-layout: auto;
+}
+
+table.ledger.profiles-table .row-delete-confirm {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 table.ledger.recurring-table {
   table-layout: auto;
 }
