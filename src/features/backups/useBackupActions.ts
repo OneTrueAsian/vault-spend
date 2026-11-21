@@ -14,7 +14,7 @@ export function useBackupActions({ invoke, refreshBackups, setStatus, onDataFile
       const result = await invoke<{ filename: string; copied_to: string | null; copy_error: string | null }>("create_backup_now");
       await refreshBackups();
       if (result.copy_error) {
-        setStatus(`Backup created, but the copy to your second folder failed: ${result.copy_error}`, "error");
+        setStatus(result.copy_error, "error");
       } else if (result.copied_to) {
         setStatus(`Backup created and copied to ${result.copied_to}.`, "success");
       } else {

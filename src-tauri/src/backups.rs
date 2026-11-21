@@ -28,6 +28,8 @@ pub(crate) const BACKUP_KEY_FILE_FAILED: &str =
     "The backup couldn't be saved because its key file couldn't be written. Your data is unchanged. Make sure the drive with your data has free space, then try again.";
 pub(crate) const MIRROR_COPY_FAILED: &str =
     "The backup was saved, but its copy in your second backup folder couldn't be made. Check that the folder is still there and can be written to (Settings → Backups).";
+pub(crate) const CHOSEN_FOLDER_COPY_FAILED: &str =
+    "Vault Spend couldn't copy your latest backup to that folder. Check that it can be written to, then try again.";
 
 /// Test-only failpoint: truncates `path` when `name` is armed on this thread, so the verification
 /// that follows fails. Thread-local so parallel tests never disturb each other, and compiled out of
@@ -334,6 +336,15 @@ fn same_folder(a: &Path, b: &Path) -> bool {
     }
 }
 
+/// Copies the newest backup into the folder a person has just chosen as their second backup
+/// folder. A failure is reported in plain words; the detail goes to stderr.
+pub fn mirror_latest_to_chosen_folder(backups_dir: &Path, filename: &str, copy_dir: &Path) -> Result<PathBuf, String> {
+    mirror_backup(backups_dir, filename, copy_dir).map_err(|e| {
+        eprintln!("couldn't copy the latest backup to the chosen folder: {e}");
+        CHOSEN_FOLDER_COPY_FAILED.to_string()
+    })
+}
+
 /// Checks `copy_dir` can serve as the second backup folder: not the folder
 /// backups already live in, already there (a mistyped path must not quietly
 /// make a new folder somewhere unintended — the person creates it, or picks
@@ -431,7 +442,10 @@ pub fn create_backup_full(
     if let Some(dir) = copy_dir {
         match mirror_backup(backups_dir, &filename, dir) {
             Ok(path) => copied_to = Some(path),
-            Err(e) => copy_error = Some(e),
+            Err(e) => {
+                eprintln!("second backup copy failed: {e}");
+                copy_error = Some(MIRROR_COPY_FAILED.to_string());
+            }
         }
     }
     Ok(BackupOutcome {

@@ -1168,3 +1168,32 @@ fn a_prune_that_cannot_read_the_folder_never_fails_a_saved_backup() {
 
     assert!(not_a_folder.exists());
 }
+
+#[test]
+fn a_second_copy_folder_that_is_gone_is_reported_with_the_one_plain_message() {
+    let dir = temp_dir("mirror-folder-gone");
+    let store = seeded_store(&dir);
+    let backups_dir = dir.join("backups");
+    let missing = dir.join("not-there");
+
+    let outcome = create_backup_full(&store, &dir.join("live.db"), &backups_dir, Some(&missing), dt("2026-09-18 10:00:00")).unwrap();
+
+    assert!(outcome.copied_to.is_none());
+    assert_eq!(outcome.copy_error.unwrap(), MIRROR_COPY_FAILED);
+}
+
+#[test]
+fn choosing_a_second_folder_that_cannot_receive_the_latest_backup_says_so_in_plain_words() {
+    let dir = temp_dir("choose-folder-copy-fails");
+    let store = seeded_store(&dir);
+    let live = dir.join("live.db");
+    let backups_dir = backups_dir_for(&live, false);
+    let copy_dir = dir.join("second");
+    std::fs::create_dir_all(&copy_dir).unwrap();
+    create_backup(&store, &live, &backups_dir, None, dt("2026-09-27 09:00:00")).unwrap();
+
+    let message = mirror_latest_to_chosen_folder(&backups_dir, "vaultspend-20260101-000000.db", &copy_dir).unwrap_err();
+
+    assert_eq!(message, CHOSEN_FOLDER_COPY_FAILED);
+    assert_plain(&message);
+}

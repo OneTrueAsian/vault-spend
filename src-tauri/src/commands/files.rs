@@ -269,7 +269,7 @@ pub fn set_backup_copy_dir(
     let newest = crate::backups::list_backups(&backups_dir, is_encrypted)?.into_iter().next();
     let copied_now = match newest {
         Some(b) => {
-            crate::backups::mirror_backup(&backups_dir, &b.filename, copy_dir)?;
+            crate::backups::mirror_latest_to_chosen_folder(&backups_dir, &b.filename, copy_dir)?;
             true
         }
         None => false,
