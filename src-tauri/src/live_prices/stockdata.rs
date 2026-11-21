@@ -116,10 +116,16 @@ pub fn parse_quotes_response(status: u16, body: &str, requested: &[String]) -> R
             .ok_or_else(|| "StockData.org's response had a quote with no ticker".to_string())?;
         let price_value = entry
             .get("price")
-            .ok_or_else(|| format!("StockData.org's response for {ticker} was missing a price"))?;
+            .ok_or_else(|| {
+                eprintln!("StockData.org's response for {ticker} was missing a price");
+                super::message::unusable("StockData.org")
+            })?;
         price_value
             .as_f64()
-            .ok_or_else(|| format!("StockData.org's response for {ticker} had a non-numeric price"))?;
+            .ok_or_else(|| {
+                eprintln!("StockData.org's response for {ticker} had a non-numeric price");
+                super::message::unusable("StockData.org")
+            })?;
         let decimal = Decimal::from_str(&price_value.to_string())
             .map_err(|_| super::message::unusable("StockData.org"))?;
         result.insert(ticker.to_string(), Some(decimal));
@@ -299,6 +305,15 @@ mod tests {
         let result = parse_quotes_response(200, body, &symbols(&["AAPL"]));
 
         assert!(result.is_err());
+    }
+
+    /// A quote whose ticker comes from the provider's reply must not echo that text back.
+    #[test]
+    fn parse_quotes_response_bad_quote_never_echoes_provider_ticker() {
+        for body in [r#"{"data": [{"ticker": "RAW_PROVIDER_TICKER"}]}"#, r#"{"data": [{"ticker": "RAW_PROVIDER_TICKER", "price": "x"}]}"#] {
+            let message = parse_quotes_response(200, body, &symbols(&["AAPL"])).unwrap_err();
+            assert_eq!(message, "StockData.org didn't send a usable price. Try again later.");
+        }
     }
 
     /// Same regression Finnhub's and Twelve Data's parsers guard against: a
