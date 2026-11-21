@@ -3,8 +3,8 @@ run-name: Sharded Windows gate ${{ inputs.source_sha }}
 
 # The Windows release gate split across parallel runners. Three jobs start together: `build` builds the desktop test app once, `checks-rust` runs the Rust tests and
 # `checks-other` runs the frontend tests, lint, dependency/security and contract checks. Six `shard` jobs each run a slice of the desktop specs against that one
-# executable and need ONLY `build`, so they start as soon as it succeeds. `aggregate` joins everything. It is a reusable workflow so release-windows.yml and
-# prepare-signed-installers.yml share a single implementation.
+# executable and need ONLY `build`, so they start as soon as it succeeds. `aggregate` joins everything. It is a reusable workflow so release-windows.yml uses it
+# for the sharded gate.
 #
 # One authoritative gate: aggregate fails unless build, both check jobs and every shard succeeded (their real results, from `needs`), left exactly the expected check
 # records (bound to the source commit, this run id and attempt) and passed the shard coverage rules. A failed, skipped or cancelled job cannot be hidden by a record.

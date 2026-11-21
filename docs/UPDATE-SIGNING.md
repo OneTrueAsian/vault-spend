@@ -14,51 +14,11 @@ owner approval for the prepared release before publishing it. The Windows releas
 its files to that same draft and never publishes (see "macOS joins the Windows draft" below). The owner publishes the finished draft by hand.
 Use the Windows non-publishing diagnostic mode for pipeline validation.
 
-## Prepare installers without publishing
+## The 1.3.1 preparation path is removed
 
-Dispatch the existing `build-macos-check.yml` on `release-1.3.1` with
-`prepare_signed=true` and the exact current commit as `source_sha`. It calls
-`prepare-signed-installers.yml` from the same commit, allowing preparation without
-adding a new dispatch workflow to `main`. The ordinary macOS check remains the
-default when `prepare_signed` is false. Preparation rejects a different dispatch ref, moved branch commit,
-or version mismatch. This separate workflow has only `contents: read`, creates no
-tag or release, and omits all Tauri release inputs. Windows retains the complete
-frontend, Rust, audit, smoke and full compiled desktop gates. macOS builds the
-universal DMG after its unit, Rust and dependency gates.
-
-The protected `release-signing` environment must allow the exact preparation
-branch in addition to approved release tags. Preserve reviewer requirements and
-disabled administrator bypass; remove a temporary branch allowance after the
-preparation run finishes. Review both successful packaging jobs and their recorded
-source SHA before approving signing. Environment review authorizes signing only;
-this workflow has no publication step.
-
-The signing jobs download same-run artifacts, compare installer hashes to packaging
-outputs, check out the exact common build commit, sign the final bytes, and verify
-with the embedded public key. The `signed-1.3.1-windows-x86_64` and
-`signed-1.3.1-macos-universal` Actions artifacts retain installers, manifests,
-signatures and verification provenance for 14 days. Download them to the external
-QA evidence folder for durable review and isolated installation checks. Actions
-artifacts require authenticated download; workflow logs in this public repository
-are public, so no private credentials or financial data may appear in them.
-These artifacts do not enable live update discovery until a separately approved
-release is published.
-
-The reusable caller explicitly passes the two signing secret names and the called
-workflow declares them required. The protected environment supplies their values;
-omitting that caller wiring causes GitHub to provide empty strings.
-
-If packaging passes but signing fails, dispatch `build-macos-check.yml` with
-`sign_prepared_run=<original run ID>`, `source_sha=<original build commit>`, and
-`prepare_signed=false`. This read-only recovery verifies both original packaging
-jobs, their required successful gates, the actual full Windows log, and the
-packaging digests recorded in the original signing logs. The build commit must be
-an ancestor of the current workflow commit; application or E2E changes require a
-fresh build. Only the explicitly allowed preparation workflow/tooling/docs fixes
-may differ. The protected top-level signing matrix then checks out the original
-build SHA, downloads those exact run artifacts and verifies their recorded bytes
-before signing. Signing recovery creates neither tags nor releases. Keep build
-and signing-run provenance separately in the QA receipt.
+`prepare-signed-installers.yml`, and the `prepare_signed` and `sign_prepared_run` inputs of `build-macos-check.yml`, no longer exist.
+`build-macos-check.yml` now only builds and tests on macOS from a manual dispatch; it has a read-only token and cannot sign or publish.
+Update signing happens only in the `release-windows.yml` and `build-macos.yml` jobs that use the protected `release-signing` environment.
 
 ## Windows releases are drafts (serial and sharded gate)
 
@@ -103,8 +63,7 @@ again on the same tag. A partially uploaded set of manifests is inspected by the
 (an existing older tag) builds the same kind of draft and never signs.
 
 **Test route notes.** Installation and update checks are not part of it, and Windows does not run macOS packaging; macOS can be added to the test draft by
-a separate `build-macos.yml` run (below). Delete the draft and the test tag after review. `prepare-signed-installers.yml` is not migrated: it keeps its
-serial path and a sharded diagnostic that cannot package or sign (it is also pinned to 1.3.1). Its later migration needs are in the backlog.
+a separate `build-macos.yml` run (below). Delete the draft and the test tag after review.
 
 ## macOS joins the Windows draft (`build-macos.yml`)
 

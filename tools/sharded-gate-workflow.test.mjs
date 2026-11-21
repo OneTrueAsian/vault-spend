@@ -7,7 +7,6 @@ import { GATE_JOBS, requiredChecks, checkOwner } from "../e2e/lib/gateChecks.mjs
 const read = name => fs.readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), "utf8");
 const gateText = read("windows-desktop-gate-sharded.yml"), gate = yaml.load(gateText);
 const releaseText = read("release-windows.yml"), release = yaml.load(releaseText);
-const prepareText = read("prepare-signed-installers.yml"), prepare = yaml.load(prepareText);
 const step = (job, name) => job.steps.find(s => s.name === name);
 const hostedSteps = ["Refresh hosted WebView2 runtime", "Pin hosted Edge version", "Install desktop test drivers", "Install native Edge test driver", "Prepare medium-integrity desktop tests",
   "Desktop WebDriver smoke preflight", "Verify native Edge driver still matches Edge"];
@@ -23,8 +22,8 @@ test("the sharded gate cannot publish, sign or move a tag", () => {
   }
 });
 
-test("both callers reach it read-only, without secrets, and keep their serial path behind the flag", () => {
-  for (const [workflow, name] of [[release, "release-windows.yml"], [prepare, "prepare-signed-installers.yml"]]) {
+test("the caller reaches it read-only, without secrets, and keeps its serial path behind the flag", () => {
+  for (const [workflow, name] of [[release, "release-windows.yml"]]) {
     const call = workflow.jobs["sharded-gate"];
     assert.equal(call.uses, "./.github/workflows/windows-desktop-gate-sharded.yml", name);
     assert.deepEqual(call.permissions, { contents: "read" }, name);
@@ -34,10 +33,6 @@ test("both callers reach it read-only, without secrets, and keep their serial pa
     assert.equal(workflow.on.workflow_dispatch.inputs.sharded.type, "boolean", name);
   }
   assert.equal(release.jobs.release.if, "${{ !cancelled() && !inputs.sharded && !inputs.test_release && (inputs.diagnostic_only || needs.release-baseline.result == 'success') }}");
-  assert.equal(prepare.jobs.windows.if, "${{ !inputs.sharded }}");
-  assert.equal(prepare.jobs.macos.if, "${{ !inputs.sharded }}");
-  assert.equal(prepare.jobs["sign-updates"].if, "${{ !inputs.sharded }}");
-  assert.equal(prepare.on.workflow_call.inputs.sharded.default, false);
 });
 
 test("a sharded release-windows request must be a pinned diagnostic, a release on its own tag, or a draft test release", () => {
@@ -53,7 +48,6 @@ test("the serial gate still runs every check, unchanged, when the flag is off", 
   const names = release.jobs.release.steps.map(s => s.name).filter(Boolean);
   for (const name of ["Frontend tests", "Lint", "Rust tests", "Build current desktop test app", "Desktop WebDriver smoke preflight", "Full desktop E2E release gate", "Build Windows installers into the draft release"]) assert.ok(names.includes(name), name);
   assert.equal(step(release.jobs.release, "Full desktop E2E release gate").run.includes("-Shard"), false);
-  assert.equal(step(prepare.jobs.windows, "Full desktop E2E release gate").run.includes("-Shard"), false);
   assert.equal(release.jobs.release["timeout-minutes"], 240);
 });
 

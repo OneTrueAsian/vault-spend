@@ -69,7 +69,7 @@ class RecoveryWorkflowTests(unittest.TestCase):
         # The serial hosted gate took 80 of the 145 minutes the v1.3.2 job used, against a 150 minute limit. The limit is raised
         # as a temporary safeguard; it removes no check, and a stuck step is still ended by its own timeout.
         import re
-        for name in ('release-windows.yml', 'prepare-signed-installers.yml'):
+        for name in ('release-windows.yml',):
             source = (ROOT / '.github/workflows' / name).read_text()
             # The serial gate job only: the draft test release's own packaging job has a shorter, separate limit.
             job_limit = re.search(r'(?m)^    timeout-minutes: (\d+)\s*$', source.split('\n  release:\n', 1)[1] if name == 'release-windows.yml' else source)

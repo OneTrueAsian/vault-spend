@@ -33,7 +33,7 @@ on:
         default: ''
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-windows-${{ inputs.tag }}
@@ -44,6 +44,9 @@ jobs:
     # The sharded gate may only run for one of three request shapes. Anything else is refused before any build starts.
     if: ${{ inputs.sharded || inputs.test_release }}
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Require a recognised sharded request
         env:
@@ -89,6 +92,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    defaults:
+      run:
+        shell: bash
     outputs:
       previous: ${{ steps.baseline.outputs.previous }}
     steps:
@@ -230,6 +236,11 @@ jobs:
     if: ${{ inputs.sharded && !inputs.diagnostic_only }}
     runs-on: ubuntu-latest
     environment: release-signing
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
         with:
@@ -279,6 +290,8 @@ jobs:
     if: ${{ !cancelled() && !inputs.sharded && !inputs.test_release && (inputs.diagnostic_only || needs.release-baseline.result == 'success') }}
     # Pin the desktop environment; image migrations must pass the smoke preflight first.
     runs-on: windows-2022
+    permissions:
+      contents: write
     outputs:
       source-sha: ${{ steps.provenance.outputs.source_sha }}
       installer-digests: ${{ steps.provenance.outputs.digests }}
@@ -298,6 +311,7 @@ jobs:
         with:
           # Diagnostics can validate an unpublished harness fix without changing a release tag.
           ref: ${{ inputs.diagnostic_only && inputs.source_sha || inputs.tag }}
+          persist-credentials: false
       - name: Validate release tag and version
         env:
           RELEASE_TAG: ${{ inputs.tag }}
@@ -534,10 +548,16 @@ jobs:
     needs: [release, release-baseline]
     runs-on: ubuntu-latest
     environment: release-signing
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.release.outputs.source-sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22

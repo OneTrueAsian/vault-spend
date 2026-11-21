@@ -1,5 +1,5 @@
 // Guards for the sharded release path (real releases and the draft test release). The workflow YAML is evaluated, not just pattern-matched: a small evaluator runs the real `if:` expressions
-// and `needs:` graph of release-windows.yml, windows-desktop-gate-sharded.yml and prepare-signed-installers.yml against every input and job-result
+// and `needs:` graph of release-windows.yml and windows-desktop-gate-sharded.yml against every input and job-result
 // combination, and the real request-validation script is executed under bash. The model follows GitHub's documented rules: a job without a status
 // function in its `if` gets an implicit success(), which is false when any needed job did not succeed (a skipped need included).
 import { test } from "node:test";
@@ -9,7 +9,7 @@ import { spawnSync } from "node:child_process";
 import yaml from "js-yaml";
 
 const read = name => fs.readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), "utf8");
-const release = yaml.load(read("release-windows.yml")), gate = yaml.load(read("windows-desktop-gate-sharded.yml")), prepare = yaml.load(read("prepare-signed-installers.yml"));
+const release = yaml.load(read("release-windows.yml")), gate = yaml.load(read("windows-desktop-gate-sharded.yml"));
 const macos = yaml.load(read("build-macos.yml"));
 const BASH = ["C:/Program Files/Git/bin/bash.exe", "/usr/bin/bash", "/bin/bash"].find(p => fs.existsSync(p));
 
@@ -337,15 +337,4 @@ test("the same required contract tests run in the serial gate and in the sharded
   assert.ok(gate.jobs["checks-other"].steps.some(s => s.name === "Injected test fault - fail the other checks"));
   assert.ok(gate.jobs.shard.steps.some(s => s.name === "Injected test fault - fail this shard"));
   assert.deepEqual(gate.permissions, { contents: "read" });
-});
-
-test("prepare-signed-installers.yml is not migrated: its sharded run stays a diagnostic with no packaging, and its serial path is the only one that signs", () => {
-  assert.equal(prepare.on.workflow_dispatch.inputs.sharded_gate, undefined);
-  assert.equal(prepare.on.workflow_call.inputs.sharded_gate, undefined);
-  assert.equal(prepare.jobs["windows-package"], undefined);
-  assert.equal(prepare.jobs["sharded-gate"].if, "${{ inputs.sharded }}");
-  assert.equal(prepare.jobs.windows.if, "${{ !inputs.sharded }}");
-  assert.equal(prepare.jobs["sign-updates"].if, "${{ !inputs.sharded }}");
-  assert.deepEqual(prepare.jobs["sign-updates"].needs, ["windows", "macos"]);
-  assert.deepEqual(prepare.permissions, { contents: "read" });
 });
