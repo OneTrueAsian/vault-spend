@@ -22,7 +22,7 @@ describe("useBackupActions: Back up now", () => {
   });
 
   it("says where the second copy went when it worked", async () => {
-    const setStatus = await run({ filename: "a.db", copied_to: "D:\Backups", copy_error: null });
+    const setStatus = await run({ filename: "a.db", copied_to: "D:\\Backups", copy_error: null });
     expect(setStatus).toHaveBeenCalledWith("Backup created and copied to D:\Backups.", "success");
   });
 });

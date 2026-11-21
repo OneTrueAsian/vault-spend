@@ -39,7 +39,7 @@ test("the signature check of every driver step refuses an unsigned file and acce
     const bad = attempt(unsigned);
     assert.notEqual(bad.status, 0, where);
     assert.match(bad.stderr, /not signed by Microsoft/, where);
-    assert.equal(attempt(path.join(process.env.SystemRoot ?? "C:\Windows", "System32", "notepad.exe")).status, 0, `${where}: a Microsoft-signed executable passes`);
+    assert.equal(attempt(path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "notepad.exe")).status, 0, `${where}: a Microsoft-signed executable passes`);
   }
 });
 
