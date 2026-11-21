@@ -98,6 +98,8 @@ mod tests {
 
     fn temp_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("vaultspend-legacy-migration-test-{name}-{}", std::process::id()));
+        // Process ids are reused, so an earlier run may have left this exact folder behind (VS-73).
+        let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
@@ -112,6 +114,19 @@ mod tests {
         std::fs::create_dir_all(&new_default_dir).unwrap();
         std::fs::create_dir_all(&legacy_dir).unwrap();
         (new_default_dir, legacy_dir)
+    }
+
+    /// VS-73: the folders are named by process id and Windows reuses ids, so a later run could find an earlier run's
+    /// config.json, see an "already configured" identifier and fail the two tests that expect a migration.
+    #[test]
+    fn test_folders_start_empty_even_when_an_earlier_run_left_one_behind() {
+        let (new_default_dir, _) = new_and_legacy_dirs("stale-leftover");
+        std::fs::write(new_default_dir.join("config.json"), b"{}").unwrap();
+
+        let (new_default_dir, legacy_dir) = new_and_legacy_dirs("stale-leftover");
+
+        assert!(!new_default_dir.join("config.json").exists());
+        assert!(legacy_dir.is_dir() && new_default_dir.is_dir());
     }
 
     #[test]
