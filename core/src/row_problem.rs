@@ -21,7 +21,7 @@ pub fn plain_row_reason(message: &str) -> String {
     } else if matches!(message, "missing TRNAMT" | "missing amount (T/U) line") {
         "This row has no amount.".to_string()
     } else if let (Some(field), Some(value)) = (numeric_field(), quoted()) {
-        format!("The {field} {value} isn't a number.")
+        format!("{value} isn't a number for {field}.")
     } else if let (Some(value), true) = (quoted(), message.starts_with("invalid target date ")) {
         format!("The date {value} isn't a real date.")
     } else if let (Some(value), true) = (quoted(), message.starts_with("unknown account type ")) {
@@ -103,12 +103,12 @@ mod tests {
 
     #[test]
     fn a_setup_number_that_is_not_a_number_names_the_field_and_value() {
-        assert_eq!(plain_row_reason("invalid monthly amount 'lots'"), "The monthly amount lots isn't a number.");
-        assert_eq!(plain_row_reason("invalid target amount 'x1'"), "The target amount x1 isn't a number.");
-        assert_eq!(plain_row_reason("invalid starting balance 'n/a'"), "The starting balance n/a isn't a number.");
-        assert_eq!(plain_row_reason("invalid shares 'two'"), "The shares two isn't a number.");
-        assert_eq!(plain_row_reason("invalid price 'p'"), "The price p isn't a number.");
-        assert_eq!(plain_row_reason("invalid cost basis 'q'"), "The cost basis q isn't a number.");
+        assert_eq!(plain_row_reason("invalid monthly amount 'lots'"), "lots isn't a number for monthly amount.");
+        assert_eq!(plain_row_reason("invalid target amount 'x1'"), "x1 isn't a number for target amount.");
+        assert_eq!(plain_row_reason("invalid starting balance 'n/a'"), "n/a isn't a number for starting balance.");
+        assert_eq!(plain_row_reason("invalid shares 'two'"), "two isn't a number for shares.");
+        assert_eq!(plain_row_reason("invalid price 'p'"), "p isn't a number for price.");
+        assert_eq!(plain_row_reason("invalid cost basis 'q'"), "q isn't a number for cost basis.");
     }
 
     #[test]
