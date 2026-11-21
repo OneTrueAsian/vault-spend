@@ -67,6 +67,17 @@ describe("SetupImportReviewDialog", () => {
     expect(items()).toHaveLength(7);
   });
 
+  it("opens even when every row failed: lists the reasons, says nothing can be imported, and keeps Import off", () => {
+    const p = pending(2);
+    p.preview.accounts = [];
+    p.includedAccounts = new Set();
+    show(p);
+    expect(dialog().textContent).toContain("Nothing could be imported from this file. 2 rows couldn't be read.");
+    expect(dialog().textContent).not.toContain("Untick anything");
+    expect(dialog().querySelectorAll(".import-row-problems li")).toHaveLength(2);
+    expect(button("Import selected").disabled).toBe(true);
+  });
+
   it("opens as a dialog with a plain intro and the rows to bring in", () => {
     show(pending());
     expect(dialog().querySelector(".modal-title")?.textContent).toBe("Import setup data");

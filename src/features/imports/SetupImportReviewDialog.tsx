@@ -37,6 +37,8 @@ export function SetupImportReviewDialog({
   onConfirm: () => void;
 }) {
   const errors = pendingSetupImport.preview.row_errors;
+  const { accounts, categories, budgets, buckets, holdings } = pendingSetupImport.preview;
+  const nothingToImport = accounts.length + categories.length + budgets.length + buckets.length + holdings.length === 0;
   const footer = (
     <div className="dup-review-actions">
       <button className="modal-secondary" onClick={onCancel} disabled={busy}>
@@ -70,8 +72,10 @@ export function SetupImportReviewDialog({
     >
       <div className="import-review-dialog">
         <p className="dup-review-summary">
-          Untick anything you don't want.
-          {errors > 0 && ` ${errors} ${errors === 1 ? "row had a problem and will be skipped" : "rows had problems and will be skipped"}.`}
+          {nothingToImport
+            ? `Nothing could be imported from this file. ${errors} ${errors === 1 ? "row" : "rows"} couldn't be read.`
+            : "Untick anything you don't want."}
+          {!nothingToImport && errors > 0 && ` ${errors} ${errors === 1 ? "row had a problem and will be skipped" : "rows had problems and will be skipped"}.`}
         </p>
         <RowProblemList problems={pendingSetupImport.preview.row_problems} />
 

@@ -5,7 +5,32 @@
 /// What the review screen says about a row the loaders could not read.
 pub fn plain_row_reason(message: &str) -> String {
     let date_of = |prefix: &str| message.strip_prefix(prefix).map(|d| d.trim().trim_matches('\''));
-    if message == "row has neither a debit nor a credit amount" {
+    let quoted = || {
+        let (start, end) = (message.find('\'')?, message.rfind('\'')?);
+        (end > start).then(|| &message[start + 1..end])
+    };
+    let numeric_field = || {
+        let rest = message.strip_prefix("invalid ")?;
+        let field = rest[..rest.find(" '")?].to_string();
+        ["starting balance", "monthly amount", "target amount", "shares", "price", "cost basis"]
+            .contains(&field.as_str())
+            .then_some(field)
+    };
+    if matches!(message, "missing DTPOSTED" | "missing date (D) line") {
+        "This row has no date.".to_string()
+    } else if matches!(message, "missing TRNAMT" | "missing amount (T/U) line") {
+        "This row has no amount.".to_string()
+    } else if let (Some(field), Some(value)) = (numeric_field(), quoted()) {
+        format!("The {field} {value} isn't a number.")
+    } else if let (Some(value), true) = (quoted(), message.starts_with("invalid target date ")) {
+        format!("The date {value} isn't a real date.")
+    } else if let (Some(value), true) = (quoted(), message.starts_with("unknown account type ")) {
+        format!("{value} isn't an account type Vault Spend knows.")
+    } else if let (Some(value), true) = (quoted(), message.starts_with("unknown budget group ")) {
+        format!("{value} isn't a budget group Vault Spend knows.")
+    } else if let Some(field) = message.strip_prefix("missing ").filter(|f| !f.ends_with(" column") && !f.contains(['(', '/'])) {
+        format!("This row has no {}.", if field == "bucket name" { "goal name" } else { field })
+    } else if message == "row has neither a debit nor a credit amount" {
         "This row has no amount.".to_string()
     } else if message.starts_with("invalid amount") || message.starts_with("invalid debit amount") || message.starts_with("invalid credit amount") {
         "The amount isn't a number.".to_string()
@@ -58,8 +83,59 @@ mod tests {
     }
 
     #[test]
+    fn a_missing_date_or_amount_in_an_ofx_or_qif_record() {
+        for message in ["missing DTPOSTED", "missing date (D) line"] {
+            assert_eq!(plain_row_reason(message), "This row has no date.", "{message}");
+        }
+        for message in ["missing TRNAMT", "missing amount (T/U) line"] {
+            assert_eq!(plain_row_reason(message), "This row has no amount.", "{message}");
+        }
+    }
+
+    #[test]
+    fn a_setup_row_missing_a_field_names_the_field() {
+        assert_eq!(plain_row_reason("missing account name"), "This row has no account name.");
+        assert_eq!(plain_row_reason("missing budget category"), "This row has no budget category.");
+        assert_eq!(plain_row_reason("missing cost basis"), "This row has no cost basis.");
+        assert_eq!(plain_row_reason("missing symbol"), "This row has no symbol.");
+        assert_eq!(plain_row_reason("missing bucket name"), "This row has no goal name.");
+    }
+
+    #[test]
+    fn a_setup_number_that_is_not_a_number_names_the_field_and_value() {
+        assert_eq!(plain_row_reason("invalid monthly amount 'lots'"), "The monthly amount lots isn't a number.");
+        assert_eq!(plain_row_reason("invalid target amount 'x1'"), "The target amount x1 isn't a number.");
+        assert_eq!(plain_row_reason("invalid starting balance 'n/a'"), "The starting balance n/a isn't a number.");
+        assert_eq!(plain_row_reason("invalid shares 'two'"), "The shares two isn't a number.");
+        assert_eq!(plain_row_reason("invalid price 'p'"), "The price p isn't a number.");
+        assert_eq!(plain_row_reason("invalid cost basis 'q'"), "The cost basis q isn't a number.");
+    }
+
+    #[test]
+    fn a_setup_target_date_that_is_not_real() {
+        assert_eq!(plain_row_reason("invalid target date '2026-13-40'"), "The date 2026-13-40 isn't a real date.");
+    }
+
+    #[test]
+    fn an_unknown_setup_account_type_or_budget_group_names_the_value() {
+        assert_eq!(
+            plain_row_reason("unknown account type 'piggy' (expected one of: checking, savings)"),
+            "piggy isn't an account type Vault Spend knows."
+        );
+        assert_eq!(
+            plain_row_reason("unknown budget group 'misc' (expected one of: income, fixed)"),
+            "misc isn't a budget group Vault Spend knows."
+        );
+    }
+
+    #[test]
+    fn a_missing_csv_column_stays_on_the_general_sentence() {
+        assert_eq!(plain_row_reason("missing date column"), "This row couldn't be read.");
+    }
+
+    #[test]
     fn anything_else_gets_the_general_sentence() {
-        for message in ["missing date column", "unknown account type 'x'", "CSV error: record 3"] {
+        for message in ["missing date column", "CSV error: record 3"] {
             assert_eq!(plain_row_reason(message), "This row couldn't be read.", "{message}");
         }
     }

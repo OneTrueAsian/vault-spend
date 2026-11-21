@@ -991,7 +991,7 @@ fn setup_import_problems_name_the_section_and_use_the_same_reasons() {
     let json = serde_json::to_value(&problems).unwrap();
     assert_eq!(
         json,
-        serde_json::json!([{"row_number": 3, "preview": "Accounts: Savings, savings, oops", "reason": "This row couldn't be read."}])
+        serde_json::json!([{"row_number": 3, "preview": "Accounts: Savings, savings, oops", "reason": "The starting balance oops isn't a number."}])
     );
     let _ = std::fs::remove_dir_all(&dir);
 }

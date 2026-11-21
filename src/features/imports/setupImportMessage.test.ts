@@ -1,5 +1,5 @@
 import {expect,it} from "vitest";
-import {emptySetupMessage,setupImportMessage} from "./setupImportMessage";
+import {emptySetupMessage,setupImportMessage,setupPreviewHasNothingToShow} from "./setupImportMessage";
 const counts=(n:number)=>({accounts_created:n,categories_created:n,budgets_set:n,buckets_created:n,holdings_created:n,skipped:[],row_errors:0});
 it("names one imported item of every kind without placeholder plurals",()=>{
  expect(setupImportMessage(counts(1))).toBe("Setup import done: 1 account, 1 category, 1 budget line, 1 goal, 1 holding.");
@@ -14,4 +14,10 @@ it("explains why no setup rows can be imported",()=>{
  expect(emptySetupMessage(1)).toBe("Nothing importable found — 1 row had errors.");
  expect(emptySetupMessage(2)).toBe("Nothing importable found — 2 rows had errors.");
  expect(emptySetupMessage(0)).toBe("Nothing importable found in that file — is it a filled-in setup template?");
+});
+it("shows the review for a file whose rows all failed, and only skips it when there is nothing at all",()=>{
+ const empty={accounts:[],categories:[],budgets:[],buckets:[],holdings:[],row_errors:0,row_problems:[]};
+ expect(setupPreviewHasNothingToShow(empty)).toBe(true);
+ expect(setupPreviewHasNothingToShow({...empty,row_errors:1,row_problems:[{row_number:3,preview:null,reason:"This row couldn't be read."}]})).toBe(false);
+ expect(setupPreviewHasNothingToShow({...empty,categories:[{index:0,name:"Food",already_exists:false}]})).toBe(false);
 });
