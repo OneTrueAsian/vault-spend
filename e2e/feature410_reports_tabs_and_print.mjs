@@ -266,7 +266,7 @@ try {
   await e.setWindowSize(1440, 1000);
   await (await e.$('.nav-item[aria-label="Reports"]')).click();
   await e.$("[data-reports-hub]").waitForExist({ timeout: 15000 });
-  const expectText = { income: "No income or spending in this range.", categories: "No spending in this range.", daily: "No spending in this range.", people: "No tags used in this range", savings: "No transactions yet, so there is no savings rate to show.", years: "$0.00" };
+  const expectText = { income: "No income or spending in this range.", categories: "No spending in this range.", daily: "No spending in this range.", people: "No tags used in this range", savings: "No income or spending in this range, so there is no savings rate to show.", years: "$0.00" };
   for (const [id, words] of Object.entries(expectText)) {
     await openReportsTab(e, id);
     await waitUntilOrDiagnose(e, () => e.execute((tabId, w) => document.getElementById(`reports-panel-${tabId}`).textContent.includes(w), id, words), { timeout: 10000, timeoutMsg: `${id} says "${words}"` });

@@ -46,7 +46,7 @@ function SavingsRateTrendSection({ transactions, accounts, months, currentMonth 
         <span className="reports-section-title">Savings rate trend</span>
       </div>
       {points.length === 0 ? (
-        <p className="empty-state">No transactions yet, so there is no savings rate to show.</p>
+        <p className="empty-state">No income or spending in this range, so there is no savings rate to show.</p>
       ) : (
         <>
           <p className="modal-message-secondary">

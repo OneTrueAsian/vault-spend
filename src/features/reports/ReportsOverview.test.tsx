@@ -188,7 +188,7 @@ describe("ReportsOverview tabs", () => {
     show({ transactions: [] });
     open("Savings rate");
     expect(panelOf("Savings rate").textContent).toContain("Savings rate trend");
-    expect(panelOf("Savings rate").querySelector(".empty-state")?.textContent).toBe("No transactions yet, so there is no savings rate to show.");
+    expect(panelOf("Savings rate").querySelector(".empty-state")?.textContent).toBe("No income or spending in this range, so there is no savings rate to show.");
   });
 
   const savingsLabels = () => [...panelOf("Savings rate").querySelectorAll(".sr-only tbody tr td:first-child")].map((td) => td.textContent);
