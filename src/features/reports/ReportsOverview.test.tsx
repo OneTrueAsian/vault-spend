@@ -191,6 +191,35 @@ describe("ReportsOverview tabs", () => {
     expect(panelOf("Savings rate").querySelector(".empty-state")?.textContent).toBe("No transactions yet, so there is no savings rate to show.");
   });
 
+  const savingsLabels = () => [...panelOf("Savings rate").querySelectorAll(".sr-only tbody tr td:first-child")].map((td) => td.textContent);
+  const pick = (preset: RangePreset) => {
+    read.value = snapshotFor(new Date(2026, 10, 16), preset);
+    act(() => container.querySelector<HTMLButtonElement>(`[data-range-preset='${preset}']`)!.click());
+  };
+
+  it("the savings rate trend covers only the chosen range", () => {
+    const history = [tx(10, "2026-03-02", "1000.00", "Income"), tx(11, "2026-03-03", "-200.00", "Rent"), ...people];
+    show({ transactions: history });
+    open("Savings rate");
+    expect(savingsLabels()).toEqual(["Nov so far"]);
+    pick("last_12");
+    expect(savingsLabels()).toEqual(["Mar", "Nov so far"]);
+  });
+
+  it("the savings rate trend marks the current month as so far", () => {
+    const history = [tx(10, "2026-10-02", "1000.00", "Income"), ...people];
+    show({ transactions: history });
+    open("Savings rate");
+    const panel = panelOf("Savings rate");
+    expect(savingsLabels()).toEqual(["Oct", "Nov so far"]);
+    expect(panel.textContent).toContain("November isn't over yet, so its rate is only for the days so far.");
+    expect(panel.querySelector("[data-partial-segment]")).not.toBeNull();
+    pick("last_month");
+    expect(savingsLabels()).toEqual(["Oct"]);
+    expect(panel.textContent).not.toContain("isn't over yet");
+    expect(panel.querySelector("[data-partial-segment]")).toBeNull();
+  });
+
   it("marks the category table wide when the range is longer than six months, so paper can shrink it", () => {
     show();
     open("Categories by month");

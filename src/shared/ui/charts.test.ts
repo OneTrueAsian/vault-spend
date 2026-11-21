@@ -129,3 +129,21 @@ describe("fmtMoneyShort", () => {
     expect(fmtMoneyShort(-999_999)).toBe("-$1M");
   });
 });
+
+describe("LineChart partialLast", () => {
+  const points = [10, 20, 15].map((value, i) => ({ label: `M${i}`, value }));
+  const html = (extra: object) => renderToStaticMarkup(createElement(LineChart, { points, ...extra }));
+
+  it("draws the last segment dashed and the last point hollow", () => {
+    const markup = html({ partialLast: true });
+    expect(markup.match(/data-partial-segment/g)).toHaveLength(1);
+    expect(markup.match(/data-partial-point/g)).toHaveLength(1);
+    expect(markup).toMatch(/data-partial-segment[^>]*stroke-dasharray="4 4"|stroke-dasharray="4 4"[^>]*data-partial-segment/);
+  });
+
+  it("draws neither without the prop", () => {
+    const markup = html({});
+    expect(markup).not.toContain("data-partial-segment");
+    expect(markup).not.toContain("data-partial-point");
+  });
+});

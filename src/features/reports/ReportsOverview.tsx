@@ -6,9 +6,9 @@ import type { ReportSnapshot } from "../../shared/native/financialContracts";
 import type { Account, FamilyMember, MonthTotal, Transaction, Asset } from "../../shared/lib/types";
 import { LineChart } from "../../shared/ui/charts";
 import { formatAmount, formatDisplayDate, toLocalIsoDate } from "../../shared/lib/format";
-import { isIncomeTransaction } from "../../shared/lib/accountGroups";
 import { PinToDashboardButton } from "../../shared/ui/PinToDashboardButton";
 import { ReportPrintActions } from "./ReportPrintActions";
+import { savingsRateByMonth } from "./savingsRate";
 import type { WidgetId } from "../../shared/lib/dashboardLayout";
 import { netWorthByMember, spendingByMember } from "../../shared/lib/memberBreakdowns";
 import {
@@ -30,33 +30,15 @@ import { PageTabs } from "../../shared/ui/PageTabs";
 import "./ReportsTabs.css";
 import { CATEGORY_COLORS } from "../../shared/ui/categoryPalette";
 
-/** Savings rate — (income − expenses) ÷ income — trended over every month
- * with transaction history, trailing 12. A purely client-side reduction
- * over the same `transactions`/`accounts` this page already has (income via
- * `isIncomeTransaction` — the same rule `Store::monthly_totals` uses on the
- * backend for Cash Flow's own income figure; expense is any negative
- * amount, see `tagTotals` above, except "Transfer" — money moving between
- * the household's own accounts, same exclusion the backend applies), so it
- * needed no new prop or fetch beyond `accounts`. Cash Flow's "Income vs.
- * expenses" chart shows one month's totals in dollars; this is the trend
- * those totals form over time, as a rate. */
-function SavingsRateTrendSection({ transactions, accounts }: { transactions: Transaction[]; accounts: Account[] }) {
-  const monthly = new Map<string, { income: number; expense: number }>();
-  for (const t of transactions) {
-    const month = t.date.slice(0, 7);
-    const entry = monthly.get(month) ?? { income: 0, expense: 0 };
-    const amount = parseFloat(t.amount);
-    if (isIncomeTransaction(t, accounts)) entry.income += amount;
-    else if (amount < 0 && t.category !== "Transfer") entry.expense += Math.abs(amount);
-    monthly.set(month, entry);
-  }
-  const points = Array.from(monthly.entries())
-    .sort(([a], [b]) => (a < b ? -1 : 1))
-    .slice(-12)
-    .map(([month, { income, expense }]) => ({
-      label: new Date(`${month}-01T00:00:00`).toLocaleDateString("en-US", { month: "short" }),
-      value: income > 0 ? ((income - expense) / income) * 100 : 0,
-    }));
+/** Savings rate — (income − expenses) ÷ income — trended over the months of the
+ * Reports range that have transactions (see `savingsRateByMonth`). Cash Flow's
+ * "Income vs. expenses" chart shows one month's totals in dollars; this is the
+ * trend those totals form over time, as a rate. The current month is still
+ * filling in, so it is drawn as partial and labelled "so far". */
+function SavingsRateTrendSection({ transactions, accounts, months, currentMonth }: { transactions: Transaction[]; accounts: Account[]; months: string[]; currentMonth: string }) {
+  const points = savingsRateByMonth(transactions, accounts, months, currentMonth);
+  const partial = points.length > 0 && points[points.length - 1].partial;
+  const partialMonthName = new Date(`${currentMonth}-01T00:00:00`).toLocaleDateString("en-US", { month: "long" });
 
   return (
     <div className="card" data-report-savings>
@@ -70,7 +52,10 @@ function SavingsRateTrendSection({ transactions, accounts }: { transactions: Tra
           <p className="modal-message-secondary">
             (Income − expenses) ÷ income, by month — a rate can go negative in a month spending outpaced income.
           </p>
-          <LineChart points={points} height={180} formatValue={(v) => `${v.toFixed(0)}%`} caption="Savings rate by month" />
+          <LineChart points={points} height={180} formatValue={(v) => `${v.toFixed(0)}%`} caption="Savings rate by month" partialLast={partial} />
+          {partial && (
+            <p className="modal-message-secondary">{partialMonthName} isn't over yet, so its rate is only for the days so far.</p>
+          )}
         </>
       )}
     </div>
@@ -687,7 +672,7 @@ export function ReportsOverview({
           </>
         );
       case "savings":
-        return <SavingsRateTrendSection transactions={transactions} accounts={accounts} />;
+        return <SavingsRateTrendSection transactions={inRange} accounts={accounts} months={months} currentMonth={toLocalIsoDate().slice(0, 7)} />;
       case "years":
         return (
           <div className="card" data-report-years>

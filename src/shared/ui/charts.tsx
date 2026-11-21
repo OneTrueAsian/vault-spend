@@ -418,8 +418,11 @@ export function LineChart({
   maxLabels,
   caption = "Chart values",
   emptyText = "Nothing to show yet.",
+  partialLast = false,
 }: {
   points: { label: string; value: number }[];
+  /** The newest point is still in progress (e.g. the current month): draw the last segment dashed and the last point hollow. */
+  partialLast?: boolean;
   /** Shown instead of the chart when there are no points (an empty series has no axis to draw). */
   emptyText?: string;
   width?: number;
@@ -460,7 +463,10 @@ export function LineChart({
   const innerW = width - padL - padR;
   const x = (i: number) => padL + (points.length === 1 ? innerW / 2 : (innerW * i) / (points.length - 1));
   const y = (v: number) => padT + innerH - ((v - minPad) / spanPad) * innerH;
-  const linePts = points.map((p, i) => `${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
+  const partial = partialLast && points.length >= 2;
+  const pt = (i: number) => `${x(i).toFixed(1)},${y(points[i].value).toFixed(1)}`;
+  const linePts = points.map((_, i) => pt(i)).join(" ");
+  const solidPts = (partial ? points.slice(0, -1) : points).map((_, i) => pt(i)).join(" ");
   const areaPts = `${x(0).toFixed(1)},${(padT + innerH).toFixed(1)} ${linePts} ${x(points.length - 1).toFixed(1)},${(padT + innerH).toFixed(1)}`;
   const lastX = x(points.length - 1);
   const lastY = y(points[points.length - 1]?.value ?? 0);
@@ -510,7 +516,7 @@ export function LineChart({
         })}
         <polygon points={areaPts} fill={`url(#${gradId})`} />
         <polyline
-          points={linePts}
+          points={solidPts}
           fill="none"
           stroke={color}
           strokeWidth={2.25}
@@ -518,8 +524,22 @@ export function LineChart({
           strokeLinecap="round"
           style={{ pointerEvents: "none" }}
         />
+        {partial && (
+          <polyline
+            data-partial-segment
+            points={`${pt(points.length - 2)} ${pt(points.length - 1)}`}
+            fill="none"
+            stroke={color}
+            strokeWidth={2.25}
+            strokeLinecap="round"
+            strokeDasharray="4 4"
+            style={{ pointerEvents: "none" }}
+          />
+        )}
         {points.length > 0 && hoveredIndex === null && (
-          <circle cx={lastX} cy={lastY} r={4} fill={color} stroke="var(--surface)" strokeWidth={2} />
+          partial
+            ? <circle data-partial-point cx={lastX} cy={lastY} r={4} fill="var(--surface)" stroke={color} strokeWidth={2} />
+            : <circle cx={lastX} cy={lastY} r={4} fill={color} stroke="var(--surface)" strokeWidth={2} />
         )}
         {points.map((p, i) => {
           const step = maxLabels && points.length > maxLabels ? Math.ceil((points.length - 1) / (maxLabels - 1)) : 1;
