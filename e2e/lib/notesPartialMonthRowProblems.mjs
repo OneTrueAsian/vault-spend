@@ -47,6 +47,8 @@ for back,income,expense in [(2,'800.00','-200.00'),(1,'800.00','-300.00'),(0,'80
   const shot = async (name, scrollTo) => {
     await dismissStatusMessages(b);
     if (scrollTo) await b.execute(sel => document.querySelector(sel)?.scrollIntoView({ block: "center" }), scrollTo);
+    // A dialog fades in; wait for finite animations so the screenshot shows the settled screen, not the page through a half-faded dialog.
+    await b.executeAsync(done => document.fonts.ready.then(() => Promise.all(document.getAnimations().filter(a => a.effect?.getComputedTiming().iterations !== Infinity).map(a => a.finished.catch(() => {})))).then(() => requestAnimationFrame(() => done(true))));
     await b.saveScreenshot(path.join(shots, `${name}.png`));
   };
   const text = selector => b.execute(sel => document.querySelector(sel)?.textContent ?? null, selector);
