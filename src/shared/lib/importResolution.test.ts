@@ -164,6 +164,7 @@ describe("carryOverReview", () => {
       row(3, { account_name: "Card" }),
     ],
     row_errors: 0,
+    row_problems: [],
     unmatched_categories: [{ name: "Merchandise", count: 1, remembered_category: null }],
     review_token: "same",
     choice_below: BELOW,

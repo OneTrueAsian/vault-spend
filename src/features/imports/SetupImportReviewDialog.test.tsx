@@ -19,6 +19,7 @@ function pending(rowErrors = 0): PendingSetupImport {
       buckets: [],
       holdings: [],
       row_errors: rowErrors,
+      row_problems: Array.from({ length: rowErrors }, (_, i) => ({ row_number: i + 3, preview: `Accounts: Row ${i + 1}, oops`, reason: "This row couldn't be read." })),
     },
     includedAccounts: new Set([0]),
     includedCategories: new Set(),
@@ -54,6 +55,17 @@ describe("SetupImportReviewDialog", () => {
   }
   const dialog = () => document.querySelector<HTMLElement>("[role='dialog']")!;
   const button = (label: string) => [...dialog().querySelectorAll("button")].find((b) => b.textContent === label)!;
+
+  it("lists each problem row with its reason and the first five of seven, with Show all for the rest", () => {
+    show(pending(2));
+    const items = () => Array.from(dialog().querySelectorAll(".import-row-problems li")).map((li) => li.textContent);
+    expect(dialog().textContent).toContain("2 rows had problems and will be skipped.");
+    expect(items()).toEqual(["Row 3: This row couldn't be read.Accounts: Row 1, oops", "Row 4: This row couldn't be read.Accounts: Row 2, oops"]);
+    show(pending(7));
+    expect(items()).toHaveLength(5);
+    act(() => button("Show all 7").click());
+    expect(items()).toHaveLength(7);
+  });
 
   it("opens as a dialog with a plain intro and the rows to bring in", () => {
     show(pending());

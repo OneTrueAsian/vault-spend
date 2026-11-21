@@ -2,6 +2,7 @@ import { useState, type ComponentProps } from "react";
 import "../transactions/Transactions.css";
 import { ImportCategoryReconcile, type CategoryChoice } from "../../shared/ui/ImportCategoryReconcile";
 import { ImportNeedsChoice } from "./ImportNeedsChoice";
+import { RowProblemList } from "./RowProblemList";
 import { MenuSelect } from "../../shared/ui/MenuSelect";
 import { PageTabs } from "../../shared/ui/PageTabs";
 import { ModalShell } from "../../shared/ui/Modal";
@@ -64,7 +65,7 @@ function ImportReviewContent({
   } = review;
   const pendingImport = review.pendingImport!;
 
-  const { rows, row_errors, unmatched_categories, choice_below } = pendingImport.preview;
+  const { rows, row_errors, row_problems, unmatched_categories, choice_below } = pendingImport.preview;
   const accountName = accounts.find((a) => a.id === pendingImport.defaultAccountId)?.name ?? "the selected account";
   const remaining = unresolvedRows(rows, includedIndices, importCategoryChoices, importRowChoices, choice_below).length;
 
@@ -146,6 +147,7 @@ function ImportReviewContent({
             {row_errors > 0 && ` ${count(row_errors, "row", "rows")} couldn't be read.`}
           </p>
         )}
+        <RowProblemList problems={row_problems} />
         {rows.length > 0 && remembered.length > 0 && !tabState.revealed && (
           <p className="import-review-remembered">
             Using your choices from last time for {count(remembered.length, "bank category", "bank categories")}.{" "}

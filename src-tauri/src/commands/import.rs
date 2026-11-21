@@ -17,6 +17,41 @@ pub struct ImportSummary {
     pub auto_linked: usize,
 }
 
+/// One row the loader could not read, in words for the review screen. The preview is only sent
+/// to the screen (never logged or stored).
+#[derive(Serialize, Debug)]
+pub struct RowProblemDto {
+    pub row_number: usize,
+    pub preview: Option<String>,
+    pub reason: String,
+}
+
+fn row_problems(errors: &[csv_loader::RowError]) -> Vec<RowProblemDto> {
+    errors
+        .iter()
+        .map(|e| RowProblemDto {
+            row_number: e.row_number,
+            preview: e.preview.clone(),
+            reason: budget_core::row_problem::plain_row_reason(&e.message),
+        })
+        .collect()
+}
+
+/// A setup-data row's section goes in front of its cells, since its line number alone doesn't say which list it is in.
+fn setup_row_problems(errors: &[budget_core::setup_import::RowError]) -> Vec<RowProblemDto> {
+    errors
+        .iter()
+        .map(|e| RowProblemDto {
+            row_number: e.row_number,
+            preview: Some(match &e.preview {
+                Some(cells) => format!("{}: {cells}", e.section),
+                None => e.section.clone(),
+            }),
+            reason: budget_core::row_problem::plain_row_reason(&e.message),
+        })
+        .collect()
+}
+
 /// One parsed CSV row awaiting the user's review — every row is shown, not
 /// just duplicates, so the user can pick which to include and which
 /// account each belongs to before anything is written.
@@ -45,6 +80,8 @@ pub struct ImportRow {
 pub struct ImportPreview {
     pub rows: Vec<ImportRow>,
     pub row_errors: usize,
+    /// Each unreadable row (`row_errors` of them), for the review screen to list.
+    pub row_problems: Vec<RowProblemDto>,
     /// Category names the file uses that the person doesn't have. Nothing is created for
     /// these unless the review screen sends back a `Create` choice for them.
     pub unmatched_categories: Vec<UnmatchedCategoryDto>,
@@ -286,6 +323,7 @@ fn preview_import_for(
     let loaded = importer::load_transactions(path, invert_amounts, column_map).map_err(|e| e.to_string())?;
     check_chosen_headers(path, &loaded, column_map, column_headers)?;
     let row_errors = loaded.errors.len();
+    let row_problems = row_problems(&loaded.errors);
 
     let mut resolved_accounts = Vec::with_capacity(loaded.transactions.len());
     for index in 0..loaded.transactions.len() {
@@ -350,6 +388,7 @@ fn preview_import_for(
     Ok(ImportPreview {
         rows,
         row_errors,
+        row_problems,
         unmatched_categories,
         review_token,
         choice_below: import_resolution::IMPORT_CHOICE_BELOW,
@@ -679,6 +718,7 @@ pub struct SetupImportPreviewDto {
     pub buckets: Vec<SetupBucketRowDto>,
     pub holdings: Vec<SetupHoldingRowDto>,
     pub row_errors: usize,
+    pub row_problems: Vec<RowProblemDto>,
 }
 
 #[derive(Serialize)]
@@ -790,6 +830,7 @@ pub fn preview_setup_import(path: String, state: tauri::State<AppStateHandle>) -
         buckets,
         holdings,
         row_errors: data.errors.len(),
+        row_problems: setup_row_problems(&data.errors),
     })
 }
 

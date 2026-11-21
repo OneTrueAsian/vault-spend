@@ -3,6 +3,7 @@ import "../transactions/Transactions.css";
 
 import { formatAmount, formatDisplayDate } from "../../shared/lib/format";
 import { ModalShell } from "../../shared/ui/Modal";
+import { RowProblemList } from "./RowProblemList";
 
 import type { SetupImportPreview } from "../../shared/lib/types";
 
@@ -72,6 +73,7 @@ export function SetupImportReviewDialog({
           Untick anything you don't want.
           {errors > 0 && ` ${errors} ${errors === 1 ? "row had a problem and will be skipped" : "rows had problems and will be skipped"}.`}
         </p>
+        <RowProblemList problems={pendingSetupImport.preview.row_problems} />
 
         {pendingSetupImport.preview.accounts.length > 0 && (
           <>

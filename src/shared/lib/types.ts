@@ -538,6 +538,9 @@ export type SetupHoldingRow = {
   account_found: boolean;
 };
 
+/** A row an import could not read: where it is, a short look at it (CSV and setup files only), and why, in plain words. */
+export type RowProblem = { row_number: number; preview: string | null; reason: string };
+
 export type SetupImportPreview = {
   accounts: SetupAccountRow[];
   categories: SetupCategoryRow[];
@@ -545,6 +548,7 @@ export type SetupImportPreview = {
   buckets: SetupBucketRow[];
   holdings: SetupHoldingRow[];
   row_errors: number;
+  row_problems: RowProblem[];
 };
 
 export type SetupImportSummary = {

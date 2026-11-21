@@ -2304,6 +2304,28 @@ table.ledger.recurring-table .actions-col {
   font-weight: 500;
 }
 
+/* The rows an import couldn't read: the reason first, then a look at the row in the muted mono face. */
+.import-row-problems {
+  margin: 0;
+  padding: 10px 12px 10px 28px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 13.5px;
+}
+
+.import-row-problems li + li {
+  margin-top: 6px;
+}
+
+.import-row-problem-preview {
+  display: block;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
 /* The import review's "categories in this file aren't in your list" panel: one row per
    unfamiliar category, each with its own choice, so nothing is added to the list unasked. */
 .import-category-reconcile {

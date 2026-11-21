@@ -37,7 +37,7 @@ function review(rows: ImportRow[], over: Partial<ImportReview> = {}): ImportRevi
       path: "C:/bank.csv",
       invertAmounts: false,
       defaultAccountId: 1,
-      preview: { rows, row_errors: 0, unmatched_categories: [], review_token: "t", choice_below: 0.5 },
+      preview: { rows, row_errors: 0, row_problems: [], unmatched_categories: [], review_token: "t", choice_below: 0.5 },
     },
     includedIndices: new Set(rows.map((r) => r.index)),
     accountOverrides: new Map(),
@@ -200,6 +200,49 @@ describe("ImportReviewDialog", () => {
   it("draws no card of its own inside the dialog", () => {
     show(review([row(0)]));
     expect(dialog()!.querySelector(".dup-review")).toBeNull();
+  });
+
+  describe("rows that couldn't be read (VS-52)", () => {
+    const problems = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ row_number: i + 3, preview: `2026-08-0${i + 1}, Coffee, abc`, reason: "This row has no amount." }));
+    const withProblems = (rows: ImportRow[], n: number) => {
+      const r = review(rows);
+      r.pendingImport!.preview.row_errors = n;
+      r.pendingImport!.preview.row_problems = problems(n);
+      return r;
+    };
+    const items = () => Array.from(dialog()!.querySelectorAll(".import-row-problems li")).map((li) => li.textContent);
+
+    it("lists each row with its reason and a preview, under the unchanged count sentence", () => {
+      show(withProblems([row(0)], 2));
+      expect(dialog()!.textContent).toContain("2 rows couldn't be read.");
+      expect(items()).toHaveLength(2);
+      expect(items()[0]).toContain("Row 3: This row has no amount.");
+      expect(items()[0]).toContain("2026-08-01, Coffee, abc");
+    });
+
+    it("shows the first five, and Show all reveals the rest", () => {
+      show(withProblems([row(0)], 7));
+      expect(items()).toHaveLength(5);
+      const showAll = [...dialog()!.querySelectorAll("button")].find((b) => b.textContent === "Show all 7")!;
+      act(() => showAll.click());
+      expect(items()).toHaveLength(7);
+      expect([...dialog()!.querySelectorAll("button")].some((b) => b.textContent === "Show all 7")).toBe(false);
+    });
+
+    it("keeps the all-rows-failed sentence and lists the rows", () => {
+      show(withProblems([], 7));
+      const summary = dialog()!.querySelector(".dup-review-summary")!.textContent;
+      expect(summary).toBe("No transactions could be read from this file. 7 rows couldn't be read.");
+      expect(items()).toHaveLength(5);
+    });
+
+    it("shows a row with no preview (OFX or QIF) by its reason alone", () => {
+      const r = withProblems([row(0)], 1);
+      r.pendingImport!.preview.row_problems = [{ row_number: 7, preview: null, reason: "This transaction is cut off; the file may be incomplete." }];
+      show(r);
+      expect(items()).toEqual(["Row 7: This transaction is cut off; the file may be incomplete."]);
+    });
   });
 
   describe("a file with nothing to import (QA-UX-004)", () => {

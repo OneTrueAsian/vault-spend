@@ -6,6 +6,7 @@
  * decides. Pure, so changing a panel choice or a checkbox needs no call to the backend. */
 
 import type { CategoryChoice } from "../ui/ImportCategoryReconcile";
+import type { RowProblem } from "./types";
 
 /** What the rules ("rule") or the auto-categorizer ("guess") would file a row under. */
 export type Suggestion = {
@@ -45,6 +46,8 @@ export type UnmatchedCategory = {
 export type ImportPreview = {
   rows: ImportRow[];
   row_errors: number;
+  /** Each row that could not be read, one per `row_errors`, in plain words. */
+  row_problems: RowProblem[];
   /** Category names the file uses that the person doesn't have. Nothing is added for these
    * unless the review screen sends back a "create" choice. */
   unmatched_categories: UnmatchedCategory[];

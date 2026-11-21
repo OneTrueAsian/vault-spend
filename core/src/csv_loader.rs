@@ -15,6 +15,22 @@ use std::str::FromStr;
 pub struct RowError {
     pub row_number: usize,
     pub message: String,
+    /// The row's cells, shortened, so the person can find it in their file. Only a CSV row has
+    /// one; an OFX/QIF record is not echoed back. Shown on the review screen, never logged.
+    pub preview: Option<String>,
+}
+
+/// How many characters of a row the review screen shows (the last one being "…" when it is cut).
+const ROW_PREVIEW_CHARS: usize = 60;
+
+pub(crate) fn row_preview(record: &csv::StringRecord) -> String {
+    let joined = record.iter().collect::<Vec<_>>().join(", ");
+    if joined.chars().count() <= ROW_PREVIEW_CHARS {
+        return joined;
+    }
+    let mut cut: String = joined.chars().take(ROW_PREVIEW_CHARS - 1).collect();
+    cut.push('…');
+    cut
 }
 
 impl fmt::Display for RowError {
@@ -401,7 +417,11 @@ fn load_from_reader_with<R: Read>(reader: R, invert_amounts: bool, map: Option<&
                 result.tags.push(tags);
                 result.notes.push(notes);
             }
-            Err(message) => result.errors.push(RowError { row_number, message }),
+            Err(message) => result.errors.push(RowError {
+                row_number,
+                message,
+                preview: Some(row_preview(record)),
+            }),
         }
     }
 
@@ -1204,5 +1224,27 @@ c,d,e,f
                 assert!(!message.contains(technical), "no technical wording ({technical}): {message}");
             }
         }
+    }
+
+    #[test]
+    fn an_unreadable_row_keeps_a_preview_of_its_cells() {
+        let csv = "Date,Description,Amount\n2026-08-01,Rent,-900.00\n2026-08-02,Gas,-30.00\n2026-08-03,Coffee,abc\n";
+        let result = load_from_reader_with(csv.as_bytes(), false, None).unwrap();
+
+        assert_eq!(result.errors.len(), 1);
+        assert_eq!(result.errors[0].row_number, 4);
+        assert_eq!(result.errors[0].preview.as_deref(), Some("2026-08-03, Coffee, abc"));
+        assert_eq!(crate::row_problem::plain_row_reason(&result.errors[0].message), "The amount isn't a number.");
+    }
+
+    #[test]
+    fn a_long_row_preview_is_cut_to_sixty_characters_with_an_ellipsis() {
+        let csv = format!("Date,Description,Amount\n2026-08-03,{},abc\n", "x".repeat(200));
+        let result = load_from_reader_with(csv.as_bytes(), false, None).unwrap();
+
+        let preview = result.errors[0].preview.clone().unwrap();
+        assert_eq!(preview.chars().count(), 60);
+        assert!(preview.starts_with("2026-08-03, xxx"));
+        assert!(preview.ends_with('…'));
     }
 }
