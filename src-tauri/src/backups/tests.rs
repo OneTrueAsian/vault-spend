@@ -1107,6 +1107,8 @@ fn a_second_copy_that_cannot_be_made_says_so_in_plain_words() {
 
     assert_eq!(message, MIRROR_COPY_FAILED);
     assert_plain(&message);
+    // Points to the card where the second folder is chosen, by the names Settings shows.
+    assert!(message.ends_with("(Settings → Data → Automatic backups)."), "{message}");
 }
 
 #[test]

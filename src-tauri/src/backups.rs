@@ -27,7 +27,7 @@ pub(crate) const RESTORE_NOT_VERIFIED: &str =
 pub(crate) const BACKUP_KEY_FILE_FAILED: &str =
     "The backup couldn't be saved because its key file couldn't be written. Your data is unchanged. Make sure the drive with your data has free space, then try again.";
 pub(crate) const MIRROR_COPY_FAILED: &str =
-    "The backup was saved, but its copy in your second backup folder couldn't be made. Check that the folder is still there and can be written to (Settings → Backups).";
+    "The backup was saved, but its copy in your second backup folder couldn't be made. Check that the folder is still there and can be written to (Settings → Data → Automatic backups).";
 pub(crate) const RESTORE_EMPTY_BACKUP: &str =
     "That backup is empty or damaged, so nothing was restored. Your current data is unchanged. Choose a different backup.";
 pub(crate) const CHOSEN_FOLDER_COPY_FAILED: &str =

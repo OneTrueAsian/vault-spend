@@ -4,7 +4,7 @@ import { useBackupActions } from "./useBackupActions";
 vi.mock("../../shared/native/nativeDialog", () => ({ open: vi.fn() }));
 
 const SECOND_COPY_FAILED =
-  "The backup was saved, but its copy in your second backup folder couldn't be made. Check that the folder is still there and can be written to (Settings \u2192 Backups).";
+  "The backup was saved, but its copy in your second backup folder couldn't be made. Check that the folder is still there and can be written to (Settings \u2192 Data \u2192 Automatic backups).";
 
 describe("useBackupActions: Back up now", () => {
   const run = async (result: { filename: string; copied_to: string | null; copy_error: string | null }) => {
