@@ -12,6 +12,38 @@ import { dateInMonth } from "./dates.mjs";
 import { openReportsTab } from "./reportsTabs.mjs";
 import { startImportInto } from "./importAccount.mjs";
 
+/** True when a field is visibly marked as wrong: its border, or (Retro) its outline, is the theme's --negative colour. */
+export function markedWrong(b, selector) {
+  return b.execute(sel => {
+    const el = document.querySelector(sel);
+    const probe = document.createElement("span");
+    probe.style.color = "var(--negative)";
+    el.parentElement.appendChild(probe);
+    const negative = getComputedStyle(probe).color;
+    probe.remove();
+    const cs = getComputedStyle(el);
+    return cs.borderTopColor === negative || (cs.outlineStyle !== "none" && cs.outlineColor === negative);
+  }, selector);
+}
+
+/** How a footer note sits beside its buttons: the note's line count, each button's line count and whether they share a row. */
+export function footerLayout(b, noteSelector) {
+  return b.execute(sel => {
+    const lines = el => { const r = document.createRange(); r.selectNodeContents(el); return new Set([...r.getClientRects()].filter(x => x.width > 0).map(x => Math.round(x.top))).size; };
+    const note = document.querySelector(sel);
+    const buttons = [...note.parentElement.querySelectorAll(":scope > button")];
+    const n = note.getBoundingClientRect();
+    const mid = n.top + n.height / 2;
+    return {
+      noteLines: lines(note),
+      buttonLines: buttons.map(lines),
+      buttonHeights: buttons.map(btn => Math.round(btn.getBoundingClientRect().height)),
+      buttonsTogether: new Set(buttons.map(btn => Math.round(btn.getBoundingClientRect().top))).size === 1,
+      sameRow: buttons.every(btn => { const r = btn.getBoundingClientRect(); return mid > r.top && mid < r.bottom; }),
+    };
+  }, noteSelector);
+}
+
 export async function runScreens({ style, palette, number }) {
   // Income and spending in two earlier months and in this one (day 1, so it is never in the future).
   const dbDir = await seedFixture(`
@@ -80,6 +112,7 @@ for back,income,expense in [(2,'800.00','-200.00'),(1,'800.00','-300.00'),(0,'80
     await input.setValue("1,250.40");
     await waitText("[data-budget-line-missing]", "Leave out the comma: 1250.40", "a comma in the amount is explained");
     assert.equal(await input.getAttribute("aria-invalid"), "true");
+    assert.ok(await markedWrong(b, "input[placeholder='Monthly amount']"), "the amount box is visibly marked as wrong (red border or outline)");
     await shot(`${tag}-budget-comma`, "[data-budget-line-missing]");
     await (await b.$("//form[contains(@class,'bucket-new-form')]//button[normalize-space()='Cancel']")).click();
   }
@@ -93,6 +126,9 @@ for back,income,expense in [(2,'800.00','-200.00'),(1,'800.00','-300.00'),(0,'80
     await dialog.waitForExist({ timeout: 10000 });
     await waitText("[data-rule-missing]", "Enter the text to look for.", "an empty rule is explained");
     assert.equal(await (await dialog.$("button=Save rule")).isEnabled(), false);
+    const layout = await footerLayout(b, "[data-rule-missing]");
+    // On its own line above the buttons: never a narrow column, stretched buttons or buttons split across rows.
+    assert.ok(layout.noteLines <= 2 && layout.buttonsTogether && layout.buttonLines.every(n => n === 1) && layout.buttonHeights.every(h => h <= 48), "the note reads as a sentence above one row of one-line buttons: " + JSON.stringify(layout));
     await shot(`${tag}-rule-missing`);
     await (await dialog.$("input[placeholder*='Ferrywood']")).setValue("ferrywood");
     await waitText("[data-rule-missing]", "Enter a category.", "a rule with text but no category is explained");

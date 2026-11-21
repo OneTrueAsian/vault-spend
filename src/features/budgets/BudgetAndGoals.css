@@ -1379,6 +1379,12 @@
   min-width: 100px;
 }
 
+/* A wrong value shows red here too: the field rule above (0,2,1) and the theme field rules would otherwise
+   outrank the shared [aria-invalid] rule (VS-49). */
+:is(.bucket-new-form, .bucket-contribution-form) input[aria-invalid="true"]:not([type="checkbox"]) {
+  border-color: var(--negative);
+}
+
 .bucket-new-form button,
 .bucket-contribution-form button {
   padding: 0.4em 0.8em;
