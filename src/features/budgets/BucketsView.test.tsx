@@ -242,7 +242,7 @@ describe("BucketsView renaming a goal", () => {
 });
 
 describe("BucketsView Add money says what is missing (VS-49)", () => {
-  const panelEl = () => container.querySelector<HTMLElement>(".bucket-contribute-panel")!;
+  const panelEl = () => container.querySelector<HTMLFormElement>(".bucket-contribute-panel")!;
   const note = () => panelEl().querySelector("[data-contribution-missing]")?.textContent ?? null;
   const amountBox = () => panelEl().querySelector<HTMLInputElement>('input[aria-label="Contribution amount"]')!;
   const add = () => [...panelEl().querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Add")!;

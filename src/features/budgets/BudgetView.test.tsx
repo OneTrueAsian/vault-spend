@@ -761,7 +761,7 @@ describe("v9 group cards", () => {
 });
 
 describe("Add budget line says what is missing (VS-49)", () => {
-  const form = () => container.querySelector<HTMLElement>(".bucket-new-form")!;
+  const form = () => container.querySelector<HTMLFormElement>(".bucket-new-form")!;
   const note = () => form().querySelector("[data-budget-line-missing]")?.textContent ?? null;
   const amountBox = () => form().querySelector<HTMLInputElement>('input[placeholder="Monthly amount"]')!;
   const save = () => [...form().querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Save")!;
