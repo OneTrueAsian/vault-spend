@@ -12,6 +12,12 @@ const BACKUP_PREFIX: &str = "vaultspend-";
 const BACKUP_SUFFIX: &str = ".db";
 const DEFAULT_KEEP: usize = 15;
 const AUTO_BACKUP_INTERVAL_HOURS: i64 = 24;
+pub(crate) const BACKUP_NOT_SAVED: &str =
+    "The backup couldn't be saved. Your data is unchanged. Make sure the drive with your data has free space, then try again.";
+pub(crate) const COPY_FOLDER_NOT_WRITABLE: &str = "Vault Spend can't save files in that folder. Choose a folder you can write to.";
+pub(crate) const BACKUP_LIST_FAILED: &str = "The list of backups couldn't be read. Try again in a moment.";
+pub(crate) const RESTORE_FAILED: &str = "Nothing was restored. Your current data is unchanged. Try again, or choose a different backup.";
+pub(crate) const RESTORE_SAFETY_BACKUP_FAILED: &str = "Nothing was restored because a backup of your current data couldn't be made first. Your current data is unchanged. Make sure the drive with your data has free space, then try again.";
 
 /// What a person sees when a backup could not be checked. The technical detail goes to stderr.
 pub(crate) const BACKUP_NOT_VERIFIED: &str =
@@ -20,7 +26,7 @@ pub(crate) const RESTORE_NOT_VERIFIED: &str =
     "The backup couldn't be read back correctly, so nothing was restored. Your current data is unchanged. Try again, or choose a different backup.";
 pub(crate) const BACKUP_KEY_FILE_FAILED: &str =
     "The backup couldn't be saved because its key file couldn't be written. Your data is unchanged. Make sure the drive with your data has free space, then try again.";
-pub(crate) const MIRROR_KEY_FILE_FAILED: &str =
+pub(crate) const MIRROR_COPY_FAILED: &str =
     "The backup was saved, but its copy in your second backup folder couldn't be made. Check that the folder is still there and can be written to (Settings → Backups).";
 
 /// Test-only failpoint: truncates `path` when `name` is armed on this thread, so the verification
@@ -342,7 +348,10 @@ pub fn check_copy_dir(backups_dir: &Path, copy_dir: &Path) -> Result<(), String>
         return Err(format!("{} isn't a folder.", copy_dir.display()));
     }
     let probe = copy_dir.join(".vaultspend-write-test");
-    std::fs::write(&probe, b"ok").map_err(|e| format!("couldn't write to {}: {e}", copy_dir.display()))?;
+    std::fs::write(&probe, b"ok").map_err(|e| {
+        eprintln!("couldn't write to {}: {e}", copy_dir.display());
+        COPY_FOLDER_NOT_WRITABLE.to_string()
+    })?;
     let _ = std::fs::remove_file(&probe);
     Ok(())
 }
@@ -375,10 +384,7 @@ pub fn mirror_backup(backups_dir: &Path, filename: &str, copy_dir: &Path) -> Res
     let stage = || -> Result<(), String> {
         std::fs::copy(&source, &staged).map_err(|e| format!("couldn't copy to {}: {e}", dest.display()))?;
         if source_key.exists() {
-            std::fs::copy(&source_key, &staged_key).map_err(|e| {
-                eprintln!("couldn't mirror the backup's key file: {e}");
-                MIRROR_KEY_FILE_FAILED.to_string()
-            })?;
+            std::fs::copy(&source_key, &staged_key).map_err(|e| format!("couldn't mirror the backup's key file: {e}"))?;
         }
         let same_db = files_identical(&source, &staged).map_err(|e| e.to_string())?;
         let same_key = !source_key.exists() || files_identical(&source_key, &staged_key).map_err(|e| e.to_string())?;
@@ -389,12 +395,14 @@ pub fn mirror_backup(backups_dir: &Path, filename: &str, copy_dir: &Path) -> Res
     };
     if let Err(e) = stage() {
         remove_staged(&staged);
-        return Err(e);
+        eprintln!("second backup copy failed: {e}");
+        return Err(MIRROR_COPY_FAILED.to_string());
     }
     crate::protection::transition::debug_failpoint("mirror_after_staged_copy");
     if let Err(e) = publish_with_checkpoints(&staged, &dest, "mirror_after_key_publication", "mirror_after_database_publication") {
         remove_staged(&staged);
-        return Err(e);
+        eprintln!("second backup copy couldn't be published: {e}");
+        return Err(MIRROR_COPY_FAILED.to_string());
     }
     prune_to_disk(copy_dir, DEFAULT_KEEP)?;
     Ok(dest)
@@ -428,7 +436,10 @@ pub fn create_backup_full(
 }
 
 fn create_local_backup(store: &Store, source_db_path: &Path, backups_dir: &Path, now: NaiveDateTime) -> Result<String, String> {
-    std::fs::create_dir_all(backups_dir).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(backups_dir).map_err(|e| {
+        eprintln!("couldn't create the backups folder: {e}");
+        BACKUP_NOT_SAVED.to_string()
+    })?;
     let final_path = unique_backup_path(backups_dir, now);
     let filename = final_path.file_name().expect("just built from a filename").to_string_lossy().to_string();
 
@@ -444,7 +455,8 @@ fn create_local_backup(store: &Store, source_db_path: &Path, backups_dir: &Path,
         remove_staged(&staged);
         if let Err(e) = store.backup_to(&staged) {
             remove_staged(&staged);
-            return Err(e.to_string());
+            eprintln!("couldn't write the backup: {e}");
+            return Err(BACKUP_NOT_SAVED.to_string());
         }
         if store.is_encrypted() {
             let source_key_path = budget_core::protection::keyfile::key_file_path_for(source_db_path);
@@ -461,7 +473,8 @@ fn create_local_backup(store: &Store, source_db_path: &Path, backups_dir: &Path,
                 crate::protection::transition::debug_failpoint("backup_after_verification");
                 if let Err(e) = publish_staged_backup(&staged, &final_path) {
                     remove_staged(&staged);
-                    return Err(e);
+                    eprintln!("couldn't publish the backup: {e}");
+                    return Err(BACKUP_NOT_SAVED.to_string());
                 }
                 prune_to_disk(backups_dir, DEFAULT_KEEP)?;
                 return Ok(filename);
@@ -489,8 +502,14 @@ pub fn create_backup_if_due(
     copy_dir: Option<&Path>,
     now: NaiveDateTime,
 ) -> Result<Option<String>, String> {
-    std::fs::create_dir_all(backups_dir).map_err(|e| e.to_string())?;
-    let existing = list_backup_filenames(backups_dir).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(backups_dir).map_err(|e| {
+        eprintln!("couldn't create the backups folder: {e}");
+        BACKUP_NOT_SAVED.to_string()
+    })?;
+    let existing = list_backup_filenames(backups_dir).map_err(|e| {
+        eprintln!("couldn't read the backups folder: {e}");
+        BACKUP_LIST_FAILED.to_string()
+    })?;
     if should_create_backup(&existing, now, AUTO_BACKUP_INTERVAL_HOURS) {
         Ok(Some(create_backup(store, source_db_path, backups_dir, copy_dir, now)?))
     } else {
@@ -502,11 +521,18 @@ pub fn create_backup_if_due(
 /// from the filename, not filesystem metadata — stable even if the file
 /// was copied/moved and its mtime changed) and size.
 pub fn list_backups(backups_dir: &Path, is_encrypted: bool) -> Result<Vec<BackupInfo>, String> {
-    let mut filenames = list_backup_filenames(backups_dir).map_err(|e| e.to_string())?;
+    let mut filenames = list_backup_filenames(backups_dir).map_err(|e| {
+        eprintln!("couldn't read the backups folder: {e}");
+        BACKUP_LIST_FAILED.to_string()
+    })?;
     // Keep upgrade safety copies visible/restorable but outside ordinary retention pruning.
     if backups_dir.exists() {
-        for entry in std::fs::read_dir(backups_dir).map_err(|e| e.to_string())? {
-            let entry = entry.map_err(|e| e.to_string())?;
+        let unreadable = |e: std::io::Error| {
+            eprintln!("couldn't read the backups folder: {e}");
+            BACKUP_LIST_FAILED.to_string()
+        };
+        for entry in std::fs::read_dir(backups_dir).map_err(unreadable)? {
+            let entry = entry.map_err(unreadable)?;
             let name = entry.file_name().to_string_lossy().into_owned();
             if entry.path().is_file() && is_pre_migration_backup(&name) {
                 filenames.push(name);
@@ -603,13 +629,20 @@ pub fn restore_backup_with_key(
     // Opening a Store runs migrations. Preserve an upgrade safety copy in its original format
     // by migrating only an owned working copy, never the recovery source itself.
     let working = if is_pre_migration_backup(filename) {
-        Some(MigrationRestoreSource::create(&backup_path)?)
+        Some(MigrationRestoreSource::create(&backup_path).map_err(|e| {
+            eprintln!("couldn't prepare the safety copy for restoring: {e}");
+            RESTORE_FAILED.to_string()
+        })?)
     } else {
         None
     };
     let source_path = working.as_ref().map(|w| w.path.as_path()).unwrap_or(&backup_path);
-    let source = Store::open_with_key(source_path, source_key).map_err(|e| e.to_string())?;
-    source.list_accounts(today).map_err(|e| e.to_string())?;
+    let restore_failed = |e: String| {
+        eprintln!("couldn't read the backup to restore it: {e}");
+        RESTORE_FAILED.to_string()
+    };
+    let source = Store::open_with_key(source_path, source_key).map_err(|e| restore_failed(e.to_string()))?;
+    source.list_accounts(today).map_err(|e| restore_failed(e.to_string()))?;
 
     let restored_dir = live_db_path.parent().unwrap_or(Path::new("."));
     let mut restored_path;
@@ -638,7 +671,10 @@ pub fn restore_backup_with_key(
     let mut restored = false;
     for attempt in 1..=MAX_ATTEMPTS {
         let _ = std::fs::remove_file(&restored_path);
-        source.backup_to(&restored_path).map_err(|e| e.to_string())?;
+        if let Err(e) = source.backup_to(&restored_path) {
+            let _ = std::fs::remove_file(&restored_path);
+            return Err(restore_failed(e.to_string()));
+        }
         corrupt_failpoint("restore_corrupt_copy", &restored_path);
         match verify_backup(&source, &restored_path) {
             Ok(()) => {
@@ -662,11 +698,13 @@ pub fn restore_backup_with_key(
     // Now that the restore itself is durably complete, snapshot the
     // current live data too — so switching to `restored_path` is itself
     // reversible. A failure here fails the whole operation (the "restore
-    // is reversible" guarantee wasn't met), but `restored_path` is left
-    // in place rather than deleted: it's valid, verified data, and
-    // discarding it on top of a failed safety-backup would be strictly
-    // worse for the user.
-    create_backup(store, live_db_path, backups_dir, copy_dir, chrono::Local::now().naive_local())?;
+    // is reversible" guarantee wasn't met) and `restored_path` is removed, since nothing
+    // switches to it.
+    if let Err(e) = create_backup(store, live_db_path, backups_dir, copy_dir, chrono::Local::now().naive_local()) {
+        eprintln!("couldn't make the safety backup before restoring: {e}");
+        let _ = std::fs::remove_file(&restored_path);
+        return Err(RESTORE_SAFETY_BACKUP_FAILED.to_string());
+    }
 
     Ok(restored_path)
 }

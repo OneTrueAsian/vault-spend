@@ -763,7 +763,7 @@ fn a_second_folder_name_collision_is_reported_and_leaves_the_other_file_alone() 
 
     assert_eq!(outcome.filename, "vaultspend-20260918-100000.db");
     assert!(outcome.copied_to.is_none());
-    assert!(outcome.copy_error.unwrap().contains("already exists"));
+    assert_eq!(outcome.copy_error.unwrap(), MIRROR_COPY_FAILED);
     assert_eq!(std::fs::read(&existing).unwrap(), b"someone else's file with this name");
     assert_eq!(list_backups(&backups_dir, false).unwrap().len(), 1, "the local backup is still good");
     assert!(stray_files(&copy_dir).is_empty(), "no staging debris, found {:?}", stray_files(&copy_dir));
@@ -1055,5 +1055,104 @@ fn a_second_copy_key_file_failure_is_reported_in_plain_words() {
     std::fs::create_dir(keyfile::key_file_path_for(&backups_dir.join(&filename))).unwrap();
     let result = mirror_backup(&backups_dir, &filename, &copy_dir);
 
-    assert_eq!(result.err().unwrap(), MIRROR_KEY_FILE_FAILED);
+    assert_eq!(result.err().unwrap(), MIRROR_COPY_FAILED);
+}
+
+fn assert_plain(message: &str) {
+    for technical in ["os error", "Os {", "code:", "\\", "No such file", "Access is denied"] {
+        assert!(!message.contains(technical), "{message}");
+    }
+}
+
+#[test]
+fn a_backup_that_cannot_be_saved_says_so_in_plain_words() {
+    let dir = temp_dir("backup-not-saved");
+    let store = seeded_store(&dir);
+    let live = dir.join("live.db");
+    let not_a_folder = dir.join("backups-are-a-file");
+    std::fs::write(&not_a_folder, b"x").unwrap();
+
+    let message = create_backup(&store, &live, &not_a_folder, None, dt("2026-09-27 09:00:00")).unwrap_err();
+
+    assert_eq!(message, BACKUP_NOT_SAVED);
+    assert_plain(&message);
+}
+
+#[test]
+fn a_second_copy_that_cannot_be_made_says_so_in_plain_words() {
+    let dir = temp_dir("mirror-copy-plain");
+    let store = seeded_store(&dir);
+    let live = dir.join("live.db");
+    let backups_dir = backups_dir_for(&live, false);
+    let copy_dir = dir.join("second");
+    std::fs::create_dir_all(&copy_dir).unwrap();
+    create_backup(&store, &live, &backups_dir, None, dt("2026-09-27 09:00:00")).unwrap();
+
+    let message = mirror_backup(&backups_dir, "vaultspend-20260101-000000.db", &copy_dir).unwrap_err();
+
+    assert_eq!(message, MIRROR_COPY_FAILED);
+    assert_plain(&message);
+}
+
+#[test]
+fn a_second_folder_that_cannot_be_written_to_is_refused_in_plain_words() {
+    let dir = temp_dir("copy-dir-unwritable");
+    let backups_dir = dir.join("backups");
+    let copy_dir = dir.join("second");
+    std::fs::create_dir_all(&copy_dir).unwrap();
+    std::fs::create_dir(copy_dir.join(".vaultspend-write-test")).unwrap();
+
+    let message = check_copy_dir(&backups_dir, &copy_dir).unwrap_err();
+
+    assert_eq!(message, COPY_FOLDER_NOT_WRITABLE);
+    assert_plain(&message);
+}
+
+#[test]
+fn a_backup_list_that_cannot_be_read_says_so_in_plain_words() {
+    let dir = temp_dir("list-unreadable");
+    let not_a_folder = dir.join("backups-are-a-file");
+    std::fs::write(&not_a_folder, b"x").unwrap();
+
+    let message = list_backups(&not_a_folder, false).err().expect("must fail");
+
+    assert_eq!(message, BACKUP_LIST_FAILED);
+    assert_plain(&message);
+}
+
+#[test]
+fn a_restore_that_cannot_open_the_backup_says_so_in_plain_words() {
+    let dir = temp_dir("restore-failed");
+    let store = seeded_store(&dir);
+    let live = dir.join("live.db");
+    let backups_dir = dir.join("backups");
+    std::fs::create_dir_all(&backups_dir).unwrap();
+    std::fs::write(backups_dir.join("vaultspend-20260101-000000.db"), b"this is not a database at all, just text").unwrap();
+
+    let message = restore_backup(&store, &backups_dir, None, "vaultspend-20260101-000000.db", &live).unwrap_err();
+
+    assert_eq!(message, RESTORE_FAILED);
+    assert_plain(&message);
+}
+
+#[test]
+fn a_restore_whose_safety_backup_fails_says_so_and_leaves_no_restored_file() {
+    let dir = temp_dir("restore-safety-fails");
+    let store = seeded_store(&dir);
+    let live = dir.join("live.db");
+    let backups_dir = backups_dir_for(&live, false);
+    let filename = create_backup(&store, &live, &backups_dir, None, dt("2026-09-27 09:00:00")).unwrap();
+    arm_corrupt_failpoint("backup_corrupt_staged");
+
+    let result = restore_backup(&store, &backups_dir, None, &filename, &live);
+
+    CORRUPT_FAILPOINT.with(|c| c.set(None));
+    let message = result.err().expect("must fail");
+    assert_eq!(message, RESTORE_SAFETY_BACKUP_FAILED);
+    let leftovers: Vec<_> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+        .filter(|n| n.starts_with("vaultspend-restored-"))
+        .collect();
+    assert!(leftovers.is_empty(), "{leftovers:?}");
 }

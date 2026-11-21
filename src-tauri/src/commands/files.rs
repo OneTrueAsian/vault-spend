@@ -8,7 +8,7 @@ mod tests;
 const PROFILE_KEY_FILE_FAILED: &str =
     "The profile couldn't be moved because its key file couldn't be copied. The profile is unchanged and still where it was. Make sure the new folder can be written to, then try again.";
 const PROFILE_EXPORT_KEY_FILE_FAILED: &str =
-    "The profile couldn't be exported because its key file couldn't be copied. The profile is unchanged. Make sure the new folder can be written to, then try again.";
+    "The profile couldn't be exported because its key file couldn't be copied. Nothing was exported and your profile is unchanged. Make sure the folder you chose can be written to, then try again.";
 
 /// Returns the currently-resolved data file path, for display on the
 /// Reports tab's Settings section.
@@ -86,6 +86,7 @@ fn copy_database_for_relocation(store: &Store, old_live_path: &std::path::Path, 
         let destination_key = budget_core::protection::keyfile::key_file_path_for(new_db_path);
         if let Err(error) = std::fs::copy(&source_key, &destination_key) {
             let _ = std::fs::remove_file(new_db_path);
+            let _ = std::fs::remove_file(&destination_key);
             eprintln!("couldn't move the profile's key file: {error}");
             return Err(PROFILE_KEY_FILE_FAILED.to_string());
         }

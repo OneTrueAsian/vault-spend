@@ -127,3 +127,28 @@ fn an_export_key_file_failure_is_plain_and_leaves_no_package() {
     assert!(!package.exists());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_relocation_key_file_failure_removes_a_partial_destination_key_file() {
+    use budget_core::protection::{kdf::KdfParams, keyfile};
+    use budget_core::store::DatabaseKey;
+
+    let dir = std::env::temp_dir().join(format!("vaultspend-relocate-partialkey-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let source_path = dir.join("source.db");
+    let destination_path = dir.join("moved").join("vaultspend.db");
+    std::fs::create_dir_all(destination_path.parent().unwrap()).unwrap();
+    let plain = Store::open(dir.join("plain.db")).unwrap();
+    let protection = keyfile::create_protection("pw", &KdfParams::FAST_FOR_TESTS, "2026-09-23T00:00:00Z").unwrap();
+    plain.export_encrypted_copy(&source_path, protection.dek.as_bytes()).unwrap();
+    // The source key is missing and a half-written destination key is lying there.
+    std::fs::write(keyfile::key_file_path_for(&destination_path), b"partial").unwrap();
+    let encrypted = Store::open_with_key(&source_path, DatabaseKey::Raw(protection.dek.as_bytes())).unwrap();
+
+    let error = copy_database_for_relocation(&encrypted, &source_path, &destination_path).unwrap_err();
+
+    assert_eq!(error, PROFILE_KEY_FILE_FAILED);
+    assert!(!keyfile::key_file_path_for(&destination_path).exists());
+    let _ = std::fs::remove_dir_all(&dir);
+}
