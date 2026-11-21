@@ -58,7 +58,7 @@ export function RuleEditorDialog({
 
   const wouldChange = preview?.would_change ?? 0;
   // VS-49: the first thing stopping Save rule, said beside it instead of only greying it out.
-  const missing = !pattern.trim() ? "Enter the text to look for." : !category.trim() ? "Pick a category." : null;
+  const missing = !pattern.trim() ? "Enter the text to look for." : !category.trim() ? "Enter a category." : null;
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();

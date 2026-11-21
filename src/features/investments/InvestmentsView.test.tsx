@@ -243,5 +243,4 @@ describe("Add holding says what is missing (VS-49)", () => {
     expect(note()).toBeNull();
     expect(save().disabled).toBe(false);
   });
-
 });

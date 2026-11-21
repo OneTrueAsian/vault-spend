@@ -52,7 +52,7 @@ describe("RuleEditorDialog says what is missing (VS-49)", () => {
     expect(note()).toBe("Enter the text to look for.");
     type(document.querySelector<HTMLInputElement>('input[placeholder^="e.g."]')!, "Ferrywood");
     expect(save().disabled).toBe(true);
-    expect(note()).toBe("Pick a category.");
+    expect(note()).toBe("Enter a category.");
     type(document.querySelector<HTMLInputElement>('input[aria-label="Give it this category"]')!, "Coffee");
     expect(note()).toBeNull();
     expect(save().disabled).toBe(false);

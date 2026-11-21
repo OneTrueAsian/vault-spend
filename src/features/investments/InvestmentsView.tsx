@@ -329,7 +329,7 @@ function NewHoldingForm({
           : null;
   const valid = accountId !== "" && symbol.trim() !== "" && !sharesError && !priceError && !costBasisError;
   // VS-49: what is stopping the greyed-out Save (the shares, price and paid boxes explain themselves once Save is tried).
-  const missing = accountId === "" ? "Pick an investment account." : !symbol.trim() ? "Enter a symbol, like AAPL." : null;
+  const missing = !symbol.trim() ? "Enter a symbol, like AAPL." : null;
 
   async function handleSymbolBlur() {
     const trimmed = symbol.trim();

@@ -131,11 +131,7 @@ function NewBudgetLineForm({
   }, [availableCategories, category]);
 
   // VS-49: the first thing stopping Save, said beside it instead of only greying it out.
-  const missing = !category
-    ? "Pick a category."
-    : !amount.trim()
-      ? "Enter a monthly amount."
-      : amountTextProblem(amount);
+  const missing = !amount.trim() ? "Enter a monthly amount." : amountTextProblem(amount);
   const valid = missing === null;
   const amountWrong = amountTextProblem(amount) !== null;
 
