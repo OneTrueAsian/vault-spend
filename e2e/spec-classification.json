@@ -353,7 +353,10 @@
     "feature417_password_nudge.mjs": "not reviewed for parallel execution; exclusive until approved",
     "feature418_mobile_trust_notice.mjs": "not reviewed for parallel execution; exclusive until approved",
     "feature419_reopen_after_commit.mjs": "not reviewed for parallel execution; exclusive until approved",
-    "feature420_ask_cut_back.mjs": "not reviewed for parallel execution; exclusive until approved",
-    "feature421_profiles_actions_narrow.mjs": "drives menus that close when the window loses focus"
+    "feature420_ask_cut_back.mjs": "lib\\askRetirement.mjs: depends on which window has OS focus; lib\\askReady.mjs: uses the shared keyboard",
+    "feature421_profiles_actions_narrow.mjs": "drives menus that close when the window loses focus",
+    "feature422_notes_partial_month_row_problems_default.mjs": "lib\\notesPartialMonthRowProblems.mjs: drives menus that close when the window loses focus; lib\\importAccount.mjs: drives menus that close when the window loses focus",
+    "feature423_notes_partial_month_row_problems_futuristic.mjs": "lib\\notesPartialMonthRowProblems.mjs: drives menus that close when the window loses focus; lib\\importAccount.mjs: drives menus that close when the window loses focus",
+    "feature424_notes_partial_month_row_problems_retro.mjs": "lib\\notesPartialMonthRowProblems.mjs: drives menus that close when the window loses focus; lib\\importAccount.mjs: drives menus that close when the window loses focus"
   }
 }
