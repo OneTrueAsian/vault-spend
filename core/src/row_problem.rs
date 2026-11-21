@@ -33,9 +33,17 @@ pub fn plain_row_reason(message: &str) -> String {
     } else if message == "row has neither a debit nor a credit amount" {
         "This row has no amount.".to_string()
     } else if message.starts_with("invalid amount") || message.starts_with("invalid debit amount") || message.starts_with("invalid credit amount") {
-        "The amount isn't a number.".to_string()
+        if message.trim_end_matches([':', ' ', '\'']).ends_with("amount") {
+            "This row has no amount.".to_string()
+        } else {
+            "The amount isn't a number.".to_string()
+        }
     } else if let Some(date) = date_of("invalid date: ").or_else(|| date_of("invalid date ")) {
-        format!("The date {date} isn't a real date.")
+        if date.is_empty() {
+            "This row has no date.".to_string()
+        } else {
+            format!("The date {date} isn't a real date.")
+        }
     } else if matches!(message, "missing payee (P) line" | "missing NAME/MEMO" | "empty description") {
         "This transaction has no description.".to_string()
     } else if message.starts_with("transaction never closed") {
@@ -65,6 +73,20 @@ mod tests {
     fn a_date_that_is_not_real_names_the_date() {
         assert_eq!(plain_row_reason("invalid date '13/45/2026'"), "The date 13/45/2026 isn't a real date.");
         assert_eq!(plain_row_reason("invalid date: 20261345"), "The date 20261345 isn't a real date.");
+    }
+
+    #[test]
+    fn an_empty_date_is_said_to_be_missing_not_wrong() {
+        for message in ["invalid date ''", "invalid date: ", "invalid date: ''"] {
+            assert_eq!(plain_row_reason(message), "This row has no date.", "{message}");
+        }
+    }
+
+    #[test]
+    fn an_empty_amount_is_said_to_be_missing_not_wrong() {
+        for message in ["invalid amount ''", "invalid debit amount ''", "invalid credit amount ''", "invalid amount: "] {
+            assert_eq!(plain_row_reason(message), "This row has no amount.", "{message}");
+        }
     }
 
     #[test]

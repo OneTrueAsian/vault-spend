@@ -62,7 +62,7 @@ so the stable updater (`releases/latest`) never sees it. A real release is not a
 files**; a draft that already holds files from an earlier attempt is refused, and signing's `gh release upload` fails on any existing
 asset. To rerun after a failed attempt, the owner deletes the unpublished draft (the tag stays; tags are never moved) and dispatches
 again on the same tag. A partially uploaded set of manifests is inspected by the owner and resumed only with matching bytes. Recovery
-(an existing older tag) builds the same kind of draft and never signs.
+is a diagnostic-only gate run on an existing tag (it needs `diagnostic_only`): it runs the test gates and never builds a draft or signs.
 
 **Test route notes.** Installation and update checks are not part of it, and Windows does not run macOS packaging; macOS can be added to the test draft by
 a separate `build-macos.yml` run (below). Delete the draft and the test tag after review.

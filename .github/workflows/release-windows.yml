@@ -9,7 +9,7 @@ on:
         required: true
         type: string
       recovery:
-        description: 'Build an existing tag using this branch workflow and repair legacy test driver paths'
+        description: 'Diagnostic only: run the test gates on an existing tag using this branch workflow, repairing legacy test driver paths. Needs diagnostic_only; it never builds a release.'
         type: boolean
         default: false
       source_sha:
@@ -103,13 +103,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ inputs.tag }}
           TEST_RELEASE: ${{ inputs.test_release }}
-          RECOVERY: ${{ inputs.recovery }}
         run: |
           previous=$(gh api repos/OneTrueAsian/vault-spend/releases/latest --jq .tag_name)
           [[ "$previous" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Unexpected latest release tag: $previous"; exit 1; }
           mode=production; [[ "$TEST_RELEASE" == "true" ]] && mode=test
-          older=(); [[ "$RECOVERY" == "true" ]] && older=(--allow-older)
-          gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,assets:[.assets[].name]}' | node tools/assert-draft-release.mjs "$RELEASE_TAG" --mode "$mode" --stage before --previous "$previous" "${older[@]}"
+          gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,assets:[.assets[].name]}' | node tools/assert-draft-release.mjs "$RELEASE_TAG" --mode "$mode" --stage before --previous "$previous"
           echo "previous=$previous" >> "$GITHUB_OUTPUT"
 
   sharded-gate:

@@ -32,7 +32,7 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
       "If a backup, restore or update fails, Vault Spend now says in plain words what happened, whether your data is unchanged, and what to try next.",
     ],
     "Bug fixes": [
-      "Reports › Savings rate now covers the months you picked at the top of the page, and the current month is marked \"so far\" instead of looking like a sudden drop.",
+      "Reports → Savings rate now covers the months you picked at the top of the page, and the current month is marked \"so far\" instead of looking like a sudden drop.",
     ],
   },
   "1.3.4": {

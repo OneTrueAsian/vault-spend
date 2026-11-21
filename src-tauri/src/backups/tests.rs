@@ -872,6 +872,21 @@ fn restoring_a_legacy_snapshot_of_zero_bytes_is_refused_not_healed_into_an_empty
 }
 
 #[test]
+fn restoring_an_empty_backup_says_so_in_plain_words() {
+    let dir = temp_dir("restore-empty-plain");
+    let store = seeded_store(&dir);
+    let backups_dir = dir.join("backups");
+    std::fs::create_dir_all(&backups_dir).unwrap();
+    std::fs::write(backups_dir.join("vaultspend-20260101-000000.db"), b"").unwrap();
+
+    let message = restore_backup(&store, &backups_dir, None, "vaultspend-20260101-000000.db", &dir.join("live.db")).unwrap_err();
+
+    assert_eq!(message, RESTORE_EMPTY_BACKUP);
+    assert_plain(&message);
+    assert!(!message.contains("vaultspend-"), "{message}");
+}
+
+#[test]
 fn restoring_a_truncated_legacy_snapshot_is_refused() {
     assert_restore_refuses_damaged_snapshot("restore-truncated", |p| {
         let source_dir = p.parent().unwrap().parent().unwrap().join("source-for-truncation");

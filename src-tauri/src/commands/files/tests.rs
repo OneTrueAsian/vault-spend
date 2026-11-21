@@ -129,6 +129,22 @@ fn an_export_key_file_failure_is_plain_and_leaves_no_package() {
 }
 
 #[test]
+fn an_export_that_cannot_read_the_key_file_back_is_plain_and_leaves_no_package() {
+    let dir = std::env::temp_dir().join(format!("vaultspend-export-keyunreadable-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let (store, source_path) = protected_store_for_package_test(&dir, "pw");
+    std::fs::write(budget_core::protection::keyfile::key_file_path_for(&source_path), b"not a key file").unwrap();
+    let package = dir.join("package");
+
+    let error = export_protected_package(&package, "Sam", &source_path, &store, "2026-09-24T09:00:00Z").unwrap_err();
+
+    assert_eq!(error, PROFILE_EXPORT_FAILED);
+    assert!(!package.exists());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn a_relocation_key_file_failure_removes_a_partial_destination_key_file() {
     use budget_core::protection::{kdf::KdfParams, keyfile};
     use budget_core::store::DatabaseKey;
