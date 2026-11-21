@@ -7,7 +7,7 @@ the full compiled suite. WebDriverIO 10 was evaluated and excluded because it re
 Node installation is not changed by the implementation session: local validation used isolated
 Node 22.20.0. Run `npm ci` under a supported runtime.
 
-Install `cargo-audit` with `cargo install cargo-audit --locked`, then run:
+Install `cargo-audit` with `cargo install cargo-audit --version 0.23.0 --locked`, then run:
 
 ```text
 node --test tools/dependency-security-policy.test.mjs

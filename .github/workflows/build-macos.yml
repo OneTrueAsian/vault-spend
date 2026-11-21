@@ -113,7 +113,7 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
       - name: Install RustSec scanner
-        run: cargo install cargo-audit --locked
+        run: cargo install cargo-audit --version 0.23.0 --locked
       - name: Dependency security policy tests
         run: node --test tools/dependency-security-policy.test.mjs tools/browser-download-contract.test.mjs
       - name: Verify signed updater release contracts

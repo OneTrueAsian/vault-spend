@@ -6,7 +6,7 @@ import { GATE_JOBS, requiredChecks, checkOwner } from "../e2e/lib/gateChecks.mjs
 
 const read = name => fs.readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), "utf8");
 const gateText = read("windows-desktop-gate-sharded.yml"), gate = yaml.load(gateText);
-const releaseText = read("release-windows.yml"), release = yaml.load(releaseText);
+const release = yaml.load(read("release-windows.yml"));
 const step = (job, name) => job.steps.find(s => s.name === name);
 const hostedSteps = ["Refresh hosted WebView2 runtime", "Pin hosted Edge version", "Install desktop test drivers", "Install native Edge test driver", "Prepare medium-integrity desktop tests",
   "Desktop WebDriver smoke preflight", "Verify native Edge driver still matches Edge"];
@@ -22,17 +22,14 @@ test("the sharded gate cannot publish, sign or move a tag", () => {
   }
 });
 
-test("the caller reaches it read-only, without secrets, and keeps its serial path behind the flag", () => {
+test("the caller reaches it read-only, without secrets", () => {
   for (const [workflow, name] of [[release, "release-windows.yml"]]) {
     const call = workflow.jobs["sharded-gate"];
     assert.equal(call.uses, "./.github/workflows/windows-desktop-gate-sharded.yml", name);
     assert.deepEqual(call.permissions, { contents: "read" }, name);
     assert.equal(call.secrets, undefined, name);
-    assert.equal(call.if, "${{ inputs.sharded }}", name);
-    assert.equal(workflow.on.workflow_dispatch.inputs.sharded.default, false, name);
-    assert.equal(workflow.on.workflow_dispatch.inputs.sharded.type, "boolean", name);
+    assert.equal(call.if, undefined, name);
   }
-  assert.equal(release.jobs.release.if, "${{ !cancelled() && !inputs.sharded && !inputs.test_release && (inputs.diagnostic_only || needs.release-baseline.result == 'success') }}");
 });
 
 test("a sharded release-windows request must be a pinned diagnostic, a release on its own tag, or a draft test release", () => {
@@ -41,24 +38,17 @@ test("a sharded release-windows request must be a pinned diagnostic, a release o
   for (const needle of ['"$DIAGNOSTIC_ONLY" == "true"', '"$RECOVERY" == "true"', "[0-9a-f]{40}", "refs/heads/*", 'refs/tags/$RELEASE_TAG', '"$SOURCE_SHA" == "$GITHUB_SHA"', "v[0-9]+"]) assert.ok(run.includes(needle), needle);
   assert.equal(release.jobs["sharded-gate"].with.recovery, "${{ inputs.recovery }}");
   // The signing job is unreachable for diagnostics.
-  assert.equal(release.jobs["sign-updates"].if, "${{ !inputs.recovery && !inputs.diagnostic_only }}");
+  assert.equal(release.jobs["sharded-sign-updates"].if, "${{ !inputs.diagnostic_only }}");
 });
 
-test("the serial gate still runs every check, unchanged, when the flag is off", () => {
-  const names = release.jobs.release.steps.map(s => s.name).filter(Boolean);
-  for (const name of ["Frontend tests", "Lint", "Rust tests", "Build current desktop test app", "Desktop WebDriver smoke preflight", "Full desktop E2E release gate", "Build Windows installers into the draft release"]) assert.ok(names.includes(name), name);
-  assert.equal(step(release.jobs.release, "Full desktop E2E release gate").run.includes("-Shard"), false);
-  assert.equal(release.jobs.release["timeout-minutes"], 240);
-});
-
-test("every shard repeats the serial job's hosted-environment steps exactly", () => {
-  for (const name of hostedSteps) assert.deepEqual(step(gate.jobs.shard, name), step(release.jobs.release, name), name);
-  assert.deepEqual(step(gate.jobs.build, "Build current desktop test app"), step(release.jobs.release, "Build current desktop test app"));
-  // Every check the serial job runs before the desktop specs still runs, unchanged, in exactly one job of the gate.
+test("every shard sets up the hosted environment, and each pre-spec check runs in exactly one job of the gate", () => {
+  for (const name of hostedSteps) assert.ok(step(gate.jobs.shard, name), name);
+  assert.equal(step(gate.jobs.build, "Build current desktop test app").run, "npm run build:app");
+  // Every check before the desktop specs runs in exactly one job of the gate.
   const owner = { "Build E2E database fixture tool": "build", "Build frontend for Rust tests": "checks-rust", "Rust tests": "checks-rust", "Frontend tests": "checks-other", Lint: "checks-other",
     "Install RustSec scanner": "checks-other", "Dependency security policy tests": "checks-other", "Audit dependencies for x86_64-pc-windows-msvc": "checks-other" };
   for (const [name, job] of Object.entries(owner)) {
-    assert.deepEqual(step(gate.jobs[job], name), step(release.jobs.release, name), name);
+    assert.ok(step(gate.jobs[job], name), name);
     for (const other of ["build", "checks-rust", "checks-other"]) if (other !== job) assert.equal(step(gate.jobs[other], name), undefined, `${name} runs only in ${job}`);
   }
   const contract = step(gate.jobs["checks-other"], "Verify signed updater release contracts");
@@ -70,10 +60,11 @@ test("every shard repeats the serial job's hosted-environment steps exactly", ()
   assert.deepEqual(step(gate.jobs.build, "Repair legacy test driver paths for recovery"), step(gate.jobs.shard, "Repair legacy test driver paths for recovery"));
 });
 
-test("the full gate step differs from the serial one only by naming its shard of six", () => {
-  const serial = step(release.jobs.release, "Full desktop E2E release gate"), sharded = step(gate.jobs.shard, "Full desktop E2E release gate");
-  assert.deepEqual(sharded.env, serial.env);
-  assert.equal(sharded.run.replace(" -Shard ${{ matrix.shard }}/6", ""), serial.run);
+test("the full gate step runs one shard of six with the hosted timing settings", () => {
+  const sharded = step(gate.jobs.shard, "Full desktop E2E release gate");
+  assert.equal(sharded.env.VAULTSPEND_E2E_SPEC_TIMEOUT_MS, "180000");
+  assert.equal(sharded.env.VAULTSPEND_E2E_TIMEOUT_SCALE, "3");
+  assert.ok(sharded.run.includes("--integrity Medium"));
   assert.ok(sharded.run.includes("-Gate full -Shard ${{ matrix.shard }}/6"));
   assert.deepEqual(gate.jobs.shard.strategy.matrix.shard, [1, 2, 3, 4, 5, 6]);
   assert.equal(gate.jobs.shard.strategy["fail-fast"], false);

@@ -11,7 +11,7 @@ const workflows = Object.fromEntries(names.map(n => [n, yaml.load(fs.readFileSyn
 
 // The only jobs allowed to hold contents: write: they run gh release upload or tauri-action against the release.
 const WRITERS = {
-  "release-windows.yml": ["release", "sharded-package", "sharded-sign-updates", "sign-updates"],
+  "release-windows.yml": ["sharded-package", "sharded-sign-updates"],
   "build-macos.yml": ["build-macos", "sign-updates"],
 };
 // Checkouts allowed to keep the token. None: no job pushes or fetches with the persisted credential.

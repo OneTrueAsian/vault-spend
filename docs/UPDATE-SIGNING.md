@@ -20,22 +20,25 @@ Use the Windows non-publishing diagnostic mode for pipeline validation.
 `build-macos-check.yml` now only builds and tests on macOS from a manual dispatch; it has a read-only token and cannot sign or publish.
 Update signing happens only in the `release-windows.yml` and `build-macos.yml` jobs that use the protected `release-signing` environment.
 
-## Windows releases are drafts (serial and sharded gate)
+## Windows releases are drafts (sharded gate)
 
-`release-windows.yml` never publishes. Whatever gate it uses, it builds the installers into a **draft** release for the tag, signs
+`release-windows.yml` never publishes. It builds the installers into a **draft** release for the tag, signs
 that draft's exact bytes, and stops. The owner reviews the draft and publishes it by hand; nothing in this workflow does.
 (`build-macos.yml` adds the macOS files to this same draft and never publishes either; see "macOS joins the Windows draft" below.)
 
-**Choosing the gate.** `sharded` selects the gate and nothing else. Off (the default) is the serial gate in the `release` job. On, the
-`sharded-gate` job runs preparation, six parallel shards and an aggregate, and `sharded-package` then `sharded-sign-updates` follow.
-`test_release` is separate: it only turns on the restricted test behaviour below and needs `sharded`.
+**The gate.** There is one route. The `sharded-gate` job runs preparation, six parallel shards and an aggregate, and `sharded-package` then
+`sharded-sign-updates` follow. The old serial `release` and `sign-updates` jobs and the `sharded` input were removed (VS-42): they
+downloaded the Edge test driver in the same job that builds the installers. `test_release` only turns on the restricted test behaviour below.
+
+**Test tools.** The Edge driver downloaded by the gate is checked with `Get-AuthenticodeSignature` (valid, signed by Microsoft Corporation)
+right after it is extracted, and only the gate's test jobs download it, never a job that packages. `cargo-audit` is installed at a pinned version.
 
 **Request shapes.** `sharded-request` accepts exactly three shapes and refuses everything else before any build starts:
 
 1. A recovery diagnostic (`recovery` and `diagnostic_only`, from a workflow branch). It stops after the gate and never packages or signs.
-2. A sharded release: a normal stable tag, dispatched **on that tag**, with `source_sha` equal to the tag commit, and no recovery,
+2. A release: a normal stable tag, dispatched **on that tag**, with `source_sha` equal to the tag commit, and no recovery,
    diagnostic or fault. Reserved test tags are refused.
-3. A draft test release: `sharded` and `test_release` on a reserved test tag (v1.3.90 to v1.3.99), dispatched on that tag, with the
+3. A draft test release: `test_release` on a reserved test tag (v1.3.90 to v1.3.99), dispatched on that tag, with the
    same tag-commit rule. `fault` (`prepare` or `1` to `6`) exists only here and can only make the gate fail.
 
 **What must happen before anything is packaged or signed.**
@@ -44,13 +47,12 @@ that draft's exact bytes, and stops. The owner reviews the draft and publishes i
   newest published release must be that tag, the new tag must be newer than it (unless recovering an older tag), no reserved test
   tag may be published, and the new tag must have no release yet or only an empty draft. Its result, `previous`, is passed to every
   later check, so a release published by someone else mid-run is noticed. Nothing is hard-coded to a version.
-- The serial path: the baseline job must succeed, then the serial gate, then the same before/after draft checks around packaging.
-  Diagnostics publish nothing and skip the baseline.
-- The sharded path: preparation, all six shards and the aggregate must succeed. `sharded-package` then verifies the aggregate's
+- Diagnostics publish nothing and skip the baseline.
+- Preparation, all six shards and the aggregate must succeed. `sharded-package` then verifies the aggregate's
   summary with `tools/verify-sharded-gate-summary.mjs` (every spec ran once and passed, six shards, retries inside the gate-wide
   budget of 3, same source commit and run attempt) before it builds. A job status alone is not accepted. There is no `always()`,
   `cancelled()` or `failure()` on the packaging or signing jobs, so a failed, cancelled or skipped need stops them.
-- Both signing jobs use the protected `release-signing` environment, so the owner's review is still required.
+- The signing job uses the protected `release-signing` environment, so the owner's review is still required.
 
 **Draft policy.** `releaseDraft` is always true; `prerelease` is true only for the test route. After every step that changes the release,
 `assert-draft-release.mjs` requires exactly one release for the tag, still a draft, with `previous` still the newest published release,
