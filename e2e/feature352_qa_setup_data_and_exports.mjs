@@ -63,7 +63,11 @@ try {
   await waitUntilOrDiagnose(b, async () => /QQXZ Setup Savings/.test(await dialogText()), { timeout: 15000, timeoutMsg: "the review lists the good rows", extra: dialogText });
   const review = await dialogText();
   for (const name of ["QQXZ Setup Savings", "QQXZ Hobbies", "QQXZ Pets", "QQXZ Trip"]) assert.ok(review.includes(name), `${name} is in the review: ${review}`);
-  assert.ok(!review.includes("QQXZ Odd Account") && !review.includes("QQXZ No Balance"), "rows with a bad type or balance are not offered");
+  // Bad rows are never offered for import; since VS-52 they are listed apart, with why, among the rows that couldn't be read.
+  const offered = await b.execute(() => [...document.querySelectorAll("[role='dialog'] .dup-review-table")].map(t => t.innerText).join("\n"));
+  assert.ok(!offered.includes("QQXZ Odd Account") && !offered.includes("QQXZ No Balance"), "rows with a bad type or balance are not offered: " + offered);
+  const problems = await b.execute(() => document.querySelector("[role='dialog'] ul.import-row-problems")?.innerText ?? "");
+  assert.ok(problems.includes("QQXZ Odd Account") && problems.includes("QQXZ No Balance"), "the skipped rows are listed with their reasons: " + problems);
   assert.ok(review.includes("3 rows had problems and will be skipped."), "the review counts the rows it skipped: " + review);
   await (await b.$("//div[@role='dialog']//button[normalize-space()='Import selected']")).click();
   await waitUntilOrDiagnose(b, async () => (await invoke("list_accounts")).some(a => a.name === "QQXZ Setup Savings"), { timeout: 15000, timeoutMsg: "Import selected creates the account" });
