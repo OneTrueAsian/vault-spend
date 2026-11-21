@@ -479,6 +479,16 @@ table.ledger.category-transactions-table {
   margin-top: 4px;
 }
 
+/* VS-49: what the greyed-out main button is waiting for, in the footer's free space so the buttons never move. */
+.modal-actions > .field-problem {
+  order: -1;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-self: center;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
 .category-create-form {
   display: flex;
   gap: 8px;

@@ -328,6 +328,8 @@ function NewHoldingForm({
           ? "What you paid can't be negative."
           : null;
   const valid = accountId !== "" && symbol.trim() !== "" && !sharesError && !priceError && !costBasisError;
+  // VS-49: what is stopping the greyed-out Save (the shares, price and paid boxes explain themselves once Save is tried).
+  const missing = accountId === "" ? "Pick an investment account." : !symbol.trim() ? "Enter a symbol, like AAPL." : null;
 
   async function handleSymbolBlur() {
     const trimmed = symbol.trim();
@@ -444,12 +446,13 @@ function NewHoldingForm({
           placeholder="e.g. US Stocks"
         />
       </label>
-      <button type="submit" style={{ alignSelf: "flex-end" }} disabled={!accountId || !symbol.trim()}>
+      <button type="submit" style={{ alignSelf: "flex-end" }} disabled={missing !== null}>
         Save
       </button>
       <button type="button" className="modal-secondary" style={{ alignSelf: "flex-end" }} onClick={() => setOpen(false)}>
         Cancel
       </button>
+      {missing && <small className="field-problem" role="status" data-holding-missing>{missing}</small>}
     </form>
   );
 }

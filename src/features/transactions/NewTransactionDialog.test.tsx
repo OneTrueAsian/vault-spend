@@ -185,3 +185,17 @@ describe("NewTransactionDialog date box", () => {
     expect(vi.mocked(props.onSubmit).mock.calls[0][1]).toBe("2026-10-02");
   });
 });
+
+describe("Add transaction with no accounts (VS-49)", () => {
+  it("says to add an account first, beside the greyed-out button", () => {
+    render({ accounts: [], defaultAccountId: null });
+    const button = [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Add transaction")!;
+    expect(button.disabled).toBe(true);
+    expect(document.querySelector("[data-transaction-missing]")?.textContent).toBe("Add an account first, on the Accounts page.");
+  });
+
+  it("shows no note when there is an account", () => {
+    render();
+    expect(document.querySelector("[data-transaction-missing]")).toBeNull();
+  });
+});

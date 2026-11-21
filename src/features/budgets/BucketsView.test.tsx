@@ -240,3 +240,33 @@ describe("BucketsView renaming a goal", () => {
     expect(goalName()!.value).toBe("Holiday");
   });
 });
+
+describe("BucketsView Add money says what is missing (VS-49)", () => {
+  const panelEl = () => container.querySelector<HTMLElement>(".bucket-contribute-panel")!;
+  const note = () => panelEl().querySelector("[data-contribution-missing]")?.textContent ?? null;
+  const amountBox = () => panelEl().querySelector<HTMLInputElement>('input[aria-label="Contribution amount"]')!;
+  const add = () => [...panelEl().querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Add")!;
+  const type = (input: HTMLInputElement, text: string) =>
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, text);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+  it("names the amount, then the comma, and adds once it is usable", () => {
+    const props = render({ buckets: [bucket()] });
+    click(button("+ Add"));
+    expect(add().disabled).toBe(true);
+    expect(note()).toBe("Enter an amount.");
+    type(amountBox(), "1,250.40");
+    expect(note()).toBe("Leave out the comma: 1250.40");
+    expect(amountBox().getAttribute("aria-invalid")).toBe("true");
+    expect(add().disabled).toBe(true);
+    act(() => panelEl().requestSubmit());
+    expect(props.onAddContribution).not.toHaveBeenCalled();
+    type(amountBox(), "-50");
+    expect(note()).toBeNull();
+    expect(amountBox().getAttribute("aria-invalid")).not.toBe("true");
+    click(add());
+    expect(props.onAddContribution).toHaveBeenCalledWith(1, expect.any(String), "-50", null);
+  });
+});

@@ -759,3 +759,33 @@ describe("v9 group cards", () => {
     expect(container.querySelectorAll('.cat-row-bar')).toHaveLength(3);
   });
 });
+
+describe("Add budget line says what is missing (VS-49)", () => {
+  const form = () => container.querySelector<HTMLElement>(".bucket-new-form")!;
+  const note = () => form().querySelector("[data-budget-line-missing]")?.textContent ?? null;
+  const amountBox = () => form().querySelector<HTMLInputElement>('input[placeholder="Monthly amount"]')!;
+  const save = () => [...form().querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Save")!;
+  const open = async (p: Props) => {
+    await render(p);
+    act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Add budget line")!.click());
+  };
+
+  it("names the amount, then the comma, and saves once it is usable", async () => {
+    const p = props();
+    await open(p);
+    expect(save().disabled).toBe(true);
+    expect(note()).toBe("Enter a monthly amount.");
+    act(() => setInputValue(amountBox(), "1,250.40"));
+    expect(note()).toBe("Leave out the comma: 1250.40");
+    expect(amountBox().getAttribute("aria-invalid")).toBe("true");
+    expect(save().disabled).toBe(true);
+    act(() => form().requestSubmit());
+    expect(p.onSetBudget).not.toHaveBeenCalled();
+    act(() => setInputValue(amountBox(), "1250.40"));
+    expect(note()).toBeNull();
+    expect(amountBox().getAttribute("aria-invalid")).not.toBe("true");
+    expect(save().disabled).toBe(false);
+    act(() => save().click());
+    expect(p.onSetBudget).toHaveBeenCalled();
+  });
+});

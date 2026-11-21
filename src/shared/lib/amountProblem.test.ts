@@ -15,3 +15,10 @@ describe("what's wrong with a typed amount", () => {
     for (const text of ["abc", "$12", "12.3.4", "1,2a"]) expect(amountTextProblem(text), text).toBe("Enter an amount like 1250.40.");
   });
 });
+
+describe("a negative amount (VS-49)", () => {
+  it("keeps the minus sign when it shows the amount without commas", () => {
+    expect(amountTextProblem("-1,250")).toBe("Leave out the comma: -1250");
+    expect(amountTextProblem("-50")).toBeNull();
+  });
+});

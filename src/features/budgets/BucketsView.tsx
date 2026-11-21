@@ -7,6 +7,7 @@ import { DateField } from "../../shared/ui/DateField";
 import { useAutoCancelDelete } from "../../shared/hooks/useAutoCancelDelete";
 import { BUCKET_ICON_OPTIONS, BucketIcon, isBucketIconKey, type BucketIconKey } from "../../shared/ui/icons";
 import { goalPlan, type GoalPlan } from "../../shared/lib/goalPlan";
+import { amountTextProblem } from "../../shared/lib/amountProblem";
 import { usePopover } from "../../shared/hooks/usePopover";
 import { MenuSelect } from "../../shared/ui/MenuSelect";
 import { HelpLink } from "../../shared/ui/HelpLink";
@@ -330,10 +331,12 @@ function ContributePopover({
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const { open, setOpen, rootRef, triggerRef } = usePopover();
+  // VS-49: what is stopping Add, said beside it instead of only greying it out.
+  const missing = !amount.trim() ? "Enter an amount." : amountTextProblem(amount);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!amount.trim()) return;
+    if (missing !== null) return;
     onAddContribution(bucketId, today, amount.trim(), note.trim() ? note.trim() : null);
     setAmount("");
     setNote("");
@@ -360,17 +363,19 @@ function ContributePopover({
             onChange={(e) => setAmount(e.target.value)}
             placeholder="Amount (negative = withdrawal)"
             aria-label="Contribution amount"
+            aria-invalid={amountTextProblem(amount) !== null}
             className="text-input"
           />
           <input className="text-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" aria-label="Contribution note" />
           <div className="bucket-new-form-actions">
-            <button type="submit" disabled={!amount.trim()}>
+            <button type="submit" disabled={missing !== null}>
               Add
             </button>
             <button type="button" className="modal-secondary" onClick={() => setOpen(false)}>
               Cancel
             </button>
           </div>
+          {missing && <small className="field-problem" role="status" data-contribution-missing>{missing}</small>}
         </form>
       )}
     </div>

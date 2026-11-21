@@ -222,3 +222,26 @@ describe("What your investments are in", () => {
     stop();
   });
 });
+
+describe("Add holding says what is missing (VS-49)", () => {
+  const form = () => host.querySelector<HTMLElement>(".labeled-field-form")!;
+  const note = () => form().querySelector("[data-holding-missing]")?.textContent ?? null;
+  const save = () => [...form().querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Save")!;
+  const symbolBox = () => form().querySelector<HTMLInputElement>('input[placeholder="e.g. AAPL"]')!;
+  const type = (input: HTMLInputElement, text: string) =>
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, text);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+  it("asks for a symbol, then lets Save through", () => {
+    show();
+    click([...host.querySelectorAll("button")].find((b) => b.textContent === "Add holding")!);
+    expect(save().disabled).toBe(true);
+    expect(note()).toBe("Enter a symbol, like AAPL.");
+    type(symbolBox(), "AAPL");
+    expect(note()).toBeNull();
+    expect(save().disabled).toBe(false);
+  });
+
+});

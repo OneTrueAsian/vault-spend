@@ -1396,6 +1396,10 @@
   align-items: flex-end;
 }
 
+.labeled-field-form > .field-problem {
+  flex-basis: 100%;
+}
+
 .labeled-field {
   display: flex;
   flex-direction: column;

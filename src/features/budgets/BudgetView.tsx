@@ -3,6 +3,7 @@ import "./BudgetGroupCards.css";
 import { DragEvent, FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { BudgetAlert, BudgetSuggestions, ReportBudgetLine } from "../../shared/lib/types";
 import { formatAmount } from "../../shared/lib/format";
+import { amountTextProblem } from "../../shared/lib/amountProblem";
 import { useAutoCancelDelete } from "../../shared/hooks/useAutoCancelDelete";
 import { Sparkline } from "../../shared/ui/charts";
 import { CategoryBars, type CategoryBarRow } from "../../shared/ui/CategoryBars";
@@ -129,9 +130,18 @@ function NewBudgetLineForm({
     }
   }, [availableCategories, category]);
 
+  // VS-49: the first thing stopping Save, said beside it instead of only greying it out.
+  const missing = !category
+    ? "Pick a category."
+    : !amount.trim()
+      ? "Enter a monthly amount."
+      : amountTextProblem(amount);
+  const valid = missing === null;
+  const amountWrong = amountTextProblem(amount) !== null;
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!category || !amount.trim()) return;
+    if (!valid) return;
     onSet(category, amount.trim(), group);
     setAmount("");
     setOpen(false);
@@ -161,13 +171,14 @@ function NewBudgetLineForm({
         options={GROUP_ORDER.map((g) => ({ value: g, label: GROUP_LABELS[g] }))}
         fill
       />
-      <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Monthly amount" />
-      <button type="submit" disabled={!category || !amount.trim()}>
+      <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Monthly amount" aria-invalid={amountWrong} />
+      <button type="submit" disabled={!valid}>
         Save
       </button>
       <button type="button" className="modal-secondary" onClick={() => setOpen(false)}>
         Cancel
       </button>
+      {missing && <small className="field-problem" role="status" data-budget-line-missing>{missing}</small>}
     </form>
   );
 }
