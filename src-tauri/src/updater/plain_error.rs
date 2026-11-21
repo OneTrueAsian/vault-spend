@@ -43,9 +43,11 @@ const UNVERIFIED_WORDS: &[&str] = &[
     "signed update installer is missing",
     "complete signed update",
     "publisher identity",
+    "redirected directory",
 ];
 const NOT_SAVED_STARTS: &[&str] = &[
-    "Couldn't create",
+    "Couldn't create private update staging",
+    "Couldn't create the staged installer",
     "Couldn't save the installer download",
     "Couldn't finish saving the installer",
     "Couldn't read the installer download",
@@ -195,6 +197,12 @@ mod tests {
     }
 
     #[test]
+    fn random_number_failures_and_redirected_staging_are_not_storage_problems() {
+        group(&["Couldn't create a secure update token.", "Couldn't create a secure update handle."], FALLBACK);
+        group(&["Update staging cannot use a redirected directory."], UNVERIFIED);
+    }
+
+    #[test]
     fn anything_else_gets_the_fallback() {
         assert_eq!(plain_update_error("kaboom"), FALLBACK);
         assert_eq!(plain_update_error(""), FALLBACK);
@@ -211,11 +219,16 @@ mod tests {
         "Updates are unavailable for this platform.",
         "Windows installer is unavailable.",
         "Unsupported verified installer type.",
+        // Failure to make random bytes: not a disk problem, nothing the person can fix.
+        "Couldn't create a secure update token.",
+        "Couldn't create a secure update handle.",
         // Blocked by the connection's address rules; the request then reads as unreachable.
         "Update DNS host is not permitted",
         "Update DNS destination is not public",
     ];
 
+    /// Limits: only single-line call forms are seen, and each file is cut at its first
+    /// `#[cfg(test)]`, so anything after that marker is not scanned.
     /// Error text in the updater's own source (before its test modules) that starts with a
     /// capital: the lines holding `Err(`, `map_err(|` or `ok_or(`, string literals only.
     fn source_messages() -> Vec<(String, String)> {
