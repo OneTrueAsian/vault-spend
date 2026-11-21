@@ -5,7 +5,6 @@
 //   --stage before     the tag has no release yet, or only an empty draft (nothing already uploaded is ever replaced).
 //   --stage after      the tag has exactly one release and it is still a draft.
 //   --previous <tag>   the newest published release, read once at the start of the run. It must still be the newest published one.
-//   --allow-older      recovery of an older tag: skip the "newer than previous" rule.
 // Usage: gh api --paginate repos/OWNER/REPO/releases --jq '.[] | {id,tag_name,draft,prerelease,assets:[.assets[].name]}' | node tools/assert-draft-release.mjs <tag> --mode ... --stage ... --previous <tag>
 import fs from "node:fs";
 import path from "node:path";
@@ -24,7 +23,7 @@ export function newestPublishedTag(releases) {
 }
 
 /** listing: one JSON release per line. Returns the reasons to refuse; empty means the release state is safe. */
-export function checkDraftRelease(listing, tag, { mode, stage, previous, allowOlder = false } = {}) {
+export function checkDraftRelease(listing, tag, { mode, stage, previous } = {}) {
   if (mode !== "test" && mode !== "production") return [`Unknown mode ${mode}: use test or production.`];
   if (stage !== "before" && stage !== "after") return [`Unknown stage ${stage}: use before or after.`];
   if (mode === "test" && !TEST_TAG.test(tag)) return [`${tag} is not a reserved test tag.`];
@@ -41,7 +40,7 @@ export function checkDraftRelease(listing, tag, { mode, stage, previous, allowOl
   else {
     const newest = newestPublishedTag(releases);
     if (newest !== previous) problems.push(`The newest published release is ${newest ?? "none"}, not ${previous}.`);
-    if (mode === "production" && !allowOlder && compare(tag, previous) <= 0) problems.push(`The release ${tag} must be newer than the previous published release ${previous}.`);
+    if (mode === "production" && compare(tag, previous) <= 0) problems.push(`The release ${tag} must be newer than the previous published release ${previous}.`);
   }
   for (const r of releases) if (r.draft === false && TEST_TAG.test(r.tag_name ?? "")) problems.push(`Reserved test tag release ${r.tag_name} is published.`);
   if (stage === "after") {
@@ -61,7 +60,7 @@ export function checkDraftRelease(listing, tag, { mode, stage, previous, allowOl
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2), tag = args[0] ?? "", option = name => { const at = args.indexOf(name); return at < 0 ? undefined : args[at + 1]; };
-  const options = { mode: option("--mode"), stage: option("--stage"), previous: option("--previous"), allowOlder: args.includes("--allow-older") };
+  const options = { mode: option("--mode"), stage: option("--stage"), previous: option("--previous") };
   const problems = checkDraftRelease(fs.readFileSync(0, "utf8"), tag, options);
   if (problems.length) { for (const p of problems) console.error(`Release check failed: ${p}`); process.exit(1); }
   console.log(`${tag} (${options.mode}, ${options.stage}): release state is safe; newest published release is ${options.previous}.`);

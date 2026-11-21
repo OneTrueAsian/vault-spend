@@ -63,11 +63,11 @@ test("the newest published release is chosen by version, not by listing order, a
   assert.equal(newestPublishedTag([]), undefined);
 });
 
-test("a production release must be newer than the previous one, unless recovering an older tag", () => {
+test("a production release must be newer than the previous one, with no way to skip that rule", () => {
   const listing = (tag) => lines(prod({ tag_name: tag }), published("v1.3.2"));
   assert.match(checkDraftRelease(listing("v1.3.2"), "v1.3.2", production).join(), /newer than/);
   assert.match(checkDraftRelease(listing("v1.3.1"), "v1.3.1", production).join(), /newer than/);
-  assert.deepEqual(checkDraftRelease(listing("v1.3.1"), "v1.3.1", { ...production, allowOlder: true }), []);
+  assert.match(checkDraftRelease(listing("v1.3.1"), "v1.3.1", { ...production, allowOlder: true }).join(), /newer than/);
 });
 
 test("a reserved test tag must never be public, whatever the mode", () => {
@@ -97,5 +97,5 @@ test("the command line reads the listing from stdin and exits non-zero on a refu
   assert.notEqual(run(["v1.3.3", "--mode", "production", "--stage", "after", "--previous", "v1.3.1"], good).status, 0);
   assert.notEqual(run(["v1.3.3", "--mode", "production", "--stage", "after"], good).status, 0, "no previous release given");
   assert.notEqual(run(["v1.3.3", "--stage", "after", "--previous", "v1.3.2"], good).status, 0, "no mode given");
-  assert.equal(run(["v1.3.1", "--mode", "production", "--stage", "after", "--previous", "v1.3.2", "--allow-older"], lines(prod({ tag_name: "v1.3.1" }), published("v1.3.2"))).status, 0);
+  assert.notEqual(run(["v1.3.1", "--mode", "production", "--stage", "after", "--previous", "v1.3.2", "--allow-older"], lines(prod({ tag_name: "v1.3.1" }), published("v1.3.2"))).status, 0, "an older tag is refused");
 });
