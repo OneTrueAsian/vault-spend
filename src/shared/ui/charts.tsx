@@ -564,7 +564,9 @@ export function LineChart({
               strokeWidth={1}
               strokeDasharray="3 3"
             />
-            <circle cx={x(hoveredIndex)} cy={y(points[hoveredIndex].value)} r={5} fill={color} stroke="var(--surface)" strokeWidth={2} />
+            {partial && hoveredIndex === points.length - 1
+              ? <circle cx={x(hoveredIndex)} cy={y(points[hoveredIndex].value)} r={5} fill="var(--surface)" stroke={color} strokeWidth={2} />
+              : <circle cx={x(hoveredIndex)} cy={y(points[hoveredIndex].value)} r={5} fill={color} stroke="var(--surface)" strokeWidth={2} />}
           </g>
         )}
         {points.map((_, i) => {

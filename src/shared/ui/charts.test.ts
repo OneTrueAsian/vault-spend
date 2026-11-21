@@ -1,5 +1,7 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { createElement } from "react";
+import { createElement, act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { BarChart, LineChart, SeriesChart, axisGutter, fmtMoneyShort, monthAxisLabel, timeTicks, type SeriesChartSeries } from "./charts";
 
@@ -145,5 +147,32 @@ describe("LineChart partialLast", () => {
     const markup = html({});
     expect(markup).not.toContain("data-partial-segment");
     expect(markup).not.toContain("data-partial-point");
+  });
+});
+
+describe("LineChart hover marker with partialLast", () => {
+  const points = [10, 20, 15].map((value, i) => ({ label: `M${i}`, value }));
+  const hoverMarker = (partialLast: boolean, index: number) => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    act(() => root.render(createElement(LineChart, { points, partialLast })));
+    const bands = [...host.querySelectorAll("rect")].filter((r) => r.getAttribute("fill") === "transparent");
+    act(() => { bands[index].dispatchEvent(new MouseEvent("mouseover", { bubbles: true })); });
+    const marker = host.querySelector("circle[r='5']");
+    const fill = marker?.getAttribute("fill");
+    act(() => root.unmount());
+    host.remove();
+    return fill;
+  };
+
+  it("is hollow on the last point", () => {
+    expect(hoverMarker(true, 2)).toBe("var(--surface)");
+  });
+
+  it("stays filled on other points and without the prop", () => {
+    expect(hoverMarker(true, 1)).toBe("var(--accent)");
+    expect(hoverMarker(false, 2)).toBe("var(--accent)");
   });
 });
