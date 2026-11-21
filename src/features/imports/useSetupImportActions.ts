@@ -38,10 +38,7 @@ export function useSetupImportActions({ invoke, setStatus, setPendingSetupImport
       const preview = await invoke<SetupImportPreview>("preview_setup_import", { path });
       // A file whose rows all failed still opens the review, so the reasons can be read.
       if (setupPreviewHasNothingToShow(preview)) {
-        setStatus(
-          emptySetupMessage(preview.row_errors),
-          preview.row_errors > 0 ? "error" : "info",
-        );
+        setStatus(emptySetupMessage(), "info");
         return;
       }
       // Duplicates start unchecked, same convention as the transaction

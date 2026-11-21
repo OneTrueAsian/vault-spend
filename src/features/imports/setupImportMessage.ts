@@ -8,8 +8,8 @@ export function setupPreviewHasNothingToShow(preview: SetupImportPreview): boole
   );
 }
 
-export function emptySetupMessage(rowErrors: number): string {
-  return rowErrors > 0 ? `Nothing importable found — ${rowErrors} row${rowErrors === 1 ? "" : "s"} had errors.` : "Nothing importable found in that file — is it a filled-in setup template?";
+export function emptySetupMessage(): string {
+  return "Nothing importable found in that file — is it a filled-in setup template?";
 }
 
 export function setupImportMessage(summary: SetupImportSummary): string {

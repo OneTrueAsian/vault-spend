@@ -11,9 +11,7 @@ it("keeps failed-row information separate from imported totals",()=>{
  expect(setupImportMessage({...counts(0),row_errors:2})).toBe("Setup import done: 0 accounts, 0 categories, 0 budget lines, 0 goals, 0 holdings. 2 rows had errors and were ignored.");
 });
 it("explains why no setup rows can be imported",()=>{
- expect(emptySetupMessage(1)).toBe("Nothing importable found — 1 row had errors.");
- expect(emptySetupMessage(2)).toBe("Nothing importable found — 2 rows had errors.");
- expect(emptySetupMessage(0)).toBe("Nothing importable found in that file — is it a filled-in setup template?");
+ expect(emptySetupMessage()).toBe("Nothing importable found in that file — is it a filled-in setup template?");
 });
 it("shows the review for a file whose rows all failed, and only skips it when there is nothing at all",()=>{
  const empty={accounts:[],categories:[],budgets:[],buckets:[],holdings:[],row_errors:0,row_problems:[]};
