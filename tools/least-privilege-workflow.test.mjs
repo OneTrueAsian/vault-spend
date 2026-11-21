@@ -16,6 +16,21 @@ const WRITERS = {
 };
 // Checkouts allowed to keep the token. None: no job pushes or fetches with the persisted credential.
 const KEEP_CREDENTIALS = [];
+// Permission keys other than contents that a job may hold ("workflow-file:job-id:key"). None today: no job uses id-token, attestations, etc.
+const EXTRA_PERMISSIONS = [];
+
+// Returns the problems found in a parsed workflow's permissions blocks.
+export function permissionProblems(name, wf) {
+  const problems = [];
+  const check = (where, p, key) => {
+    if (p === undefined) return;
+    if (typeof p === "string") { problems.push(`${where}: permissions: ${p}`); return; }
+    for (const [k, v] of Object.entries(p)) if (k !== "contents" && !EXTRA_PERMISSIONS.includes(`${key}:${k}`)) problems.push(`${where}: ${k}: ${v}`);
+  };
+  check(name, wf.permissions, name + ":");
+  for (const [id, job] of Object.entries(wf.jobs)) check(`${name} ${id}`, job.permissions, `${name}:${id}`);
+  return problems;
+}
 
 test("the old 1.3.1 signing workflow and its macOS check entry points are gone", () => {
   assert.equal(names.includes("prepare-signed-installers.yml"), false);
@@ -58,4 +73,11 @@ test("Ubuntu steps that pipe run under an explicit bash shell", () => {
       assert.equal(step.shell ?? job.defaults?.run?.shell ?? wf.defaults?.run?.shell, "bash", `${name} ${id} ${step.name ?? step.run.slice(0, 40)}`);
     }
   }
+});
+
+test("no workflow or job holds permissions beyond contents, and none uses write-all", () => {
+  for (const [name, wf] of Object.entries(workflows)) assert.deepEqual(permissionProblems(name, wf), [], name);
+  const bad = yaml.load("permissions:\n  contents: read\njobs:\n  a:\n    permissions:\n      id-token: write\n  b:\n    permissions: write-all\n");
+  assert.deepEqual(permissionProblems("fake.yml", bad), ["fake.yml a: id-token: write", "fake.yml b: permissions: write-all"]);
+  assert.deepEqual(permissionProblems("fake.yml", yaml.load("permissions: write-all\njobs: {}\n")), ["fake.yml: permissions: write-all"]);
 });

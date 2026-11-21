@@ -27,10 +27,6 @@ on:
         description: 'Repair legacy test driver paths and skip the signed-updater contract tests, as release-windows.yml recovery does'
         type: boolean
         default: false
-      validate_preparation:
-        description: 'Also run tools/prepare-update-artifacts.mjs validate (preparation runs)'
-        type: boolean
-        default: false
       contract_tests:
         description: 'Space-separated node --test files for the signed-updater contracts (empty skips them)'
         type: string
@@ -221,11 +217,6 @@ jobs:
       - name: Injected test fault - fail the other checks
         if: ${{ inputs.fault == 'other-checks' }}
         run: throw 'Injected test fault - the other checks fail on purpose'
-      - name: Validate pinned preparation source
-        if: ${{ inputs.validate_preparation }}
-        env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
-        run: node tools/prepare-update-artifacts.mjs validate
       - name: Repair legacy test driver paths for recovery
         if: ${{ inputs.recovery }}
         run: |

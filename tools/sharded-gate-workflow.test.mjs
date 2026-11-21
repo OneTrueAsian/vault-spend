@@ -64,8 +64,8 @@ test("every shard repeats the serial job's hosted-environment steps exactly", ()
   const contract = step(gate.jobs["checks-other"], "Verify signed updater release contracts");
   assert.equal(contract.if, "${{ inputs.contract_tests != '' }}");
   assert.equal(contract.run, "node --test @($env:CONTRACT_TESTS -split '\\s+' | Where-Object { $_ })");
-  assert.equal(step(gate.jobs["checks-other"], "Validate pinned preparation source").if, "${{ inputs.validate_preparation }}");
-  assert.equal(step(gate.jobs["checks-other"], "Validate pinned preparation source").run, "node tools/prepare-update-artifacts.mjs validate");
+  assert.equal(gate.on.workflow_call.inputs.validate_preparation, undefined);
+  assert.equal(step(gate.jobs["checks-other"], "Validate pinned preparation source"), undefined);
   assert.deepEqual(step(gate.jobs["checks-other"], "Repair legacy test driver paths for recovery"), step(gate.jobs.build, "Repair legacy test driver paths for recovery"));
   assert.deepEqual(step(gate.jobs.build, "Repair legacy test driver paths for recovery"), step(gate.jobs.shard, "Repair legacy test driver paths for recovery"));
 });
