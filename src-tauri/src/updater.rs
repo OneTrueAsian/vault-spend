@@ -1,5 +1,6 @@
 //! Backend release notification and authenticated installer handoff.
 //! Empty production trust retains manual release access and disables signed offers.
+pub mod plain_error;
 pub mod service;
 pub mod staging;
 pub mod transport;

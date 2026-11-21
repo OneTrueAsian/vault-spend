@@ -200,9 +200,15 @@ fn launch_installer(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// What a command returns for a failure: plain words for the person, the original detail to the log.
+fn report_update_error(detail: String) -> String {
+    eprintln!("Update failed: {detail}");
+    super::plain_error::plain_update_error(&detail)
+}
+
 #[tauri::command]
 pub async fn prepare_signed_update(service: tauri::State<'_, UpdateService>) -> Result<Option<UpdateOffer>, String> {
-    service.prepare().await
+    service.prepare().await.map_err(report_update_error)
 }
 #[tauri::command]
 pub async fn download_signed_update(handle: String, app: tauri::AppHandle, service: tauri::State<'_, UpdateService>) -> Result<String, String> {
@@ -220,14 +226,15 @@ pub async fn download_signed_update(handle: String, app: tauri::AppHandle, servi
             );
         })
         .await
+        .map_err(report_update_error)
 }
 #[tauri::command]
 pub async fn cancel_signed_update(handle: String, service: tauri::State<'_, UpdateService>) -> Result<(), String> {
-    service.cancel(&handle).await
+    service.cancel(&handle).await.map_err(report_update_error)
 }
 #[tauri::command]
 pub async fn install_signed_update(token: String, service: tauri::State<'_, UpdateService>) -> Result<(), String> {
-    service.install(&token).await
+    service.install(&token).await.map_err(report_update_error)
 }
 
 #[cfg(test)]
@@ -263,6 +270,16 @@ mod tests {
         for token in ["C:\\unverified.exe", "", "old-session-token"] {
             assert!(service.install(token).await.is_err());
         }
+        drop(service);
+        std::fs::remove_dir(parent).unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_failed_install_reaches_the_person_in_plain_words() {
+        let parent = parent("vs-update-plain");
+        let service = UpdateService::new(&parent);
+        let shown = service.install("old-session-token").await.map_err(report_update_error);
+        assert_eq!(shown, Err("This update is no longer ready. Check for updates again.".to_string()));
         drop(service);
         std::fs::remove_dir(parent).unwrap();
     }
