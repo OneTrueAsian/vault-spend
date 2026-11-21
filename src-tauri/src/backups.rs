@@ -252,8 +252,15 @@ fn files_identical(a: &Path, b: &Path) -> std::io::Result<bool> {
     }
 }
 
-fn prune_to_disk(backups_dir: &Path, keep: usize) -> Result<(), String> {
-    let existing = list_backup_filenames(backups_dir).map_err(|e| e.to_string())?;
+fn prune_to_disk(backups_dir: &Path, keep: usize) {
+    let existing = match list_backup_filenames(backups_dir) {
+        Ok(existing) => existing,
+        Err(e) => {
+            // Pruning is housekeeping: it must never fail a backup that was already saved.
+            eprintln!("couldn't tidy old backups in {}: {e}", backups_dir.display());
+            return;
+        }
+    };
     for filename in prune_backups(existing, keep) {
         // Best-effort: a backup that fails to delete (e.g. briefly locked
         // by antivirus scanning) just means one extra file survives past
@@ -262,7 +269,6 @@ fn prune_to_disk(backups_dir: &Path, keep: usize) -> Result<(), String> {
         let _ = std::fs::remove_file(budget_core::protection::keyfile::key_file_path_for(&path));
         let _ = std::fs::remove_file(path);
     }
-    Ok(())
 }
 
 /// A backup that opens without erroring isn't necessarily a *correct* one:
@@ -371,7 +377,7 @@ pub fn mirror_backup(backups_dir: &Path, filename: &str, copy_dir: &Path) -> Res
         let dest_key = budget_core::protection::keyfile::key_file_path_for(&dest);
         let key_matches = !source_key.exists() || (dest_key.exists() && files_identical(&source_key, &dest_key).unwrap_or(false));
         if key_matches {
-            prune_to_disk(copy_dir, DEFAULT_KEEP)?;
+            prune_to_disk(copy_dir, DEFAULT_KEEP);
             return Ok(dest);
         }
     }
@@ -404,7 +410,7 @@ pub fn mirror_backup(backups_dir: &Path, filename: &str, copy_dir: &Path) -> Res
         eprintln!("second backup copy couldn't be published: {e}");
         return Err(MIRROR_COPY_FAILED.to_string());
     }
-    prune_to_disk(copy_dir, DEFAULT_KEEP)?;
+    prune_to_disk(copy_dir, DEFAULT_KEEP);
     Ok(dest)
 }
 
@@ -476,7 +482,7 @@ fn create_local_backup(store: &Store, source_db_path: &Path, backups_dir: &Path,
                     eprintln!("couldn't publish the backup: {e}");
                     return Err(BACKUP_NOT_SAVED.to_string());
                 }
-                prune_to_disk(backups_dir, DEFAULT_KEEP)?;
+                prune_to_disk(backups_dir, DEFAULT_KEEP);
                 return Ok(filename);
             }
             Err(e) => {
@@ -621,7 +627,11 @@ pub fn restore_backup_with_key(
 
     // A zero-byte file would otherwise open "successfully": `Store::open` heals it into a valid but
     // empty database, and restoring that would silently replace the person's data with nothing.
-    if std::fs::metadata(&backup_path).map_err(|e| e.to_string())?.len() == 0 {
+    let backup_size = std::fs::metadata(&backup_path).map_err(|e| {
+        eprintln!("couldn't read the backup's size: {e}");
+        RESTORE_FAILED.to_string()
+    })?;
+    if backup_size.len() == 0 {
         return Err(format!("backup \"{filename}\" is empty or damaged and can't be restored"));
     }
 

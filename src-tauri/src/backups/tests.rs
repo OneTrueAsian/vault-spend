@@ -972,7 +972,7 @@ fn upgrade_safety_copies_are_listed_recoverable_and_preserved_by_restore_and_ret
         if let Some(bytes) = key_bytes {
             assert_eq!(std::fs::read(keyfile::key_file_path_for(&source)).unwrap(), bytes);
         }
-        prune_to_disk(&directory, 0).unwrap();
+        prune_to_disk(&directory, 0);
         assert!(source.exists(), "ordinary retention never deletes the pre-upgrade recovery copy");
         assert!(std::fs::read_dir(&directory)
             .unwrap()
@@ -1155,4 +1155,16 @@ fn a_restore_whose_safety_backup_fails_says_so_and_leaves_no_restored_file() {
         .filter(|n| n.starts_with("vaultspend-restored-"))
         .collect();
     assert!(leftovers.is_empty(), "{leftovers:?}");
+}
+
+#[test]
+fn a_prune_that_cannot_read_the_folder_never_fails_a_saved_backup() {
+    let dir = temp_dir("prune-unreadable");
+    let not_a_folder = dir.join("backups-are-a-file");
+    std::fs::write(&not_a_folder, b"x").unwrap();
+
+    // Housekeeping only: it reports to stderr and returns, so the caller's saved backup stands.
+    let () = prune_to_disk(&not_a_folder, DEFAULT_KEEP);
+
+    assert!(not_a_folder.exists());
 }

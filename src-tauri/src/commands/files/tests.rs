@@ -152,3 +152,18 @@ fn a_relocation_key_file_failure_removes_a_partial_destination_key_file() {
     assert!(!keyfile::key_file_path_for(&destination_path).exists());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_relocation_data_copy_failure_is_plain_and_leaves_no_new_database() {
+    let dir = std::env::temp_dir().join(format!("vaultspend-relocate-copyfail-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let store = Store::open(dir.join("live.db")).unwrap();
+    let destination = dir.join("missing-folder").join("vaultspend.db");
+
+    let error = copy_database_for_relocation(&store, &dir.join("live.db"), &destination).unwrap_err();
+
+    assert_eq!(error, PROFILE_COPY_FAILED);
+    assert!(!destination.exists());
+    let _ = std::fs::remove_dir_all(&dir);
+}
