@@ -463,10 +463,11 @@ export function LineChart({
   const innerW = width - padL - padR;
   const x = (i: number) => padL + (points.length === 1 ? innerW / 2 : (innerW * i) / (points.length - 1));
   const y = (v: number) => padT + innerH - ((v - minPad) / spanPad) * innerH;
-  const partial = partialLast && points.length >= 2;
+  const partial = partialLast;
+  const partialSegment = partial && points.length >= 2;
   const pt = (i: number) => `${x(i).toFixed(1)},${y(points[i].value).toFixed(1)}`;
   const linePts = points.map((_, i) => pt(i)).join(" ");
-  const solidPts = (partial ? points.slice(0, -1) : points).map((_, i) => pt(i)).join(" ");
+  const solidPts = (partialSegment ? points.slice(0, -1) : points).map((_, i) => pt(i)).join(" ");
   const areaPts = `${x(0).toFixed(1)},${(padT + innerH).toFixed(1)} ${linePts} ${x(points.length - 1).toFixed(1)},${(padT + innerH).toFixed(1)}`;
   const lastX = x(points.length - 1);
   const lastY = y(points[points.length - 1]?.value ?? 0);
@@ -524,7 +525,7 @@ export function LineChart({
           strokeLinecap="round"
           style={{ pointerEvents: "none" }}
         />
-        {partial && (
+        {partialSegment && (
           <polyline
             data-partial-segment
             points={`${pt(points.length - 2)} ${pt(points.length - 1)}`}

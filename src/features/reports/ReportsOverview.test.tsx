@@ -220,6 +220,15 @@ describe("ReportsOverview tabs", () => {
     expect(panel.querySelector("[data-partial-segment]")).toBeNull();
   });
 
+  it("shows the current month as a hollow point when it is the only month with activity", () => {
+    show();
+    open("Savings rate");
+    const panel = panelOf("Savings rate");
+    expect(savingsLabels()).toEqual(["Nov so far"]);
+    expect(panel.querySelector("[data-partial-point]")).not.toBeNull();
+    expect(panel.querySelector("[data-partial-segment]")).toBeNull();
+  });
+
   it("marks the category table wide when the range is longer than six months, so paper can shrink it", () => {
     show();
     open("Categories by month");

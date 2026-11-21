@@ -143,6 +143,12 @@ describe("LineChart partialLast", () => {
     expect(markup).toMatch(/data-partial-segment[^>]*stroke-dasharray="4 4"|stroke-dasharray="4 4"[^>]*data-partial-segment/);
   });
 
+  it("a single point is hollow, with no dashed segment", () => {
+    const markup = renderToStaticMarkup(createElement(LineChart, { points: [{ label: "Nov so far", value: 40 }], partialLast: true }));
+    expect(markup.match(/data-partial-point/g)).toHaveLength(1);
+    expect(markup).not.toContain("data-partial-segment");
+  });
+
   it("draws neither without the prop", () => {
     const markup = html({});
     expect(markup).not.toContain("data-partial-segment");
@@ -152,12 +158,12 @@ describe("LineChart partialLast", () => {
 
 describe("LineChart hover marker with partialLast", () => {
   const points = [10, 20, 15].map((value, i) => ({ label: `M${i}`, value }));
-  const hoverMarker = (partialLast: boolean, index: number) => {
+  const hoverMarker = (partialLast: boolean, index: number, pts = points) => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const host = document.createElement("div");
     document.body.append(host);
     const root = createRoot(host);
-    act(() => root.render(createElement(LineChart, { points, partialLast })));
+    act(() => root.render(createElement(LineChart, { points: pts, partialLast })));
     const bands = [...host.querySelectorAll("rect")].filter((r) => r.getAttribute("fill") === "transparent");
     act(() => { bands[index].dispatchEvent(new MouseEvent("mouseover", { bubbles: true })); });
     const marker = host.querySelector("circle[r='5']");
@@ -169,6 +175,10 @@ describe("LineChart hover marker with partialLast", () => {
 
   it("is hollow on the last point", () => {
     expect(hoverMarker(true, 2)).toBe("var(--surface)");
+  });
+
+  it("is hollow on a single point", () => {
+    expect(hoverMarker(true, 0, [{ label: "Nov so far", value: 40 }])).toBe("var(--surface)");
   });
 
   it("stays filled on other points and without the prop", () => {
