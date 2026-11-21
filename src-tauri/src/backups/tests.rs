@@ -979,3 +979,81 @@ fn upgrade_safety_copies_are_listed_recoverable_and_preserved_by_restore_and_ret
             .all(|e| !e.unwrap().file_name().to_string_lossy().starts_with(".historical-restore-")));
     }
 }
+
+fn arm_corrupt_failpoint(name: &'static str) {
+    CORRUPT_FAILPOINT.with(|c| c.set(Some(name)));
+}
+
+#[test]
+fn a_backup_that_cannot_be_verified_says_so_in_plain_words_and_keeps_nothing() {
+    let dir = temp_dir("backup-not-verified");
+    let store = seeded_store(&dir);
+    let live = dir.join("live.db");
+    let backups_dir = backups_dir_for(&live, false);
+    arm_corrupt_failpoint("backup_corrupt_staged");
+
+    let result = create_backup_full(&store, &live, &backups_dir, None, dt("2026-09-27 09:00:00"));
+
+    CORRUPT_FAILPOINT.with(|c| c.set(None));
+    let message = result.err().expect("an unverifiable backup must fail");
+    assert_eq!(message, BACKUP_NOT_VERIFIED);
+    for technical in ["user_version", "rows in the source", "attempts"] {
+        assert!(!message.contains(technical), "{message}");
+    }
+    assert!(list_backups(&backups_dir, false).unwrap().is_empty());
+    assert!(stray_files(&backups_dir).is_empty(), "found {:?}", stray_files(&backups_dir));
+}
+
+#[test]
+fn a_restore_that_cannot_be_verified_says_so_in_plain_words_and_changes_nothing() {
+    let dir = temp_dir("restore-not-verified");
+    let store = seeded_store(&dir);
+    let live = dir.join("live.db");
+    let backups_dir = backups_dir_for(&live, false);
+    let filename = create_backup(&store, &live, &backups_dir, None, dt("2026-09-27 09:00:00")).unwrap();
+    let live_bytes_before = std::fs::read(&live).unwrap();
+    arm_corrupt_failpoint("restore_corrupt_copy");
+
+    let result = restore_backup(&store, &backups_dir, None, &filename, &live);
+
+    CORRUPT_FAILPOINT.with(|c| c.set(None));
+    assert_eq!(result.err().expect("an unverifiable restore must fail"), RESTORE_NOT_VERIFIED);
+    assert_eq!(std::fs::read(&live).unwrap(), live_bytes_before, "the live database is untouched");
+    let leftovers: Vec<_> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+        .filter(|n| n.starts_with("vaultspend-restored-"))
+        .collect();
+    assert!(leftovers.is_empty(), "no restored file may be left behind: {leftovers:?}");
+}
+
+#[test]
+fn a_backup_key_file_failure_is_reported_in_plain_words() {
+    let dir = temp_dir("key-copy-plain");
+    let key = [0x78u8; 32];
+    let (store, source_path) = encrypted_store_with_key(&dir, &key);
+    let backups_dir = backups_dir_for(&source_path, true);
+    std::fs::remove_file(keyfile::key_file_path_for(&source_path)).unwrap();
+
+    let result = create_backup(&store, &source_path, &backups_dir, None, dt("2026-09-27 09:00:00"));
+
+    assert_eq!(result.err().unwrap(), BACKUP_KEY_FILE_FAILED);
+}
+
+#[test]
+fn a_second_copy_key_file_failure_is_reported_in_plain_words() {
+    let dir = temp_dir("mirror-key-plain");
+    let key = [0x79u8; 32];
+    let (store, source_path) = encrypted_store_with_key(&dir, &key);
+    let backups_dir = backups_dir_for(&source_path, true);
+    let filename = create_backup(&store, &source_path, &backups_dir, None, dt("2026-09-27 09:00:00")).unwrap();
+    let copy_dir = dir.join("second");
+    std::fs::create_dir_all(&copy_dir).unwrap();
+
+    // Make the staged key path impossible to write, whatever staging name is chosen.
+    std::fs::remove_file(keyfile::key_file_path_for(&backups_dir.join(&filename))).unwrap();
+    std::fs::create_dir(keyfile::key_file_path_for(&backups_dir.join(&filename))).unwrap();
+    let result = mirror_backup(&backups_dir, &filename, &copy_dir);
+
+    assert_eq!(result.err().unwrap(), MIRROR_KEY_FILE_FAILED);
+}

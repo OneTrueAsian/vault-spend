@@ -5,6 +5,11 @@ use super::*;
 #[cfg(test)]
 mod tests;
 
+const PROFILE_KEY_FILE_FAILED: &str =
+    "The profile couldn't be moved because its key file couldn't be copied. The profile is unchanged and still where it was. Make sure the new folder can be written to, then try again.";
+const PROFILE_EXPORT_KEY_FILE_FAILED: &str =
+    "The profile couldn't be exported because its key file couldn't be copied. The profile is unchanged. Make sure the new folder can be written to, then try again.";
+
 /// Returns the currently-resolved data file path, for display on the
 /// Reports tab's Settings section.
 #[tauri::command]
@@ -81,7 +86,8 @@ fn copy_database_for_relocation(store: &Store, old_live_path: &std::path::Path, 
         let destination_key = budget_core::protection::keyfile::key_file_path_for(new_db_path);
         if let Err(error) = std::fs::copy(&source_key, &destination_key) {
             let _ = std::fs::remove_file(new_db_path);
-            return Err(format!("couldn't move the profile's key file: {error}"));
+            eprintln!("couldn't move the profile's key file: {error}");
+            return Err(PROFILE_KEY_FILE_FAILED.to_string());
         }
     }
     Ok(())
@@ -133,7 +139,10 @@ fn export_protected_package(
         store.backup_to(&database_path).map_err(|e| e.to_string())?;
         let source_key_path = budget_core::protection::keyfile::key_file_path_for(source_db_path);
         let destination_key_path = budget_core::protection::keyfile::key_file_path_for(&database_path);
-        std::fs::copy(&source_key_path, &destination_key_path).map_err(|e| format!("couldn't copy the profile's key file: {e}"))?;
+        std::fs::copy(&source_key_path, &destination_key_path).map_err(|e| {
+            eprintln!("couldn't copy the profile's key file: {e}");
+            PROFILE_EXPORT_KEY_FILE_FAILED.to_string()
+        })?;
         let key_file = budget_core::protection::keyfile::KeyFile::read(&destination_key_path).map_err(|e| e.to_string())?;
         let manifest = PackageManifest {
             format: PACKAGE_FORMAT,

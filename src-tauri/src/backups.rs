@@ -13,6 +13,32 @@ const BACKUP_SUFFIX: &str = ".db";
 const DEFAULT_KEEP: usize = 15;
 const AUTO_BACKUP_INTERVAL_HOURS: i64 = 24;
 
+/// What a person sees when a backup could not be checked. The technical detail goes to stderr.
+pub(crate) const BACKUP_NOT_VERIFIED: &str =
+    "The backup couldn't be checked, so it wasn't kept. Your data is unchanged. Make sure the drive with your data has free space, then try again.";
+pub(crate) const RESTORE_NOT_VERIFIED: &str =
+    "The backup couldn't be read back correctly, so nothing was restored. Your current data is unchanged. Try again, or choose a different backup.";
+pub(crate) const BACKUP_KEY_FILE_FAILED: &str =
+    "The backup couldn't be saved because its key file couldn't be written. Your data is unchanged. Make sure the drive with your data has free space, then try again.";
+pub(crate) const MIRROR_KEY_FILE_FAILED: &str =
+    "The backup was saved, but its copy in your second backup folder couldn't be made. Check that the folder is still there and can be written to (Settings → Backups).";
+
+/// Test-only failpoint: truncates `path` when `name` is armed on this thread, so the verification
+/// that follows fails. Thread-local so parallel tests never disturb each other, and compiled out of
+/// every non-test build.
+#[cfg(test)]
+thread_local! {
+    static CORRUPT_FAILPOINT: std::cell::Cell<Option<&'static str>> = const { std::cell::Cell::new(None) };
+}
+#[cfg(test)]
+fn corrupt_failpoint(name: &str, path: &Path) {
+    if CORRUPT_FAILPOINT.with(|c| c.get()) == Some(name) {
+        let _ = std::fs::OpenOptions::new().write(true).open(path).and_then(|f| f.set_len(0));
+    }
+}
+#[cfg(not(test))]
+fn corrupt_failpoint(_name: &str, _path: &Path) {}
+
 /// What `create_backup_full` did: the backup itself, and what happened to
 /// the optional second copy (see `mirror_backup`).
 pub struct BackupOutcome {
@@ -349,7 +375,10 @@ pub fn mirror_backup(backups_dir: &Path, filename: &str, copy_dir: &Path) -> Res
     let stage = || -> Result<(), String> {
         std::fs::copy(&source, &staged).map_err(|e| format!("couldn't copy to {}: {e}", dest.display()))?;
         if source_key.exists() {
-            std::fs::copy(&source_key, &staged_key).map_err(|e| format!("couldn't mirror the backup's key file: {e}"))?;
+            std::fs::copy(&source_key, &staged_key).map_err(|e| {
+                eprintln!("couldn't mirror the backup's key file: {e}");
+                MIRROR_KEY_FILE_FAILED.to_string()
+            })?;
         }
         let same_db = files_identical(&source, &staged).map_err(|e| e.to_string())?;
         let same_key = !source_key.exists() || files_identical(&source_key, &staged_key).map_err(|e| e.to_string())?;
@@ -421,9 +450,11 @@ fn create_local_backup(store: &Store, source_db_path: &Path, backups_dir: &Path,
             let source_key_path = budget_core::protection::keyfile::key_file_path_for(source_db_path);
             if let Err(e) = std::fs::copy(&source_key_path, &staged_key) {
                 remove_staged(&staged);
-                return Err(format!("couldn't write the backup's key file: {e}"));
+                eprintln!("couldn't write the backup's key file: {e}");
+                return Err(BACKUP_KEY_FILE_FAILED.to_string());
             }
         }
+        corrupt_failpoint("backup_corrupt_staged", &staged);
         crate::protection::transition::debug_failpoint("backup_after_staged_copy");
         match verify_backup(store, &staged) {
             Ok(()) => {
@@ -444,7 +475,8 @@ fn create_local_backup(store: &Store, source_db_path: &Path, backups_dir: &Path,
         }
     }
     remove_staged(&staged);
-    Err(format!("backup did not verify after {MAX_ATTEMPTS} attempts: {last_error}"))
+    eprintln!("backup did not verify after {MAX_ATTEMPTS} attempts: {last_error}");
+    Err(BACKUP_NOT_VERIFIED.to_string())
 }
 
 /// Creates a backup only if the newest existing one is more than 24h old
@@ -607,6 +639,7 @@ pub fn restore_backup_with_key(
     for attempt in 1..=MAX_ATTEMPTS {
         let _ = std::fs::remove_file(&restored_path);
         source.backup_to(&restored_path).map_err(|e| e.to_string())?;
+        corrupt_failpoint("restore_corrupt_copy", &restored_path);
         match verify_backup(&source, &restored_path) {
             Ok(()) => {
                 restored = true;
@@ -622,7 +655,8 @@ pub fn restore_backup_with_key(
     }
     if !restored {
         let _ = std::fs::remove_file(&restored_path);
-        return Err(format!("restore did not verify after {MAX_ATTEMPTS} attempts: {last_error}"));
+        eprintln!("restore did not verify after {MAX_ATTEMPTS} attempts: {last_error}");
+        return Err(RESTORE_NOT_VERIFIED.to_string());
     }
 
     // Now that the restore itself is durably complete, snapshot the
