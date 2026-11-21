@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import yaml from "js-yaml";
 import { GATE_JOBS, requiredChecks, checkOwner } from "../e2e/lib/gateChecks.mjs";
 
@@ -42,8 +43,13 @@ test("a sharded release-windows request must be a pinned diagnostic, a release o
 });
 
 test("every shard sets up the hosted environment, and each pre-spec check runs in exactly one job of the gate", () => {
-  for (const name of hostedSteps) assert.ok(step(gate.jobs.shard, name), name);
-  assert.equal(step(gate.jobs.build, "Build current desktop test app").run, "npm run build:app");
+  // Each hosted-environment step is pinned exactly (a hash of the whole parsed step: name, env, run). Change a step on purpose, then update its hash here.
+  const sha = s => crypto.createHash("sha256").update(JSON.stringify(s)).digest("hex").slice(0, 16);
+  const PINNED = { "Refresh hosted WebView2 runtime": "c41f1e4d5cb9e82e", "Pin hosted Edge version": "3d69f4d7c9dda518", "Install desktop test drivers": "fb0027ec0e42e671", "Install native Edge test driver": "bd166ce01702deaf",
+    "Prepare medium-integrity desktop tests": "c594386ccabd6cc5", "Desktop WebDriver smoke preflight": "7226d0fdc41908ab", "Verify native Edge driver still matches Edge": "b9cdeef72e298b2a" };
+  assert.deepEqual(Object.keys(PINNED), hostedSteps);
+  for (const name of hostedSteps) assert.equal(sha(step(gate.jobs.shard, name)), PINNED[name], name);
+  assert.deepEqual(step(gate.jobs.build, "Build current desktop test app"), { name: "Build current desktop test app", env: { CARGO_PROFILE_DEV_OPT_LEVEL: 1 }, run: "npm run build:app" });
   // Every check before the desktop specs runs in exactly one job of the gate.
   const owner = { "Build E2E database fixture tool": "build", "Build frontend for Rust tests": "checks-rust", "Rust tests": "checks-rust", "Frontend tests": "checks-other", Lint: "checks-other",
     "Install RustSec scanner": "checks-other", "Dependency security policy tests": "checks-other", "Audit dependencies for x86_64-pc-windows-msvc": "checks-other" };
@@ -62,9 +68,8 @@ test("every shard sets up the hosted environment, and each pre-spec check runs i
 
 test("the full gate step runs one shard of six with the hosted timing settings", () => {
   const sharded = step(gate.jobs.shard, "Full desktop E2E release gate");
-  assert.equal(sharded.env.VAULTSPEND_E2E_SPEC_TIMEOUT_MS, "180000");
-  assert.equal(sharded.env.VAULTSPEND_E2E_TIMEOUT_SCALE, "3");
-  assert.ok(sharded.run.includes("--integrity Medium"));
+  assert.deepEqual(sharded.env, { CARGO_PROFILE_DEV_OPT_LEVEL: 1, VAULTSPEND_E2E_SPEC_TIMEOUT_MS: "180000", VAULTSPEND_E2E_TIMEOUT_SCALE: "3" });
+  assert.equal(sharded.run, "& $env:VAULTSPEND_CI_GSUDO --integrity Medium --direct --chdir $env:GITHUB_WORKSPACE pwsh -NoProfile -NonInteractive -File tools/run-hosted-desktop-tests.ps1 -Gate full -Shard ${{ matrix.shard }}/6\nexit $LASTEXITCODE\n");
   assert.ok(sharded.run.includes("-Gate full -Shard ${{ matrix.shard }}/6"));
   assert.deepEqual(gate.jobs.shard.strategy.matrix.shard, [1, 2, 3, 4, 5, 6]);
   assert.equal(gate.jobs.shard.strategy["fail-fast"], false);

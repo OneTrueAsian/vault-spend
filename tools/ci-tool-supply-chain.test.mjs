@@ -26,18 +26,21 @@ test("every step that downloads the Edge driver checks it is signed by Microsoft
   }
 });
 
-test("the signature check refuses an unsigned file and accepts a Microsoft-signed one", { skip: !POWERSHELL && "Windows PowerShell is required" }, () => {
-  const run = steps.find(s => String(s.step.run ?? "").includes("edgedriver_win64.zip")).step.run;
-  const check = run.match(CHECK), snippet = check[0];
+test("the signature check of every driver step refuses an unsigned file and accepts a Microsoft-signed one", { skip: !POWERSHELL && "Windows PowerShell is required" }, () => {
   const folder = path.join(os.tmpdir(), "edge-signature-check");
   fs.mkdirSync(folder, { recursive: true });
   const unsigned = path.join(folder, "msedgedriver.exe");
   fs.writeFileSync(unsigned, "not an executable");
-  const attempt = file => spawnSync(POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", `$ErrorActionPreference='Stop'; $${check[1]} = '${file}'; ${snippet}`], { encoding: "utf8" });
-  const bad = attempt(unsigned);
-  assert.notEqual(bad.status, 0);
-  assert.match(bad.stderr, /not signed by Microsoft/);
-  assert.equal(attempt(path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "notepad.exe")).status, 0, "a Microsoft-signed executable passes");
+  const downloads = steps.filter(s => String(s.step.run ?? "").includes("edgedriver_win64.zip"));
+  assert.ok(downloads.length >= 2);
+  for (const { step, where } of downloads) {
+    const check = step.run.match(CHECK), snippet = check[0];
+    const attempt = file => spawnSync(POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", `$ErrorActionPreference='Stop'; $${check[1]} = '${file}'; ${snippet}`], { encoding: "utf8" });
+    const bad = attempt(unsigned);
+    assert.notEqual(bad.status, 0, where);
+    assert.match(bad.stderr, /not signed by Microsoft/, where);
+    assert.equal(attempt(path.join(process.env.SystemRoot ?? "C:\Windows", "System32", "notepad.exe")).status, 0, `${where}: a Microsoft-signed executable passes`);
+  }
 });
 
 test("every cargo-audit install pins its version", () => {

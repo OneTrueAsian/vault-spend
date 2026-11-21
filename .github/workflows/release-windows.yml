@@ -122,7 +122,7 @@ jobs:
       source_sha: ${{ inputs.source_sha }}
       tag: ${{ inputs.tag }}
       recovery: ${{ inputs.recovery }}
-      contract_tests: ${{ !inputs.recovery && 'tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs tools/verify-sharded-gate-summary.test.mjs tools/assert-draft-release.test.mjs tools/sharded-gate-workflow.test.mjs tools/release-windows-workflow.test.mjs tools/aggregate-shard-results.test.mjs tools/write-check-records.test.mjs' || '' }}
+      contract_tests: ${{ !inputs.recovery && 'tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs tools/verify-sharded-gate-summary.test.mjs tools/assert-draft-release.test.mjs tools/sharded-gate-workflow.test.mjs tools/release-windows-workflow.test.mjs tools/aggregate-shard-results.test.mjs tools/write-check-records.test.mjs tools/least-privilege-workflow.test.mjs tools/ci-tool-supply-chain.test.mjs' || '' }}
       fault: ${{ inputs.fault }}
 
   sharded-package:

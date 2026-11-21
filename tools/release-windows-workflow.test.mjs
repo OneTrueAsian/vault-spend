@@ -289,7 +289,7 @@ test("macOS no longer refuses the reserved test band outright (VS-20): it joins 
 });
 
 test("the sharded gate runs the required contract tests, and the fault comes only from the caller", () => {
-  const call = release.jobs["sharded-gate"], required = ["tools/update-signing.test.mjs", "tools/update-signing-workflow.test.mjs", "tools/verify-sharded-gate-summary.test.mjs", "tools/assert-draft-release.test.mjs", "tools/sharded-gate-workflow.test.mjs", "tools/release-windows-workflow.test.mjs", "tools/aggregate-shard-results.test.mjs", "tools/write-check-records.test.mjs"];
+  const call = release.jobs["sharded-gate"], required = ["tools/update-signing.test.mjs", "tools/update-signing-workflow.test.mjs", "tools/verify-sharded-gate-summary.test.mjs", "tools/assert-draft-release.test.mjs", "tools/sharded-gate-workflow.test.mjs", "tools/release-windows-workflow.test.mjs", "tools/aggregate-shard-results.test.mjs", "tools/write-check-records.test.mjs", "tools/least-privilege-workflow.test.mjs", "tools/ci-tool-supply-chain.test.mjs"];
   for (const testRelease of [true, false]) assert.deepEqual(evaluate(call.with.contract_tests, { inputs: { test_release: testRelease, recovery: false } }).split(" "), required, `sharded gate, test_release=${testRelease}`);
   assert.equal(evaluate(call.with.contract_tests, { inputs: { test_release: false, recovery: true } }), "", "recovery diagnostics keep running no contract tests, as before");
   for (const file of required) assert.ok(fs.existsSync(new URL(`../${file}`, import.meta.url)), `${file} exists`);
