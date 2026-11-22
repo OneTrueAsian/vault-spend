@@ -14,6 +14,8 @@ export function useTransactionFilters() {
   const [filterTo, setFilterTo] = useState("");
   const [filterTag, setFilterTag] = useState("all");
   const [savedFilters, setSavedFilters] = useState<SavedTransactionFilter[]>([]);
+  // A Dashboard watch on a saved filter only says the filter is gone once they have loaded (VS-46).
+  const [savedFiltersLoaded, setSavedFiltersLoaded] = useState(false);
   const [savingFilter, setSavingFilter] = useState(false);
   const [newFilterName, setNewFilterName] = useState("");
 
@@ -23,7 +25,10 @@ export function useTransactionFilters() {
       .catch(() => { }) // best effort — the same treatment every browser-storage read/write here already gets
       .then(() => loadSavedFilters())
       .then((filters) => {
-        if (!cancelled) setSavedFilters(filters);
+        if (!cancelled) {
+          setSavedFilters(filters);
+          setSavedFiltersLoaded(true);
+        }
       });
     return () => {
       cancelled = true;
@@ -84,6 +89,7 @@ export function useTransactionFilters() {
     filterTag,
     setFilterTag,
     savedFilters,
+    savedFiltersLoaded,
     savingFilter,
     setSavingFilter,
     newFilterName,

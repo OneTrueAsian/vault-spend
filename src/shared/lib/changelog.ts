@@ -25,6 +25,9 @@ export const changelogNotes = (entry: ChangelogEntry): string[] => changelogSect
  * GitHub notes — a version with no entry here just shows nothing. */
 export const CHANGELOG: Record<string, ChangelogEntry> = {
   "1.3.5": {
+    "New features": [
+      "Watch tiles: keep an eye on spending like coffee or takeout from the Dashboard. In + Add widget, pin a category, a tag, a saved filter, or a store you type in. The tile shows what you've spent this month so far next to your usual month, the average of your last 3 full months, with a link to those transactions.",
+    ],
     Enhancements: [
       "The Cash Flow forecast now reaches 6 or 12 months ahead, so yearly bills like insurance or taxes show up before they're due. Everyday spending is estimated for the first 90 days only. After that, only the bills and paychecks on your Recurring list move the line, and the note under the chart says so.",
       "Help now explains what to do when Windows says \"An Application Control policy has blocked this file\" while installing Vault Spend. That message comes from Smart App Control, which blocks the installer and, unlike the \"Windows protected your PC\" warning, has no Run anyway option.",

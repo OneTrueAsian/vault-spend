@@ -39,7 +39,9 @@ nothing is protected unless you turn it on.
 
 - **Dashboard** — net worth, cash, debt, and investments at a glance, then a
   To do list of what needs you, an insights feed, a layout you can customize
-  from its Layout menu, and a natural-language "Ask the Vault" query box.
+  from its Layout menu, watch tiles for spending on a category, tag, store
+  or saved filter against a usual month, and a natural-language
+  "Ask the Vault" query box.
 - **Accounts** — checking, savings, credit card, loan, and investment
   accounts have balance history and statement reconciliation. Property and
   valuables track a current value.

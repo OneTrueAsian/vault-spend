@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { transactionPerf } from "./transactionPerf";
 import { useTransactionFilters } from "./useTransactionFilters";
-import { matchesPaymentAccount } from "./paymentDiscovery";
+import { matchesTransactionFilter } from "./transactionFilter";
 import { compareTransactionsBy } from "./transactionHelpers";
 import { canLinkAsTransfer, collapseTransferPairs } from "../../shared/lib/transfers";
 import { transactionsInRows } from "./transactionPaging";
 import { MOVE_SELECTION_CAP, canSelectMore, isBatchSelected, moveSelectionNote, selectAllNext, selectAllNote, unselectBatch, type SelectAllBatch } from "./transactionSelection";
-import { UNCATEGORIZED_FILTER, type TransactionSortColumn } from "../../shared/native/appTypes";
+import { type TransactionSortColumn } from "../../shared/native/appTypes";
 import type { Transaction } from "../../shared/lib/types";
 
 /** Owns ledger query/paging/selection. Shared transaction reads and mutation orchestration
@@ -34,6 +34,7 @@ export function useTransactionList({ transactions, pendingPaymentId, onSelection
     filterTag,
     setFilterTag,
     savedFilters,
+    savedFiltersLoaded,
     savingFilter,
     setSavingFilter,
     newFilterName,
@@ -56,22 +57,10 @@ export function useTransactionList({ transactions, pendingPaymentId, onSelection
   // Preserve the existing client-side query contract; backend paging remains conditional on F profiling.
   const filteredTransactions = useMemo(
     () =>
-      transactionPerf("filter", () => (active ? transactions : []).filter((t) => {
-        if (searchText.trim() && !t.description.toLowerCase().includes(searchText.trim().toLowerCase())) {
-          return false;
-        }
-        if (filterCategory === UNCATEGORIZED_FILTER) {
-          if (t.category) return false;
-        } else if (filterCategory !== "all" && t.category !== filterCategory) {
-          return false;
-        }
-        if (!matchesPaymentAccount(t, filterAccountIds)) return false;
-        if (filterMemberIds !== "all" && (t.member_id === null || !filterMemberIds.has(t.member_id))) return false;
-        if (filterFrom && t.date < filterFrom) return false;
-        if (filterTo && t.date > filterTo) return false;
-        if (filterTag !== "all" && !t.tags.includes(filterTag)) return false;
-        return true;
-      })),
+      transactionPerf("filter", () => {
+        const values = { searchText, filterCategory, filterAccountIds, filterMemberIds, filterFrom, filterTo, filterTag };
+        return (active ? transactions : []).filter((t) => matchesTransactionFilter(t, values));
+      }),
     [active, transactions, searchText, filterCategory, filterAccountIds, filterMemberIds, filterFrom, filterTo, filterTag],
   );
 
@@ -214,6 +203,7 @@ export function useTransactionList({ transactions, pendingPaymentId, onSelection
     filterTag,
     setFilterTag,
     savedFilters,
+    savedFiltersLoaded,
     savingFilter,
     setSavingFilter,
     newFilterName,

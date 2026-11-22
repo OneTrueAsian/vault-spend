@@ -42,7 +42,8 @@ import { AskVaultCard } from "../../AskVaultCard";
 import { prepareVendors } from "../../askVault/common/vendor";
 import type { ParseContext } from "../../askVault/common/types";
 import { ledgerSignature } from "../../askVault/common/ledgerSignature";
-import { AccountWidget, BucketWidget, InvestmentWidget } from "./PinnedWidgets";
+import { AccountWidget, BucketWidget, InvestmentWidget, WatchWidget } from "./PinnedWidgets";
+import { categoryWatchTotals, usualMonth, watchFilterValues, watchMonths, watchTotals, type WatchTarget } from "./watchlist";
 import { useDashboardLayoutCustomization } from "./useDashboardLayoutCustomization";
 import { DashboardLayoutToolbar } from "./DashboardLayoutToolbar";
 import { FirstRunChecklist } from "./FirstRunChecklist";
@@ -56,7 +57,7 @@ import { EVERYTHING_ELSE_KEY, biggestOneOff, foldSmallest, spendingSoFar } from 
 import { sumMoney } from "../../shared/lib/money";
 import { describeBudgetAlerts, isUsedInFull } from "../budgets/budgetAlertText";
 import { HelpLink } from "../../shared/ui/HelpLink";
-import type { Tab } from "../../shared/native/appTypes";
+import type { SavedTransactionFilter, Tab } from "../../shared/native/appTypes";
 
 const GROUP_ORDER = ["income", "fixed", "flexible", "nonmonthly"] as const;
 const GROUP_LABELS: Record<string, string> = {
@@ -88,7 +89,7 @@ const STAT_KEY_BY_WIDGET: Partial<Record<WidgetId, StatKey>> = {
  * row per contiguous run, so pinning a few accounts doesn't stretch each
  * one to the full Dashboard width. */
 function isCompactWidget(id: WidgetId): boolean {
-  return id in STAT_KEY_BY_WIDGET || id.startsWith("account:") || id.startsWith("bucket:") || id.startsWith("investment:");
+  return id in STAT_KEY_BY_WIDGET || id.startsWith("account:") || id.startsWith("bucket:") || id.startsWith("investment:") || id.startsWith("watch:");
 }
 
 /** Recent transactions and Savings goals are half-width cards. When they sit next to each other in the
@@ -145,6 +146,11 @@ export function DashboardView({
   onOpenBuckets,
   onOpenUncategorized,
   onOpenLedgerFiltered,
+  tags,
+  savedFilters = [],
+  savedFiltersLoaded = false,
+  watchCategoryHistory = null,
+  onOpenWatch,
   safeToSpendForecast,
   safeToSpendEnabled,
   onAddTransaction,
@@ -226,6 +232,16 @@ export function DashboardView({
   onOpenUncategorized: () => void;
   /** Opens Transactions filtered to one category, some accounts and a date range (from an Ask the Vault answer). */
   onOpenLedgerFiltered?: (filter: { category: string; accountIds: number[]; from: string; to: string }) => void;
+  /** Every tag in the profile, to tell when a watched tag is gone (VS-46); left out, no tag is called gone. */
+  tags?: string[];
+  /** Saved Transactions filters, for watch tiles on a saved filter (VS-46), and whether they have loaded yet. */
+  savedFilters?: SavedTransactionFilter[];
+  savedFiltersLoaded?: boolean;
+  /** Budget's per-category spending for each of the 3 full months before this one, newest first, for category
+   * watch tiles' usual month (VS-46). `null` until App.tsx has fetched it. */
+  watchCategoryHistory?: CategoryAmount[][] | null;
+  /** A watch tile's "See this month's transactions" (VS-46). */
+  onOpenWatch?: (target: WatchTarget) => void;
   /** The bill-aware forecast the "Safe to spend" widget counts down with —
    * `null` until it loads. */
   safeToSpendForecast: BillAwareForecast | null;
@@ -1073,9 +1089,47 @@ export function DashboardView({
     return <InvestmentWidget accountName={accountName} accountHoldings={accountHoldings} onOpenInvestments={() => onOpenInvestments()} />;
   }
 
+  // VS-46. The earliest transaction, for which earlier months count towards a watch tile's usual month.
+  const earliestTransactionDate = useMemo(
+    () => transactions.reduce<string | null>((min, t) => (min === null || t.date < min ? t.date : min), null),
+    [transactions],
+  );
+
+  function renderWatchWidget(id: WidgetId, target: WatchTarget): React.ReactNode {
+    const months = watchMonths(new Date());
+    const missing =
+      (target.kind === "category" && categories.length > 0 && !categories.includes(target.name)) ||
+      (target.kind === "tag" && tags !== undefined && !tags.includes(target.name)) ||
+      (target.kind === "filter" && savedFiltersLoaded && !savedFilters.some((f) => f.name === target.name));
+    let totals = null;
+    if (target.kind === "category") {
+      totals = watchCategoryHistory ? categoryWatchTotals(target.name, spendingThisMonth, watchCategoryHistory) : null;
+    } else {
+      const values = watchFilterValues(target, savedFilters);
+      // A saved filter that has not loaded yet shows nothing rather than a total of 0.
+      if (!values) return missing ? <WatchWidget target={target} totals={null} usual={null} splitNote={false} missing onOpen={() => {}} onRemove={() => removeWidget(id)} /> : null;
+      totals = watchTotals(transactions, values, months);
+    }
+    const splitNote =
+      target.kind === "category" &&
+      transactions.some((t) => t.split_count > 0 && t.date >= months.thisMonth.from && t.date <= months.thisMonth.to);
+    return (
+      <WatchWidget
+        target={target}
+        totals={totals}
+        usual={totals ? usualMonth(totals.previous, months.previous, earliestTransactionDate) : null}
+        splitNote={splitNote}
+        missing={missing}
+        onOpen={() => onOpenWatch?.(target)}
+        onRemove={() => removeWidget(id)}
+      />
+    );
+  }
+
   function renderWidget(id: WidgetId): React.ReactNode {
     const parsed = parseWidgetId(id);
     if (parsed.kind === "fixed") return widgetContent[parsed.id];
+    if (parsed.kind === "watch") return renderWatchWidget(id, { kind: parsed.watchKind, name: parsed.name });
     if (parsed.kind === "account") return renderAccountWidget(parsed.targetId);
     if (parsed.kind === "bucket") return renderBucketWidget(parsed.targetId);
     return renderInvestmentWidget(parsed.accountName);

@@ -1,7 +1,8 @@
-/** The pinned widgets for one account, one goal, or one investment account. Each is a plain card of the data it is given;
+/** The pinned widgets for one account, one goal, one investment account, or one watch. Each is a plain card of the data it is given;
  * DashboardView looks the target up and renders nothing when it has been deleted since it was pinned. */
 import { AccountTypeIcon, BucketIcon } from "../../shared/ui/icons";
-import { LineChart as LineChartIcon } from "lucide-react";
+import { Eye, LineChart as LineChartIcon } from "lucide-react";
+import { WATCH_KIND_LABEL, type WatchTarget, type WatchTotals } from "./watchlist";
 import { formatAmount } from "../../shared/lib/format";
 import { groupOf, netWorthContribution, owedAmount } from "../../shared/lib/accountGroups";
 import { sumMoney } from "../../shared/lib/money";
@@ -69,6 +70,55 @@ export function BucketWidget({ bucket, onOpenBuckets }: { bucket: Bucket; onOpen
       </div>
     </div>
   );}
+
+/** A watch tile (VS-46): spending this month so far on one category, tag, store or saved filter, against a usual
+ * month. When the watched category, tag or saved filter is gone it says so and offers to remove itself. */
+export function WatchWidget({ target, totals, usual, splitNote, missing, onOpen, onRemove }: {
+  target: WatchTarget;
+  /** `null` while a category's earlier months are still loading. */
+  totals: WatchTotals | null;
+  usual: number | null;
+  splitNote: boolean;
+  missing: boolean;
+  onOpen: () => void;
+  onRemove: () => void;
+}) {
+  const kind = WATCH_KIND_LABEL[target.kind];
+  return (
+    <div className="stat stat-hero tint-neutral" data-watch-tile>
+      <div className="stat-top">
+        <span className="mini-ico neutral">
+          <Eye aria-hidden="true" />
+        </span>
+        <span className="stat-label">{target.name}</span>
+      </div>
+      {missing ? (
+        <>
+          <span className="stat-delta" data-watch-missing>
+            This {kind.toLowerCase()} no longer exists.{target.kind === "category" ? " It may have been renamed or deleted." : ""}
+          </span>
+          <div>
+            <button type="button" className="modal-secondary" onClick={onRemove}>Remove tile</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <span className="stat-value">{totals ? formatAmount(totals.thisMonth.toFixed(2)) : "…"}</span>
+          <span className="stat-delta">{kind} · spent this month so far</span>
+          <span className="stat-delta" data-watch-usual>
+            {!totals ? "Working out a usual month…" : usual === null ? "No usual month yet. It needs a full month of history." : `Usual month: ${formatAmount(usual.toFixed(2))}`}
+          </span>
+          {splitNote && (
+            <span className="stat-delta" data-watch-split-note>Split lines count by their own category, like Budget, so the list may not add up to this.</span>
+          )}
+          <div className="clickable-row" onClick={onOpen} title="Go to the Transactions tab">
+            <span className="category-link">See this month's transactions →</span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export function InvestmentWidget({ accountName, accountHoldings, onOpenInvestments }: { accountName: string; accountHoldings: Holding[]; onOpenInvestments: () => void }) {
   const totalValue = sumMoney(accountHoldings.map((h) => h.value));

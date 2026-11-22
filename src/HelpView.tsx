@@ -91,8 +91,16 @@ export const TAB_HELP: TabHelp[] = [
         question: "How do I change which cards the Dashboard shows?",
         steps: [
           <>Open the <strong>Layout</strong> menu (it reads "Layout: Default") and choose <strong>Customize</strong> from it.</>,
-          <>Pin or unpin cards, drag them to reorder, or use <strong>+ Add widget</strong> to pin one specific account, goal or investment account.</>,
+          <>Pin or unpin cards, drag them to reorder, or use <strong>+ Add widget</strong> to pin one specific account, goal or investment account, or to watch spending on a category, tag, store or saved filter.</>,
           <>Choose <strong>Done customizing</strong> from the same menu when you're finished.</>,
+        ],
+      },
+      {
+        question: "How do I keep an eye on spending like coffee or takeout?",
+        steps: [
+          <>Open <strong>+ Add widget</strong> and, under <strong>Pin a specific item</strong>, pick a <strong>Category</strong>, <strong>Tag</strong> or <strong>Saved filter</strong>, or type a <strong>Store</strong> name as it appears in your transactions.</>,
+          <>The tile shows what you've spent on it this month so far, and your <strong>usual month</strong>: the average of the last 3 full months you have transactions for.</>,
+          <>Click <strong>See this month's transactions</strong> to open those transactions. A saved filter's own dates are not used: the tile is always about this month.</>,
         ],
       },
       {
@@ -1595,6 +1603,26 @@ const FAQ_ENTRIES: FaqEntry[] = [
         shown. Property and valuables track a current value. The Dashboard's
         net worth trend does not include property and valuables. Editing a
         current value does not change past points on that chart.
+      </p>
+    ),
+  },
+  {
+    question: "How does a watch tile on the Dashboard count spending?",
+    tags: ["dashboard", "watch", "watchlist", "category", "tag", "store", "saved filter", "usual month", "pin"],
+    answer: (
+      <p>
+        It adds up money going out this month so far: refunds and money
+        moved between your own accounts are left out, while transactions
+        marked Exclude from budget still count. The usual month is the
+        average of the last 3 full months you have transactions for; with
+        none yet, the tile says so. A category counts like Budget, with
+        each line of a split transaction under its own category, so the
+        transactions it links to may not add up to the tile when splits are
+        involved. A store matches any transaction whose description
+        contains the name you typed, the same as the Transactions search
+        box. Renaming a category keeps its tile. If a watched category,
+        tag or saved filter is deleted, its tile says so and offers to
+        remove itself.
       </p>
     ),
   },

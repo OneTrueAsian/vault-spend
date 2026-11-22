@@ -2,13 +2,15 @@ import type { TransactionSnapshot } from "../../shared/native/transactionContrac
 import { type StatusKind } from "../../shared/native/appTypes";
 import { errorMessage } from "../../shared/lib/errorMessage";
 
-export function useCategoryActions({ invoke, refresh, setStatus, refreshBudgetMonthActuals, budgetYear, budgetMonthNum }: {
+export function useCategoryActions({ invoke, refresh, setStatus, refreshBudgetMonthActuals, budgetYear, budgetMonthNum, onRenamed }: {
   invoke: <T>(command: string, args?: Record<string, unknown> | undefined) => Promise<T>;
   refresh: () => Promise<TransactionSnapshot>;
   setStatus: (text: string, kind?: StatusKind) => void;
   refreshBudgetMonthActuals: (year: number, month: number) => Promise<void>;
   budgetYear: number;
   budgetMonthNum: number;
+  /** After a rename is saved, so a Dashboard watch on the category can follow it (VS-46). */
+  onRenamed?: (oldName: string, newName: string) => void;
 }) {
   async function handleCreateCategory(name: string, iconKey: string | null) {
     try {
@@ -31,6 +33,7 @@ export function useCategoryActions({ invoke, refresh, setStatus, refreshBudgetMo
   async function handleRenameCategory(oldName: string, newName: string) {
     try {
       await invoke("rename_category", { oldName, newName });
+      onRenamed?.(oldName, newName);
       await Promise.all([refresh(), refreshBudgetMonthActuals(budgetYear, budgetMonthNum)]);
     } catch (e) {
       setStatus(errorMessage(e));

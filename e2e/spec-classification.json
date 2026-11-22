@@ -360,6 +360,7 @@
     "feature424_notes_partial_month_row_problems_retro.mjs": "lib\\notesPartialMonthRowProblems.mjs: drives menus that close when the window loses focus; lib\\importAccount.mjs: drives menus that close when the window loses focus",
     "feature425_add_transaction_no_accounts_note.mjs": "drives menus that close when the window loses focus; uses the shared keyboard; lib\\notesPartialMonthRowProblems.mjs: drives menus that close when the window loses focus; lib\\importAccount.mjs: drives menus that close when the window loses focus",
     "feature426_greyed_out_notes_layout.mjs": "drives menus that close when the window loses focus",
-    "feature427_forecast_twelve_months.mjs": "drives menus that close when the window loses focus"
+    "feature427_forecast_twelve_months.mjs": "drives menus that close when the window loses focus",
+    "feature428_watch_tiles.mjs": "drives menus that close when the window loses focus"
   }
 }

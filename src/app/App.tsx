@@ -110,9 +110,12 @@ import {
   DEFAULT_LAYOUT,
   loadDashboardLayout,
   parseWidgetId,
+  renameCategoryWatch,
+  renameCategoryWatchInPresets,
   saveDashboardLayout,
   type WidgetId,
 } from "../shared/lib/dashboardLayout";
+import { watchLedgerFilter, watchMonths } from "../features/dashboard/watchlist";
 import { ProfileSwitcher } from "../features/profiles/ProfileSwitcher";
 import { MobilePairingPrompt } from "../mobile/MobilePairingPrompt";
 import { lockCurrentProfile, unlockProfile } from "../shared/lib/protection";
@@ -416,6 +419,7 @@ function App({
     filterTag,
     setFilterTag,
     savedFilters,
+    savedFiltersLoaded,
     savingFilter,
     setSavingFilter,
     newFilterName,
@@ -1409,6 +1413,24 @@ function App({
   const netWorthHistory=dashboardSnapshot?.netWorth??[];
   const accountContributionDeltas=dashboardSnapshot?.contributions??[];
   const spendingThisMonth=dashboardSnapshot?.spending??[];
+  // VS-46: a category watch's usual month comes from Budget's per-category spending for the 3 full months before
+  // this one, fetched only while one is on the Dashboard.
+  const [watchCategoryHistory, setWatchCategoryHistory] = useState<CategoryAmount[][] | null>(null);
+  const watchesACategory = layoutWidgets.some((id) => id.startsWith("watch:category:"));
+  useEffect(() => {
+    if (activeTab !== "dashboard" || !watchesACategory) return;
+    let cancelled = false;
+    Promise.all(
+      watchMonths(new Date()).previous.map((m) => invoke<CategoryAmount[]>("category_spending_for_month", { year: m.year, month: m.month })),
+    )
+      .then((months) => {
+        if (!cancelled) setWatchCategoryHistory(months);
+      })
+      .catch((e) => setStatus(errorMessage(e)));
+    return () => {
+      cancelled = true;
+    };
+  }, [invoke, activeTab, watchesACategory, dependentRevision]);
   const dashboardBudgetAlerts=dashboardSnapshot?.alerts??[];
   const dashboardInsights=dashboardSnapshot?.insights??[];
   const avgMonthlySpend = activeTab === "buckets" ? planningSnapshot?.averageSpend ?? "0" : dashboardSnapshot?.averageSpend ?? "0";
@@ -2003,7 +2025,15 @@ function App({
 
   const { handleCreateFamilyMember, handleRenameFamilyMember, handleDeleteFamilyMember } = useFamilyMemberActions({ invoke, refresh, setStatus });
 
-  const { handleCreateCategory, handleSetCategoryIcon, handleRenameCategory, handleDeleteCategory } = useCategoryActions({ invoke, refresh, setStatus, refreshBudgetMonthActuals, budgetYear, budgetMonthNum });
+  const { handleCreateCategory, handleSetCategoryIcon, handleRenameCategory, handleDeleteCategory } = useCategoryActions({
+    invoke, refresh, setStatus, refreshBudgetMonthActuals, budgetYear, budgetMonthNum,
+    // VS-46: a watch on the category keeps watching it under its new name, in saved layouts too.
+    onRenamed: (oldName, newName) => {
+      const next = renameCategoryWatch(layoutWidgets, oldName, newName);
+      if (next !== layoutWidgets) setLayoutWidgets(next);
+      void renameCategoryWatchInPresets(oldName, newName);
+    },
+  });
 
   const { handleDownloadSetupTemplate, handleImportSetupData, toggleSetupIncluded, confirmSetupImport } = useSetupImportActions({ invoke, setStatus, setPendingSetupImport, pendingSetupImport, setBusy, refresh, refreshBuckets, refreshHoldings });
 
@@ -2259,6 +2289,23 @@ function App({
                   setFilterFrom(from);
                   setFilterTo(to);
                   setFilterTag("all");
+                  setSelectedIds(new Set());
+                  setActiveTab("ledger");
+                }}
+                tags={transactionData.snapshot ? allTags : undefined}
+                savedFilters={savedFilters}
+                savedFiltersLoaded={savedFiltersLoaded}
+                watchCategoryHistory={watchCategoryHistory}
+                onOpenWatch={(target) => {
+                  const values = watchLedgerFilter(target, savedFilters, new Date());
+                  if (!values) return;
+                  setSearchText(values.searchText);
+                  setFilterCategory(values.filterCategory);
+                  setFilterAccountIds(values.filterAccountIds === "all" ? "all" : new Set(values.filterAccountIds));
+                  setFilterMemberIds(values.filterMemberIds === "all" ? "all" : new Set(values.filterMemberIds));
+                  setFilterFrom(values.filterFrom);
+                  setFilterTo(values.filterTo);
+                  setFilterTag(values.filterTag);
                   setSelectedIds(new Set());
                   setActiveTab("ledger");
                 }}
@@ -2978,6 +3025,9 @@ function App({
               buckets={buckets}
               holdings={holdings}
               safeToSpendEnabled={appSettingsLoaded && appSettings.safe_to_spend_enabled}
+              categories={usedCategories}
+              tags={allTags}
+              savedFilters={savedFilters}
               onAdd={(id) => addWidgetToDashboard(id, false)}
               onCancel={() => setAddWidgetModalOpen(false)}
             />

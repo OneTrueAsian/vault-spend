@@ -33,8 +33,11 @@ export type FixedWidgetId = CoreWidgetId | PinnedReportWidgetId;
 export type AccountWidgetId = `account:${number}`;
 export type BucketWidgetId = `bucket:${number}`;
 export type InvestmentWidgetId = `investment:${string}`;
+/** A watch tile (VS-46): spending on one category, tag, store or saved filter, keyed by its name. */
+export type WatchKind = "category" | "tag" | "store" | "filter";
+export type WatchWidgetId = `watch:${WatchKind}:${string}`;
 
-export type WidgetId = FixedWidgetId | AccountWidgetId | BucketWidgetId | InvestmentWidgetId;
+export type WidgetId = FixedWidgetId | AccountWidgetId | BucketWidgetId | InvestmentWidgetId | WatchWidgetId;
 
 export function accountWidgetId(accountId: number): AccountWidgetId {
   return `account:${accountId}`;
@@ -46,13 +49,22 @@ export function investmentWidgetId(accountName: string): InvestmentWidgetId {
   return `investment:${accountName}`;
 }
 
+export function watchWidgetId(kind: WatchKind, name: string): WatchWidgetId {
+  return `watch:${kind}:${name}`;
+}
+
+const WATCH_ID = /^watch:(category|tag|store|filter):(.+)$/s;
+
 export function parseWidgetId(
   id: WidgetId,
 ):
   | { kind: "fixed"; id: FixedWidgetId }
   | { kind: "account"; targetId: number }
   | { kind: "bucket"; targetId: number }
-  | { kind: "investment"; accountName: string } {
+  | { kind: "investment"; accountName: string }
+  | { kind: "watch"; watchKind: WatchKind; name: string } {
+  const watch = WATCH_ID.exec(id);
+  if (watch) return { kind: "watch", watchKind: watch[1] as WatchKind, name: watch[2] };
   if (id.startsWith("account:")) return { kind: "account", targetId: Number(id.slice("account:".length)) };
   if (id.startsWith("bucket:")) return { kind: "bucket", targetId: Number(id.slice("bucket:".length)) };
   if (id.startsWith("investment:")) return { kind: "investment", accountName: id.slice("investment:".length) };
@@ -95,7 +107,16 @@ function isValidWidgetId(id: unknown): id is WidgetId {
   if (CATALOG_IDS.has(id as FixedWidgetId)) return true;
   if (/^(account|bucket):\d+$/.test(id)) return true;
   if (/^investment:.+$/.test(id)) return true;
+  // VS-46. A build from before watch tiles drops these ids when it loads the layout, like any id it doesn't know.
+  if (WATCH_ID.test(id)) return true;
   return false;
+}
+
+/** A layout with one category watch moved to the category's new name (VS-46): renaming keeps the tile. */
+export function renameCategoryWatch(widgets: WidgetId[], oldName: string, newName: string): WidgetId[] {
+  const from = watchWidgetId("category", oldName), to = watchWidgetId("category", newName);
+  if (!widgets.includes(from)) return widgets;
+  return widgets.includes(to) ? widgets.filter((w) => w !== from) : widgets.map((w) => (w === from ? to : w));
 }
 
 /** Money first, then what needs doing: the stat tiles, To do, Safe to spend, Runway, then the
@@ -251,6 +272,13 @@ export async function loadCustomLayoutPresets(): Promise<SavedLayoutPreset[]> {
   } catch {
     return [];
   }
+}
+
+/** `renameCategoryWatch` for every saved layout of the user's own (VS-46). Saves only when one changed. */
+export async function renameCategoryWatchInPresets(oldName: string, newName: string): Promise<void> {
+  const presets = await loadCustomLayoutPresets();
+  const renamed = presets.map((p) => ({ ...p, widgets: renameCategoryWatch(p.widgets, oldName, newName) }));
+  if (renamed.some((p, i) => p.widgets !== presets[i].widgets)) await saveCustomLayoutPresets(renamed);
 }
 
 export async function saveCustomLayoutPresets(presets: SavedLayoutPreset[]): Promise<void> {
