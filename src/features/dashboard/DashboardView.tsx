@@ -1090,10 +1090,11 @@ export function DashboardView({
   }
 
   // VS-46. The earliest transaction, for which earlier months count towards a watch tile's usual month.
-  const earliestTransactionDate = useMemo(
-    () => transactions.reduce<string | null>((min, t) => (min === null || t.date < min ? t.date : min), null),
-    [transactions],
-  );
+  const earliestTransactionDate = useMemo(() => {
+    let earliest: string | null = null;
+    for (const t of transactions) if (earliest === null || t.date < earliest) earliest = t.date;
+    return earliest;
+  }, [transactions]);
 
   function renderWatchWidget(id: WidgetId, target: WatchTarget): React.ReactNode {
     const months = watchMonths(new Date());

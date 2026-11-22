@@ -1,6 +1,6 @@
 // VS-46: watch tiles. Pinned through the real gestures (Layout > Customize > + Add widget > Pin a specific item), a
 // category, a tag, a typed store and a saved filter each show this month's spending so far against a usual month, the
-// average of the last 3 full months (owner decision 22 Nov 2026). The saved filter's own 2020 dates are ignored.
+// average of the last 3 full months (owner decision 22 Nov 2026). The saved filter's own dates, years ago, are ignored.
 // Corner Cafe: 30, 60 and 90 on the 1st of the last 3 months (usual 60.00) and 12.50 on the 1st of this one.
 // Then: every tile's text stays inside it in Default, Futuristic and Retro, light and dark, at 1280 and 720, and the
 // store tile's link opens Transactions on this month's Corner Cafe row only.
@@ -10,8 +10,9 @@ import path from "node:path";
 import { launchApp, waitUntilOrDiagnose, chooseMenuOption, chooseStyle, dismissStatusMessages } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
+import { isoDaysFromNow } from "./lib/dates.mjs";
 
-const SAVED = [{ name: "Cafe trips", searchText: "", filterCategory: "Coffee", filterAccountIds: "all", filterMemberIds: "all", filterFrom: "2020-01-01", filterTo: "2020-12-31", filterTag: "all" }];
+const SAVED = [{ name: "Cafe trips", searchText: "", filterCategory: "Coffee", filterAccountIds: "all", filterMemberIds: "all", filterFrom: isoDaysFromNow(-3650), filterTo: isoDaysFromNow(-3300), filterTag: "all" }];
 const dbDir = await seedFixture(`
 import datetime, json
 today=datetime.date.today()
