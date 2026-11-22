@@ -763,7 +763,7 @@ fn a_second_folder_name_collision_is_reported_and_leaves_the_other_file_alone() 
 
     assert_eq!(outcome.filename, "vaultspend-20260918-100000.db");
     assert!(outcome.copied_to.is_none());
-    assert_eq!(outcome.copy_error.unwrap(), MIRROR_COPY_FAILED);
+    assert_eq!(crate::error_detail::plain_part(&outcome.copy_error.unwrap()), MIRROR_COPY_FAILED);
     assert_eq!(std::fs::read(&existing).unwrap(), b"someone else's file with this name");
     assert_eq!(list_backups(&backups_dir, false).unwrap().len(), 1, "the local backup is still good");
     assert!(stray_files(&copy_dir).is_empty(), "no staging debris, found {:?}", stray_files(&copy_dir));
@@ -1011,10 +1011,11 @@ fn a_backup_that_cannot_be_verified_says_so_in_plain_words_and_keeps_nothing() {
 
     CORRUPT_FAILPOINT.with(|c| c.set(None));
     let message = result.err().expect("an unverifiable backup must fail");
-    assert_eq!(message, BACKUP_NOT_VERIFIED);
+    assert_eq!(crate::error_detail::plain_part(&message), BACKUP_NOT_VERIFIED);
     for technical in ["user_version", "rows in the source", "attempts"] {
-        assert!(!message.contains(technical), "{message}");
+        assert!(!crate::error_detail::plain_part(&message).contains(technical), "{message}");
     }
+    assert_cause_follows(&message, "backup did not verify after 3 attempts");
     assert!(list_backups(&backups_dir, false).unwrap().is_empty());
     assert!(stray_files(&backups_dir).is_empty(), "found {:?}", stray_files(&backups_dir));
 }
@@ -1032,7 +1033,7 @@ fn a_restore_that_cannot_be_verified_says_so_in_plain_words_and_changes_nothing(
     let result = restore_backup(&store, &backups_dir, None, &filename, &live);
 
     CORRUPT_FAILPOINT.with(|c| c.set(None));
-    assert_eq!(result.err().expect("an unverifiable restore must fail"), RESTORE_NOT_VERIFIED);
+    assert_eq!(crate::error_detail::plain_part(&result.err().expect("an unverifiable restore must fail")), RESTORE_NOT_VERIFIED);
     assert_eq!(std::fs::read(&live).unwrap(), live_bytes_before, "the live database is untouched");
     let leftovers: Vec<_> = std::fs::read_dir(&dir)
         .unwrap()
@@ -1052,7 +1053,7 @@ fn a_backup_key_file_failure_is_reported_in_plain_words() {
 
     let result = create_backup(&store, &source_path, &backups_dir, None, dt("2026-09-27 09:00:00"));
 
-    assert_eq!(result.err().unwrap(), BACKUP_KEY_FILE_FAILED);
+    assert_eq!(crate::error_detail::plain_part(&result.err().unwrap()), BACKUP_KEY_FILE_FAILED);
 }
 
 #[test]
@@ -1070,13 +1071,25 @@ fn a_second_copy_key_file_failure_is_reported_in_plain_words() {
     std::fs::create_dir(keyfile::key_file_path_for(&backups_dir.join(&filename))).unwrap();
     let result = mirror_backup(&backups_dir, &filename, &copy_dir);
 
-    assert_eq!(result.err().unwrap(), MIRROR_COPY_FAILED);
+    assert_eq!(crate::error_detail::plain_part(&result.err().unwrap()), MIRROR_COPY_FAILED);
 }
 
+/// The words a person reads are plain. Any technical cause follows them for Details, with the home folder (which
+/// names the Windows user) redacted (VS-71).
 fn assert_plain(message: &str) {
+    let plain = crate::error_detail::plain_part(message);
     for technical in ["os error", "Os {", "code:", "\\", "No such file", "Access is denied"] {
-        assert!(!message.contains(technical), "{message}");
+        assert!(!plain.contains(technical), "{message}");
     }
+    if let (Some(detail), Ok(home)) = (crate::error_detail::detail_part(message), std::env::var(if cfg!(windows) { "USERPROFILE" } else { "HOME" })) {
+        assert!(!detail.to_lowercase().contains(&home.to_lowercase()), "the home folder is redacted: {detail}");
+    }
+}
+
+/// VS-71: the technical cause follows the plain words, so Details has something for support to read.
+fn assert_cause_follows(message: &str, cause: &str) {
+    let detail = crate::error_detail::detail_part(message).unwrap_or_else(|| panic!("the cause follows the plain words: {message:?}"));
+    assert!(detail.contains(cause), "expected {cause:?} in the detail: {detail:?}");
 }
 
 #[test]
@@ -1089,8 +1102,9 @@ fn a_backup_that_cannot_be_saved_says_so_in_plain_words() {
 
     let message = create_backup(&store, &live, &not_a_folder, None, dt("2026-09-27 09:00:00")).unwrap_err();
 
-    assert_eq!(message, BACKUP_NOT_SAVED);
+    assert_eq!(crate::error_detail::plain_part(&message), BACKUP_NOT_SAVED);
     assert_plain(&message);
+    assert_cause_follows(&message, "couldn't create the backups folder");
 }
 
 #[test]
@@ -1105,10 +1119,11 @@ fn a_second_copy_that_cannot_be_made_says_so_in_plain_words() {
 
     let message = mirror_backup(&backups_dir, "vaultspend-20260101-000000.db", &copy_dir).unwrap_err();
 
-    assert_eq!(message, MIRROR_COPY_FAILED);
+    assert_eq!(crate::error_detail::plain_part(&message), MIRROR_COPY_FAILED);
     assert_plain(&message);
+    assert_cause_follows(&message, "(os error");
     // Points to the card where the second folder is chosen, by the names Settings shows.
-    assert!(message.ends_with("(Settings → Data → Automatic backups)."), "{message}");
+    assert!(crate::error_detail::plain_part(&message).ends_with("(Settings → Data → Automatic backups)."), "{message}");
 }
 
 #[test]
@@ -1121,7 +1136,7 @@ fn a_second_folder_that_cannot_be_written_to_is_refused_in_plain_words() {
 
     let message = check_copy_dir(&backups_dir, &copy_dir).unwrap_err();
 
-    assert_eq!(message, COPY_FOLDER_NOT_WRITABLE);
+    assert_eq!(crate::error_detail::plain_part(&message), COPY_FOLDER_NOT_WRITABLE);
     assert_plain(&message);
 }
 
@@ -1133,7 +1148,7 @@ fn a_backup_list_that_cannot_be_read_says_so_in_plain_words() {
 
     let message = list_backups(&not_a_folder, false).err().expect("must fail");
 
-    assert_eq!(message, BACKUP_LIST_FAILED);
+    assert_eq!(crate::error_detail::plain_part(&message), BACKUP_LIST_FAILED);
     assert_plain(&message);
 }
 
@@ -1148,7 +1163,7 @@ fn a_restore_that_cannot_open_the_backup_says_so_in_plain_words() {
 
     let message = restore_backup(&store, &backups_dir, None, "vaultspend-20260101-000000.db", &live).unwrap_err();
 
-    assert_eq!(message, RESTORE_FAILED);
+    assert_eq!(crate::error_detail::plain_part(&message), RESTORE_FAILED);
     assert_plain(&message);
 }
 
@@ -1165,7 +1180,7 @@ fn a_restore_whose_safety_backup_fails_says_so_and_leaves_no_restored_file() {
 
     CORRUPT_FAILPOINT.with(|c| c.set(None));
     let message = result.err().expect("must fail");
-    assert_eq!(message, RESTORE_SAFETY_BACKUP_FAILED);
+    assert_eq!(crate::error_detail::plain_part(&message), RESTORE_SAFETY_BACKUP_FAILED);
     let leftovers: Vec<_> = std::fs::read_dir(&dir)
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
@@ -1196,7 +1211,7 @@ fn a_second_copy_folder_that_is_gone_is_reported_with_the_one_plain_message() {
     let outcome = create_backup_full(&store, &dir.join("live.db"), &backups_dir, Some(&missing), dt("2026-09-18 10:00:00")).unwrap();
 
     assert!(outcome.copied_to.is_none());
-    assert_eq!(outcome.copy_error.unwrap(), MIRROR_COPY_FAILED);
+    assert_eq!(crate::error_detail::plain_part(&outcome.copy_error.unwrap()), MIRROR_COPY_FAILED);
 }
 
 #[test]
@@ -1211,6 +1226,6 @@ fn choosing_a_second_folder_that_cannot_receive_the_latest_backup_says_so_in_pla
 
     let message = mirror_latest_to_chosen_folder(&backups_dir, "vaultspend-20260101-000000.db", &copy_dir).unwrap_err();
 
-    assert_eq!(message, CHOSEN_FOLDER_COPY_FAILED);
+    assert_eq!(crate::error_detail::plain_part(&message), CHOSEN_FOLDER_COPY_FAILED);
     assert_plain(&message);
 }

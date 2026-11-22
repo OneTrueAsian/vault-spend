@@ -8,6 +8,7 @@ mod config;
 #[cfg(debug_assertions)]
 mod debug_commands;
 mod device_settings;
+mod error_detail;
 mod holding_import;
 mod icon_keys;
 mod launch_commands;

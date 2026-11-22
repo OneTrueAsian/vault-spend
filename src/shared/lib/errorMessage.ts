@@ -2,14 +2,39 @@
  * pass through; anything internal that slips out (a database constraint, a file system error, a
  * status code in front of the message) is put into plain words instead of shown as is. */
 export function errorMessage(error: unknown): string {
-  const raw =
+  return plainErrorMessage(splitErrorDetail(rawErrorText(error)).message);
+}
+
+/** Between the plain words and the technical cause of a backup, restore, key-file or update failure (VS-71).
+ * Must match the backend's `error_detail::DETAIL_SEPARATOR`. */
+export const ERROR_DETAIL_SEPARATOR = "\n\u001f";
+
+/** The plain words and, when the backend sent one, the technical cause after them (VS-71). */
+export function splitErrorDetail(text: string): { message: string; detail: string | null } {
+  const at = text.indexOf(ERROR_DETAIL_SEPARATOR);
+  return at < 0 ? { message: text, detail: null } : { message: text.slice(0, at), detail: text.slice(at + ERROR_DETAIL_SEPARATOR.length) };
+}
+
+/** `errorMessage`, with the technical cause kept after the separator, for the status line's Details (VS-71).
+ * Only where Details is shown: the status line and the update banner. */
+export function errorMessageWithDetail(error: unknown): string {
+  const { detail } = splitErrorDetail(rawErrorText(error));
+  return detail ? `${errorMessage(error)}${ERROR_DETAIL_SEPARATOR}${detail}` : errorMessage(error);
+}
+
+function rawErrorText(error: unknown): string {
+  return (
     typeof error === "string"
       ? error
       : error instanceof Error
         ? error.message
         : typeof error === "object" && error !== null && typeof (error as { message?: unknown }).message === "string"
           ? (error as { message: string }).message
-          : "";
+          : ""
+  );
+}
+
+function plainErrorMessage(raw: string): string {
   const text = raw.replace(/^Error:\s*/, "").replace(/^[A-Z]+_[A-Z_]+:\s+/, "").trim();
   if (!text) return "Something went wrong. Try again.";
   for (const [pattern, plain] of PLAIN) {

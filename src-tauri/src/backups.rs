@@ -19,7 +19,7 @@ pub(crate) const BACKUP_LIST_FAILED: &str = "The list of backups couldn't be rea
 pub(crate) const RESTORE_FAILED: &str = "Nothing was restored. Your current data is unchanged. Try again, or choose a different backup.";
 pub(crate) const RESTORE_SAFETY_BACKUP_FAILED: &str = "Nothing was restored because a backup of your current data couldn't be made first. Your current data is unchanged. Make sure the drive with your data has free space, then try again.";
 
-/// What a person sees when a backup could not be checked. The technical detail goes to stderr.
+/// What a person sees when a backup could not be checked. The technical detail follows it (`error_detail`, VS-71).
 pub(crate) const BACKUP_NOT_VERIFIED: &str =
     "The backup couldn't be checked, so it wasn't kept. Your data is unchanged. Make sure the drive with your data has free space, then try again.";
 pub(crate) const RESTORE_NOT_VERIFIED: &str =
@@ -339,12 +339,9 @@ fn same_folder(a: &Path, b: &Path) -> bool {
 }
 
 /// Copies the newest backup into the folder a person has just chosen as their second backup
-/// folder. A failure is reported in plain words; the detail goes to stderr.
+/// folder. A failure is reported in plain words, with the detail after them (`error_detail`, VS-71).
 pub fn mirror_latest_to_chosen_folder(backups_dir: &Path, filename: &str, copy_dir: &Path) -> Result<PathBuf, String> {
-    mirror_backup(backups_dir, filename, copy_dir).map_err(|e| {
-        eprintln!("couldn't copy the latest backup to the chosen folder: {e}");
-        CHOSEN_FOLDER_COPY_FAILED.to_string()
-    })
+    mirror_backup(backups_dir, filename, copy_dir).map_err(|e| crate::error_detail::with_detail(CHOSEN_FOLDER_COPY_FAILED, e))
 }
 
 /// Checks `copy_dir` can serve as the second backup folder: not the folder
@@ -367,10 +364,7 @@ pub fn check_copy_dir(backups_dir: &Path, copy_dir: &Path) -> Result<(), String>
         return Err(format!("{} isn't a folder.", copy_dir.display()));
     }
     let probe = copy_dir.join(".vaultspend-write-test");
-    std::fs::write(&probe, b"ok").map_err(|e| {
-        eprintln!("couldn't write to {}: {e}", copy_dir.display());
-        COPY_FOLDER_NOT_WRITABLE.to_string()
-    })?;
+    std::fs::write(&probe, b"ok").map_err(|e| crate::error_detail::with_detail(COPY_FOLDER_NOT_WRITABLE, format_args!("couldn't write to {}: {e}", copy_dir.display())))?;
     let _ = std::fs::remove_file(&probe);
     Ok(())
 }
@@ -414,14 +408,12 @@ pub fn mirror_backup(backups_dir: &Path, filename: &str, copy_dir: &Path) -> Res
     };
     if let Err(e) = stage() {
         remove_staged(&staged);
-        eprintln!("second backup copy failed: {e}");
-        return Err(MIRROR_COPY_FAILED.to_string());
+        return Err(crate::error_detail::with_detail(MIRROR_COPY_FAILED, format_args!("second backup copy failed: {e}")));
     }
     crate::protection::transition::debug_failpoint("mirror_after_staged_copy");
     if let Err(e) = publish_with_checkpoints(&staged, &dest, "mirror_after_key_publication", "mirror_after_database_publication") {
         remove_staged(&staged);
-        eprintln!("second backup copy couldn't be published: {e}");
-        return Err(MIRROR_COPY_FAILED.to_string());
+        return Err(crate::error_detail::with_detail(MIRROR_COPY_FAILED, format_args!("second backup copy couldn't be published: {e}")));
     }
     prune_to_disk(copy_dir, DEFAULT_KEEP);
     Ok(dest)
@@ -444,10 +436,7 @@ pub fn create_backup_full(
     if let Some(dir) = copy_dir {
         match mirror_backup(backups_dir, &filename, dir) {
             Ok(path) => copied_to = Some(path),
-            Err(e) => {
-                eprintln!("second backup copy failed: {e}");
-                copy_error = Some(MIRROR_COPY_FAILED.to_string());
-            }
+            Err(e) => copy_error = Some(crate::error_detail::with_detail(MIRROR_COPY_FAILED, e)),
         }
     }
     Ok(BackupOutcome {
@@ -458,10 +447,7 @@ pub fn create_backup_full(
 }
 
 fn create_local_backup(store: &Store, source_db_path: &Path, backups_dir: &Path, now: NaiveDateTime) -> Result<String, String> {
-    std::fs::create_dir_all(backups_dir).map_err(|e| {
-        eprintln!("couldn't create the backups folder: {e}");
-        BACKUP_NOT_SAVED.to_string()
-    })?;
+    std::fs::create_dir_all(backups_dir).map_err(|e| crate::error_detail::with_detail(BACKUP_NOT_SAVED, format_args!("couldn't create the backups folder: {e}")))?;
     let final_path = unique_backup_path(backups_dir, now);
     let filename = final_path.file_name().expect("just built from a filename").to_string_lossy().to_string();
 
@@ -477,15 +463,13 @@ fn create_local_backup(store: &Store, source_db_path: &Path, backups_dir: &Path,
         remove_staged(&staged);
         if let Err(e) = store.backup_to(&staged) {
             remove_staged(&staged);
-            eprintln!("couldn't write the backup: {e}");
-            return Err(BACKUP_NOT_SAVED.to_string());
+            return Err(crate::error_detail::with_detail(BACKUP_NOT_SAVED, format_args!("couldn't write the backup: {e}")));
         }
         if store.is_encrypted() {
             let source_key_path = budget_core::protection::keyfile::key_file_path_for(source_db_path);
             if let Err(e) = std::fs::copy(&source_key_path, &staged_key) {
                 remove_staged(&staged);
-                eprintln!("couldn't write the backup's key file: {e}");
-                return Err(BACKUP_KEY_FILE_FAILED.to_string());
+                return Err(crate::error_detail::with_detail(BACKUP_KEY_FILE_FAILED, format_args!("couldn't write the backup's key file: {e}")));
             }
         }
         corrupt_failpoint("backup_corrupt_staged", &staged);
@@ -495,8 +479,7 @@ fn create_local_backup(store: &Store, source_db_path: &Path, backups_dir: &Path,
                 crate::protection::transition::debug_failpoint("backup_after_verification");
                 if let Err(e) = publish_staged_backup(&staged, &final_path) {
                     remove_staged(&staged);
-                    eprintln!("couldn't publish the backup: {e}");
-                    return Err(BACKUP_NOT_SAVED.to_string());
+                    return Err(crate::error_detail::with_detail(BACKUP_NOT_SAVED, format_args!("couldn't publish the backup: {e}")));
                 }
                 prune_to_disk(backups_dir, DEFAULT_KEEP);
                 return Ok(filename);
@@ -510,8 +493,7 @@ fn create_local_backup(store: &Store, source_db_path: &Path, backups_dir: &Path,
         }
     }
     remove_staged(&staged);
-    eprintln!("backup did not verify after {MAX_ATTEMPTS} attempts: {last_error}");
-    Err(BACKUP_NOT_VERIFIED.to_string())
+    Err(crate::error_detail::with_detail(BACKUP_NOT_VERIFIED, format_args!("backup did not verify after {MAX_ATTEMPTS} attempts: {last_error}")))
 }
 
 /// Creates a backup only if the newest existing one is more than 24h old
@@ -524,14 +506,8 @@ pub fn create_backup_if_due(
     copy_dir: Option<&Path>,
     now: NaiveDateTime,
 ) -> Result<Option<String>, String> {
-    std::fs::create_dir_all(backups_dir).map_err(|e| {
-        eprintln!("couldn't create the backups folder: {e}");
-        BACKUP_NOT_SAVED.to_string()
-    })?;
-    let existing = list_backup_filenames(backups_dir).map_err(|e| {
-        eprintln!("couldn't read the backups folder: {e}");
-        BACKUP_LIST_FAILED.to_string()
-    })?;
+    std::fs::create_dir_all(backups_dir).map_err(|e| crate::error_detail::with_detail(BACKUP_NOT_SAVED, format_args!("couldn't create the backups folder: {e}")))?;
+    let existing = list_backup_filenames(backups_dir).map_err(|e| crate::error_detail::with_detail(BACKUP_LIST_FAILED, format_args!("couldn't read the backups folder: {e}")))?;
     if should_create_backup(&existing, now, AUTO_BACKUP_INTERVAL_HOURS) {
         Ok(Some(create_backup(store, source_db_path, backups_dir, copy_dir, now)?))
     } else {
@@ -543,16 +519,10 @@ pub fn create_backup_if_due(
 /// from the filename, not filesystem metadata — stable even if the file
 /// was copied/moved and its mtime changed) and size.
 pub fn list_backups(backups_dir: &Path, is_encrypted: bool) -> Result<Vec<BackupInfo>, String> {
-    let mut filenames = list_backup_filenames(backups_dir).map_err(|e| {
-        eprintln!("couldn't read the backups folder: {e}");
-        BACKUP_LIST_FAILED.to_string()
-    })?;
+    let mut filenames = list_backup_filenames(backups_dir).map_err(|e| crate::error_detail::with_detail(BACKUP_LIST_FAILED, format_args!("couldn't read the backups folder: {e}")))?;
     // Keep upgrade safety copies visible/restorable but outside ordinary retention pruning.
     if backups_dir.exists() {
-        let unreadable = |e: std::io::Error| {
-            eprintln!("couldn't read the backups folder: {e}");
-            BACKUP_LIST_FAILED.to_string()
-        };
+        let unreadable = |e: std::io::Error| crate::error_detail::with_detail(BACKUP_LIST_FAILED, format_args!("couldn't read the backups folder: {e}"));
         for entry in std::fs::read_dir(backups_dir).map_err(unreadable)? {
             let entry = entry.map_err(unreadable)?;
             let name = entry.file_name().to_string_lossy().into_owned();
@@ -643,10 +613,7 @@ pub fn restore_backup_with_key(
 
     // A zero-byte file would otherwise open "successfully": `Store::open` heals it into a valid but
     // empty database, and restoring that would silently replace the person's data with nothing.
-    let backup_size = std::fs::metadata(&backup_path).map_err(|e| {
-        eprintln!("couldn't read the backup's size: {e}");
-        RESTORE_FAILED.to_string()
-    })?;
+    let backup_size = std::fs::metadata(&backup_path).map_err(|e| crate::error_detail::with_detail(RESTORE_FAILED, format_args!("couldn't read the backup's size: {e}")))?;
     if backup_size.len() == 0 {
         return Err(RESTORE_EMPTY_BACKUP.to_string());
     }
@@ -655,18 +622,15 @@ pub fn restore_backup_with_key(
     // Opening a Store runs migrations. Preserve an upgrade safety copy in its original format
     // by migrating only an owned working copy, never the recovery source itself.
     let working = if is_pre_migration_backup(filename) {
-        Some(MigrationRestoreSource::create(&backup_path).map_err(|e| {
-            eprintln!("couldn't prepare the safety copy for restoring: {e}");
-            RESTORE_FAILED.to_string()
-        })?)
+        Some(
+            MigrationRestoreSource::create(&backup_path)
+                .map_err(|e| crate::error_detail::with_detail(RESTORE_FAILED, format_args!("couldn't prepare the safety copy for restoring: {e}")))?,
+        )
     } else {
         None
     };
     let source_path = working.as_ref().map(|w| w.path.as_path()).unwrap_or(&backup_path);
-    let restore_failed = |e: String| {
-        eprintln!("couldn't read the backup to restore it: {e}");
-        RESTORE_FAILED.to_string()
-    };
+    let restore_failed = |e: String| crate::error_detail::with_detail(RESTORE_FAILED, format_args!("couldn't read the backup to restore it: {e}"));
     let source = Store::open_with_key(source_path, source_key).map_err(|e| restore_failed(e.to_string()))?;
     source.list_accounts(today).map_err(|e| restore_failed(e.to_string()))?;
 
@@ -717,8 +681,7 @@ pub fn restore_backup_with_key(
     }
     if !restored {
         let _ = std::fs::remove_file(&restored_path);
-        eprintln!("restore did not verify after {MAX_ATTEMPTS} attempts: {last_error}");
-        return Err(RESTORE_NOT_VERIFIED.to_string());
+        return Err(crate::error_detail::with_detail(RESTORE_NOT_VERIFIED, format_args!("restore did not verify after {MAX_ATTEMPTS} attempts: {last_error}")));
     }
 
     // Now that the restore itself is durably complete, snapshot the
@@ -727,9 +690,8 @@ pub fn restore_backup_with_key(
     // is reversible" guarantee wasn't met) and `restored_path` is removed, since nothing
     // switches to it.
     if let Err(e) = create_backup(store, live_db_path, backups_dir, copy_dir, chrono::Local::now().naive_local()) {
-        eprintln!("couldn't make the safety backup before restoring: {e}");
         let _ = std::fs::remove_file(&restored_path);
-        return Err(RESTORE_SAFETY_BACKUP_FAILED.to_string());
+        return Err(crate::error_detail::with_detail(RESTORE_SAFETY_BACKUP_FAILED, e));
     }
 
     Ok(restored_path)

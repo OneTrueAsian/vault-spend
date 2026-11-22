@@ -221,7 +221,7 @@ import type {
   YoyCashFlow,
 } from "../shared/lib/types";
 import { MenuSelect } from "../shared/ui/MenuSelect";
-import { errorMessage } from "../shared/lib/errorMessage";
+import { errorMessage, errorMessageWithDetail } from "../shared/lib/errorMessage";
 import { sumMoney } from "../shared/lib/money";
 import { holdingCount } from "../features/investments/holdingImport";
 import { StatusBanner } from "./StatusBanner";
@@ -652,7 +652,7 @@ function App({
       const newPath = await invoke<string>("relocate_data_file", { newDir: dir });
       onDataFileChanged(`Data file moved to ${newPath} — your old file was left in place, untouched.`);
     } catch (e) {
-      setStatus(errorMessage(e));
+      setStatus(errorMessageWithDetail(e));
     }
   }
 
@@ -671,7 +671,7 @@ function App({
       await invoke("export_database", { destination: path });
       setStatus(`Exported a copy to ${path}.`, "success");
     } catch (e) {
-      setStatus(errorMessage(e));
+      setStatus(errorMessageWithDetail(e));
     }
   }
 

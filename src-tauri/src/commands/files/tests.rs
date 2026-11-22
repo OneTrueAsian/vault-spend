@@ -107,7 +107,7 @@ fn a_relocation_key_file_failure_is_plain_and_removes_the_new_database() {
 
     let error = copy_database_for_relocation(&encrypted, &source_path, &destination_path).unwrap_err();
 
-    assert_eq!(error, PROFILE_KEY_FILE_FAILED);
+    assert_eq!(crate::error_detail::plain_part(&error), PROFILE_KEY_FILE_FAILED);
     assert!(!destination_path.exists(), "the new database file must be removed");
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -123,7 +123,7 @@ fn an_export_key_file_failure_is_plain_and_leaves_no_package() {
 
     let error = export_protected_package(&package, "Sam", &source_path, &store, "2026-09-24T09:00:00Z").unwrap_err();
 
-    assert_eq!(error, PROFILE_EXPORT_KEY_FILE_FAILED);
+    assert_eq!(crate::error_detail::plain_part(&error), PROFILE_EXPORT_KEY_FILE_FAILED);
     assert!(!package.exists());
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -139,7 +139,7 @@ fn an_export_that_cannot_read_the_key_file_back_is_plain_and_leaves_no_package()
 
     let error = export_protected_package(&package, "Sam", &source_path, &store, "2026-09-24T09:00:00Z").unwrap_err();
 
-    assert_eq!(error, PROFILE_EXPORT_FAILED);
+    assert_eq!(crate::error_detail::plain_part(&error), PROFILE_EXPORT_FAILED);
     assert!(!package.exists());
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -164,7 +164,7 @@ fn a_relocation_key_file_failure_removes_a_partial_destination_key_file() {
 
     let error = copy_database_for_relocation(&encrypted, &source_path, &destination_path).unwrap_err();
 
-    assert_eq!(error, PROFILE_KEY_FILE_FAILED);
+    assert_eq!(crate::error_detail::plain_part(&error), PROFILE_KEY_FILE_FAILED);
     assert!(!keyfile::key_file_path_for(&destination_path).exists());
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -179,7 +179,7 @@ fn a_relocation_data_copy_failure_is_plain_and_leaves_no_new_database() {
 
     let error = copy_database_for_relocation(&store, &dir.join("live.db"), &destination).unwrap_err();
 
-    assert_eq!(error, PROFILE_COPY_FAILED);
+    assert_eq!(crate::error_detail::plain_part(&error), PROFILE_COPY_FAILED);
     assert!(!destination.exists());
     let _ = std::fs::remove_dir_all(&dir);
 }

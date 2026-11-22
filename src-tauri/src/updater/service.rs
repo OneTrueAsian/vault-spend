@@ -200,10 +200,10 @@ fn launch_installer(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// What a command returns for a failure: plain words for the person, the original detail to the log.
+/// What a command returns for a failure: plain words for the person, then the original detail, redacted, for the
+/// Details button (VS-71).
 fn report_update_error(detail: String) -> String {
-    eprintln!("Update failed: {detail}");
-    super::plain_error::plain_update_error(&detail)
+    crate::error_detail::with_detail(&super::plain_error::plain_update_error(&detail), format_args!("Update failed: {detail}"))
 }
 
 #[tauri::command]
@@ -279,7 +279,9 @@ mod tests {
         let parent = parent("vs-update-plain");
         let service = UpdateService::new(&parent);
         let shown = service.install("old-session-token").await.map_err(report_update_error);
-        assert_eq!(shown, Err("This update is no longer ready. Check for updates again.".to_string()));
+        let shown = shown.unwrap_err();
+        assert_eq!(crate::error_detail::plain_part(&shown), "This update is no longer ready. Check for updates again.");
+        assert!(crate::error_detail::detail_part(&shown).is_some_and(|d| d.starts_with("Update failed: ")), "the cause follows for Details (VS-71): {shown:?}");
         drop(service);
         std::fs::remove_dir(parent).unwrap();
     }
