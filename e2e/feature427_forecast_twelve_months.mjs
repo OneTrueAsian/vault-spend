@@ -3,6 +3,8 @@
 // History as in feature331: -100 (20 days ago) and -200 (10 days ago) = -15.00 a day; cash 1000 - 300 = 700.
 // One yearly bill of 1,000.00 is due in 200 days. Day 90: 700 - 1350 = -650.00, then flat until the bill: -1,650.00.
 // 6 months ends before day 200, so its lowest is -650.00 on day 90; 12 months reaches the bill.
+// A -10.00 bill and a +10.00 refund land on the 1st of every month (net 0, so the balances above hold). They fill
+// Coming up, so the yearly bill is past its first 10 rows and only Show all reveals it.
 // Run with: node e2e/feature427_forecast_twelve_months.mjs [--keep-screens]
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -17,6 +19,9 @@ cur.execute("INSERT INTO accounts(name,account_type,starting_balance) VALUES('QA
 acct=cur.lastrowid
 for days_ago,amount in [(20,'-100.00'),(10,'-200.00')]:
     cur.execute("INSERT INTO transactions(account_id,date,description,amount,category,category_source,fingerprint) VALUES(?,?,?,?,'Groceries','user',?)",(acct,(today-datetime.timedelta(days=days_ago)).isoformat(),f'QA Everyday {days_ago}',amount,f'everyday{days_ago}'))
+first=(today.replace(day=1)+datetime.timedelta(days=32)).replace(day=1)
+for name,amount in [('QA Gym','-10.00'),('QA Cashback','10.00')]:
+    cur.execute("INSERT INTO recurring(merchant,category,amount,cadence,anchor_date,account_id) VALUES(?,NULL,?,'monthly',?,?)",(name,amount,first.isoformat(),acct))
 cur.execute("INSERT INTO recurring(merchant,category,amount,cadence,anchor_date,account_id) VALUES('QA Yearly Insurance',NULL,'-1000.00','annual',?,?)",((today+datetime.timedelta(days=200)).isoformat(),acct))
 `);
 const app = await launchApp({ dbDir });
@@ -38,6 +43,9 @@ const read = () => b.execute(() => {
     hint: card?.querySelector(".chart-hint")?.textContent ?? "",
     labels,
     cardOverflows: card ? card.scrollWidth > card.clientWidth + 1 : null,
+    events: [...(card?.querySelectorAll(".forecast-events li") ?? [])].map(li => li.querySelector(".forecast-event-label").textContent),
+    // A date cell whose text is wider than its column (a next-year date like "Aug 20, 2027").
+    clippedDates: [...(card?.querySelectorAll(".forecast-event-date") ?? [])].filter(d => d.scrollWidth > d.clientWidth + 1).map(d => d.textContent),
   };
 });
 const clickTab = label => b.execute(l => [...document.querySelectorAll(".tab-btn")].find(x => x.textContent.trim() === l).click(), label);
@@ -74,11 +82,18 @@ try {
       assert.ok(twelve.labels[i].left >= twelve.labels[i - 1].right, `${style}: date labels do not overlap: ${JSON.stringify(twelve.labels)}`);
     }
     assert.equal(twelve.cardOverflows, false, `${style}: the forecast card does not scroll sideways`);
+    assert.equal(twelve.events.length, 10, `${style}: Coming up starts with 10 rows`);
+    assert.ok(!twelve.events.includes("QA Yearly Insurance"), `${style}: the yearly bill is past the first 10`);
+    await b.execute(() => document.querySelector("[data-forecast-show-all]").click());
+    await waitUntilOrDiagnose(b, async () => (await read()).events.includes("QA Yearly Insurance"), { timeout: 5000, timeoutMsg: `${style}: Show all reveals the yearly bill` });
+    assert.deepEqual((await read()).clippedDates, [], `${style}: every Coming up date fits its column`);
     await dismissStatusMessages(b);
     await b.execute(() => document.querySelector("[data-forecast-lowest]")?.closest(".card")?.scrollIntoView({ block: "start" }));
     await b.executeAsync(done => document.fonts.ready.then(() => requestAnimationFrame(() => done(true))));
     await b.saveScreenshot(path.join(shots, `${palette}-forecast-12-months.png`));
+    await b.execute(() => document.querySelector(".forecast-events")?.scrollIntoView({ block: "end" }));
+    await b.saveScreenshot(path.join(shots, `${palette}-forecast-coming-up-all.png`));
     await clickTab("30 days");
   }
-  console.log(`FEATURE 427 PASSED: 6- and 12-month forecasts carry everyday spending for 90 days only, land a yearly bill on its date and say so, in Default, Futuristic and Retro. Screenshots: ${shots}`);
+  console.log(`FEATURE 427 PASSED: 6- and 12-month forecasts carry everyday spending for 90 days only, land a yearly bill on its date and say so, and Show all reveals it in Coming up, in Default, Futuristic and Retro. Screenshots: ${shots}`);
 } finally { await app.close(); }

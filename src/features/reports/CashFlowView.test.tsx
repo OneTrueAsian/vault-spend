@@ -131,6 +131,20 @@ describe("tabs", () => {
     expect(f.textContent).toContain("Rent bill");
   });
 
+  it("lists the next 10 in Coming up and offers the rest, so a yearly bill months away can be seen (VS-45)", () => {
+    const events = Array.from({ length: 12 }, (_, i) => ({ date: `2027-0${Math.floor(i / 3) + 1}-1${i % 3}`, label: `Bill ${i + 1}`, amount: "-10.00" }));
+    show("0", "0", false, {
+      forecastData: { uses_recurring: true, start_balance: "100.00", daily_baseline: "0", enough_history: true, points: [{ date: "2026-11-17", balance: "100.00" }], events } as unknown as Props["forecastData"],
+    });
+    const f = panel("forecast");
+    expect(f.querySelectorAll(".forecast-events li")).toHaveLength(10);
+    const more = f.querySelector<HTMLButtonElement>("[data-forecast-show-all]")!;
+    expect(more.textContent).toBe("Show all 12");
+    act(() => more.click());
+    expect([...f.querySelectorAll(".forecast-events li")].map((li) => li.querySelector(".forecast-event-label")?.textContent).at(-1)).toBe("Bill 12");
+    expect(f.querySelector("[data-forecast-show-all]")).toBeNull();
+  });
+
   it("asks for the number of days to the same date 6 or 12 months from today, and marks the chosen one (VS-45)", () => {
     const [, , , six, twelve] = forecastHorizons(new Date());
     const p = show("0", "0", false, { forecastDays: twelve.days });
