@@ -81,6 +81,9 @@ jobs:
     # Read once, before anything is built: the newest published release. The release must be newer than it, it must still be the newest
     # published release every time a later step touches the release, and the tag must have no release yet or only an empty draft.
     # Diagnostics publish nothing, so they skip this.
+    # Its read-only token cannot see draft releases (GitHub lists drafts only to callers with push access), so a stale draft for the tag
+    # passes here. That is accepted, to keep this job read-only (VS-72): sharded-package runs the same --stage before check with a write
+    # token before it uploads anything and refuses such a draft, about an hour later, after the sharded gate.
     if: ${{ !inputs.diagnostic_only }}
     runs-on: ubuntu-latest
     permissions:

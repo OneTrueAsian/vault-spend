@@ -179,6 +179,15 @@ test("the baseline job reads the newest published release once, before anything 
   assert.doesNotMatch(JSON.stringify(release.jobs), /assert-draft-release\.mjs "\$RELEASE_TAG" v1\./);
 });
 
+test("the baseline job stays read-only, so its comment says it cannot see drafts and the packaging job's check is the one that refuses a stale draft (VS-72)", () => {
+  assert.equal(release.jobs["release-baseline"].permissions.contents, "read");
+  const text = read("release-windows.yml"), start = text.indexOf("\n  release-baseline:"), end = text.indexOf("\n  sharded-gate:");
+  const comment = text.slice(start, end).split(/\r?\n/).filter(l => /^\s{4}#/.test(l)).join(" ");
+  assert.match(comment, /read-only token cannot see draft releases/);
+  assert.match(comment, /sharded-package/);
+  assert.match(comment, /VS-72/);
+});
+
 test("the sharded packaging job verifies the gate evidence first, builds a draft, and rechecks it after every release change", () => {
   const steps = release.jobs["sharded-package"].steps, names = steps.map(s => s.name ?? s.uses);
   const verify = names.indexOf("Verify the gate evidence before building anything"), before = names.indexOf("Confirm the tag has no release yet or only an empty draft");
