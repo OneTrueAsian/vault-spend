@@ -463,7 +463,7 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I see where my balance is heading?",
         steps: [
-          <>Open the <strong>Forecast</strong> tab and pick 30, 60 or 90 days.</>,
+          <>Open the <strong>Forecast</strong> tab and pick 30, 60 or 90 days, or 6 or 12 months to see yearly bills coming.</>,
           <>Your checking and savings balance is projected with each Recurring bill and paycheck landing on its due date, the lowest balance called out, and a "Coming up" list (see FAQ).</>,
         ],
       },
@@ -1567,7 +1567,10 @@ const FAQ_ENTRIES: FaqEntry[] = [
         90 days, leaving out anything already on your Recurring list and
         transfers between your own accounts, so nothing is counted twice). A
         canceled Recurring item is skipped. With nothing active in Recurring,
-        it falls back to a smooth trend of your net cash flow instead.
+        it falls back to a smooth trend of your net cash flow instead. On a 6
+        or 12 month forecast, everyday spending is only carried for the first
+        90 days. After that, only your Recurring bills and paychecks move the
+        line, because a recent average can't predict that far ahead.
       </p>
     ),
   },

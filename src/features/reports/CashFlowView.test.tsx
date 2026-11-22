@@ -3,6 +3,7 @@ import { act, type ComponentProps } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { CashFlowView } from "./CashFlowView";
+import { forecastHorizons } from "./forecastChart";
 import { startPrivacyMask } from "../../shared/lib/privacy";
 import type { ReportSnapshot } from "../../shared/native/financialContracts";
 
@@ -124,10 +125,19 @@ describe("tabs", () => {
     });
     const f = panel("forecast");
     expect(f.textContent).toContain("Forecast");
-    expect(texts(".tab-btn", f)).toEqual(["30 days", "60 days", "90 days"]);
+    expect(texts(".tab-btn", f)).toEqual(["30 days", "60 days", "90 days", "6 months", "12 months"]);
     expect(f.querySelector("[data-forecast-lowest]")?.textContent).toContain("$40.00");
     expect(f.textContent).toContain("Coming up");
     expect(f.textContent).toContain("Rent bill");
+  });
+
+  it("asks for the number of days to the same date 6 or 12 months from today, and marks the chosen one (VS-45)", () => {
+    const [, , , six, twelve] = forecastHorizons(new Date());
+    const p = show("0", "0", false, { forecastDays: twelve.days });
+    const buttons = [...panel("forecast").querySelectorAll<HTMLButtonElement>(".tab-btn")];
+    expect(buttons.find((b) => b.classList.contains("tab-btn-active"))?.textContent).toBe("12 months");
+    act(() => buttons[3].click());
+    expect(p.onSetForecastDays).toHaveBeenCalledWith(six.days);
   });
 
   it("puts income vs. expenses, the range and the month click in Month by month", () => {

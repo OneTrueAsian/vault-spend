@@ -1363,7 +1363,7 @@ function App({
 
   // The Dashboard's "Safe to spend" needs a horizon long enough to reach the
   // next paycheck (monthly pay is up to ~35 days out) — its own fetch, since
-  // the Cash Flow tab's forecast window is whatever 30/60/90 the user picked.
+  // the Cash Flow tab's forecast window is whatever length the user picked.
   const [safeToSpendForecast, setSafeToSpendForecast] = useState<BillAwareForecast | null>(null);
   useEffect(() => {
     if (!appSettingsLoaded || !appSettings.safe_to_spend_enabled || activeTab !== "dashboard" || !layoutWidgets.includes("safe_to_spend")) return;

@@ -26,6 +26,7 @@ export const changelogNotes = (entry: ChangelogEntry): string[] => changelogSect
 export const CHANGELOG: Record<string, ChangelogEntry> = {
   "1.3.5": {
     Enhancements: [
+      "The Cash Flow forecast now reaches 6 or 12 months ahead, so yearly bills like insurance or taxes show up before they're due. Everyday spending is estimated for the first 90 days only. After that, only the bills and paychecks on your Recurring list move the line, and the note under the chart says so.",
       "Help now explains what to do when Windows says \"An Application Control policy has blocked this file\" while installing Vault Spend. That message comes from Smart App Control, which blocks the installer and, unlike the \"Windows protected your PC\" warning, has no Run anyway option.",
       "When a button is greyed out, Vault Spend now says what's still missing beside it, in every form: budgets, goals, rules, holdings, transactions, recurring items, imports, splits, reconciling and more. Boxes that are always on screen, like a name or folder box in Settings, say it once you click into them.",
       "When some rows of an import can't be read, the review now lists each one with the reason, so you can fix the file.",

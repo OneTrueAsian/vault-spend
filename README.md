@@ -52,8 +52,8 @@ nothing is protected unless you turn it on.
   spending.
 - **Goals** — savings goals with target dates, optional auto-contributions,
   and progress tracking.
-- **Cash Flow** — income/expense trends, a 30/60/90-day balance forecast,
-  and a debt payoff planner.
+- **Cash Flow** — income/expense trends, a balance forecast from 30 days
+  to 12 months, and a debt payoff planner.
 - **Recurring** — your regular bills and income, with automatic
   missed/price-change detection and auto-suggested new items.
 - **Investments** — holdings with gain/loss, optional live pricing, and

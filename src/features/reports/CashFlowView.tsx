@@ -5,7 +5,7 @@ import { lowestPoint } from "./lowestPoint";
 import { BarChart, DonutChart, LineChart, fmtMoneyShort } from "../../shared/ui/charts";
 import { formatAmount, formatDisplayDate } from "../../shared/lib/format";
 import { forecastHint } from "./forecastNotes";
-import { forecastChartPoints } from "./forecastChart";
+import { forecastChartPoints, forecastHorizons } from "./forecastChart";
 import { DebtPayoffPlannerSection } from "./DebtPayoffPlanner";
 import { PinToDashboardButton } from "../../shared/ui/PinToDashboardButton";
 import type { WidgetId } from "../../shared/lib/dashboardLayout";
@@ -20,8 +20,6 @@ import { useFinancialRead } from "../../shared/hooks/useFinancialRead";
 import { FinancialReadState } from "../../shared/native/FinancialReadState";
 import type { ReportSnapshot } from "../../shared/native/financialContracts";
 import { groupOf, owedAmount } from "../../shared/lib/accountGroups";
-
-const FORECAST_DAY_OPTIONS = [30, 60, 90];
 
 export type CashFlowTab = "forecast" | "by-month" | "one-month" | "last-year" | "debt";
 
@@ -470,13 +468,13 @@ export function CashFlowView({
           <div className="card-head">
             <span className="reports-section-title">Forecast</span>
             <div className="tabs" style={{ marginBottom: 0 }}>
-              {FORECAST_DAY_OPTIONS.map((d) => (
+              {forecastHorizons(new Date()).map(({ label, days }) => (
                 <button
-                  key={d}
-                  className={forecastDays === d ? "tab-btn tab-btn-active" : "tab-btn"}
-                  onClick={() => onSetForecastDays(d)}
+                  key={label}
+                  className={forecastDays === days ? "tab-btn tab-btn-active" : "tab-btn"}
+                  onClick={() => onSetForecastDays(days)}
                 >
-                  {d} days
+                  {label}
                 </button>
               ))}
             </div>
@@ -484,7 +482,7 @@ export function CashFlowView({
           {forecastData ? (
             <>
             <LineChart
-              // Only about every 8th of the 30-90 daily points is labelled (see forecastChartPoints).
+              // Only about 8 of the 30-366 daily points are labelled (see forecastChartPoints).
               points={forecastChartPoints(forecastData.points)}
               height={200}
               caption="Projected balance by day"

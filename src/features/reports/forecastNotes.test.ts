@@ -13,6 +13,25 @@ const forecast = (over: Partial<BillAwareForecast> = {}): BillAwareForecast => (
   ...over,
 });
 
+// VS-45: past 90 days only Recurring bills and paychecks move the line, and the note says so.
+describe("forecastHint beyond 90 days", () => {
+  const days = (n: number) => Array.from({ length: n + 1 }, (_, i) => ({ date: `d${i}`, balance: "0" }));
+
+  it("says everyday spending stops after 90 days on a longer forecast, and not on a 90-day one", () => {
+    const long = forecastHint(forecast({ points: days(181) }));
+    expect(long).toContain("After 90 days, only your Recurring bills and paychecks move the line, because everyday spending can't be guessed that far ahead.");
+    expect(forecastHint(forecast({ points: days(90) }))).not.toContain("After 90 days");
+  });
+
+  it("says the trend line stays flat after 90 days when nothing is on Recurring", () => {
+    expect(forecastHint(forecast({ uses_recurring: false, points: days(365) }))).toContain("After 90 days the line stays flat, because a recent trend can't be carried that far ahead.");
+  });
+
+  it("adds nothing when everyday spending was already left out for lack of history", () => {
+    expect(forecastHint(forecast({ enough_history: false, daily_baseline: "0", points: days(365) }))).not.toContain("After 90 days");
+  });
+});
+
 describe("forecastHint", () => {
   it("says there is not enough history yet, in plain words, when everyday spending was left out", () => {
     const hint = forecastHint(forecast({ enough_history: false, daily_baseline: "0" }));

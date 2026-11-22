@@ -455,3 +455,77 @@ fn the_ninety_day_cap_and_thirty_day_history_behave_as_before() {
     // The 90-day window starts 2026-05-22, so the January row is outside it: 900 over 90 days = 300 a month.
     assert_eq!(store.average_monthly_spend(day(TODAY)).unwrap(), "300.00".parse::<Decimal>().unwrap());
 }
+
+// VS-45 (owner decision 22 Nov 2026): the forecast reaches 12 months, but everyday spending is only guessed for the
+// first 90 days. After that only Recurring bills and paychecks move the line.
+#[test]
+fn a_twelve_month_forecast_stops_the_everyday_estimate_after_ninety_days_and_still_lands_a_yearly_bill() {
+    let store = Store::open_in_memory().unwrap();
+    let account = checking_with_balance(&store, "5000.00");
+    // 280 out over the 14 days of history = 20 a day of everyday spending.
+    store.save_transactions(account, &[tx("2026-08-06", "Grocery Run", "-280.00")]).unwrap();
+    store
+        .create_recurring("Car Insurance", None, "-1200.00".parse().unwrap(), "annual", day("2027-06-15"), Some(account))
+        .unwrap();
+
+    let forecast = store.bill_aware_forecast(day(TODAY), 365).unwrap();
+
+    assert_eq!(forecast.daily_baseline, "-20".parse::<Decimal>().unwrap());
+    assert_eq!(forecast.points.len(), 366, "today plus one point per day");
+    assert_eq!(forecast.points[90].balance, "2920.00".parse::<Decimal>().unwrap(), "4720 less 90 days at 20");
+    assert_eq!(forecast.points[91].balance, forecast.points[90].balance, "no everyday guess after day 90");
+    assert_eq!(balance_on(&forecast, "2027-06-14"), "2920.00".parse::<Decimal>().unwrap());
+    assert_eq!(balance_on(&forecast, "2027-06-15"), "1720.00".parse::<Decimal>().unwrap(), "the yearly bill lands on its date");
+    assert_eq!(forecast.points[365].date, day("2027-08-20"));
+    assert_eq!(forecast.points[365].balance, "1720.00".parse::<Decimal>().unwrap());
+}
+
+#[test]
+fn the_trend_forecast_also_stops_after_ninety_days() {
+    let store = Store::open_in_memory().unwrap();
+    let account = checking_with_balance(&store, "5000.00");
+    store
+        .save_transactions(account, &[tx("2026-08-06", "Opening", "100.00"), tx("2026-08-19", "Grocery Run", "-280.00")])
+        .unwrap();
+
+    let points = store.cash_flow_forecast(day(TODAY), 365).unwrap();
+
+    assert_eq!(points.len(), 366);
+    assert_eq!(points[90].balance - points[0].balance, "-1800".parse::<Decimal>().unwrap(), "20 a day for 90 days");
+    assert_eq!(points[365].balance, points[90].balance, "flat after day 90");
+}
+
+#[test]
+fn a_ninety_day_forecast_is_unchanged() {
+    let store = Store::open_in_memory().unwrap();
+    let account = checking_with_balance(&store, "5000.00");
+    store.save_transactions(account, &[tx("2026-08-06", "Grocery Run", "-280.00")]).unwrap();
+    store
+        .create_recurring("Netflix", None, "-15.00".parse().unwrap(), "monthly", day("2026-12-01"), Some(account))
+        .unwrap();
+
+    let forecast = store.bill_aware_forecast(day(TODAY), 90).unwrap();
+
+    // 4720 less 90 days at 20; the first Netflix charge (1 Dec) is day 103, past the window.
+    assert_eq!(forecast.points[90].balance, "2920.00".parse::<Decimal>().unwrap());
+}
+
+#[test]
+fn a_twelve_month_forecast_places_every_occurrence_of_many_recurring_items() {
+    let store = Store::open_in_memory().unwrap();
+    let account = checking_with_balance(&store, "100000.00");
+    for i in 0..200 {
+        let cadence = ["weekly", "biweekly", "monthly", "annual"][i % 4];
+        store
+            .create_recurring(&format!("Bill {i}"), None, "-1.00".parse().unwrap(), cadence, day("2026-08-21"), Some(account))
+            .unwrap();
+    }
+
+    let started = std::time::Instant::now();
+    let forecast = store.bill_aware_forecast(day(TODAY), 365).unwrap();
+    eprintln!("200 recurring items over 365 days: {:?}", started.elapsed());
+
+    // From 21 Aug 2026 to 20 Aug 2027 (364 days later): 53 weekly, 27 biweekly, 12 monthly and 1 annual occurrence, 50 items each.
+    assert_eq!(forecast.events.len(), 50 * (53 + 27 + 12 + 1));
+    assert_eq!(forecast.points[365].balance, "100000.00".parse::<Decimal>().unwrap() - Decimal::from(50 * (53 + 27 + 12 + 1)));
+}
