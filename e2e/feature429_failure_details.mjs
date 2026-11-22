@@ -52,6 +52,9 @@ try {
     assert.deepEqual(closed.buttons, ["Details", "×"], `${style}: Details beside the dismiss button`);
     assert.equal(closed.expanded, "false");
     assert.equal(closed.detail, null, `${style}: the cause stays hidden until asked for`);
+    // The Second copy card repeats the result beside its button: the plain words only, never the cause.
+    const inCard = await b.execute(() => document.querySelector(".settings-feedback-error")?.textContent ?? null);
+    assert.equal(inCard, NOT_WRITABLE, `${style}: the card repeats only the plain words`);
 
     await click("Details");
     const open = await toast();
