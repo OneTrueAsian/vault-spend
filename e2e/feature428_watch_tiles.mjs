@@ -14,7 +14,7 @@ import { isoDaysFromNow } from "./lib/dates.mjs";
 
 const SAVED = [{ name: "Cafe trips", searchText: "", filterCategory: "Coffee", filterAccountIds: "all", filterMemberIds: "all", filterFrom: isoDaysFromNow(-3650), filterTo: isoDaysFromNow(-3300), filterTag: "all" }];
 const dbDir = await seedFixture(`
-import datetime, json
+import datetime
 today=datetime.date.today()
 def first(back):
     y,m=today.year,today.month-back
@@ -29,12 +29,12 @@ for back,amount in [(3,'-30.00'),(2,'-60.00'),(1,'-90.00'),(0,'-12.50')]:
     cur.execute("INSERT INTO transactions(account_id,date,description,amount,category,category_source,fingerprint) VALUES(?,?,?,?,'Coffee','user',?)",(acct,first(back).isoformat(),'Corner Cafe #12',amount,f'cafe{back}'))
     cur.execute("INSERT INTO transaction_tags(transaction_id,tag) VALUES(?,'treat')",(cur.lastrowid,))
 cur.execute("INSERT INTO transactions(account_id,date,description,amount,category,category_source,fingerprint) VALUES(?,?,'Fresh Mart','-200.00','Groceries','user','grocer')",(acct,first(0).isoformat()))
-cur.execute("INSERT INTO profile_ui_state(key,value) VALUES('saved_filters',?)",(json.dumps(${JSON.stringify(JSON.stringify(SAVED))}),))
+cur.execute("INSERT INTO profile_ui_state(key,value) VALUES('saved_filters',?)",(${JSON.stringify(JSON.stringify(SAVED))},))
 `);
 const app = await launchApp({ dbDir });
 const b = app.browser;
 const shots = makeTempDir("vaultspend-vs46-shots-");
-const WATCHES = ["watch:category:Coffee", "watch:tag:treat", "watch:store:corner cafe", "watch:filter:Cafe trips"];
+const WATCHES = ["watch:category:Coffee", "watch:tag:treat", "watch:filter:Cafe trips", "watch:store:corner cafe"];
 
 const tiles = () => b.execute(() => [...document.querySelectorAll('[data-widget-id^="watch:"]')].map(w => {
   const tile = w.querySelector("[data-watch-tile]");
