@@ -139,6 +139,8 @@ function GoalProjectionCalculator({
           <button type="button" className="modal-secondary" onClick={() => setSaving(false)}>
             Cancel
           </button>
+          {/* VS-68: what the greyed-out Save goal is waiting for. */}
+          {!goalName.trim() && <small className="field-problem" role="status" data-projection-goal-missing>Enter a goal name.</small>}
         </form>
       ) : (
         <button type="button" className="modal-secondary" onClick={() => setSaving(true)} data-projection-save-as-goal>

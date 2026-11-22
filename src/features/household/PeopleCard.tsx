@@ -26,6 +26,8 @@ export function PeopleCard({ members, onRename, onRemove }: {
           <input autoFocus aria-label={`Name for ${member.name}`} value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setEditing(null); }} />
           <button type="submit" disabled={!draft.trim()}>Save</button>
           <button type="button" className="modal-secondary" onClick={() => setEditing(null)}>Cancel</button>
+          {/* VS-68: what the greyed-out Save is waiting for. */}
+          {!draft.trim() && <small className="field-problem" role="status" data-person-name-missing>Enter a name.</small>}
         </form> : <>
           <span>{member.name}</span>
           {removing === member.id ? <span className="household-remove-confirm">

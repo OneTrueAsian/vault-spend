@@ -27,7 +27,7 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
   "1.3.5": {
     Enhancements: [
       "Help now explains what to do when Windows says \"An Application Control policy has blocked this file\" while installing Vault Spend. That message comes from Smart App Control, which blocks the installer and, unlike the \"Windows protected your PC\" warning, has no Run anyway option.",
-      "Setting a budget, adding money to a goal, making a rule, adding a holding and adding a transaction now say what's still missing when the button is greyed out.",
+      "When a button is greyed out, Vault Spend now says what's still missing beside it, in every form: budgets, goals, rules, holdings, transactions, recurring items, imports, splits, reconciling and more. Boxes that are always on screen, like a name or folder box in Settings, say it once you click into them.",
       "When some rows of an import can't be read, the review now lists each one with the reason, so you can fix the file.",
       "If a backup, restore or update fails, Vault Spend now says in plain words what happened, whether your data is unchanged, and what to try next.",
     ],

@@ -27,6 +27,8 @@ export function ManageCategoriesDialog({
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   useAutoCancelDelete(confirmingDelete, () => setConfirmingDelete(null));
   const [newCategoryName, setNewCategoryName] = useState("");
+  // VS-68: the Add box is always on screen, so its note waits until the box has been used.
+  const [touched, setTouched] = useState(false);
   const [newCategoryIcon, setNewCategoryIcon] = useState<CategoryIconKey | null>(null);
   const [editingIcon, setEditingIcon] = useState<string | null>(null);
 
@@ -62,11 +64,15 @@ export function ManageCategoriesDialog({
         <input
           value={newCategoryName}
           onChange={(e) => setNewCategoryName(e.target.value)}
+          onFocus={() => setTouched(true)}
           placeholder='New category, e.g. "Pet Care"'
         />
         <button type="submit" disabled={!newCategoryName.trim()}>
           Add
         </button>
+        {touched && !newCategoryName.trim() && (
+          <small className="field-problem" role="status" data-new-category-missing>Enter a category name.</small>
+        )}
       </form>
       {newCategoryName.trim() !== "" && (
         <IconPicker

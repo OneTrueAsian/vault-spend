@@ -722,6 +722,12 @@ export function TransactionsTable({
                           <button type="button" className="modal-secondary" onClick={() => setExpandedSplitId(null)}>
                             Cancel
                           </button>
+                          {/* VS-68: what the greyed-out Save splits is waiting for. */}
+                          {Math.abs(splitRemaining(t)) >= 0.01 && (
+                            <small className="field-problem" role="status" data-split-missing>
+                              The lines must add up to the whole amount before you can save.
+                            </small>
+                          )}
                         </div>
                       </div>
                     </td>

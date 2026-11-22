@@ -338,6 +338,17 @@ describe("TransactionsTable", () => {
     expect(member.textContent).toContain("No one");
   });
 
+  it("says what Save splits is waiting for while the lines don't add up (VS-68)", () => {
+    const props = { ...baseProps(twoRows, []), expandedSplitId: 1, splitRemaining: () => 12.5 };
+    show(props);
+    const save = () => [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.trim() === "Save splits")!;
+    expect(save().disabled).toBe(true);
+    expect(container.querySelector("[data-split-missing]")?.textContent?.trim()).toBe("The lines must add up to the whole amount before you can save.");
+    show({ ...props, splitRemaining: () => 0 });
+    expect(save().disabled).toBe(false);
+    expect(container.querySelector("[data-split-missing]")).toBeNull();
+  });
+
   it("runs the matching handler for split, note and apply to a debt", () => {
     const props = baseProps(twoRows, [{ id: 1, name: "Alex" }]);
     props.debtAccounts = [{ ...checking, id: 9, name: "Car Loan", account_type: "loan" }];

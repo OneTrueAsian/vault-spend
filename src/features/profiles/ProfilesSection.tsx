@@ -54,6 +54,8 @@ export function ProfilesSection({
   onProtected: () => void;
 }) {
   const [newProfileName, setNewProfileName] = useState("");
+  // VS-68: the box is always on screen, so its note waits until the box has been used.
+  const [nameTouched, setNameTouched] = useState(false);
   const [protectNewProfile, setProtectNewProfile] = useState(false);
   const [pendingProtectedProfile, setPendingProtectedProfile] = useState<{ name: string; generation: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -209,6 +211,7 @@ export function ProfilesSection({
         <input
           value={newProfileName}
           onChange={(e) => setNewProfileName(e.target.value)}
+          onFocus={() => setNameTouched(true)}
           placeholder='New profile, e.g. "Alex"'
         />
         <button type="submit" disabled={!newProfileName.trim()}>
@@ -226,6 +229,9 @@ export function ProfilesSection({
           />
           Protect this profile with a password
         </label>
+        {nameTouched && !newProfileName.trim() && (
+          <small className="field-problem" role="status" data-new-profile-missing>Enter a name for the new profile.</small>
+        )}
       </form>
       <p className="modal-message-secondary">
         Moving to a new computer, or upgrading from an older version? "Use existing file" opens a data file you

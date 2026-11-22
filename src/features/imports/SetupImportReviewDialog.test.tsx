@@ -111,6 +111,22 @@ describe("SetupImportReviewDialog", () => {
     expect(button("Import selected").disabled).toBe(true);
   });
 
+  it("says to tick a row while Import selected is off, and not when an empty file already says why (VS-68)", () => {
+    const note = () => document.querySelector("[data-setup-import-missing]")?.textContent ?? null;
+    show(pending());
+    expect(note()).toBeNull();
+    const p = pending();
+    p.includedAccounts = new Set();
+    show(p);
+    expect(note()).toBe("Tick at least one row to import.");
+    const empty = pending(4);
+    empty.preview.accounts = [];
+    empty.includedAccounts = new Set();
+    show(empty);
+    expect(button("Import selected").disabled).toBe(true);
+    expect(note()).toBeNull();
+  });
+
   it("cancels on Escape but not on a click outside, and not while importing", () => {
     show(pending());
     act(() => (document.querySelector(".modal-overlay") as HTMLElement).click());

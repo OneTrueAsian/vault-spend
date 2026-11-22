@@ -76,6 +76,8 @@ export function TransactionSavedFilters({
           >
             Cancel
           </button>
+          {/* VS-68: what the greyed-out Save is waiting for. */}
+          {!newFilterName.trim() && <small className="field-problem" role="status" data-filter-name-missing>Enter a name for this filter.</small>}
         </form>
       ) : (
         <button type="button" className="modal-secondary btn-sm" onClick={() => setSavingFilter(true)}>

@@ -54,6 +54,24 @@
   font-weight: 400;
 }
 
+/* VS-68: in a one-row form or list row, the note takes a line of its own under the box and button. */
+:is(.category-manage-row, .category-create-form, .saved-filter-form, .backup-copy-form, .projection-goal-form,
+  .household-people-list form, .bucket-new-form-actions, .bulk-tag-input, .split-editor-actions):has(> .field-problem) {
+  flex-wrap: wrap;
+}
+
+:is(.category-manage-row, .category-create-form, .saved-filter-form, .backup-copy-form, .projection-goal-form,
+  .household-people-list form, .bucket-new-form-actions, .bulk-tag-input, .split-editor-actions) > .field-problem {
+  flex-basis: 100%;
+}
+
+/* A review dialog's footer reads like the shared modal footer: the note on its own line above the buttons. */
+.dup-review-actions > .field-problem {
+  order: -1;
+  flex-basis: 100%;
+  text-align: left;
+}
+
 :is(input, select, textarea)[aria-invalid="true"] {
   border-color: var(--negative);
 }

@@ -51,6 +51,16 @@ describe("ChooseImportAccountDialog", () => {
     expect(onChoose).not.toHaveBeenCalled();
   });
 
+  it("says what Continue is waiting for, until an account is picked (VS-68)", () => {
+    show();
+    const note = () => document.querySelector("[data-import-account-missing]")?.textContent ?? null;
+    expect(note()).toBe("Choose an account.");
+    act(() => trigger().click());
+    act(() => option("Checking").click());
+    expect(note()).toBeNull();
+    expect((button("Continue") as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it("lists every account in one dropdown, with a new-account choice last", () => {
     show();
     act(() => trigger().click());

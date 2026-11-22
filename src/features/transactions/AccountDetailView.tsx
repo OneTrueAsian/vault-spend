@@ -468,6 +468,14 @@ export function AccountDetailView({
               <button type="button" disabled={difference !== 0} onClick={() => void finish()} data-reconcile-finish>
                 Finish reconciliation
               </button>
+              {/* VS-68: what the greyed-out Finish is waiting for. */}
+              {difference !== 0 && (
+                <small className="field-problem" role="status" data-reconcile-finish-missing>
+                  {difference === null
+                    ? "Enter the statement's starting balance first."
+                    : "Tick the transactions on your statement until the difference is $0.00."}
+                </small>
+              )}
             </div>
           </>
         )}

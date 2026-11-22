@@ -28,6 +28,8 @@ export function ManageFamilyMembersDialog({
   const [confirmingDelete, setConfirmingDelete] = useState<number | null>(null);
   useAutoCancelDelete(confirmingDelete, () => setConfirmingDelete(null));
   const [newMemberName, setNewMemberName] = useState("");
+  // VS-68: the Add box is always on screen, so its note waits until the box has been used.
+  const [touched, setTouched] = useState(false);
 
   function startEditing(member: FamilyMember) {
     setConfirmingDelete(null);
@@ -61,11 +63,15 @@ export function ManageFamilyMembersDialog({
         <input
           value={newMemberName}
           onChange={(e) => setNewMemberName(e.target.value)}
+          onFocus={() => setTouched(true)}
           placeholder='New family member, e.g. "Alex"'
         />
         <button type="submit" disabled={!newMemberName.trim()}>
           Add
         </button>
+        {touched && !newMemberName.trim() && (
+          <small className="field-problem" role="status" data-new-member-missing>Enter a name.</small>
+        )}
       </form>
       {members.length === 0 ? (
         <p className="modal-message">No family members yet.</p>

@@ -39,25 +39,25 @@ export function SetupImportReviewDialog({
   const errors = pendingSetupImport.preview.row_errors;
   const { accounts, categories, budgets, buckets, holdings } = pendingSetupImport.preview;
   const nothingToImport = accounts.length + categories.length + budgets.length + buckets.length + holdings.length === 0;
+  const noneTicked =
+    pendingSetupImport.includedAccounts.size +
+      pendingSetupImport.includedCategories.size +
+      pendingSetupImport.includedBudgets.size +
+      pendingSetupImport.includedBuckets.size +
+      pendingSetupImport.includedHoldings.size ===
+    0;
   const footer = (
     <div className="dup-review-actions">
       <button className="modal-secondary" onClick={onCancel} disabled={busy}>
         Cancel
       </button>
-      <button
-        onClick={confirmSetupImport}
-        disabled={
-          busy ||
-          pendingSetupImport.includedAccounts.size +
-            pendingSetupImport.includedCategories.size +
-            pendingSetupImport.includedBudgets.size +
-            pendingSetupImport.includedBuckets.size +
-            pendingSetupImport.includedHoldings.size ===
-            0
-        }
-      >
+      <button onClick={confirmSetupImport} disabled={busy || noneTicked}>
         {busy ? "Importing…" : "Import selected"}
       </button>
+      {/* VS-68: what the greyed-out Import selected is waiting for (an empty file already says so above). */}
+      {noneTicked && !nothingToImport && (
+        <small className="field-problem" role="status" data-setup-import-missing>Tick at least one row to import.</small>
+      )}
     </div>
   );
   return (

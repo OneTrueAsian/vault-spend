@@ -270,3 +270,22 @@ describe("BucketsView Add money says what is missing (VS-49)", () => {
     expect(props.onAddContribution).toHaveBeenCalledWith(1, expect.any(String), "-50", null);
   });
 });
+
+describe("BucketsView goal name says what is missing (VS-68)", () => {
+  const note = () => container.querySelector("[data-goal-name-missing]")?.textContent ?? null;
+  const type = (input: HTMLInputElement, text: string) =>
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, text);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+  it("asks for a goal name while Create is greyed out", () => {
+    render();
+    click(button("Create a goal"));
+    expect(button("Create")!.disabled).toBe(true);
+    expect(note()).toBe("Enter a goal name.");
+    type(nameInput()!, "Holiday");
+    expect(note()).toBeNull();
+    expect(button("Create")!.disabled).toBe(false);
+  });
+});

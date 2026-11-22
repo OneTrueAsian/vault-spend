@@ -205,6 +205,8 @@ function NewBucketForm({
         <button type="button" className="modal-secondary" onClick={() => onOpenChange(false)}>
           Cancel
         </button>
+        {/* VS-68: what the greyed-out Create is waiting for. */}
+        {!name.trim() && <small className="field-problem" role="status" data-goal-name-missing>Enter a goal name.</small>}
       </div>
     </form>
   );
@@ -312,6 +314,8 @@ function EditBucketForm({
         <button type="button" className="modal-secondary" onClick={onCancel}>
           Cancel
         </button>
+        {/* VS-68: what the greyed-out Save is waiting for. */}
+        {!name.trim() && <small className="field-problem" role="status" data-goal-name-missing>Enter a goal name.</small>}
       </div>
     </form>
   );

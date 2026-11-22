@@ -23,10 +23,12 @@ function PinItemRow<T>({
   onAdd: (item: T) => void;
 }) {
   const [selectedKey, setSelectedKey] = useState("");
+  const [touched, setTouched] = useState(false);
   const selectedItem = options.find((o) => getKey(o) === selectedKey);
 
+  // VS-68: once the row is in use, say what the greyed-out Add is waiting for (three idle rows stay quiet).
   return (
-    <li className="category-manage-row">
+    <li className="category-manage-row" onFocus={() => setTouched(true)}>
       <span className="category-manage-name">{label}</span>
       {options.length === 0 ? (
         <span className="modal-message-secondary">None available</span>
@@ -51,6 +53,9 @@ function PinItemRow<T>({
           >
             Add
           </button>
+          {touched && !selectedItem && (
+            <small className="field-problem" role="status" data-pin-missing>Choose one to pin.</small>
+          )}
         </>
       )}
     </li>

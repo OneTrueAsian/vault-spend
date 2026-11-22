@@ -172,6 +172,24 @@ describe("AccountDetailView reconciling any account", () => {
     expect(host.querySelector<HTMLButtonElement>("[data-reconcile-start]")!.disabled).toBe(false);
   });
 
+  it("says what Finish reconciliation is waiting for while the difference isn't $0.00 (VS-68)", async () => {
+    answer({
+      last_reconciliation: { statement_date: "2026-09-30", statement_balance: "1170.00" },
+      reconcile_status: { starting_point: "1200.00", needs_starting_balance: false, ticked_change: "0", ticked_count: 0, difference: "-25.00" },
+    });
+    await showAccount(account);
+    await act(async () => {
+      const end = host.querySelector<HTMLInputElement>("[data-statement-balance]")!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(end, "1175.00");
+      end.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => host.querySelector<HTMLButtonElement>("[data-reconcile-start]")!.click());
+    expect(host.querySelector<HTMLButtonElement>("[data-reconcile-finish]")!.disabled).toBe(true);
+    expect(host.querySelector("[data-reconcile-finish-missing]")?.textContent).toBe(
+      "Tick the transactions on your statement until the difference is $0.00.",
+    );
+  });
+
   it("checks the balance as of the statement's end date, so an older month starts from the month before it", async () => {
     answer({
       last_reconciliation: { statement_date: "2026-09-30", statement_balance: "1170.00" },

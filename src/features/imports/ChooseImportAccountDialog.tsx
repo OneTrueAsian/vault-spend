@@ -44,6 +44,8 @@ export function ChooseImportAccountDialog({
         <button type="button" disabled={chosen === ""} onClick={() => chosen !== "" && onChoose(Number(chosen))}>
           Continue
         </button>
+        {/* VS-68: what the greyed-out Continue is waiting for. */}
+        {chosen === "" && <small className="field-problem" role="status" data-import-account-missing>Choose an account.</small>}
       </div>
     </ModalShell>
   );

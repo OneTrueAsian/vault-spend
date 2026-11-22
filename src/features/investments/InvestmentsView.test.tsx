@@ -243,4 +243,20 @@ describe("Add holding says what is missing (VS-49)", () => {
     expect(note()).toBeNull();
     expect(save().disabled).toBe(false);
   });
+
+  it("asks for a goal name when a projection is saved as a goal (VS-68)", () => {
+    show();
+    openTab("growth");
+    const g = panel("growth");
+    click(g.querySelector("[data-projection-save-as-goal]"));
+    const nameBox = g.querySelector<HTMLInputElement>("[data-projection-goal-name]")!;
+    const saveGoal = g.querySelector<HTMLButtonElement>("[data-projection-goal-save]")!;
+    const goalNote = () => g.querySelector("[data-projection-goal-missing]")?.textContent ?? null;
+    type(nameBox, "");
+    expect(saveGoal.disabled).toBe(true);
+    expect(goalNote()).toBe("Enter a goal name.");
+    type(nameBox, "Retire early");
+    expect(goalNote()).toBeNull();
+    expect(saveGoal.disabled).toBe(false);
+  });
 });

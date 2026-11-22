@@ -109,6 +109,8 @@ function NewAssetForm({
       <button type="button" className="modal-secondary" onClick={() => setOpen(false)}>
         Cancel
       </button>
+      {/* VS-68: what the greyed-out Save is waiting for. */}
+      {!name.trim() && <small className="field-problem" role="status" data-property-name-missing>Enter a name, like Home.</small>}
     </form>
   );
 }
