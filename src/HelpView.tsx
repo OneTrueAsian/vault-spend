@@ -1615,7 +1615,9 @@ const FAQ_ENTRIES: FaqEntry[] = [
         moved between your own accounts are left out, while transactions
         marked Exclude from budget still count. The usual month is the
         average of the last 3 full months you have transactions for; with
-        none yet, the tile says so. A category counts like Budget, with
+        none yet, the tile says so. A month with no transactions at all,
+        say one you haven't imported, is left out rather than counted as
+        $0. A category counts like Budget, with
         each line of a split transaction under its own category, so the
         transactions it links to may not add up to the tile when splits are
         involved. A store matches any transaction whose description

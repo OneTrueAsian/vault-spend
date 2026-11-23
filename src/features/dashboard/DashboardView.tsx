@@ -43,7 +43,7 @@ import { prepareVendors } from "../../askVault/common/vendor";
 import type { ParseContext } from "../../askVault/common/types";
 import { ledgerSignature } from "../../askVault/common/ledgerSignature";
 import { AccountWidget, BucketWidget, InvestmentWidget, WatchWidget } from "./PinnedWidgets";
-import { categoryWatchTotals, usualMonth, watchFilterValues, watchMonths, watchTotals, type WatchTarget } from "./watchlist";
+import { categoryWatchTotals, usualMonth, watchFilterValues, watchHistory, watchMonths, watchTotals, type WatchTarget } from "./watchlist";
 import { useDashboardLayoutCustomization } from "./useDashboardLayoutCustomization";
 import { DashboardLayoutToolbar } from "./DashboardLayoutToolbar";
 import { FirstRunChecklist } from "./FirstRunChecklist";
@@ -1089,12 +1089,8 @@ export function DashboardView({
     return <InvestmentWidget accountName={accountName} accountHoldings={accountHoldings} onOpenInvestments={() => onOpenInvestments()} />;
   }
 
-  // VS-46. The earliest transaction, for which earlier months count towards a watch tile's usual month.
-  const earliestTransactionDate = useMemo(() => {
-    let earliest: string | null = null;
-    for (const t of transactions) if (earliest === null || t.date < earliest) earliest = t.date;
-    return earliest;
-  }, [transactions]);
+  // VS-46. Which earlier months count towards a watch tile's usual month.
+  const transactionHistory = useMemo(() => watchHistory(transactions), [transactions]);
 
   function renderWatchWidget(id: WidgetId, target: WatchTarget): React.ReactNode {
     const months = watchMonths(new Date());
@@ -1118,7 +1114,7 @@ export function DashboardView({
       <WatchWidget
         target={target}
         totals={totals}
-        usual={totals ? usualMonth(totals.previous, months.previous, earliestTransactionDate) : null}
+        usual={totals ? usualMonth(totals.previous, months.previous, transactionHistory) : null}
         splitNote={splitNote}
         missing={missing}
         onOpen={() => onOpenWatch?.(target)}

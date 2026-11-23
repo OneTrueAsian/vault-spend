@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseWidgetId, watchWidgetId } from "../../shared/lib/dashboardLayout";
 import type { SavedTransactionFilter } from "../../shared/native/appTypes";
 import type { Transaction } from "../../shared/lib/types";
-import { categoryWatchTotals, usualMonth, watchFilterValues, watchLedgerFilter, watchMonths, watchTotals } from "./watchlist";
+import { categoryWatchTotals, usualMonth, watchFilterValues, watchHistory, watchLedgerFilter, watchMonths, watchTotals } from "./watchlist";
 import { NO_TRANSACTION_FILTER } from "../transactions/transactionFilter";
 
 // VS-46: a watch tile shows this month's spending so far against a usual month: the average of the last 3 full
@@ -42,21 +42,35 @@ describe("watchMonths", () => {
 
 describe("usualMonth", () => {
   const months = watchMonths(TODAY).previous;
+  const dated = (...dates: string[]) => watchHistory(dates.map((date, i) => tx({ id: i + 1, date })));
+  const allMonths = dated("2026-01-01", "2026-08-10", "2026-09-10", "2026-10-10");
 
   it("averages the 3 full months", () => {
-    expect(usualMonth([30, 60, 90], months, "2026-01-01")).toBe(60);
+    expect(usualMonth([30, 60, 90], months, allMonths)).toBe(60);
   });
 
   it("averages only the full months there is history for, not empty ones before it", () => {
     // History starts 1 Sep: September and October count, August does not.
-    expect(usualMonth([30, 60, 90], months, "2026-09-01")).toBe(45);
+    expect(usualMonth([30, 60, 90], months, dated("2026-09-01", "2026-10-10"))).toBe(45);
     // Starting 25 Sep, September is not a full month.
-    expect(usualMonth([30, 60, 90], months, "2026-09-25")).toBe(30);
+    expect(usualMonth([30, 60, 90], months, dated("2026-09-25", "2026-10-10"))).toBe(30);
   });
 
   it("has no usual month without a full month of history", () => {
-    expect(usualMonth([0, 0, 0], months, "2026-10-02")).toBeNull();
-    expect(usualMonth([0, 0, 0], months, null)).toBeNull();
+    expect(usualMonth([0, 0, 0], months, dated("2026-10-02"))).toBeNull();
+    expect(usualMonth([0, 0, 0], months, watchHistory([]))).toBeNull();
+  });
+
+  // 22 Nov addendum: the first transaction's date does not prove every later month was imported. A month with no
+  // transactions at all, in any account, is missing data, not a month of $0.
+  it("leaves out a month with no transactions at all instead of counting it as $0", () => {
+    // September has nothing recorded: October (90) and August (30) count.
+    expect(usualMonth([90, 0, 30], months, dated("2026-01-01", "2026-08-10", "2026-10-10"))).toBe(60);
+    expect(usualMonth([0, 0, 0], months, dated("2026-01-01"))).toBeNull();
+  });
+
+  it("still counts $0 for a month with other transactions but none on the watched item", () => {
+    expect(usualMonth([90, 0, 30], months, allMonths)).toBe(40);
   });
 });
 

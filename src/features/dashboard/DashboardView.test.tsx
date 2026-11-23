@@ -639,6 +639,13 @@ describe("watch tiles", () => {
     expect(t.querySelector("[data-watch-split-note]")?.textContent).toBe("Split lines count by their own category, like Budget, so the list may not add up to this.");
   });
 
+  it("leaves a month with no transactions at all out of the usual month, rather than counting it as $0", async () => {
+    // Two months back has nothing recorded in any account (say, a missed import): only 30 and 90 are averaged.
+    const gap = history.filter((t) => t.date !== ymd(2, 1));
+    await render(props({ transactions: gap, layoutWidgets: ["watch:tag:treat" as WidgetId] }));
+    expect(tile("watch:tag:treat").querySelector("[data-watch-usual]")?.textContent).toBe("Usual month: $60.00");
+  });
+
   it("says there is no usual month yet without a full month of history", async () => {
     await render(props({ transactions: [tx(1, ymd(0, 1), "-5.00")], layoutWidgets: ["watch:store:corner" as WidgetId] }));
     expect(tile("watch:store:corner").querySelector("[data-watch-usual]")?.textContent).toBe("No usual month yet. It needs a full month of history.");

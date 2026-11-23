@@ -23,11 +23,26 @@ export function watchMonths(today: Date): { thisMonth: { from: string; to: strin
   return { thisMonth: { from: iso(new Date(today.getFullYear(), today.getMonth(), 1)), to: iso(today) }, previous };
 }
 
-/** The average of the earlier months that history fully covers (each starts on or after the first transaction),
- * so a profile started last month is not averaged with empty months. `null` when there is no such month. */
-export function usualMonth(previousTotals: number[], months: WatchMonth[], earliestDate: string | null): number | null {
-  if (!earliestDate) return null;
-  const covered = previousTotals.filter((_, i) => months[i].from >= earliestDate);
+/** Which months have any transaction recorded, and the first transaction's date. */
+export type WatchHistory = { earliest: string | null; months: ReadonlySet<string> };
+
+export function watchHistory(transactions: Transaction[]): WatchHistory {
+  let earliest: string | null = null;
+  const months = new Set<string>();
+  for (const t of transactions) {
+    if (earliest === null || t.date < earliest) earliest = t.date;
+    months.add(t.date.slice(0, 7));
+  }
+  return { earliest, months };
+}
+
+/** The average of the earlier months that history fully covers: each starts on or after the first transaction, so
+ * a profile started last month is not averaged with empty months, and has at least one transaction in any account,
+ * so a month that was never imported is left out rather than counted as $0. `null` when there is no such month. */
+export function usualMonth(previousTotals: number[], months: WatchMonth[], history: WatchHistory): number | null {
+  const { earliest } = history;
+  if (!earliest) return null;
+  const covered = previousTotals.filter((_, i) => months[i].from >= earliest && history.months.has(months[i].from.slice(0, 7)));
   return covered.length === 0 ? null : covered.reduce((a, b) => a + b, 0) / covered.length;
 }
 
