@@ -61,11 +61,17 @@ function ImportReviewContent({
     leaveRestOfRowsUncategorized,
     confirmPendingImport,
     cancelPendingImport,
+    flipFolderSigns,
+    rememberSigns,
+    setRememberSigns,
     notice,
   } = review;
   const pendingImport = review.pendingImport!;
+  const folder = pendingImport.folder ?? null;
 
   const { rows, row_errors, row_problems, unmatched_categories, choice_below } = pendingImport.preview;
+  // Rows the bank still shows as pending start unticked (they may change or disappear).
+  const pendingAtBank = rows.filter((r) => r.source_pending && !r.is_duplicate).length;
   const accountName = accounts.find((a) => a.id === pendingImport.defaultAccountId)?.name ?? "the selected account";
   const remaining = unresolvedRows(rows, includedIndices, importCategoryChoices, importRowChoices, choice_below).length;
 
@@ -97,8 +103,8 @@ function ImportReviewContent({
       <p id="import-remaining-choices" className="import-remaining-choices" aria-live="polite" data-import-remaining={remaining}>
         {remaining > 0 ? `${count(remaining, "row still needs", "rows still need")} a category` : ""}
       </p>
-      <button className="modal-secondary" onClick={cancelPendingImport} disabled={busy}>
-        Cancel
+      <button className="modal-secondary" onClick={cancelPendingImport} disabled={busy} data-import-cancel>
+        {folder ? "Review later" : "Cancel"}
       </button>
       <button
         onClick={confirmPendingImport}
@@ -127,6 +133,28 @@ function ImportReviewContent({
             {notice}
           </p>
         )}
+        {folder && (
+          <div className="import-review-columns import-review-folder" data-folder-import-note>
+            <span>
+              From <strong>{folder.fileName}</strong>, found in your watched folder.
+              {!folder.sourcePresent && " The original file has left the folder, so this is the copy Vault Spend saved."}
+            </span>
+            <span data-folder-amount-signs={pendingImport.invertAmounts ? "flipped" : "as-written"}>
+              {pendingImport.invertAmounts
+                ? "Amounts: this file shows money you spent without a minus sign, so the signs are flipped. Money you spent has a minus sign below."
+                : "Amounts: used as the file shows them. Money you spent should have a minus sign below; if it doesn't, flip the signs."}
+            </span>
+            <button type="button" className="modal-secondary" data-flip-folder-signs onClick={() => void flipFolderSigns()} disabled={busy}>
+              Flip amount signs
+            </button>
+            {pendingImport.invertAmounts !== folder.nameInvert && (
+              <label className="import-review-remember" data-folder-remember-signs>
+                <input type="checkbox" checked={!!rememberSigns} onChange={(e) => setRememberSigns(e.target.checked)} disabled={busy} /> Use this for future
+                exports with this name
+              </label>
+            )}
+          </div>
+        )}
         {pendingImport.columnMap && pendingImport.columns && onChangeColumns && (
           <p className="import-review-columns" data-import-columns-note>
             <span>{pendingImport.columns.source === "saved" ? "Using the columns you picked last time." : "Using the columns you picked."}</span>
@@ -139,12 +167,19 @@ function ImportReviewContent({
           <p className="dup-review-summary" role="status">
             {row_errors > 0
               ? `No transactions could be read from this file. ${count(row_errors, "row", "rows")} couldn't be read.`
-              : "No transactions were found in this file. Check that it is a bank download (CSV, OFX, QFX or QIF), or try downloading it again."}
+              : "No transactions were found in this file. Check that it is a bank download (CSV, Excel workbook, OFX, QFX or QIF), or try downloading it again."}
           </p>
         ) : (
           <p className="dup-review-summary">
             Untick anything you don't want. You can change the account on any row.
             {row_errors > 0 && ` ${count(row_errors, "row", "rows")} couldn't be read.`}
+            {pendingAtBank > 0 && (
+              <span data-import-pending-unticked>
+                {" "}
+                {count(pendingAtBank, "row the bank still shows as pending starts", "rows the bank still shows as pending start")} unticked, as
+                {pendingAtBank === 1 ? " it" : " they"} may still change. Tick {pendingAtBank === 1 ? "it" : "them"} to import now.
+              </span>
+            )}
           </p>
         )}
         <RowProblemList problems={row_problems} />
@@ -239,7 +274,7 @@ function ImportReviewContent({
                               </div>
                             )}
                           </td>
-                          <td className="source-col">{row.is_duplicate ? "Already added" : "New"}</td>
+                          <td className="source-col">{row.is_duplicate ? "Already added" : row.source_pending ? "Pending at bank" : "New"}</td>
                         </tr>
                       ))}
                     </tbody>

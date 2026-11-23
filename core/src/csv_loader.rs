@@ -58,6 +58,9 @@ pub struct LoadResult {
     /// The file's header row (trimmed) when it has one, so a caller can name a column choice from the very
     /// read that loaded the rows. Empty for a headerless file and for the other file types.
     pub headers: Vec<String>,
+    /// Whether the bank marked each row as still pending, parallel to `transactions` for a CSV or
+    /// workbook (from a "pending" column; all false without one). Empty for the other file types.
+    pub source_pending: Vec<bool>,
 }
 
 /// Loads transactions from a CSV file at `path`. A header row is required;
@@ -101,6 +104,16 @@ fn plain_read_error(e: csv::Error) -> std::io::Error {
 /// instead of being found by name.
 pub fn load_csv_with(path: impl AsRef<Path>, invert_amounts: bool, map: Option<&ColumnMap>) -> std::io::Result<LoadResult> {
     load_from_reader_with(File::open(path)?, invert_amounts, map)
+}
+
+/// `load_csv_with` for a file already read into memory (a watched-folder import's saved copy).
+pub fn load_csv_bytes(bytes: &[u8], invert_amounts: bool, map: Option<&ColumnMap>) -> std::io::Result<LoadResult> {
+    load_from_reader_with(bytes, invert_amounts, map)
+}
+
+/// `inspect_csv` for a file already read into memory.
+pub fn inspect_csv_bytes(bytes: &[u8]) -> std::io::Result<CsvInspection> {
+    inspect_reader(bytes)
 }
 
 /// Where the amount comes from: one signed column, or separate money-out and
@@ -268,6 +281,12 @@ fn inspect_reader<R: Read>(reader: R) -> std::io::Result<CsvInspection> {
     for record in csv_reader.records().take(6) {
         rows.push(record.map_err(plain_read_error)?);
     }
+    inspect_records(rows)
+}
+
+/// Inspects rows already split into cells (a CSV's, or a workbook sheet's); only the first six are looked at.
+pub(crate) fn inspect_records(mut rows: Vec<csv::StringRecord>) -> std::io::Result<CsvInspection> {
+    rows.truncate(6);
 
     let nothing_guessed = ColumnGuess {
         date: None,
@@ -328,6 +347,23 @@ struct ExtraColumns {
     category: Option<usize>,
     tags: Option<usize>,
     notes: Option<usize>,
+    /// The bank's own "still pending" marker.
+    pending: Option<usize>,
+    /// A currency code column; a row in anything but US dollars is refused.
+    currency: Option<usize>,
+}
+
+/// Whether a currency cell means US dollars: the code, the sign, or the name as banks write them.
+fn is_us_dollars(cell: &str) -> bool {
+    let cell = cell.trim().to_ascii_lowercase();
+    ["usd", "$", "us$", "us dollar", "us dollars", "u.s. dollar", "u.s. dollars", "united states dollar", "united states dollars"].contains(&cell.as_str())
+}
+
+/// The currency column's header, when the file has one.
+fn find_currency_column(headers: &csv::StringRecord) -> Option<usize> {
+    ["currency", "iso_currency_code", "currency code"]
+        .iter()
+        .find_map(|name| find_column_exact(headers, name))
 }
 
 #[cfg(test)]
@@ -343,7 +379,19 @@ fn load_from_reader_with<R: Read>(reader: R, invert_amounts: bool, map: Option<&
     for record in csv_reader.records() {
         rows.push(record.map_err(plain_read_error)?);
     }
+    load_records(rows, None, invert_amounts, map, false)
+}
 
+/// Loads rows already split into cells. `row_numbers` gives each row's own number in its source
+/// (a workbook skips empty rows); without it, rows count from 1 like a CSV's lines. With
+/// `strict_money`, an amount with more than two decimal places is refused instead of kept.
+pub(crate) fn load_records(
+    rows: Vec<csv::StringRecord>,
+    row_numbers: Option<Vec<usize>>,
+    invert_amounts: bool,
+    map: Option<&ColumnMap>,
+    strict_money: bool,
+) -> std::io::Result<LoadResult> {
     let Some(first_row) = rows.first() else {
         return Ok(LoadResult::default());
     };
@@ -387,6 +435,8 @@ fn load_from_reader_with<R: Read>(reader: R, invert_amounts: bool, map: Option<&
             category,
             tags: free("tags"),
             notes: free("notes"),
+            pending: free("pending"),
+            currency: find_currency_column(first_row).filter(|c| !taken.contains(c)),
         };
         (map.date, map.description, amount_source, extra, &rows[1..], 2, true)
     } else if first_row_is_plain_data(first_row) {
@@ -400,6 +450,8 @@ fn load_from_reader_with<R: Read>(reader: R, invert_amounts: bool, map: Option<&
             category: find_column_exact(first_row, "category"),
             tags: find_column_exact(first_row, "tags"),
             notes: find_column_exact(first_row, "notes"),
+            pending: find_column_exact(first_row, "pending"),
+            currency: find_currency_column(first_row),
         };
         (date_col, description_col, amount_source, extra, &rows[1..], 2, true)
     };
@@ -408,14 +460,21 @@ fn load_from_reader_with<R: Read>(reader: R, invert_amounts: bool, map: Option<&
     if has_header {
         result.headers = first_row.iter().map(|h| h.trim().to_string()).collect();
     }
+    let skipped = rows.len() - data_rows.len();
     for (idx, record) in data_rows.iter().enumerate() {
-        let row_number = first_row_number + idx;
-        match parse_row(record, date_col, description_col, &amount_source, &extra, invert_amounts) {
+        let row_number = match &row_numbers {
+            Some(numbers) => numbers[idx + skipped],
+            None => first_row_number + idx,
+        };
+        match parse_row(record, date_col, description_col, &amount_source, &extra, invert_amounts, strict_money) {
             Ok((tx, account_name, tags, notes)) => {
+                let pending = optional_cell(record, extra.pending)
+                    .is_some_and(|v| matches!(v.to_ascii_lowercase().as_str(), "true" | "yes" | "y" | "1" | "pending"));
                 result.transactions.push(tx);
                 result.account_names.push(account_name);
                 result.tags.push(tags);
                 result.notes.push(notes);
+                result.source_pending.push(pending);
             }
             Err(message) => result.errors.push(RowError {
                 row_number,
@@ -503,6 +562,7 @@ fn parse_row(
     amount_source: &AmountSource,
     extra: &ExtraColumns,
     invert_amounts: bool,
+    strict_money: bool,
 ) -> Result<ParsedRow, String> {
     let date_str = record.get(date_col).ok_or("missing date column")?;
     let raw_description = record.get(description_col).ok_or("missing description column")?;
@@ -514,7 +574,13 @@ fn parse_row(
         return Err("empty description".to_string());
     }
 
+    if let Some(code) = optional_cell(record, extra.currency).filter(|c| !is_us_dollars(c)) {
+        return Err(format!("unsupported currency '{code}'"));
+    }
     let mut amount = extract_amount(record, amount_source)?;
+    if strict_money && amount.normalize().scale() > 2 {
+        return Err(format!("too precise amount '{amount}'"));
+    }
     if invert_amounts {
         amount = -amount;
     }
@@ -1246,5 +1312,52 @@ c,d,e,f
         assert_eq!(preview.chars().count(), 60);
         assert!(preview.starts_with("2026-08-03, xxx"));
         assert!(preview.ends_with('…'));
+    }
+
+    #[test]
+    fn bytes_load_like_a_file_with_bom_crlf_quotes_and_lowercase_reordered_bank_metadata() {
+        let csv = "\u{feff}bank,transaction_id,date,account,description,amount,currency,pending\r\n\
+Practice Bank,t1,2026-11-17,Max Checking,\"Corner Cafe, Main St\",12.50,USD,false\r\n\
+Practice Bank,t2,2026-11-18,Max Checking,Payroll,-1500.00,usd,true\r\n";
+        let result = load_csv_bytes(csv.as_bytes(), true, None).unwrap();
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        assert_eq!(result.transactions.len(), 2);
+        assert_eq!(result.transactions[0].description, "Corner Cafe, Main St");
+        assert_eq!(result.transactions[0].amount, Decimal::from_str("-12.50").unwrap(), "flipped: a positive charge is money out");
+        assert_eq!(result.transactions[1].amount, Decimal::from_str("1500.00").unwrap());
+        assert_eq!(result.source_pending, vec![false, true], "the bank's own pending marker is kept per row");
+    }
+
+    #[test]
+    fn a_row_in_another_currency_is_refused_rather_than_counted_as_dollars() {
+        let csv = "Date,Description,Amount,Currency\n2026-11-17,Cafe,-4.00,USD\n2026-11-17,Hotel,-90.00,EUR\n2026-11-17,Shop,-3.00,\n";
+        let result = load_csv_bytes(csv.as_bytes(), false, None).unwrap();
+        assert_eq!(result.transactions.len(), 2);
+        assert_eq!(result.errors.len(), 1);
+        assert_eq!(result.errors[0].row_number, 3);
+        assert!(result.errors[0].message.contains("EUR"), "{}", result.errors[0].message);
+        assert_eq!(result.source_pending, vec![false, false]);
+    }
+
+    #[test]
+    fn common_ways_of_writing_us_dollars_are_all_dollars() {
+        let csv = "Date,Description,Amount,Currency
+2026-11-17,A,-1.00,$
+2026-11-17,B,-1.00,US Dollar
+2026-11-17,C,-1.00,us$
+2026-11-17,D,-1.00, USD 
+2026-11-17,E,-1.00,US Dollars
+2026-11-17,F,-1.00,CAD$
+";
+        let result = load_csv_bytes(csv.as_bytes(), false, None).unwrap();
+        assert_eq!(result.transactions.len(), 5, "{:?}", result.errors);
+        assert_eq!(result.errors.iter().map(|e| e.row_number).collect::<Vec<_>>(), vec![7]);
+    }
+
+    #[test]
+    fn inspecting_bytes_reports_headers_and_missing_columns() {
+        let inspection = inspect_csv_bytes(b"Posted,Memo,Amt\n2026-08-05,Coffee,-4.50\n").unwrap();
+        assert_eq!(inspection.headers, vec!["Posted", "Memo", "Amt"]);
+        assert_eq!(inspection.missing, vec!["date", "description", "amount"]);
     }
 }

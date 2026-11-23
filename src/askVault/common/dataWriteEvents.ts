@@ -12,7 +12,7 @@ export const RELEVANT_WRITE_COMMANDS: ReadonlySet<string> = new Set([
   // Transactions and transfers on any account. A principal amount counts instead of the full amount in an investment account's value when it holds no holdings (core ask_vault_retirement.rs).
   "create_manual_transaction", "delete_transaction", "bulk_delete_transactions", "restore_transactions", "flip_transaction_signs",
   "update_transaction_account", "move_transactions_to_account", "update_transaction_amount", "update_transaction_principal_amount", "update_transaction_date", "update_transaction_description",
-  "unapply_debt_payment", "apply_debt_payment", "commit_import", "commit_setup_import", "link_transfer", "unlink_transfer", "restore_transfer_candidates", "set_auto_link_transfers",
+  "unapply_debt_payment", "apply_debt_payment", "commit_import", "commit_folder_import", "commit_setup_import", "link_transfer", "unlink_transfer", "restore_transfer_candidates", "set_auto_link_transfers",
   // Whole-profile replacement.
   "restore_backup", "restore_registry_backup",
 ]);

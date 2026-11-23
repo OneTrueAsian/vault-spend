@@ -22,9 +22,8 @@ serde_json = "1"
 sha2 = "0.10"
 unicode-normalization = "0.1"
 zeroize = "1"
+# Reads .xlsx archive entry sizes before parsing (already used through office_oxide; VS-102).
+zip = { version = "9.0", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 rust_decimal_macros = "1"
-
-# Exercises the vendored Office ZIP9 compatibility at the public archive boundary.
-zip = { version = "9.0", default-features = false, features = ["deflate"] }

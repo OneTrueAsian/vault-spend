@@ -2518,6 +2518,22 @@ table.ledger.recurring-table .actions-col {
   font-size: 13px;
 }
 
+/* A folder export's review: where it came from and which way its amounts are read (VS-102). */
+.import-review-folder {
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.import-review-folder > span {
+  flex: 1 1 260px;
+}
+
+.import-review-remember {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 
 /* Import panels share the modal body's vertical scroll; the table can still scroll sideways. */
 .import-review-dialog .dup-review-table-scroll {

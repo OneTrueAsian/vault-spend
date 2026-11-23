@@ -126,7 +126,7 @@ impl Store {
         Ok(outcome)
     }
 
-    fn write_import_batch(&self, batch: &ImportBatch) -> Result<ImportBatchOutcome, ImportBatchError> {
+    pub(super) fn write_import_batch(&self, batch: &ImportBatch) -> Result<ImportBatchOutcome, ImportBatchError> {
         for name in &batch.create_categories {
             self.create_category(name.trim(), None)?;
         }

@@ -9,6 +9,7 @@ mod config;
 mod debug_commands;
 mod device_settings;
 mod error_detail;
+mod folder_imports;
 mod holding_import;
 mod icon_keys;
 mod launch_commands;
@@ -41,6 +42,7 @@ pub fn run() {
         .manage(command_thread::CommandQueue::start())
         .manage(holding_import::Sessions::default())
         .manage(statement_review::Sessions::default())
+        .manage(folder_imports::Discovery::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -196,6 +198,7 @@ pub fn run() {
             }
             background::start_reminder_thread(handle.clone());
             auto_lock::start_timer_thread(handle.clone());
+            folder_imports::start_thread(handle.clone());
             background::hide_if_started_minimized(&handle);
 
             Ok(())
@@ -279,6 +282,21 @@ pub fn run() {
             commands::list_transaction_account_moves,
             commands::preview_import,
             commands::commit_import,
+            commands::get_folder_imports,
+            commands::set_folder_imports_enabled,
+            commands::set_folder_import_folder,
+            commands::save_folder_import_mapping,
+            commands::delete_folder_import_mapping,
+            commands::clear_folder_import_watermark,
+            commands::mark_folder_activity_seen,
+            commands::test_folder_import_names,
+            commands::scan_folder_imports_now,
+            commands::list_folder_import_activity,
+            commands::inspect_folder_import_columns,
+            commands::preview_folder_import,
+            commands::commit_folder_import,
+            commands::dismiss_folder_import,
+            commands::review_folder_import_again,
             commands::create_manual_transaction,
             commands::get_transaction_context,
             commands::get_transaction_snapshot,

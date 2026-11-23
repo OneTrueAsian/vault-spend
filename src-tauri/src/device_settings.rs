@@ -64,6 +64,10 @@ pub struct DeviceSettings {
     pub legal_notice_version: Option<String>,
     #[serde(default)]
     pub legal_notice_acknowledged_at: Option<String>,
+    /// Each profile's watched folder for bank exports (VS-102), keyed by its registry id. Kept on
+    /// this computer only: a profile restored or copied elsewhere asks for its folder again.
+    #[serde(default)]
+    pub folder_import_dirs: BTreeMap<String, String>,
 }
 
 /// Whether the e2e suite has asked to start past the legal notice. Honoured only alongside
@@ -118,6 +122,10 @@ impl DeviceSettings {
 
     pub fn remove_profile_reminders(&mut self, profile: &str) {
         self.reminder_index.remove(profile);
+    }
+
+    pub fn folder_import_dir(&self, profile_id: &str) -> Option<&str> {
+        self.folder_import_dirs.get(profile_id).map(String::as_str)
     }
 
     pub fn backup_mirror_dir(&self, profile_id: &str) -> Option<&str> {

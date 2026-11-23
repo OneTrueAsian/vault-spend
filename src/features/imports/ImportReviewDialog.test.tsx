@@ -84,6 +84,77 @@ describe("ImportReviewDialog", () => {
   const dialog = () => document.querySelector<HTMLElement>("[role='dialog']");
   const importButton = () => document.querySelector<HTMLButtonElement>("button[data-import-confirm]")!;
 
+  describe("a watched folder's export (VS-102)", () => {
+    function folderReview(invertAmounts: boolean, sourcePresent: boolean, nameInvert = invertAmounts) {
+      const base = review([row(0), row(1, { source_pending: true }), row(2, { is_duplicate: true })]);
+      return review([], {
+        ...base,
+        pendingImport: {
+          ...base.pendingImport!,
+          path: "",
+          invertAmounts,
+          folder: { batchId: 4, rowVersion: 2, fileName: "Bank Max Checking_2026-11-18.csv", sourcePresent, nameInvert },
+        },
+        flipFolderSigns: vi.fn(),
+        rememberSigns: false,
+        setRememberSigns: vi.fn(),
+      });
+    }
+
+    it("offers to remember flipped signs for the export name only after a flip", () => {
+      const same = folderReview(false, true);
+      show(same);
+      expect(container.ownerDocument.querySelector("[data-folder-remember-signs]")).toBeNull();
+      const flipped = folderReview(true, true, false);
+      show(flipped);
+      const box = container.ownerDocument.querySelector<HTMLInputElement>("[data-folder-remember-signs] input")!;
+      expect(box.checked).toBe(false);
+      act(() => box.click());
+      expect(flipped.setRememberSigns).toHaveBeenCalledWith(true);
+    });
+
+    it("says in plain words which way the amounts read, and that rows pending at the bank start unticked", () => {
+      show(folderReview(false, true));
+      const note = container.ownerDocument.querySelector("[data-folder-import-note]")!.textContent!;
+      expect(note).toContain("minus sign");
+      expect(note).not.toContain("as written");
+      expect(container.ownerDocument.querySelector("[data-import-pending-unticked]")!.textContent).toContain(
+        "1 row the bank still shows as pending starts unticked",
+      );
+    });
+
+    it("names its file, says which way the amounts are read, and offers to flip them", () => {
+      const r = folderReview(true, false);
+      show(r);
+      const note = container.ownerDocument.querySelector("[data-folder-import-note]")!;
+      expect(note.textContent).toContain("Bank Max Checking_2026-11-18.csv");
+      expect(note.textContent).toContain("the copy Vault Spend saved");
+      expect(note.querySelector("[data-folder-amount-signs]")!.getAttribute("data-folder-amount-signs")).toBe("flipped");
+      act(() => note.querySelector<HTMLButtonElement>("[data-flip-folder-signs]")!.click());
+      expect(r.flipFolderSigns).toHaveBeenCalledTimes(1);
+    });
+
+    it("calls its cancel Review later and marks rows the bank still shows as pending", () => {
+      const r = folderReview(false, true);
+      show(r);
+      const cancel = container.ownerDocument.querySelector<HTMLButtonElement>("[data-import-cancel]")!;
+      expect(cancel.textContent).toBe("Review later");
+      expect(container.ownerDocument.querySelector("[data-folder-import-note]")!.textContent).not.toContain("copy Vault Spend saved");
+      act(() => cancel.click());
+      expect(r.cancelPendingImport).toHaveBeenCalledTimes(1);
+      const rowsTab = [...container.ownerDocument.querySelectorAll<HTMLButtonElement>("[role='tab']")].find((t) => t.textContent?.startsWith("Transactions"));
+      if (rowsTab) act(() => rowsTab.click());
+      const statuses = [...container.ownerDocument.querySelectorAll(".source-col")].map((c) => c.textContent);
+      expect(statuses).toEqual(["New", "Pending at bank", "Already added"]);
+    });
+
+    it("keeps Cancel for a picked file", () => {
+      show(review([row(0)]));
+      expect(container.ownerDocument.querySelector("[data-import-cancel]")!.textContent).toBe("Cancel");
+      expect(container.ownerDocument.querySelector("[data-folder-import-note]")).toBeNull();
+    });
+  });
+
   it("shows nothing while no import is being reviewed", () => {
     show(review([], { pendingImport: null }));
     expect(dialog()).toBeNull();
@@ -251,7 +322,7 @@ describe("ImportReviewDialog", () => {
     it("says no transactions were found and what to check, instead of an empty table", () => {
       show(review([]));
       expect(summary()).toContain("No transactions were found in this file.");
-      expect(summary()).toContain("CSV, OFX, QFX or QIF");
+      expect(summary()).toContain("CSV, Excel workbook, OFX, QFX or QIF");
       expect(summary()).not.toContain("Untick anything");
       expect(dialog()!.querySelector("table")).toBeNull();
       expect(importButton().disabled).toBe(true);

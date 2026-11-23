@@ -22,6 +22,8 @@ export type ImportRow = {
   description: string;
   amount: string;
   is_duplicate: boolean;
+  /** The bank marked the row as still pending (a "pending" column). It starts unticked. */
+  source_pending?: boolean;
   /** The row's own Account column, when the file has one — this app's own
    * Transactions CSV export does. A matching existing account is preselected; an unfamiliar
    * name uses the selected default account. The row's dropdown can override either. */
@@ -195,11 +197,20 @@ export type ReviewChoices = {
  * category that no longer exists. When the file is unchanged, the checked rows, accounts and row
  * choices carry over too, minus picks of vanished categories and rows the fresh review now places
  * itself. When the file changed, its rows may be different rows, so they start over. */
+/** The rows ticked when a review opens: everything except rows already in the account and rows
+ * the bank still shows as pending. The person can tick either back. */
+export function initiallyIncluded(preview: ImportPreview): Set<number> {
+  return new Set(preview.rows.filter((r) => !r.is_duplicate && !r.source_pending).map((r) => r.index));
+}
+
 export function carryOverReview(
   before: ReviewChoices & { preview: ImportPreview; defaultAccountId: number },
   next: ImportPreview,
   categories: string[],
   accounts: { id: number; name: string }[],
+  /** `sameRows`: the same file read again another way (its amount signs flipped). The review is new,
+   * but its rows are the same rows, so the person's choices for them are kept. */
+  { sameRows = false }: { sameRows?: boolean } = {},
 ): ReviewChoices & { fileChanged: boolean } {
   const fileChanged = before.preview.review_token !== next.review_token;
   const panel: Record<string, CategoryChoice> = {};
@@ -208,11 +219,11 @@ export function carryOverReview(
     const stillValid = earlier && (earlier.action !== "map_to" || categories.includes(earlier.category));
     panel[u.name] = stillValid ? earlier : defaultPanelChoice(u, categories);
   }
-  if (fileChanged) {
+  if (fileChanged && !sameRows) {
     return {
       fileChanged,
       panel,
-      included: new Set(next.rows.filter((r) => !r.is_duplicate).map((r) => r.index)),
+      included: initiallyIncluded(next),
       rowChoices: new Map(),
       accountOverrides: seedAccountOverrides(next, accounts, before.defaultAccountId),
     };
@@ -221,10 +232,19 @@ export function carryOverReview(
   const kept: RowChoices = new Map(
     [...before.rowChoices].filter(([i, c]) => indices.has(i) && (c === null || categories.includes(c))),
   );
+  // A flipped amount can make a row match (or stop matching) one already in the account: that row
+  // starts the way a new review would start it; every other row keeps its tick.
+  const wasDuplicate = new Map(before.preview.rows.map((r) => [r.index, r.is_duplicate]));
+  const fresh = initiallyIncluded(next);
+  const included = new Set(
+    next.rows
+      .filter((r) => (wasDuplicate.get(r.index) === r.is_duplicate ? before.included.has(r.index) : fresh.has(r.index)))
+      .map((r) => r.index),
+  );
   return {
     fileChanged,
     panel,
-    included: new Set([...before.included].filter((i) => indices.has(i))),
+    included,
     rowChoices: pruneRowChoices(next.rows, panel, kept, next.choice_below),
     accountOverrides: new Map([...before.accountOverrides].filter(([i]) => indices.has(i))),
   };

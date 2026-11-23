@@ -74,6 +74,7 @@ export function SettingsView({
   onMessage,
   onOpenHelp,
   jumpRequest,
+  folderImportsCard = null,
   status = null,
 }: {
   /** The app's latest message, so a result can also be shown beside the control that caused it. */
@@ -133,6 +134,8 @@ export function SettingsView({
   onOpenHelp?: (tab: Tab) => void;
   /** Opens a group (a new `nonce` asks again), e.g. "manage profiles" from the profile switcher. */
   jumpRequest?: { group: SettingsGroupId; nonce: number };
+  /** Settings → Data → Folder imports (VS-102), built by the app with the profile's accounts. */
+  folderImportsCard?: React.ReactNode;
 }) {
   return (
     <div className="reports-view settings-view">
@@ -196,6 +199,7 @@ export function SettingsView({
                 onImportSetupData={onImportSetupData}
                 isProtected={profiles.find((profile) => profile.is_active)?.is_password_protected ?? false}
               />
+              {folderImportsCard}
               <MobileSettings />
             </>
           ),

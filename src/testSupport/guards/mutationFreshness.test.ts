@@ -26,7 +26,7 @@ const calledWrites = new Set(
 const refreshesSharedSnapshot = new Set([
   "add_tag", "remove_tag", "apply_debt_payment", "unapply_debt_payment", "bulk_correct_category",
   "bulk_create_recurring_from_transactions", "bulk_delete_transactions", "bulk_set_transaction_member",
-  "commit_import", "commit_holding_import", "create_account", "delete_account", "create_manual_transaction",
+  "commit_import", "commit_folder_import", "commit_holding_import", "create_account", "delete_account", "create_manual_transaction",
   "delete_transaction", "flip_transaction_signs", "move_transactions_to_account", "link_transfer", "unlink_transfer", "restore_transactions",
   "set_transaction_member", "set_transaction_splits", "update_transaction_account", "update_transaction_amount",
   "update_transaction_date", "update_transaction_description", "update_transaction_notes",
@@ -47,6 +47,10 @@ const presentationOnly = new Set([
   "rename_statement_layout", "delete_statement_layout",
   // Reports > Save as PDF writes a file outside the profile; no screen reads it back.
   "save_report_pdf",
+  // Watched-folder imports (VS-102): settings and the pending-export queue only. Nothing reaches the ledger until
+  // commit_folder_import, which refreshes the shared snapshot like commit_import.
+  "set_folder_imports_enabled", "set_folder_import_folder", "save_folder_import_mapping", "delete_folder_import_mapping",
+  "dismiss_folder_import", "mark_folder_activity_seen",
 ]);
 /** Profile, protection and file-location changes replace or remount the whole profile, so every view
  *  starts from a new session instead of being told to refresh. */

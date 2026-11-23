@@ -119,6 +119,9 @@ try {
   assert.deepEqual(sqlRows(dbDir, "SELECT mode, moved_count, effective_date FROM account_move_operations"), [["confirmation", 1, TODAY]]);
   assert.deepEqual(sqlRows(dbDir, "PRAGMA integrity_check"), [["ok"]]);
   assert.deepEqual(sqlRows(dbDir, "PRAGMA foreign_key_check"), []);
+  // Account move history lives in the More actions (⋯) menu.
+  await (await b.$("button[aria-label='More actions']")).click();
+  await (await b.$("[data-account-move-history]")).waitForClickable({ timeout: 5000 });
   await (await b.$("[data-account-move-history]")).click();
   await b.$("[data-move-history-record]").waitForExist({ timeout: 10000 });
   await (await b.$("[data-move-history-record] summary")).click();

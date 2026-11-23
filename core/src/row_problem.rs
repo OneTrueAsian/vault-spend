@@ -46,6 +46,10 @@ pub fn plain_row_reason(message: &str) -> String {
         }
     } else if matches!(message, "missing payee (P) line" | "missing NAME/MEMO" | "empty description") {
         "This transaction has no description.".to_string()
+    } else if let (Some(code), true) = (quoted(), message.starts_with("unsupported currency ")) {
+        format!("This row is in {code}. Only US dollar amounts can be imported.")
+    } else if let (Some(value), true) = (quoted(), message.starts_with("too precise amount ")) {
+        format!("The amount {value} has more decimal places than money uses.")
     } else if message.starts_with("transaction never closed") {
         "This transaction is cut off; the file may be incomplete.".to_string()
     } else {

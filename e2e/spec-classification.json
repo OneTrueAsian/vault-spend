@@ -362,6 +362,8 @@
     "feature426_greyed_out_notes_layout.mjs": "drives menus that close when the window loses focus",
     "feature427_forecast_twelve_months.mjs": "drives menus that close when the window loses focus",
     "feature428_watch_tiles.mjs": "drives menus that close when the window loses focus",
-    "feature429_failure_details.mjs": "drives menus that close when the window loses focus"
+    "feature429_failure_details.mjs": "drives menus that close when the window loses focus",
+    "feature430_folder_imports.mjs": "uses the shared keyboard",
+    "feature431_folder_imports_protected.mjs": "not reviewed for parallel execution; exclusive until approved"
   }
 }

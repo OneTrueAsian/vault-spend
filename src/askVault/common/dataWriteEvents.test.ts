@@ -45,6 +45,10 @@ const NOT_RELEVANT: string[] = [
   "start_with_new_profile_list", "statement_lines", "suggest_budgets", "switch_profile", "take_maintenance_summary", "teach_statement_layout",
   "transactions_for_category", "unlock_profile", "update_asset_value", "update_bucket_details", "update_recurring", "update_transaction_notes",
   "verify_current_password", "verify_recovery_code", "write_text_file", "year_over_year_cash_flow",
+  // Watched-folder imports (VS-102): settings, the queue of saved exports and its activity. Only commit_folder_import writes the ledger.
+  "get_folder_imports", "set_folder_imports_enabled", "set_folder_import_folder", "save_folder_import_mapping", "delete_folder_import_mapping",
+  "test_folder_import_names", "scan_folder_imports_now", "list_folder_import_activity", "inspect_folder_import_columns", "preview_folder_import",
+  "dismiss_folder_import", "review_folder_import_again", "clear_folder_import_watermark", "mark_folder_activity_seen",
 ];
 
 const registered = (): string[] => {

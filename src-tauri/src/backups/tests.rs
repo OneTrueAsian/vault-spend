@@ -252,6 +252,74 @@ fn restore_backup_brings_back_the_backed_up_data_not_a_later_mutation() {
     assert_eq!(transactions[0].transaction.description, "Original");
 }
 
+/// VS-102: an export waiting for review, the receipts that keep dismissed content from coming back
+/// and the folder-import settings all travel with a backup, and a restore brings back the backed-up
+/// queue, not a later one. The watched folder is a device setting and is not in the backup.
+#[test]
+fn restore_brings_back_folder_import_queue_receipts_and_settings() {
+    use budget_core::store::{BatchStatus, FolderImportMappingInput, StageInput, StageOutcome};
+    let dir = temp_dir("restore-folder-imports");
+    let live_path = dir.join("live.db");
+    let backups_dir = dir.join("backups");
+    let store = Store::open(&live_path).unwrap();
+    let account = store.get_or_create_account("Max Checking", AccountType::Checking).unwrap();
+    let mapping = store
+        .save_folder_import_mapping(&FolderImportMappingInput {
+            id: None,
+            account_id: account,
+            stem: "Bank Max Checking".to_string(),
+            extensions: vec!["csv".to_string()],
+            invert_amounts: true,
+            initial_cutoff: Some("2026-11-01".parse().unwrap()),
+        })
+        .unwrap();
+    store.set_folder_imports_enabled(true).unwrap();
+    let stage = |digest: &str, day: &str| match store
+        .stage_folder_import(&StageInput {
+            mapping_id: mapping,
+            account_id: account,
+            file_name: &format!("Bank Max Checking_{day}.csv"),
+            digest,
+            content: format!("Date,Description,Amount\n{day},Cafe {digest},4.00\n").as_bytes(),
+            export_start: day.parse().unwrap(),
+            export_end: day.parse().unwrap(),
+            now: "2026-11-22T10:00:00",
+        })
+        .unwrap()
+    {
+        StageOutcome::Queued(id) => id,
+        other => panic!("{other:?}"),
+    };
+    let waiting = stage("aaa", "2026-11-18");
+    let dismissed = stage("bbb", "2026-11-19");
+    store.dismiss_folder_import(dismissed, "2026-11-22T10:01:00").unwrap();
+    let filename = create_backup(&store, &live_path, &backups_dir, None, dt("2026-11-22 10:02:00")).unwrap();
+
+    // After the backup, the waiting export is dismissed too.
+    store.dismiss_folder_import(waiting, "2026-11-22T10:03:00").unwrap();
+
+    let restored_path = restore_backup(&store, &backups_dir, None, &filename, &live_path).unwrap();
+    let restored = Store::open(&restored_path).unwrap();
+    let pending = restored.list_folder_import_batches(true).unwrap();
+    assert_eq!(pending.iter().map(|b| b.id).collect::<Vec<_>>(), vec![waiting], "the backed-up queue comes back");
+    assert_eq!(
+        restored.folder_import_batch_content(waiting).unwrap().unwrap(),
+        b"Date,Description,Amount\n2026-11-18,Cafe aaa,4.00\n",
+        "its saved copy comes back, so it can be reviewed without the original file"
+    );
+    assert_eq!(
+        restored.folder_import_known(account, "bbb").unwrap(),
+        Some((dismissed, BatchStatus::Dismissed)),
+        "the dismissal still keeps that content from being queued again"
+    );
+    let settings = restored.folder_import_settings().unwrap();
+    assert!(settings.enabled);
+    let saved = restored.folder_import_mapping(mapping).unwrap().unwrap();
+    assert!(saved.invert_amounts);
+    assert_eq!(saved.initial_cutoff, Some("2026-11-01".parse().unwrap()));
+    assert!(restored.all_transactions().unwrap().is_empty(), "restoring a queue imports nothing");
+}
+
 #[test]
 fn encrypted_restore_uses_the_selected_backups_own_key() {
     let dir = temp_dir("restore-encrypted-old-key");

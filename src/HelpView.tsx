@@ -272,7 +272,7 @@ export const TAB_HELP: TabHelp[] = [
           <>A window shows what will move and what each account's balance becomes. Nothing changes until you choose <strong>Move</strong>. Amounts, dates, categories, tags, notes, splits and who each transaction is for stay exactly as they were.</>,
           <>Older transactions can move too. When the saved balances for those months recorded what they counted, Vault Spend corrects them for you and the window says how many. When an older saved balance can't tell which transactions it counted (balances saved by earlier versions, or ones you typed yourself), the window asks you for the correct balance of each account after the move. Enter it, or choose <strong>Keep this balance</strong> if the one shown is already right, then choose <strong>Review the move</strong>. Your transactions move, and the balances you confirm apply from today. This doesn't rebuild old months: older saved balances keep their values, so a past month's chart can still show a gap where the move was made.</>,
           <>It is all or nothing. Vault Spend says why nothing will move if any selected transaction was already counted when you reconcile an account, is part of a linked transfer or an applied debt payment, has a loan principal amount that doesn't fit the new account, would look like a duplicate of a transaction already in the new account, or sits in an account that has a saved balance dated in the future. Fix that first, for example by unlinking the transfer, then try again. If the saved balances look damaged, the window says so and nothing moves; confirming a balance can't fix that.</>,
-          <>A move can't be undone with one click. To put transactions back, move them again, as long as they still qualify. A transaction you had ticked for reconciling is unticked, so tick it again. To look back at moves you have already made, choose <strong>Account move history</strong> above the table. It shows the latest moves with each account's balance before and after.</>,
+          <>A move can't be undone with one click. To put transactions back, move them again, as long as they still qualify. A transaction you had ticked for reconciling is unticked, so tick it again. To look back at moves you have already made, open the <strong>⋯</strong> menu at the top of the Transactions tab and choose <strong>Account move history</strong>. It shows the latest moves with each account's balance before and after.</>,
         ],
       },
       {
@@ -694,7 +694,7 @@ function tabHelpMatches(help: TabHelp, query: string): boolean {
 }
 
 const IMPORTING_ENTRY: HelpEntry = {
-  tags: ["import", "csv", "ofx", "qfx", "qif", "bank", "duplicate", "auto-categorized"],
+  tags: ["import", "csv", "excel", "xlsx", "workbook", "ofx", "qfx", "qif", "bank", "duplicate", "auto-categorized", "folder", "watched folder", "folder imports", "folder activity", "export"],
   node: (
     <>
       <p>
@@ -708,7 +708,10 @@ const IMPORTING_ENTRY: HelpEntry = {
         </li>
         <li>
           Choose the file exported from your bank or credit card — CSV,
-          OFX/QFX, or QIF are all supported.
+          Excel workbook (.xlsx), OFX/QFX, or QIF are all supported. Older
+          .xls and macro-enabled workbooks aren't: save them as .xlsx or CSV
+          first. A workbook's first sheet is read, and it must hold plain
+          values (no formulas).
         </li>
         <li>
           Confirm which way the amounts go. Vault Spend shows <em>money
@@ -777,6 +780,51 @@ const IMPORTING_ENTRY: HelpEntry = {
         and nothing is imported. If the review shows the wrong amounts, use{" "}
         <strong>Change columns</strong> at the top of it to pick again before
         you import.
+      </p>
+      <h3>Picking up exports from a folder</h3>
+      <p>
+        Instead of choosing each file, you can save your bank's exports into
+        one folder. Set it up in <strong>Settings → Data → Folder imports</strong>:
+        choose the folder, then add an <strong>export name</strong> for each
+        account — the start of the file name before its date, such as{" "}
+        <code>Bank Max Checking</code> for{" "}
+        <code>Bank Max Checking_2026-11-18.csv</code>,{" "}
+        <code>Bank Max Checking_2026-11-11_to_2026-11-18.csv</code>,{" "}
+        <code>Bank Max Checking - 2026-11-11 to 2026-11-18.csv</code> or{" "}
+        <code>Bank Max Checking - Nov 11 to Nov 18, 2026.csv</code> (month
+        names can be short or full). Say which
+        way its amounts go and which exports count: only those dated on or
+        after a day you pick, or also the ones already in the folder. Then turn
+        on <strong>Watch a folder for bank exports</strong>.
+      </p>
+      <p>
+        While the profile is open and unlocked, new exports are picked up a few
+        seconds after they finish saving; ones saved while Vault Spend was
+        closed are found the next time you open it. Nothing is added to your
+        transactions until you review it. A notice above your transactions
+        says when an export is waiting; <strong>Review</strong> opens the same
+        import review as above, with every row. <strong>Review later</strong>{" "}
+        keeps it waiting. Rows already in the account and rows your bank still
+        shows as pending start unticked. If the amounts come out the wrong way
+        round, use <strong>Flip amount signs</strong> and tick{" "}
+        <strong>Use this for future exports with this name</strong> so the next
+        ones are read the same way.
+      </p>
+      <p>
+        <strong>Folder activity</strong>, at the top of the Transactions tab,
+        lists what is waiting and what happened to each recent file and why:
+        an export older than your start date or than the newest one you
+        imported is skipped without being opened, and the same file is never
+        queued twice, even under another name. <strong>Dismiss</strong> keeps
+        an export from being queued again; <strong>Review again</strong> opens
+        a dismissed, imported or skipped file's review straight away, still
+        checking for transactions you already have. To pick up older exports
+        again, use <strong>Start over from the start date</strong> next to the
+        export name in Settings. Your files are never moved
+        or changed. Vault Spend keeps its own copy for review inside this
+        profile's data, so a password-protected profile protects it too. The
+        folder is remembered on this computer only: on another computer,
+        choose it again.
       </p>
     </>
   ),

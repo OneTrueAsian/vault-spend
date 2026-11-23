@@ -36,6 +36,7 @@ describe("TransactionsPageActions", () => {
           openManageFamilyMembers={vi.fn()}
           handleRecategorize={vi.fn(async () => undefined)}
           handleExportTransactionsCsv={vi.fn(async () => undefined)}
+          openAccountMoveHistory={vi.fn()}
         />,
       );
     });
@@ -59,6 +60,37 @@ describe("TransactionsPageActions", () => {
     expect(handleImport).toHaveBeenCalledTimes(1);
     act(() => button("Add transaction")!.click());
     expect(setNewTransactionOpen).toHaveBeenCalledWith(true);
+  });
+
+  it("offers Account move history in the More actions menu, not as a button above the table", () => {
+    const setMoreMenuOpen = vi.fn();
+    const openAccountMoveHistory = vi.fn();
+    act(() => {
+      root.render(
+        <TransactionsPageActions
+          busy={false}
+          importReview={{ pendingImport: null } as ImportReview}
+          dataLoaded
+          handleImport={handleImport}
+          setNewTransactionOpen={setNewTransactionOpen}
+          moreMenuRef={createRef<HTMLDivElement>()}
+          setMoreMenuOpen={setMoreMenuOpen}
+          moreMenuOpen
+          moreMenuShouldRender
+          moreMenuClosing={false}
+          openManageCategories={openManageCategories}
+          openManageFamilyMembers={vi.fn()}
+          handleRecategorize={vi.fn(async () => undefined)}
+          handleExportTransactionsCsv={vi.fn(async () => undefined)}
+          openAccountMoveHistory={openAccountMoveHistory}
+        />,
+      );
+    });
+    const items = [...container.querySelectorAll(".more-menu-item")].map((b) => b.textContent?.trim());
+    expect(items).toEqual(["Manage family members", "Categorize uncategorized", "Export CSV", "Account move history"]);
+    act(() => container.querySelector<HTMLButtonElement>(".more-menu-item[data-account-move-history]")!.click());
+    expect(setMoreMenuOpen).toHaveBeenCalledWith(false);
+    expect(openAccountMoveHistory).toHaveBeenCalledTimes(1);
   });
 
   it("has Manage categories as a quick button beside Import and Add transaction", () => {
@@ -86,6 +118,7 @@ describe("TransactionsPageActions", () => {
           openManageFamilyMembers={vi.fn()}
           handleRecategorize={vi.fn(async () => undefined)}
           handleExportTransactionsCsv={vi.fn(async () => undefined)}
+          openAccountMoveHistory={vi.fn()}
         />,
       );
     });
@@ -93,6 +126,7 @@ describe("TransactionsPageActions", () => {
       "Manage family members",
       "Categorize uncategorized",
       "Export CSV",
+      "Account move history",
     ]);
   });
 });
