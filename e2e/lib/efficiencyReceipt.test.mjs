@@ -3,10 +3,14 @@ import { spawnSync, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { collectInputs, computeBuildKey, readToolchain, recordArtifact } from "./buildIdentity.mjs";
 import { createApprovalContext } from "./scheduler.mjs";
 import crypto from "node:crypto";
+
+// Each test starts a real "node e2e/run-all.mjs" (input hashing and toolchain probes), and the test at the two-run case starts two. Each child is bounded at
+// 20 s, which vitest's 5 s default never let apply; 60 s lets the child's own limit end a hang, and every assertion is unchanged.
+vi.setConfig({ testTimeout: 60000 });
 
 let root;
 beforeEach(() => {
