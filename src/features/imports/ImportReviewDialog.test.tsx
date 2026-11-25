@@ -167,6 +167,14 @@ describe("ImportReviewDialog", () => {
     expect(dialog()!.textContent).toContain("Untick anything you don't want. You can change the account on any row.");
   });
 
+  it("counts only the ticked rows in its title, so it matches the Import button", () => {
+    const r = review([row(0), row(1, { source_pending: true }), row(2)]);
+    r.includedIndices = new Set([0, 2]);
+    show(r);
+    expect(dialog()!.querySelector(".modal-title")?.textContent).toBe("Import 2 transactions into Joint Checking");
+    expect(dialog()!.querySelector("[data-import-confirm]")?.textContent).toBe("Import 2 transactions");
+  });
+
   describe("Change columns", () => {
     const inspection = {
       status: "needs_mapping" as const,

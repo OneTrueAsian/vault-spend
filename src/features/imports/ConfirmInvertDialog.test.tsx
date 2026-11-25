@@ -33,11 +33,12 @@ describe("ConfirmInvertDialog", () => {
     container.remove();
   });
 
-  it("asks as before when there is nothing to suggest", () => {
+  it("makes Keep as-is the primary, focused answer when there is nothing to suggest", () => {
     show({ accountName: "Checking", suggestion: { flip: null, reason: null } });
     expect(hint()).toBeNull();
-    expect(button("Flip the signs").classList.contains("modal-secondary")).toBe(false);
-    expect(button("Keep as-is").classList.contains("modal-secondary")).toBe(true);
+    expect(button("Keep as-is").classList.contains("modal-secondary")).toBe(false);
+    expect(button("Flip the signs").classList.contains("modal-secondary")).toBe(true);
+    expect(document.activeElement).toBe(button("Keep as-is"));
   });
 
   it("preselects flipping when the last import into the account flipped, and says so", () => {

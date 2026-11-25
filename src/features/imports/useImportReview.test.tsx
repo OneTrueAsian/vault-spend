@@ -23,14 +23,14 @@ describe("useImportReview column map", () => {
   let cleanup: (() => void) | null = null;
   afterEach(() => cleanup?.());
 
-  function mount(call: (command: string, args?: Record<string, unknown>) => Promise<unknown>) {
+  function mount(call: (command: string, args?: Record<string, unknown>) => Promise<unknown>, setStatus: (text: string, kind?: string) => void = () => undefined) {
     let api!: ReturnType<typeof useImportReview>;
     function Probe() {
       api = useImportReview({
         accounts: [],
         busy: false,
         setBusy: () => undefined,
-        setStatus: () => undefined,
+        setStatus: setStatus as never,
         refresh: async () => undefined,
         onImported: () => undefined,
         call: call as never,
@@ -134,6 +134,28 @@ describe("useImportReview column map", () => {
     const api = mount(call);
     await act(async () => api().begin("C:/bank.csv", false, 7, null));
     expect(call).toHaveBeenCalledWith("preview_import", expect.objectContaining({ columnMap: null, columnHeaders: null }));
+  });
+
+  it("tells a finished import with unimportable rows as a success, saying the review listed why", async () => {
+    const setStatus = vi.fn();
+    const call = vi.fn(async (command: string, _args?: Record<string, unknown>) => command === "commit_import"
+      ? { inserted: 6, inserted_ids: [], auto_linked: 0, row_errors: 1 }
+      : PREVIEW);
+    const api = mount(call, setStatus);
+    await act(async () => api().begin("C:/bank.csv", false, 7));
+    await act(async () => api().confirmPendingImport());
+    expect(setStatus).toHaveBeenLastCalledWith("Imported 6 transactions — 1 row couldn't be imported (the review listed why)", "success");
+  });
+
+  it("uses an info message, not an error, when nothing was imported and rows couldn't be", async () => {
+    const setStatus = vi.fn();
+    const call = vi.fn(async (command: string, _args?: Record<string, unknown>) => command === "commit_import"
+      ? { inserted: 0, inserted_ids: [], auto_linked: 0, row_errors: 2 }
+      : PREVIEW);
+    const api = mount(call, setStatus);
+    await act(async () => api().begin("C:/bank.csv", false, 7));
+    await act(async () => api().confirmPendingImport());
+    expect(setStatus).toHaveBeenLastCalledWith("Imported 0 transactions — 2 rows couldn't be imported (the review listed why)", "info");
   });
 
   it("sends an explicit selection of the default account instead of reverting to the CSV account", async () => {

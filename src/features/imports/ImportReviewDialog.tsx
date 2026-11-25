@@ -119,7 +119,7 @@ function ImportReviewContent({
 
   return (
     <ModalShell
-      title={`Import ${count(rows.length, "transaction", "transactions")} into ${accountName}`}
+      title={`Import ${count(includedIndices.size, "transaction", "transactions")} into ${accountName}`}
       onCancel={() => {
         if (!busy) cancelPendingImport();
       }}

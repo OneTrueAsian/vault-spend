@@ -384,11 +384,11 @@ export function useImportReview({
       `Imported ${count(summary.inserted, "transaction", "transactions")}` +
       (skipped ? ` — ${skipped} left out` : "") +
       (summary.auto_linked ? ` — linked ${count(summary.auto_linked, "transfer", "transfers")} automatically` : "") +
-      (summary.row_errors ? ` — ${count(summary.row_errors, "row", "rows")} couldn't be read` : "");
+      (summary.row_errors ? ` — ${count(summary.row_errors, "row", "rows")} couldn't be imported (the review listed why)` : "");
     try {
       await refresh();
       if (summary.inserted_ids.length > 0) onImported(summary.inserted_ids);
-      setStatus(imported, summary.row_errors ? "error" : "success");
+      setStatus(imported, summary.inserted === 0 && summary.row_errors ? "info" : "success");
     } catch (e) {
       setStatus(`${imported}. The list couldn't be updated: ${errorMessage(e)}`, "error");
     } finally {

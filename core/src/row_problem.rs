@@ -47,7 +47,7 @@ pub fn plain_row_reason(message: &str) -> String {
     } else if matches!(message, "missing payee (P) line" | "missing NAME/MEMO" | "empty description") {
         "This transaction has no description.".to_string()
     } else if let (Some(code), true) = (quoted(), message.starts_with("unsupported currency ")) {
-        format!("This row is in {code}. Only US dollar amounts can be imported.")
+        format!("This row is in {code}. Only US dollar amounts can be imported. To keep it, convert it to US dollars and add it with Add transaction.")
     } else if let (Some(value), true) = (quoted(), message.starts_with("too precise amount ")) {
         format!("The amount {value} has more decimal places than money uses.")
     } else if message.starts_with("transaction never closed") {
@@ -98,6 +98,14 @@ mod tests {
         for message in ["missing payee (P) line", "missing NAME/MEMO", "empty description"] {
             assert_eq!(plain_row_reason(message), "This transaction has no description.", "{message}");
         }
+    }
+
+    #[test]
+    fn an_unsupported_currency_says_how_to_keep_the_row() {
+        assert_eq!(
+            plain_row_reason("unsupported currency 'CAD'"),
+            "This row is in CAD. Only US dollar amounts can be imported. To keep it, convert it to US dollars and add it with Add transaction."
+        );
     }
 
     #[test]

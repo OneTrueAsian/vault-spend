@@ -819,7 +819,7 @@ const IMPORTING_ENTRY: HelpEntry = {
         an export from being queued again; <strong>Review again</strong> opens
         a dismissed, imported or skipped file's review straight away, still
         checking for transactions you already have. To pick up older exports
-        again, use <strong>Start over from the start date</strong> next to the
+        again, use <strong>Pick up older exports again</strong> next to the
         export name in Settings. Your files are never moved
         or changed. Vault Spend keeps its own copy for review inside this
         profile's data, so a password-protected profile protects it too. The

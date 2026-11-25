@@ -164,7 +164,7 @@ try {
   const csv = pending.pending.find((b) => b.file_name === csvName);
   assert.ok(book && csv, "both new exports are waiting");
   await click(`[data-folder-review='${book.id}']`);
-  await waitForDialog("Import 2 transactions into Max Checking", "Review should open the workbook's review directly");
+  await waitForDialog("Import 1 transaction into Max Checking", "Review should open the workbook's review directly");
   assert.ok((await text("[data-folder-import-note]")).includes(bookName), "the review names its file");
   // Two rows, one of which the bank still shows as pending: only the other starts ticked.
   await waitUntilOrDiagnose(browser, async () => (await text("[data-import-confirm]"))?.trim() === "Import 1 transaction", {
