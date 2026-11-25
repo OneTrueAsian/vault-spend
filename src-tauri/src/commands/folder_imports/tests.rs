@@ -187,3 +187,31 @@ fn a_folder_on_a_network_share_keeps_its_ordinary_spelling() {
     assert_eq!(plain_folder_path(r"\\?\D:\Exports"), r"D:\Exports");
     assert_eq!(plain_folder_path(r"D:\Exports"), r"D:\Exports");
 }
+
+#[test]
+fn checking_the_folder_lists_unmatched_exports_but_not_other_files() {
+    let (state, _checking, _savings, _mapping) = profile("check-unmatched");
+    let views = mapping_views(&state).unwrap();
+    let names = state.store.folder_import_account_names().unwrap();
+    let today = chrono::NaiveDate::from_ymd_opt(2026, 11, 25).unwrap();
+    let files = ["Other Bank_2026-11-18.csv", "Other Bank_2026-11-18.XLSX", "notes.txt", "~$Book.xlsx", "Bank Max Checking_2026-11-18.csv"]
+        .map(str::to_string)
+        .to_vec();
+    let out = folder_matches(files, &views, &names, today);
+    let found: Vec<(&str, &str)> = out.iter().map(|m| (m.file_name.as_str(), m.outcome)).collect();
+    assert_eq!(
+        found,
+        vec![
+            ("Other Bank_2026-11-18.csv", "no_match"),
+            ("Other Bank_2026-11-18.XLSX", "no_match"),
+            ("Bank Max Checking_2026-11-18.csv", "would_queue"),
+        ]
+    );
+    assert_eq!(
+        out[0].reason,
+        "Doesn't start with any of your export names, so it won't be picked up. Rename the file, or add its name above."
+    );
+    assert_eq!(out[0].account_name, None);
+    assert_eq!(out[2].reason, "Will be queued for review, unless the same export was already picked up, imported or dismissed");
+    assert_eq!(out[2].account_name.as_deref(), Some("Max Checking"));
+}

@@ -298,7 +298,7 @@ pub fn mark_folder_activity_seen(through: i64, state: tauri::State<AppStateHandl
 pub struct FolderMatchDto {
     pub file_name: String,
     pub account_name: Option<String>,
-    /// "would_queue", "older", "bad_name", "needs_account".
+    /// "would_queue", "older", "bad_name", "future_date", "needs_account", "no_match".
     pub outcome: &'static str,
     pub reason: String,
 }
@@ -323,9 +323,25 @@ pub fn test_folder_import_names(
         .filter_map(|e| e.file_name().to_str().map(str::to_string))
         .collect();
     files.sort();
+    Ok(folder_matches(files, &views, &names, chrono::Local::now().date_naive()))
+}
+
+/// A file that looks like an export (a .csv or .xlsx that isn't a partial download or lock file).
+fn is_unmatched_export(file_name: &str) -> bool {
+    let extension = Path::new(file_name).extension().and_then(|e| e.to_str()).map(str::to_lowercase);
+    extension.is_some_and(|e| budget_core::folder_import::FOLDER_EXTENSIONS.contains(&e.as_str())) && !budget_core::folder_import::is_temporary_name(file_name)
+}
+
+/// What "Check the folder" says about each file name. Decided from the names only.
+fn folder_matches(files: Vec<String>, views: &[MappingView], names: &HashMap<i64, String>, today: chrono::NaiveDate) -> Vec<FolderMatchDto> {
     let mut out = Vec::new();
     for file_name in files {
-        let (view, outcome, reason) = match discovery::match_name(&file_name, &views) {
+        let (view, outcome, reason) = match discovery::match_name(&file_name, views) {
+            discovery::NameMatch::None if is_unmatched_export(&file_name) => (
+                None,
+                "no_match",
+                "Doesn't start with any of your export names, so it won't be picked up. Rename the file, or add its name above.".to_string(),
+            ),
             discovery::NameMatch::None => continue,
             discovery::NameMatch::Ambiguous => (None, "bad_name", "More than one export name matches this file.".to_string()),
             discovery::NameMatch::Problem { mapping, problem } => (Some(mapping), "bad_name", problem.reason().to_string()),
@@ -333,13 +349,13 @@ pub fn test_folder_import_names(
                 let _ = dates;
                 (Some(view), "needs_account", "Its account was deleted or hidden.".to_string())
             }
-            discovery::NameMatch::One(view, dates) if budget_core::folder_import::dated_in_future(dates.end, chrono::Local::now().date_naive()) => {
-                (Some(view), "bad_name", budget_core::folder_import::FUTURE_REASON.to_string())
+            discovery::NameMatch::One(view, dates) if budget_core::folder_import::dated_in_future(dates.end, today) => {
+                (Some(view), "future_date", budget_core::folder_import::FUTURE_REASON.to_string())
             }
             discovery::NameMatch::One(view, dates) => {
                 match budget_core::folder_import::eligibility(dates.end, view.mapping.initial_cutoff, view.mapping.watermark) {
                     budget_core::folder_import::Eligibility::Older { limit } => (Some(view), "older", discovery::older_reason(limit)),
-                    budget_core::folder_import::Eligibility::Eligible => (Some(view), "would_queue", "Will be queued for review (unless it was imported or dismissed before)".to_string()),
+                    budget_core::folder_import::Eligibility::Eligible => (Some(view), "would_queue", "Will be queued for review, unless the same export was already picked up, imported or dismissed".to_string()),
                 }
             }
         };
@@ -350,7 +366,7 @@ pub fn test_folder_import_names(
             reason,
         });
     }
-    Ok(out)
+    out
 }
 
 /// Asks discovery to look at the folder now (opening, unlocking or coming back to the window).

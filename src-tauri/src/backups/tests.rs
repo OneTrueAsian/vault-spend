@@ -308,7 +308,7 @@ fn restore_brings_back_folder_import_queue_receipts_and_settings() {
         "its saved copy comes back, so it can be reviewed without the original file"
     );
     assert_eq!(
-        restored.folder_import_known(account, "bbb").unwrap(),
+        restored.folder_import_known(account, mapping, "bbb").unwrap(),
         Some((dismissed, BatchStatus::Dismissed)),
         "the dismissal still keeps that content from being queued again"
     );

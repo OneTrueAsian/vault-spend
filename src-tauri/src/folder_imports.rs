@@ -221,7 +221,7 @@ pub fn plan_scan(root: &Path, mappings: &[MappingView], observations: &mut Obser
             continue;
         }
         if folder_import::dated_in_future(dates.end, chrono::DateTime::<chrono::Local>::from(now).date_naive()) {
-            plan.notes.push(note(Some(view), &name, "bad_name", folder_import::FUTURE_REASON.to_string()));
+            plan.notes.push(note(Some(view), &name, "future_date", folder_import::FUTURE_REASON.to_string()));
             observations.files.insert(path, Observed { done: true, ..seen });
             continue;
         }
@@ -296,7 +296,17 @@ pub fn apply_plan(store: &Store, plan: ScanPlan, observations: &mut Observations
         })?;
         let (kind, reason, batch) = match outcome {
             StageOutcome::Queued(id) => ("queued", "Waiting for your review".to_string(), Some(id)),
-            StageOutcome::AlreadyKnown { status: BatchStatus::Pending, .. } => continue,
+            StageOutcome::AlreadyKnown { batch_id, status: BatchStatus::Pending } => {
+                // The waiting file itself is rescanned after every settings change: only a different name is news.
+                match store.folder_import_batch(batch_id)?.filter(|b| b.file_name != c.file_name) {
+                    Some(waiting) => (
+                        "already_pending",
+                        format!("Same file as \"{}\", which is already waiting for review — not queued twice", waiting.file_name),
+                        Some(batch_id),
+                    ),
+                    None => continue,
+                }
+            }
             StageOutcome::AlreadyKnown { batch_id, status: BatchStatus::Imported } => {
                 ("already_imported", "Already imported — not queued again".to_string(), Some(batch_id))
             }
@@ -633,8 +643,42 @@ mod tests {
         let plan = plan_scan(&dir, &views, &mut Observations::default(), later()).unwrap();
         assert_eq!(plan.candidates.iter().map(|c| c.end).collect::<Vec<_>>(), vec![tomorrow], "a day ahead is a time zone, not a typo");
         assert_eq!(plan.notes.len(), 1);
-        assert_eq!(plan.notes[0].outcome, "bad_name");
+        assert_eq!(plan.notes[0].outcome, "future_date");
         assert!(plan.notes[0].reason.contains("in the future"), "{}", plan.notes[0].reason);
+    }
+
+    #[test]
+    fn a_second_name_for_content_already_waiting_is_noted_once_and_the_original_is_not() {
+        let (store, views) = store_with_mapping(None);
+        let m = &views[0].mapping;
+        let candidate = |name: &str| Candidate {
+            mapping_id: m.id,
+            account_id: m.account_id,
+            file_name: name.to_string(),
+            digest: digest(CSV.as_bytes()),
+            bytes: CSV.as_bytes().to_vec(),
+            start: d("2026-11-18"),
+            end: d("2026-11-18"),
+        };
+        let apply = |name: &str| {
+            let plan = ScanPlan { notes: Vec::new(), candidates: vec![candidate(name)] };
+            apply_plan(&store, plan, &mut Observations::default(), "t").unwrap();
+        };
+        apply("Bank Max Checking_2026-11-18.csv");
+        assert_eq!(store.list_folder_import_activity(100).unwrap().len(), 1);
+        apply("Bank Max Checking_2026-11-18 (1).csv");
+        let entries = store.list_folder_import_activity(100).unwrap();
+        let noted: Vec<_> = entries.iter().filter(|e| e.outcome == "already_pending").collect();
+        assert_eq!(noted.len(), 1);
+        assert_eq!(noted[0].file_name, "Bank Max Checking_2026-11-18 (1).csv");
+        assert_eq!(
+            noted[0].reason,
+            "Same file as \"Bank Max Checking_2026-11-18.csv\", which is already waiting for review — not queued twice"
+        );
+        let count = entries.len();
+        apply("Bank Max Checking_2026-11-18.csv");
+        apply("Bank Max Checking_2026-11-18 (1).csv");
+        assert_eq!(store.list_folder_import_activity(100).unwrap().len(), count, "neither the waiting file nor the repeat adds an entry");
     }
 
     #[test]

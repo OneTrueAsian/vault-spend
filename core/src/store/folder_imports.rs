@@ -124,7 +124,7 @@ pub struct ActivityEntry {
     pub mapping_id: Option<i64>,
     pub account_id: Option<i64>,
     pub file_name: String,
-    /// queued, older, already_imported, already_dismissed, already_pending, bad_name, needs_account,
+    /// queued, older, already_imported, already_dismissed, already_pending, bad_name, future_date, needs_account,
     /// too_large, unreadable, queue_full, imported, dismissed, requeued.
     pub outcome: String,
     pub reason: String,
@@ -471,12 +471,16 @@ impl Store {
         })
     }
 
-    /// The batch (any status) already saved for this account and content, if any.
-    pub fn folder_import_known(&self, account_id: i64, digest: &str) -> rusqlite::Result<Option<(i64, BatchStatus)>> {
+    /// The batch (any status) already saved for this content under this account, or under this
+    /// export name whatever account it went to (so changing a name's account doesn't bring its
+    /// finished exports back). The same account's batch wins, then the newest.
+    pub fn folder_import_known(&self, account_id: i64, mapping_id: i64, digest: &str) -> rusqlite::Result<Option<(i64, BatchStatus)>> {
         self.conn
             .query_row(
-                "SELECT id, status FROM folder_import_batches WHERE account_id = ?1 AND digest = ?2",
-                params![account_id, digest],
+                "SELECT id, status FROM folder_import_batches
+                 WHERE digest = ?2 AND (account_id = ?1 OR mapping_id = ?3)
+                 ORDER BY (account_id = ?1) DESC, id DESC LIMIT 1",
+                params![account_id, digest, mapping_id],
                 |r| Ok((r.get::<_, i64>(0)?, BatchStatus::parse(&r.get::<_, String>(1)?))),
             )
             .optional()
@@ -486,7 +490,7 @@ impl Store {
     /// same account is never saved twice, whatever its name.
     pub fn stage_folder_import(&self, input: &StageInput) -> rusqlite::Result<StageOutcome> {
         self.atomically(|| {
-            if let Some((batch_id, status)) = self.folder_import_known(input.account_id, input.digest)? {
+            if let Some((batch_id, status)) = self.folder_import_known(input.account_id, input.mapping_id, input.digest)? {
                 return Ok(StageOutcome::AlreadyKnown { batch_id, status });
             }
             let pending: i64 = self
@@ -1031,6 +1035,40 @@ mod tests {
         assert_eq!(store.folder_import_batch(done).unwrap().unwrap().account_id, account, "finished exports keep their history");
         assert!(store.folder_import_batch(already).unwrap().is_none(), "content the new account already had isn't queued twice");
         assert_eq!(store.list_folder_import_batches(true).unwrap().iter().map(|b| b.id).collect::<Vec<_>>(), vec![waiting]);
+    }
+
+    #[test]
+    fn changing_a_names_account_does_not_queue_its_imported_or_dismissed_exports_again() {
+        let (store, account, mapping) = setup();
+        let StageOutcome::Queued(done) = stage(&store, account, mapping, "aaa", "2026-11-10") else { panic!() };
+        let version = store.folder_import_batch(done).unwrap().unwrap().row_version;
+        store.commit_staged_import(&rows(account, 2), done, version, NOW).unwrap();
+        let StageOutcome::Queued(dismissed) = stage(&store, account, mapping, "bbb", "2026-11-12") else { panic!() };
+        store.dismiss_folder_import(dismissed, NOW).unwrap();
+        let card = store.create_account("Max Card", AccountType::Credit).unwrap().unwrap();
+        let m = store.folder_import_mapping(mapping).unwrap().unwrap();
+        store
+            .save_folder_import_mapping(&FolderImportMappingInput {
+                id: Some(mapping),
+                account_id: card,
+                stem: m.stem.clone(),
+                extensions: m.extensions.clone(),
+                invert_amounts: m.invert_amounts,
+                initial_cutoff: m.initial_cutoff,
+            })
+            .unwrap();
+        let ledger = ledger_count(&store);
+
+        assert_eq!(
+            stage(&store, card, mapping, "aaa", "2026-11-10"),
+            StageOutcome::AlreadyKnown { batch_id: done, status: BatchStatus::Imported }
+        );
+        assert_eq!(
+            stage(&store, card, mapping, "bbb", "2026-11-12"),
+            StageOutcome::AlreadyKnown { batch_id: dismissed, status: BatchStatus::Dismissed }
+        );
+        assert!(matches!(stage(&store, card, mapping, "ccc", "2026-11-14"), StageOutcome::Queued(_)), "new content still queues");
+        assert_eq!(ledger_count(&store), ledger);
     }
 
     #[test]
