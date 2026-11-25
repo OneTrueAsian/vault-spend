@@ -24,6 +24,7 @@ import os from "node:os";
 import path from "node:path";
 import { chooseStyle, launchApp, reclaimWindowFocus, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { chooseModeUntil } from "./lib/themeMode.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -45,20 +46,6 @@ async function nav(label) {
 /** Clicks Light / Dark / System in the sidebar. */
 async function chooseMode(label) {
   await (await browser.$(`//div[contains(@class,'sidebar-controls')]//div[@role='group']/button[normalize-space()='${label}']`)).click();
-}
-
-/** Clicks the mode once, then again only while the page has not taken that theme (a single click can be missed on a hosted runner). */
-async function chooseModeUntil(label, theme) {
-  await chooseMode(label);
-  await waitUntilOrDiagnose(
-    browser,
-    async () => {
-      if ((await browser.execute(() => document.documentElement.dataset.theme)) === theme) return true;
-      await chooseMode(label);
-      return false;
-    },
-    { timeout: 20000, timeoutMsg: `${label} should apply from the sidebar` },
-  );
 }
 
 /** Hide amounts and the theme group: fully inside the window and the sidebar, sidebar not scrolled. */
@@ -190,7 +177,7 @@ try {
 
   // Dark from the sidebar.
   await reclaimWindowFocus(browser);
-  await chooseModeUntil("Dark", "dark");
+  await chooseModeUntil(browser, chooseMode, "Dark", "dark");
   const darkState = () =>
     browser.execute(() => ({
       theme: document.documentElement.dataset.theme,
@@ -231,7 +218,7 @@ try {
       ["Light", "light"],
       ["Dark", "dark"],
     ]) {
-      await chooseModeUntil(mode, theme);
+      await chooseModeUntil(browser, chooseMode, mode, theme);
       await waitUntilOrDiagnose(
         browser,
         async () => {
@@ -248,7 +235,7 @@ try {
   // A narrow window (icon-only sidebar), from a known state (Default, Light): the one-button switch
   // and the eye.
   await chooseStyle(browser, "Default", "transparent");
-  await chooseModeUntil("Light", "light");
+  await chooseModeUntil(browser, chooseMode, "Light", "light");
   await waitUntilOrDiagnose(browser, () => browser.execute(() => document.documentElement.dataset.theme === "light"), {
     timeoutMsg: "Light should apply before the narrow-window checks",
   });

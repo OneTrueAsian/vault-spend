@@ -54,6 +54,15 @@ describe("AccountDetailView opened to reconcile", () => {
   });
 });
 
+describe("AccountDetailView going back", () => {
+  it("goes back on one click of Back, with no retry needed (the E2E helper repeats this click only to absorb a hosted miss)", () => {
+    const onBack = vi.fn();
+    act(() => root.render(<AccountDetailView account={account} onBack={onBack} onOpenTransactions={() => {}} onOpenPayment={() => {}} onMessage={() => {}} />));
+    act(() => host.querySelector<HTMLButtonElement>("[data-account-back]")!.click());
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+});
+
 /** Answers each command from `answers`; anything not listed returns an empty list, as the default mock does. */
 function answer(answers: Record<string, unknown>) {
   vi.mocked(invoke).mockImplementation(async (command: string) => (command in answers ? answers[command] : []));

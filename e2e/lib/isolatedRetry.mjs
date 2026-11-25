@@ -41,7 +41,19 @@ export async function retryFailuresInIsolation({ results, run, budget }) {
   return { results: results.map(r => replaced.get(r.name) ?? r), flaky };
 }
 
+/** Adds up the "[harness] action repeated Nx: ..." lines a spec printed (see actUntil.mjs): clicks or key presses that had to be done again inside a step that finally passed. Informational; never part of the verdict. */
+export function countActionRepeats(output) {
+  let total = 0;
+  for (const m of String(output ?? "").matchAll(/\[harness\] action repeated (\d+)x:/g)) total += Number(m[1]);
+  return total;
+}
+
+/** A spec's repeats over every attempt it had. A retry that could not run keeps the first attempt in `attempts`, so attempts are used whenever they exist and a spec's own output is not counted on top. */
+export function actionRepeatsOf(r) {
+  return r.attempts ? r.attempts.reduce((n, a) => n + countActionRepeats(a.output), 0) : countActionRepeats(r.output);
+}
+
 /** The record one executed spec gets in target/e2e-last-run.json. A retried spec keeps every attempt's exit code, duration and full output, so a pass after a failure never loses the failure. */
 export function serializeExecutedResult(r) {
-  return { name: r.name, code: r.code, durationMs: r.durationMs, output: r.output, ...(r.attempts ? { attempts: r.attempts.map((a) => ({ code: a.code, durationMs: a.durationMs, output: a.output })), flaky: r.code === 0 } : {}) };
+  return { name: r.name, code: r.code, durationMs: r.durationMs, output: r.output, actionRepeats: actionRepeatsOf(r), ...(r.attempts ? { attempts: r.attempts.map((a) => ({ code: a.code, durationMs: a.durationMs, output: a.output, actionRepeats: countActionRepeats(a.output) })), flaky: r.code === 0 } : {}) };
 }
