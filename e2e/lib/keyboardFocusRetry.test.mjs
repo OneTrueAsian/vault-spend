@@ -1,3 +1,4 @@
+// Kind: shape guard (checks source text, not behaviour; to be replaced by a behaviour test, VS-12).
 import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 

@@ -1,3 +1,4 @@
+// Kind: behavioural (fake page) + policy lint (spec usage).
 import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 import { clickUntilShown } from "./clickUntilShown.mjs";
