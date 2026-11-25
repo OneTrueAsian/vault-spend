@@ -45,7 +45,7 @@ test("a sharded release-windows request must be a pinned diagnostic, a release o
 test("every shard sets up the hosted environment, and each pre-spec check runs in exactly one job of the gate", () => {
   // Each hosted-environment step is pinned exactly (a hash of the whole parsed step: name, env, run). Change a step on purpose, then update its hash here.
   const sha = s => crypto.createHash("sha256").update(JSON.stringify(s)).digest("hex").slice(0, 16);
-  const PINNED = { "Refresh hosted WebView2 runtime": "c41f1e4d5cb9e82e", "Pin hosted Edge version": "3d69f4d7c9dda518", "Install desktop test drivers": "fb0027ec0e42e671", "Install native Edge test driver": "bd166ce01702deaf",
+  const PINNED = { "Refresh hosted WebView2 runtime": "26beaa9c1011206c", "Pin hosted Edge version": "3d69f4d7c9dda518", "Install desktop test drivers": "ef80944ab269bef1", "Install native Edge test driver": "8be2b06cec049cd9",
     "Prepare medium-integrity desktop tests": "c594386ccabd6cc5", "Desktop WebDriver smoke preflight": "7226d0fdc41908ab", "Verify native Edge driver still matches Edge": "b9cdeef72e298b2a" };
   assert.deepEqual(Object.keys(PINNED), hostedSteps);
   for (const name of hostedSteps) assert.equal(sha(step(gate.jobs.shard, name)), PINNED[name], name);
@@ -178,4 +178,19 @@ test("every check job confirms the exact commit; tag cache saves stay on where s
   }
   const cache = id => gate.jobs[id].steps.find(s => s.uses === "Swatinem/rust-cache@v2").with;
   for (const id of ["build", "checks-rust"]) { assert.equal(cache(id)["cache-on-failure"], true, id); assert.equal(cache(id)["save-if"], undefined, `${id} keeps saving its cache`); }
+});
+
+test("each shard records its browser and driver versions without changing the compatibility check (VS-9)", () => {
+  const job = Object.values(gate.jobs).find(j => step(j, "Collect this shard's evidence"));
+  const appends = (name, variable) => assert.match(step(job, name).run, new RegExp(`"${variable}=\\$[^"]+" \\| Out-File -FilePath \\$env:GITHUB_ENV -Encoding utf8 -Append`), `${name} appends ${variable}`);
+  appends("Refresh hosted WebView2 runtime", "VS_WEBVIEW2_VERSION");
+  appends("Install desktop test drivers", "VS_WEBVIEW2_DRIVER_VERSION");
+  appends("Install native Edge test driver", "VS_EDGE_VERSION");
+  appends("Install native Edge test driver", "VS_EDGE_DRIVER_VERSION");
+  const collect = step(job, "Collect this shard's evidence");
+  assert.equal(collect.if, "always()");
+  for (const key of ["edge", "edgeDriver", "webView2", "webView2Driver"]) assert.match(collect.run, new RegExp(`${key} = \\$env:VS_`), key);
+  assert.match(collect.run, /browsers = \[ordered\]@\{/);
+  assert.match(collect.run, /ConvertTo-Json -Depth 3/);
+  assert.match(step(job, "Verify native Edge driver still matches Edge").run, /tools\/assert-edge-driver-match\.ps1 -Edge \$edge -Driver \$env:MSEDGEDRIVER/);
 });

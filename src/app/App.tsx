@@ -252,6 +252,8 @@ import {
 import type { SettingsGroupId } from "../shared/lib/settingsIndex";
 import type { CashFlowTab } from "../features/reports/CashFlowView";
 import type { ReportsTab } from "../features/reports/ReportsOverview";
+import { drillLedgerFilter, drillStillShown, type ReportDrill } from "../features/reports/reportReturn";
+import { ReportReturnBar } from "../features/reports/ReportReturnBar";
 import type { InvestmentsTab } from "../features/investments/InvestmentsView";
 
 const EMPTY_TRANSACTIONS: Transaction[] = [];
@@ -292,6 +294,26 @@ function App({
       if (activeTab === "investments" && cur.investments) keep.investments = cur.investments;
       return Object.keys(cur).every((k) => k in keep) ? cur : keep;
     });
+  }, [activeTab]);
+  /** Opens Transactions on one category, some accounts and a date range. Replaces the ledger's live filters; saved filters are untouched. */
+  const openLedgerFiltered = ({ category, accountIds, from, to }: { category: string; accountIds: number[]; from: string; to: string }) => {
+    setSearchText("");
+    setFilterCategory(category);
+    setFilterAccountIds(accountIds.length > 0 ? new Set(accountIds) : "all");
+    setFilterMemberIds("all");
+    setFilterFrom(from);
+    setFilterTo(to);
+    setFilterTag("all");
+    setSelectedIds(new Set());
+    setActiveTab("ledger");
+  };
+  /** The Reports row the ledger was opened from (VS-98), for the way back. Session-only: App unmounts on lock, profile switch and data-file change. */
+  const [reportDrill, setReportDrill] = useState<ReportDrill | null>(null);
+  /** Set by "Back to Reports" so Reports opens on the tab, range and row it was left on; cleared once Reports is left. */
+  const [reportRestore, setReportRestore] = useState<ReportDrill | null>(null);
+  useEffect(() => {
+    if (activeTab !== "ledger") setReportDrill(null);
+    if (activeTab !== "reports") setReportRestore(null);
   }, [activeTab]);
   /** Asks Settings to open a group; "manage profiles" in the sidebar uses it. A new nonce asks again. */
   const [settingsJump, setSettingsJump] = useState<{ group: SettingsGroupId; nonce: number } | undefined>(undefined);
@@ -2322,17 +2344,7 @@ function App({
                   setFilterCategory(UNCATEGORIZED_FILTER);
                   setActiveTab("ledger");
                 }}
-                onOpenLedgerFiltered={({ category, accountIds, from, to }) => {
-                  setSearchText("");
-                  setFilterCategory(category);
-                  setFilterAccountIds(accountIds.length > 0 ? new Set(accountIds) : "all");
-                  setFilterMemberIds("all");
-                  setFilterFrom(from);
-                  setFilterTo(to);
-                  setFilterTag("all");
-                  setSelectedIds(new Set());
-                  setActiveTab("ledger");
-                }}
+                onOpenLedgerFiltered={openLedgerFiltered}
                 tags={transactionData.snapshot ? allTags : undefined}
                 savedFilters={savedFilters}
                 savedFiltersLoaded={savedFiltersLoaded}
@@ -2400,6 +2412,20 @@ function App({
                 />
               </div>
             </div>
+          )}
+
+          {activeTab === "ledger" && reportDrill && (
+            <ReportReturnBar
+              category={drillLedgerFilter(reportDrill).category}
+              from={reportDrill.from}
+              to={reportDrill.to}
+              showing={drillStillShown(reportDrill, { searchText, filterCategory, filterAccountIds, filterMemberIds, filterFrom, filterTo, filterTag })}
+              onBack={() => {
+                setReportRestore(reportDrill);
+                setReportDrill(null);
+                setActiveTab("reports");
+              }}
+            />
           )}
 
           {activeTab === "ledger" && !importReview.pendingImport && folderImports.pendingCount > 0 && (
@@ -2938,7 +2964,13 @@ function App({
           {activeTab === "reports" && !pendingSetupImport && (
             <Suspense fallback={null}>
               <ReportsView
-                initialTab={pageStartTab.reports}
+                initialTab={reportRestore?.view.tab ?? pageStartTab.reports}
+                initialPreset={reportRestore?.view.preset}
+                focusCategory={reportRestore?.category}
+                onOpenTransactions={(drill) => {
+                  setReportDrill(drill);
+                  openLedgerFiltered(drillLedgerFilter(drill));
+                }}
                 onOpenHelp={openHelpFor}
                 accounts={accounts}
                 transactions={transactions}

@@ -29,6 +29,7 @@ import { ScrollRegion } from "../../shared/ui/ScrollRegion";
 import { PageTabs } from "../../shared/ui/PageTabs";
 import "./ReportsTabs.css";
 import { CATEGORY_COLORS } from "../../shared/ui/categoryPalette";
+import type { ReportDrill } from "./reportReturn";
 
 /** Savings rate — (income − expenses) ÷ income — trended over the months of the
  * Reports range that have transactions (see `savingsRateByMonth`). Cash Flow's
@@ -450,6 +451,9 @@ export function ReportsOverview({
   layoutWidgets,
   onPinWidget,
   initialTab = "income",
+  initialPreset,
+  onOpenTransactions,
+  focusCategory,
   renderComparisons,
 }: {
   accounts: Account[];
@@ -465,10 +469,16 @@ export function ReportsOverview({
   layoutWidgets: WidgetId[];
   onPinWidget: (id: WidgetId) => void;
   initialTab?: ReportsTab;
+  /** The range to open on (coming back from Transactions); left out, Last 6 months. */
+  initialPreset?: RangePreset;
+  /** Makes each Categories by month row open that category's transactions; left out, the rows are plain text. */
+  onOpenTransactions?: (drill: ReportDrill) => void;
+  /** The category row to put focus on once the report shows (coming back from Transactions). */
+  focusCategory?: string;
   /** The Comparisons tab's page; `active` is whether it is showing. */
   renderComparisons: (active: boolean) => ReactNode;
 }) {
-  const [preset, setPreset] = useState<RangePreset>("last_6");
+  const [preset, setPreset] = useState<RangePreset>(initialPreset ?? "last_6");
   const [tab, setTab] = useState<ReportsTab>(initialTab);
   const [printing, setPrinting] = useState(false);
   const { from, to } = presetRange(preset, new Date());
@@ -482,6 +492,14 @@ export function ReportsOverview({
   const flow = snapshot?.flow ?? null;
   const daily = (snapshot?.daily ?? []).map(d => ({ date: d.date, amount: parseFloat(d.amount) }));
   const loading = !snapshot;
+  const hubRef = useRef<HTMLDivElement>(null);
+  const focusedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusCategory || !snapshot || focusedFor.current === focusCategory) return;
+    focusedFor.current = focusCategory;
+    const row = [...(hubRef.current?.querySelectorAll<HTMLButtonElement>("button[data-report-category-open]") ?? [])].find((b) => b.dataset.reportCategoryOpen === focusCategory);
+    (row ?? hubRef.current?.querySelector<HTMLButtonElement>("[data-reports-tab='categories']"))?.focus();
+  }, [focusCategory, snapshot]);
   const refreshRange = () => loadReport(rangeKey, client => client.report(from.year, from.month, to.year, to.month));
   useEffect(() => {
     void loadReport(rangeKey, client => client.report(from.year, from.month, to.year, to.month)).catch(() => {});
@@ -579,7 +597,21 @@ export function ReportsOverview({
                 <tbody>
                   {table.rows.map((r) => (
                     <tr key={r.category} data-report-category={r.category}>
-                      <td>{r.category}</td>
+                      <td>
+                        {onOpenTransactions && !printing ? (
+                          <button
+                            type="button"
+                            className="category-link"
+                            data-report-category-open={r.category}
+                            aria-label={`See ${r.category} transactions`}
+                            onClick={() => onOpenTransactions({ view: { tab, preset }, category: r.category, from: monthStartDate(from), to: monthEndDate(to) })}
+                          >
+                            {r.category}
+                          </button>
+                        ) : (
+                          r.category
+                        )}
+                      </td>
                       {r.byMonth.map((v, i) => (
                         <td key={months[i]} className="amount-col">
                           {v > 0 ? formatAmount(v.toFixed(2)) : <span className="account-col">—</span>}
@@ -716,7 +748,7 @@ export function ReportsOverview({
   const showTab = useCallback((id: ReportsTab) => setTab(id), []);
 
   return (
-    <div className="reports-view" data-reports-hub data-report-range={rangeKey} data-printing={printing ? "" : undefined}>
+    <div ref={hubRef} className="reports-view" data-reports-hub data-report-range={rangeKey} data-printing={printing ? "" : undefined}>
       <div hidden={tab === "comparisons"} data-reports-controls>
         <div className="page-top">
           <div>

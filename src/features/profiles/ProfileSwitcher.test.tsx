@@ -52,3 +52,16 @@ it("closes on Escape and returns focus to its trigger like other dropdowns", () 
   expect(document.activeElement).toBe(trigger);
   expect(onSwitch).not.toHaveBeenCalled();
 });
+
+it("opens the profile list on one click of its button, with no retry needed (the E2E helper repeats this click only to absorb a hosted miss)", () => {
+  container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+  act(() => root.render(<ProfileSwitcher profiles={[
+    { id: "a", name: "Alex", is_active: true, icon_key: null, is_password_protected: false },
+    { id: "b", name: "Blair", is_active: false, icon_key: null, is_password_protected: false },
+  ]} onSwitchProfile={vi.fn()} onManageProfiles={vi.fn()} />));
+  expect(container.querySelector(".profile-switcher-option")).toBeNull();
+  act(() => container.querySelector<HTMLButtonElement>(".profile-switcher-toggle")!.click());
+  expect(container.querySelector(".profile-switcher-option")).not.toBeNull();
+});

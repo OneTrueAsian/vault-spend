@@ -1,3 +1,4 @@
+// Kind: policy lint (checks source text, not behaviour).
 import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 import { PROTECTION_FINISH_MS } from "./protection.mjs";

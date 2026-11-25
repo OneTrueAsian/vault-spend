@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRetryOptions, retryFailuresInIsolation, serializeExecutedResult } from "./isolatedRetry.mjs";
+import { countActionRepeats, parseRetryOptions, retryFailuresInIsolation, serializeExecutedResult } from "./isolatedRetry.mjs";
 import { aggregateShardResults } from "./shardAggregate.mjs";
 
 const pass = name => ({ name, code: 0, output: `${name} ok`, durationMs: 1000 });
@@ -111,8 +111,8 @@ describe("the e2e-last-run.json record of a retried spec (VS-14)", () => {
     const { first, record } = await retried("b.mjs", pass("b.mjs"), "Error: first attempt broke\n  at step 3");
     expect(record).toMatchObject({ name: "b.mjs", code: 0, flaky: true, output: "b.mjs ok" });
     expect(record.attempts).toEqual([
-      { code: 1, durationMs: first.durationMs, output: "Error: first attempt broke\n  at step 3" },
-      { code: 0, durationMs: 1000, output: "b.mjs ok" },
+      { code: 1, durationMs: first.durationMs, output: "Error: first attempt broke\n  at step 3", actionRepeats: 0 },
+      { code: 0, durationMs: 1000, output: "b.mjs ok", actionRepeats: 0 },
     ]);
   });
   it("keeps both attempts and no flaky mark when the retry fails too", async () => {
@@ -126,10 +126,10 @@ describe("the e2e-last-run.json record of a retried spec (VS-14)", () => {
     const record = onDisk(results[0]);
     expect(record.code).toBe(1);
     expect(record.flaky).toBe(false);
-    expect(record.attempts).toEqual([{ code: 1, durationMs: first.durationMs, output: "first attempt broke" }]);
+    expect(record.attempts).toEqual([{ code: 1, durationMs: first.durationMs, output: "first attempt broke", actionRepeats: 0 }]);
   });
   it("writes no attempts for a spec that was never retried", () => {
-    expect(onDisk(pass("a.mjs"))).toEqual({ name: "a.mjs", code: 0, durationMs: 1000, output: "a.mjs ok" });
+    expect(onDisk(pass("a.mjs"))).toEqual({ name: "a.mjs", code: 0, durationMs: 1000, output: "a.mjs ok", actionRepeats: 0 });
   });
   it("reaches the aggregate as a retry kept apart from failures, for a pass after a fail and a fail after a fail", async () => {
     const passed = await retried("b.mjs", pass("b.mjs"));
@@ -144,5 +144,29 @@ describe("the e2e-last-run.json record of a retried spec (VS-14)", () => {
     ]);
     expect(result.failures).toEqual([{ shard: 1, name: "c.mjs", code: 1, attempts: 2 }]);
     expect(result.totals).toMatchObject({ passed: 2, failed: 1, retried: 2, passedOnRetry: 1 });
+  });
+});
+
+describe("repeated actions inside a spec (VS-8)", () => {
+  const onDisk = r => JSON.parse(JSON.stringify(serializeExecutedResult(r)));
+  const repeats = (...counts) => counts.map(n => `[harness] action repeated ${n}x: some step`).join("\n");
+  it("adds up every repeat line in a spec's output", () => {
+    expect(onDisk({ ...pass("a.mjs"), output: `start\n${repeats(2, 1)}\nend` }).actionRepeats).toBe(3);
+  });
+  it("records 0 when the output has no repeat lines", () => {
+    expect(onDisk(pass("a.mjs")).actionRepeats).toBe(0);
+    expect(countActionRepeats("")).toBe(0);
+  });
+  it("sums a retried spec over all its attempts and gives each attempt its own count", async () => {
+    const first = fail("b.mjs", repeats(2));
+    const { results } = await retryFailuresInIsolation({ results: [first], run: async () => ({ ...pass("b.mjs"), output: repeats(1, 4) }), budget: 3 });
+    const record = onDisk(results[0]);
+    expect(record.actionRepeats).toBe(7);
+    expect(record.attempts.map(a => a.actionRepeats)).toEqual([2, 5]);
+  });
+  it("does not count a failed first attempt twice when the retry could not run", async () => {
+    const first = fail("b.mjs", repeats(2));
+    const { results } = await retryFailuresInIsolation({ results: [first], run: async () => { throw new Error("driver gone"); }, budget: 3 });
+    expect(onDisk(results[0]).actionRepeats).toBe(2);
   });
 });

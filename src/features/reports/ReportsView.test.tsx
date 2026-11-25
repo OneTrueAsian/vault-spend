@@ -7,7 +7,7 @@ import { createRoot, type Root } from "react-dom/client";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const seen = vi.hoisted(() => ({ props: null as null | { initialTab?: string; onOpenBudget: () => void; renderComparisons: (active: boolean) => React.ReactNode } }));
+const seen = vi.hoisted(() => ({ props: null as null | { initialTab?: string; initialPreset?: string; onOpenTransactions?: unknown; focusCategory?: string; onOpenBudget: () => void; renderComparisons: (active: boolean) => React.ReactNode } }));
 
 vi.mock("./ReportsOverview", () => ({
   ReportsOverview: (props: NonNullable<typeof seen.props>) => {
@@ -77,6 +77,14 @@ describe("ReportsView", () => {
 
     show({ initialTab: "comparisons" });
     expect(seen.props?.initialTab).toBe("comparisons");
+  });
+
+  it("passes the report context props (VS-98) to the hub unchanged", () => {
+    const onOpenTransactions = vi.fn();
+    show({ initialPreset: "last_12", onOpenTransactions, focusCategory: "Groceries" });
+    expect(seen.props?.initialPreset).toBe("last_12");
+    expect(seen.props?.onOpenTransactions).toBe(onOpenTransactions);
+    expect(seen.props?.focusCategory).toBe("Groceries");
   });
 
   it("hands the hub its original props", () => {

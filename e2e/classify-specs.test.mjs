@@ -2,7 +2,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Each test starts the real generator CLI as a child process. The child had no time limit and vitest's 5 s default could fail a correct run under load;
+// the child is now bounded at 60 s and the test at 60 s, so a real hang ends at the child. Every assertion is unchanged.
+vi.setConfig({ testTimeout: 60000 });
 
 // Exercise the actual generator CLI against isolated source trees, never the repo registration.
 describe("classification generation preserves reviewed safety decisions", () => {
@@ -18,7 +22,7 @@ describe("classification generation preserves reviewed safety decisions", () => 
   const write = (name, text) => fs.writeFileSync(path.join(dir, name), text);
   const config = value => write("spec-classification.json", JSON.stringify(value));
   const read = () => JSON.parse(fs.readFileSync(path.join(dir, "spec-classification.json"), "utf8"));
-  const run = (...args) => spawnSync(process.execPath, [path.join(dir, "classify-specs.mjs"), ...args], { encoding: "utf8" });
+  const run = (...args) => spawnSync(process.execPath, [path.join(dir, "classify-specs.mjs"), ...args], { encoding: "utf8", timeout: 60000 });
 
   it("retains the manual exclusive rationale AND newly detected reasons without duplicating them", () => {
     write("feature312_trace.mjs", "browser.keys(['Tab']);");
