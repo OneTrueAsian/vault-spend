@@ -27,6 +27,7 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
   "1.3.5": {
     "New features": [
       "Watch tiles: keep an eye on spending like coffee or takeout from the Dashboard. In + Add widget, pin a category, a tag, a saved filter, or a store you type in. The tile shows what you've spent this month so far next to your usual month, the average of your last 3 full months with transactions, with a link to those transactions.",
+      "Folder imports: save your bank's exports into one folder and Vault Spend picks them up for you to review in Transactions. Nothing is added until you approve it. Set it up in Settings → Data → Folder imports, where you choose the folder and tell Vault Spend which account each export name belongs to.",
     ],
     Enhancements: [
       "The Cash Flow forecast now reaches 6 or 12 months ahead, so yearly bills like insurance or taxes show up before they're due. Everyday spending is estimated for the first 90 days only. After that, only the bills and paychecks on your Recurring list move the line, and the note under the chart says so.",
@@ -34,9 +35,16 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
       "When a button is greyed out, Vault Spend now says what's still missing beside it, in every form: budgets, goals, rules, holdings, transactions, recurring items, imports, splits, reconciling and more. Boxes that are always on screen, like a name or folder box in Settings, say it once you click into them.",
       "When some rows of an import can't be read, the review now lists each one with the reason, so you can fix the file.",
       "If a backup, restore or update fails, Vault Spend now says in plain words what happened, whether your data is unchanged, and what to try next. Choose Details on the message to see the technical cause, and Copy details to send it with a bug report.",
+      "Folder imports are easier to set up and follow. Settings explains each step in plainer words and only says it is watching a folder once watching is on. Check the folder now lists bank files whose names match no export name, so a misnamed file no longer goes quietly unnoticed. A file with a date in the future, or the same content saved under a second name, now says so. Folder activity offers Review again only on a file's latest entry.",
+      "Add budget line now opens in view with a labelled form. Nothing is chosen for you, and each budget group is explained.",
+      "Importing is clearer. When Vault Spend has no guess about which way your amounts go, Keep as-is is now the suggested answer. A row in another currency says how to keep it: convert it to US dollars and add it with Add transaction. The note after an import that worked is no longer red, and it says how many rows couldn't be imported. The review title and its button now count the same rows, and the category step says Pick a category for each row.",
+      "Transactions use plainer words. Rows sorted by one of your rules read Rule under a Set by column. The question before moving transactions to another account names the account without a stray (1), and Manage family members explains what the names are for.",
+      "Reports now lets you follow a number into your transactions and come back. In Reports, choose a category in Categories by month to see its transactions for those dates. Back to Reports returns you to the same report, range and place on the page. If you change the filters on the way, the banner stops describing what is shown and keeps the Back button.",
     ],
     "Bug fixes": [
       "Reports → Savings rate now covers the months you picked at the top of the page, and the current month is marked \"so far\" instead of looking like a sudden drop.",
+      "Folder imports: changing which account an export name belongs to no longer puts files you already imported, or dismissed, back in the waiting list, where approving them again would have added the same money twice.",
+      "A watched file dated in the future is now reported as a date problem instead of \"Name not recognised\".",
     ],
   },
   "1.3.4": {
