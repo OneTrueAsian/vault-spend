@@ -40,16 +40,16 @@ Tauri automation sessions start at `about:blank` (like a browser session) —
 `launchApp()` in `harness.mjs` handles navigating to the app and waiting for
 it to render, so specs don't need to.
 
-**The binary must be built via the Tauri CLI, not a bare `cargo build`.** A
-plain `cargo build`/`cargo run` produces a binary that fails to find its own
-embedded frontend assets ("asset not found: index.html") — only going
-through the CLI's build pipeline embeds them correctly:
+For local desktop tests, use the managed build:
 
 ```
-npx tauri build --debug --no-bundle
+npm run build:app
 ```
 
-Re-run this after any frontend or backend change before running a spec.
+The wrapper runs `npx tauri build --debug --no-bundle` under exclusive access
+when it needs to build a current executable. It reuses the executable when
+the recorded inputs and binary match. The Tauri build pipeline embeds the
+frontend assets that desktop tests need.
 
 ## Data safety
 
@@ -268,11 +268,12 @@ stays. A covered window was measured to keep full timer speed and stay
 
 ## Faster feedback during development
 
-The full suite remains the release or broad-regression check. For a focused
-change, run the unit tests first, then smoke and the affected E2E specs against
-the current compiled app:
+For a focused change, preview verification against the last validated commit.
+Run the selected unit checks and use desktop E2E when the change reaches
+behavior that needs the compiled app:
 
 ```
+npm run verify:targeted -- --since=<validated-ref> --plan
 npm test -- <test-path>
 npm run e2e:smoke
 npm run e2e -- --spec=75,77
@@ -287,10 +288,11 @@ the selection without starting any drivers. The runner prints the five
 slowest specs after each run and records successful durations to schedule
 longer specs first on later runs.
 
-Rebuild with `npx tauri build --debug --no-bundle` after an app change before
-running E2E. Run the full `npm run e2e` before a release and after changes to
-shared UI infrastructure, persistence, or the E2E harness. This keeps routine
-feedback short without treating a targeted run as full regression coverage.
+Use `npm run build:app` before local desktop E2E to verify or build the app.
+For a stable batch with material changes to shared UI, persistence, or the
+E2E harness, propose the applicable regression coverage and estimated duration
+under `AGENTS.md`. Start a full or long run after the owner approves that
+scope. The scheduled release gate still requires its full coverage.
 
 If a spec ever *does* fail only when run concurrently (never in isolation),
 that's worth fixing properly, not a race to paper over — re-run it alone (or
