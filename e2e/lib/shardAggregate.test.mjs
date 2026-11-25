@@ -81,3 +81,36 @@ describe("sharded gate aggregation", () => {
     expect(text).toContain("FAILED");
   });
 });
+
+describe("browser versions (VS-9)", () => {
+  const versions = (edge = "156.0.4314.42") => ({ edge, edgeDriver: "156.0.4314.42", webView2: "150.0.1.1", webView2Driver: "150.0.1.1" });
+  const withBrowsers = (s, browsers) => ({ ...s, meta: { ...s.meta, browsers } });
+  it("reports a match and still passes when every shard has the same versions", () => {
+    const r = run([withBrowsers(first(), versions()), withBrowsers(second(), versions())]);
+    expect(r.ok).toBe(true);
+    expect(r.browserVersions.match).toBe(true);
+    expect(renderSummary(r, { runAttempt: 1, prepared })).toContain("Browser versions match across shards.");
+  });
+  it("lists the differing versions with their shards but never fails the gate", () => {
+    const base = run([first(), second()]);
+    const r = run([withBrowsers(first(), versions()), withBrowsers(second(), versions("156.0.4314.58"))]);
+    expect(r.ok).toBe(true);
+    expect(r.problems).toEqual(base.problems);
+    expect(r.browserVersions.match).toBe(false);
+    expect(r.browserVersions.differences).toEqual([{ field: "edge", values: [{ value: "156.0.4314.42", shards: [1] }, { value: "156.0.4314.58", shards: [2] }] }]);
+    expect(renderSummary(r, { runAttempt: 1, prepared })).toContain("Browser versions differ across shards: edge: 156.0.4314.42 (shards 1); 156.0.4314.58 (shards 2)");
+  });
+  it("treats an old artifact without browsers as missing, not as a problem", () => {
+    const base = run([first(), second()]);
+    const r = run([withBrowsers(first(), versions()), second()]);
+    expect(r.ok).toBe(base.ok);
+    expect(r.problems).toEqual(base.problems);
+    expect(r.browserVersions.missing).toEqual([2]);
+    expect(renderSummary(r, { runAttempt: 1, prepared })).toContain("| 2 | ? | ? | ? | ? |");
+  });
+  it("carries each shard's recorded versions on its summary", () => {
+    const r = run([withBrowsers(first(), versions()), withBrowsers(second(), versions("156.0.4314.58"))]);
+    expect(r.shards[0].browsers).toEqual(versions());
+    expect(r.shards[1].browsers).toEqual(versions("156.0.4314.58"));
+  });
+});
