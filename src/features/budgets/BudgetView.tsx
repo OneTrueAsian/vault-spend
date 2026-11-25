@@ -65,6 +65,13 @@ const GROUP_SHORT_LABELS: Record<Group, string> = {
   flexible: "Flexible",
   nonmonthly: "Non-Monthly",
 };
+/** One plain sentence under the group menu in the "Add budget line" form. */
+const GROUP_HINTS: Record<Group, string> = {
+  income: "Money coming in, like your pay.",
+  fixed: "About the same every month, like rent or a phone bill.",
+  flexible: "Changes from month to month, like groceries or eating out.",
+  nonmonthly: "Bills that come less often than monthly, like car insurance. Set aside a share each month.",
+};
 
 /** The three amount columns' headings. A row's cells repeat them as `data-label`, which the
  * narrow (stacked) layout prints in front of each amount once the heading row is hidden. Income
@@ -119,19 +126,27 @@ function NewBudgetLineForm({
   availableCategories: string[];
   onSet: (category: string, monthlyAmount: string, budgetGroup: string) => void;
 }) {
-  const [category, setCategory] = useState(availableCategories[0] ?? "");
+  const [category, setCategory] = useState("");
   const [amount, setAmount] = useState("");
   const [group, setGroup] = useState<Group>("flexible");
   const [open, setOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    if (!availableCategories.includes(category)) {
-      setCategory(availableCategories[0] ?? "");
+    if (category !== "" && !availableCategories.includes(category)) {
+      setCategory("");
     }
   }, [availableCategories, category]);
 
+  // VS-103: opening the form brings it into view and puts the cursor on its first field.
+  useEffect(() => {
+    if (!open) return;
+    formRef.current?.scrollIntoView?.({ block: "nearest" });
+    formRef.current?.querySelector<HTMLButtonElement>(".menu-select-toggle")?.focus();
+  }, [open]);
+
   // VS-49: the first thing stopping Save, said beside it instead of only greying it out.
-  const missing = !amount.trim() ? "Enter a monthly amount." : amountTextProblem(amount);
+  const missing = !amount.trim() ? "Enter a monthly amount." : (amountTextProblem(amount) ?? (category === "" ? "Choose a category." : null));
   const valid = missing === null;
   const amountWrong = amountTextProblem(amount) !== null;
 
@@ -152,22 +167,33 @@ function NewBudgetLineForm({
   }
 
   return (
-    <form className="bucket-new-form" onSubmit={handleSubmit}>
-      <MenuSelect
-        ariaLabel="Category"
-        value={category}
-        onChange={setCategory}
-        options={availableCategories.map((c) => ({ value: c, label: c }))}
-        fill
-      />
-      <MenuSelect
-        ariaLabel="Budget group"
-        value={group}
-        onChange={(v) => setGroup(v as Group)}
-        options={GROUP_ORDER.map((g) => ({ value: g, label: GROUP_LABELS[g] }))}
-        fill
-      />
-      <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Monthly amount" aria-invalid={amountWrong} />
+    <form className="bucket-new-form" ref={formRef} onSubmit={handleSubmit}>
+      <div className="bucket-new-field">
+        <span>Category</span>
+        <MenuSelect
+          ariaLabel="Category"
+          value={category}
+          onChange={setCategory}
+          options={availableCategories.map((c) => ({ value: c, label: c }))}
+          placeholder="Choose a category"
+          fill
+        />
+      </div>
+      <div className="bucket-new-field">
+        <span>Budget group</span>
+        <MenuSelect
+          ariaLabel="Budget group"
+          value={group}
+          onChange={(v) => setGroup(v as Group)}
+          options={GROUP_ORDER.map((g) => ({ value: g, label: GROUP_LABELS[g] }))}
+          fill
+        />
+        <small className="modal-message-secondary" data-budget-group-hint>{GROUP_HINTS[group]}</small>
+      </div>
+      <label className="bucket-new-field">
+        <span>Monthly amount</span>
+        <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Monthly amount" aria-invalid={amountWrong} />
+      </label>
       <button type="submit" disabled={!valid}>
         Save
       </button>
