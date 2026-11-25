@@ -3,7 +3,7 @@
 // - Every date fits its cell, in Default and in Futuristic (whose wider digits used to run under the
 //   description and its icon).
 // - "Apply to a debt" (in the row's ⋯ menu) appears only on money going out, never on income or transfers in.
-// - The "Sorted by" column says how a category was set in words, not the stored code ("rule").
+// - The "Set by" column says how a category was set in words, not the stored code ("rule").
 //
 // Run with: node e2e/feature159_transaction_cells.mjs
 
@@ -72,7 +72,7 @@ try {
     const unread = cells.filter((c) => c.id && menus[c.id] === null).map((c) => c.date);
     assert.deepEqual(unread, [], `${style}: some rows' ⋯ menus never opened`);
     assert.ok(cells.length > 5, `${style}: expected ledger rows`);
-    // No column header runs into the next one ("Sorted by" once ran into "Debt").
+    // No column header runs into the next one ("Set by" once ran into "Debt").
     const crowdedHeaders = await browser.execute(() =>
       [...document.querySelectorAll("table.ledger thead th")]
         .filter((th) => th.scrollWidth > th.clientWidth + 1)
@@ -86,8 +86,8 @@ try {
     assert.deepEqual(debtOnIncoming, [], `${style}: "Apply to a debt" shows on money coming in`);
     assert.ok(cells.some((c) => c.hasDebtButton), `${style}: still offered on money going out`);
     const codes = cells.map((c) => c.source.replace(/\d+%$/, "").trim()).filter((s) => ["rule", "user", "classifier"].includes(s));
-    assert.deepEqual(codes, [], `${style}: the Sorted by column shows stored codes`);
-    assert.ok(cells.some((c) => c.source.startsWith("Your rule")), `${style}: rule-sorted rows say "Your rule"`);
+    assert.deepEqual(codes, [], `${style}: the Set by column shows stored codes`);
+    assert.ok(cells.some((c) => c.source.startsWith("Rule")), `${style}: rule-sorted rows say "Rule"`);
   }
   console.log("FEATURE 159 E2E TEST PASSED");
 } finally {

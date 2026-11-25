@@ -452,6 +452,16 @@ describe("owner-expanded hidden destination pickers", () => {
       expect(menuItem("Apply to a debt")).toBeUndefined();
     });
   });
+
+  // VS-103 F-04: default rules are seeded, so "Your rule" read as if the person had sorted the row.
+  it("calls a rule-sorted row Rule, under a Set by header", () => {
+    show(baseProps([txn({ category_source: "rule" })], [{ id: 1, name: "Alex" }]));
+    const headers = [...container.querySelectorAll("thead th")].map((th) => th.textContent?.trim());
+    expect(headers).toContain("Set by");
+    expect(headers).not.toContain("Sorted by");
+    expect(container.querySelector("tbody tr[data-payment-row]")!.textContent).toContain("Rule");
+    expect(container.textContent).not.toContain("Your rule");
+  });
 });
 
 describe("TransactionsTable date editor", () => {

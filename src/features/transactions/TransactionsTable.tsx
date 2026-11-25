@@ -271,7 +271,7 @@ export function TransactionsTable({
             )}
             {!transactionsNarrow && (
               <SortableTh column="source" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
-                Sorted by
+                Set by
               </SortableTh>
             )}
             <th className="actions-col"><span className="sr-only">Actions</span></th>
@@ -669,7 +669,7 @@ export function TransactionsTable({
                           {categoryField}
                         </label>
                         <label className="ledger-details-field">
-                          <span>Sorted by</span>
+                          <span>Set by</span>
                           {sourceField}
                         </label>
                       </div>

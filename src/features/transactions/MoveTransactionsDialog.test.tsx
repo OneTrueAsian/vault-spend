@@ -71,3 +71,30 @@ describe("move balances say what is missing", () => {
     expect(missing()).toBeNull();
   });
 });
+
+// VS-103 F-12: the one-account case reads "from Household (02)", not "Household (02) (1)".
+describe("move summary names where the transactions come from", () => {
+  const summary = (over: Parameters<typeof previewFixture>[0]) => {
+    const p = previewFixture(over).preview;
+    const dialog: MoveDialogState = { ids: [1, 2], destinationId: 2, destinationName: "Savings", clearSelection: true, phase: "ready", preview: p, balances: {}, editingBalances: false,
+      operationId: null, message: null, notice: null, sessionKey: "s" };
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const noop = vi.fn();
+    act(() => root!.render(<MoveTransactionsDialog dialog={dialog} hiddenByFilter={null} onCancel={noop} onConfirm={noop} onReviewAgain={noop} onReloadAndClose={noop}
+      onSetBalance={noop} onReviewBalances={noop} onChangeBalances={noop} />));
+    return document.querySelector("[data-move-summary]")!.textContent ?? "";
+  };
+
+  it("gives the account name alone when there is one source", () => {
+    const text = summary({ effectiveCount: 1, sources: [{ accountId: 1, accountName: "Household (02)", count: 1 }] });
+    expect(text).toContain("1 transaction from Household (02), dated");
+    expect(text).not.toContain("(1)");
+  });
+
+  it("splits the count by account when there are several sources", () => {
+    const text = summary({ effectiveCount: 3, sources: [{ accountId: 1, accountName: "A", count: 2 }, { accountId: 3, accountName: "B", count: 1 }] });
+    expect(text).toContain("3 transactions (2 from A, 1 from B), dated");
+  });
+});

@@ -56,8 +56,9 @@ export function ManageFamilyMembersDialog({
   return (
     <ModalShell title="Manage family members" onCancel={onCancel} wide>
       <p className="modal-message modal-message-secondary">
-        Just a label within this one file — everyone still shares the same data. For a completely separate person's
-        own data, use Profiles in Settings instead.
+        Add the people in your household. You can then mark accounts and transactions as theirs and see each person's
+        spending on the Household page. Everyone still shares the same data. To keep someone's money completely separate,
+        use Profiles in Settings instead.
       </p>
       <form className="category-create-form" onSubmit={handleCreateSubmit}>
         <input

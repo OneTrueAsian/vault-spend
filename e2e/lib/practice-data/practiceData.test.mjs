@@ -187,7 +187,7 @@ describe.skipIf(!canBuild)("practice data covers every feature (COVERAGE.md)", (
     expect(count("SELECT 1 FROM transactions WHERE description LIKE 'Holiday Fund%'")).toBe(3);
   });
 
-  it("Transactions: some rows were sorted by a rule (Sorted by: Your rule)", () => {
+  it("Transactions: some rows were sorted by a rule (Set by: Rule)", () => {
     expect(count(`SELECT 1 FROM transactions WHERE category_source = 'rule' AND description = 'Shell Oil' AND date LIKE '${thisMonth}%'`)).toBeGreaterThanOrEqual(1);
   });
 

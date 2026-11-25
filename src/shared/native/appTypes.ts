@@ -67,7 +67,7 @@ export type PendingDialog =
   | { kind: "csvExportWarning"; resolve: (proceed: boolean) => void };
 
 /** How a transaction got its category, in words (the backend stores rule / user / classifier). */
-export const CATEGORY_SOURCE_LABELS: Record<string, string> = { rule: "Your rule", user: "You", classifier: "Suggested" };
+export const CATEGORY_SOURCE_LABELS: Record<string, string> = { rule: "Rule", user: "You", classifier: "Suggested" };
 
 export type Tab =
   | "dashboard"

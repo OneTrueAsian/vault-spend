@@ -61,7 +61,7 @@ try {
   await waitForReview(b);
   const text = await dialogText(b);
   assert.match(text, /Move 2 transactions to Savings\?/);
-  assert.match(text, /2 transactions from Checking \(2\)/);
+  assert.match(text, /2 transactions from Checking, dated/);
   assert.match(text, /not a bank transfer/);
   assert.match(text, /Categories, tags, notes, splits and who each transaction is for stay with the transactions/);
   assert.match(text, /1 transaction you ticked for reconciling will be unticked/, "the ticked row is warned about");

@@ -2576,7 +2576,7 @@ function App({
                         { value: "amount", label: "Amount" },
                         { value: "account", label: "Account" },
                         { value: "category", label: "Category" },
-                        { value: "source", label: "Sorted by" },
+                        { value: "source", label: "Category set by" },
                       ]}
                     />
                   </label>

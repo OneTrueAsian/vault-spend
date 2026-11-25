@@ -322,7 +322,7 @@
   color: inherit;
   text-align: inherit;
   transition: none;
-  /* A two-word header ("Sorted by") wraps in a narrow column instead of running into the next one. */
+  /* A two-word header ("Set by") wraps in a narrow column instead of running into the next one. */
   white-space: normal;
 }
 

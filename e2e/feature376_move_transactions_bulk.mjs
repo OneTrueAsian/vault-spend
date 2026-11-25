@@ -42,7 +42,7 @@ try {
   await waitForReview(b);
   const text = await dialogText(b);
   assert.match(text, /Move 240 transactions to Savings\?/);
-  assert.match(text, /240 transactions from Checking \(240\)/);
+  assert.match(text, /240 transactions from Checking, dated/);
   assert.match(text, /-\$240\.00/, "the signed total is shown");
   assert.match(text, /Balance \$760\.00 → \$1,000\.00/);
   assert.match(text, /Balance \$500\.40 → \$260\.40/);
