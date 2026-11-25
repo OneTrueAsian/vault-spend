@@ -169,7 +169,8 @@ export function FolderImportsSettings({
     if (!dir) return;
     await run(async () => {
       const kept = await client.setFolder(dir);
-      return kept ? `Watching ${kept}.` : null;
+      if (!kept) return null;
+      return enabled ? `Watching ${kept}.` : `Folder chosen: ${kept}. Turn on watching in step 3 when you're ready.`;
     });
   }
 
@@ -216,6 +217,7 @@ export function FolderImportsSettings({
           (confirming === "stop" ? (
             <button
               type="button"
+              className="btn-danger"
               onClick={() => void run(async () => { await client.setFolder(null); return "Stopped watching that folder."; })}
               disabled={working}
               data-folder-confirm-stop
@@ -236,10 +238,17 @@ export function FolderImportsSettings({
         2. Name your exports
       </h3>
       <p className="modal-message-secondary">
-        Type the start of the file name your bank uses, before the date. A file named like{" "}
-        <code>Bank Max Checking_2026-11-18.csv</code>, <code>Bank Max Checking_2026-11-11_to_2026-11-18.csv</code>,{" "}
-        <code>Bank Max Checking - 2026-11-11 to 2026-11-18.csv</code> or <code>Bank Max Checking - Nov 11 to Nov 18, 2026.csv</code>{" "}
-        matches <code>Bank Max Checking</code>. The date in the name only says how new the export is; each transaction keeps its own date.
+        An export name is the start of the file name your bank uses, before the date. For example, the export name Bank Max Checking
+        matches files named:
+      </p>
+      <ul className="modal-message-secondary folder-settings-examples">
+        <li><code>Bank Max Checking_2026-11-18.csv</code></li>
+        <li><code>Bank Max Checking_2026-11-11_to_2026-11-18.csv</code></li>
+        <li><code>Bank Max Checking - 2026-11-11 to 2026-11-18.csv</code></li>
+        <li><code>Bank Max Checking - Nov 11 to Nov 18, 2026.csv</code></li>
+      </ul>
+      <p className="modal-message-secondary">
+        The date in the name only says how new the export is; each transaction keeps its own date.
       </p>
       {drafts.map((d) => {
         const saved = d.id !== null ? data?.mappings.find((m) => m.id === d.id) : undefined;
@@ -275,6 +284,9 @@ export function FolderImportsSettings({
                 disabled={working}
                 fill
               />
+              <span className="modal-message-secondary">
+                Most checking and savings exports show money you spend with a minus sign. Many credit card exports don't. Choose “flip the signs” for those.
+              </span>
             </div>
             <fieldset className="folder-settings-field">
               <legend>File types</legend>
@@ -287,32 +299,37 @@ export function FolderImportsSettings({
                 </label>
               </div>
             </fieldset>
-            <fieldset className="folder-settings-field">
+            <fieldset className="folder-settings-field folder-settings-which">
               <legend>Which exports</legend>
               <label>
                 <input type="radio" name={`which-${d.key}`} checked={!d.includeExisting} onChange={() => update(d.key, { includeExisting: false })} disabled={working} /> Only exports dated on or after
               </label>
               <DateField value={d.cutoff} onChange={(iso) => update(d.key, { cutoff: iso })} ariaLabel={`Only ${which} dated on or after`} disabled={working || d.includeExisting} data-folder-cutoff />
-              {!d.includeExisting && <span className="modal-message-secondary">Exports dated before this are skipped.</span>}
+              {!d.includeExisting && (
+                <span className="modal-message-secondary">
+                  Exports dated before this are skipped.
+                  {d.id === null && " A new name starts a week back, so exports you saved in the last few days are included."}
+                </span>
+              )}
               <label>
                 <input type="radio" name={`which-${d.key}`} checked={d.includeExisting} onChange={() => update(d.key, { includeExisting: true })} disabled={working} data-folder-include-existing /> Also exports already in the folder
               </label>
               {saved?.watermark && (
                 <span className="folder-settings-watermark">
-                  Newest imported export: {formatDisplayDate(saved.watermark)}. Older ones are skipped automatically.{" "}
+                  The newest export imported so far is dated {formatDisplayDate(saved.watermark)}. Older exports are skipped so files you've been through aren't picked up again.{" "}
                   <button
                     type="button"
                     className="modal-secondary"
                     onClick={() =>
                       void run(async () => {
                         await client.clearWatermark(saved.id);
-                        return "Started over. Exports from the start date on are picked up again, except ones already imported or dismissed.";
+                        return "Done. Exports skipped as older are picked up again, except ones already imported or dismissed.";
                       })
                     }
                     disabled={working}
                     data-folder-clear-watermark={saved.id}
                   >
-                    Start over from the start date
+                    Pick up older exports again
                   </button>
                 </span>
               )}
@@ -322,7 +339,7 @@ export function FolderImportsSettings({
                 {d.id === null ? "Add" : "Save"}
               </button>
               {d.id !== null && confirming === d.key ? (
-                <button type="button" onClick={() => void remove(d)} disabled={working} data-folder-confirm-remove-mapping={d.id}>
+                <button type="button" className="btn-danger" onClick={() => void remove(d)} disabled={working} data-folder-confirm-remove-mapping={d.id}>
                   Yes, remove it
                 </button>
               ) : (
@@ -350,7 +367,7 @@ export function FolderImportsSettings({
       </div>
       {matches && (
         matches.length === 0 ? (
-          <p className="modal-message-secondary" role="status">No files in the folder match your export names yet.</p>
+          <p className="modal-message-secondary" role="status">There are no CSV or Excel files in this folder yet.</p>
         ) : (
           <ul className="folder-settings-matches" data-folder-matches>
             {matches.map((m) => (
@@ -381,7 +398,9 @@ export function FolderImportsSettings({
         <span>Watch a folder for bank exports</span>
       </label>
       {!enabled && !canEnable && data && (
-        <p className="modal-message-secondary">Choose a folder and add at least one export name first.</p>
+        <p className="modal-message-secondary">
+          {data.folder ? "Add and save at least one export name first." : "Choose a folder and add at least one export name first."}
+        </p>
       )}
       {message && (
         <p role={message.kind === "error" ? "alert" : "status"} className={message.kind === "error" ? "import-review-notice" : "modal-message-secondary"}>

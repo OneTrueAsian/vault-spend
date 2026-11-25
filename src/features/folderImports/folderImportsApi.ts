@@ -54,7 +54,7 @@ export type FolderActivity = {
 export type FolderMatch = {
   file_name: string;
   account_name: string | null;
-  outcome: "would_queue" | "older" | "bad_name" | "needs_account";
+  outcome: "would_queue" | "older" | "bad_name" | "future_date" | "needs_account" | "no_match";
   reason: string;
 };
 
@@ -71,7 +71,7 @@ export type FolderMappingInput = {
 export const FOLDER_IMPORTS_CHANGED = "folder-imports-changed";
 
 /** Outcomes that mean "a file was looked at and deliberately not queued". */
-export const SKIPPED_OUTCOMES = new Set(["older", "bad_name", "needs_account", "too_large", "unreadable", "already_imported", "already_dismissed", "queue_full", "folder_problem"]);
+export const SKIPPED_OUTCOMES = new Set(["older", "bad_name", "future_date", "already_pending", "needs_account", "too_large", "unreadable", "already_imported", "already_dismissed", "queue_full", "folder_problem"]);
 
 type Call = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
 

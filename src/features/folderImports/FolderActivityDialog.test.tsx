@@ -114,6 +114,55 @@ describe("FolderActivityDialog", () => {
     expect(list.querySelector("[data-folder-copy-cleared='40']")!.textContent).toContain("Import transactions");
   });
 
+  it("labels a file already waiting under another name and a date in the future", () => {
+    const s = state(vi.fn());
+    s.activity = [
+      { id: 61, at: "2026-11-22T11:00:00", file_name: "Bank Max Checking_2026-11-19.csv", account_name: "Max Checking", outcome: "already_pending", reason: 'Same file as "Bank Max Checking_2026-11-18.csv", which is already waiting for review — not queued twice', batch_id: null, can_review_again: false, copy_cleared: false },
+      { id: 60, at: "2026-11-22T10:00:00", file_name: "Bank Max Checking_2099-01-01.csv", account_name: "Max Checking", outcome: "future_date", reason: "The date in the name is in the future", batch_id: null, can_review_again: false, copy_cleared: false },
+    ];
+    render(s);
+    const list = document.querySelector("[data-folder-activity-list]")!;
+    expect(list.querySelector("[data-folder-activity-entry='already_pending']")!.textContent).toContain("Already waiting");
+    const future = list.querySelector("[data-folder-activity-entry='future_date']")!.textContent!;
+    expect(future).toContain("Date in the future");
+    expect(future).not.toContain("Noted");
+    expect(future).not.toContain("Name not recognised");
+  });
+
+  it("explains which files are picked up when nothing has been looked at yet", () => {
+    const s = state(vi.fn());
+    s.activity = [];
+    render(s);
+    expect(document.querySelector("[data-folder-activity]")!.textContent).toContain(
+      "No files have been looked at yet. Only files whose names start with one of your export names are picked up.",
+    );
+  });
+
+  it("offers Review again only on the newest entry for each file, keeping the older rows", () => {
+    const s = state(vi.fn());
+    s.activity = [
+      { id: 72, at: "2026-11-22T12:00:00", file_name: "A.csv", account_name: "Max Checking", outcome: "dismissed", reason: "Dismissed", batch_id: 1, can_review_again: true, copy_cleared: false },
+      { id: 71, at: "2026-11-22T11:00:00", file_name: "A.csv", account_name: "Max Checking", outcome: "older", reason: "Older export", batch_id: null, can_review_again: true, copy_cleared: false },
+      { id: 70, at: "2026-11-22T10:00:00", file_name: "B.csv", account_name: "Max Checking", outcome: "requeued", reason: "Opened again", batch_id: 2, can_review_again: false, copy_cleared: false },
+      { id: 69, at: "2026-11-22T09:00:00", file_name: "B.csv", account_name: "Max Checking", outcome: "older", reason: "Older export", batch_id: null, can_review_again: true, copy_cleared: false },
+    ];
+    render(s);
+    expect(document.querySelectorAll("[data-folder-activity-entry]").length).toBe(4);
+    expect(q("[data-folder-review-again='72']")).not.toBeNull();
+    expect(q("[data-folder-review-again='71']")).toBeNull();
+    expect(q("[data-folder-review-again='69']")).toBeNull();
+  });
+
+  it("counts a hidden queued entry of a waiting file as that file's newest entry", () => {
+    const s = state(vi.fn());
+    s.activity = [
+      { id: 81, at: "2026-11-22T11:00:00", file_name: pendingBatch.file_name, account_name: "Max Checking", outcome: "queued", reason: "Waiting for your review", batch_id: 5, can_review_again: false, copy_cleared: false },
+      { id: 80, at: "2026-11-22T10:00:00", file_name: pendingBatch.file_name, account_name: "Max Checking", outcome: "dismissed", reason: "Dismissed", batch_id: 5, can_review_again: true, copy_cleared: false },
+    ];
+    render(s);
+    expect(q("[data-folder-review-again='80']")).toBeNull();
+  });
+
   it("offers to choose the folder again when it can't be found", () => {
     const s = state(vi.fn());
     s.data = { ...s.data!, folder_missing: true };

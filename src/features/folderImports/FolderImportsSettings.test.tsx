@@ -102,7 +102,7 @@ describe("FolderImportsSettings", () => {
     });
     expect(document.body.textContent).toContain("deleted or hidden");
     expect(document.body.textContent).toContain("can't be found right now");
-    expect(document.body.textContent).toContain("Newest imported export");
+    expect(document.body.textContent).toContain("The newest export imported so far");
   });
 
   it("starts a new name a week back, so a recent export already saved isn't skipped, and says what the date does", async () => {
@@ -205,9 +205,86 @@ describe("FolderImportsSettings", () => {
 
   it("can start an export name over from its start date", async () => {
     const { call } = await render({ enabled: true, folder: "D:/Exports", folder_missing: false, mappings: [saved(5, "Card", "2099-01-01")], pending: [] });
-    expect(document.body.textContent).toContain("Newest imported export");
+    expect(document.body.textContent).toContain("The newest export imported so far");
     await act(async () => button("[data-folder-clear-watermark='5']").click());
     expect(call).toHaveBeenCalledWith("clear_folder_import_watermark", { id: 5 });
-    expect(document.body.textContent).not.toContain("Newest imported export");
+    expect(document.body.textContent).not.toContain("The newest export imported so far");
+  });
+
+  it("says the folder was chosen, not that it is being watched, while watching is off", async () => {
+    await render({ enabled: false, folder: null, folder_missing: false, mappings: [], pending: [] });
+    await act(async () => button("[data-folder-choose]").click());
+    const text = document.body.textContent!;
+    expect(text).toContain("Folder chosen: D:\\Exports. Turn on watching in step 3 when you're ready.");
+    expect(text).not.toContain("Watching D:\\Exports");
+    expect(text).toContain("Add and save at least one export name first.");
+    expect(text).not.toContain("Choose a folder and add at least one export name first.");
+  });
+
+  it("says the folder is being watched when watching is already on", async () => {
+    await render({ enabled: true, folder: "D:\\Old", folder_missing: false, mappings: [saved(5, "Card")], pending: [] });
+    await act(async () => button("[data-folder-choose]").click());
+    expect(document.body.textContent).toContain("Watching D:\\Exports.");
+  });
+
+  it("explains export names with examples, the amounts choice and the week-back start, and confirms removals in red", async () => {
+    await render({ enabled: true, folder: "D:/Exports", folder_missing: false, mappings: [saved(5, "Card")], pending: [] });
+    const examples = [...document.querySelectorAll(".folder-settings-examples li code")].map((c) => c.textContent);
+    expect(examples).toEqual([
+      "Bank Max Checking_2026-11-18.csv",
+      "Bank Max Checking_2026-11-11_to_2026-11-18.csv",
+      "Bank Max Checking - 2026-11-11 to 2026-11-18.csv",
+      "Bank Max Checking - Nov 11 to Nov 18, 2026.csv",
+    ]);
+    const text = document.body.textContent!;
+    expect(text).toContain("An export name is the start of the file name your bank uses, before the date. For example, the export name Bank Max Checking matches files named:");
+    expect(text).toContain("Most checking and savings exports show money you spend with a minus sign. Many credit card exports don't. Choose “flip the signs” for those.");
+    // A saved name keeps the short hint; only a new one explains the week back.
+    expect(text).not.toContain("A new name starts a week back");
+    await act(async () => button("[data-folder-add-mapping]").click());
+    expect(document.querySelector("[data-folder-mapping='new']")!.textContent).toContain(
+      "Exports dated before this are skipped. A new name starts a week back, so exports you saved in the last few days are included.",
+    );
+    await act(async () => button("[data-folder-remove-mapping='5']").click());
+    expect(button("[data-folder-confirm-remove-mapping='5']").className).toContain("btn-danger");
+    await act(async () => button("[data-folder-stop]").click());
+    expect(button("[data-folder-confirm-stop]").className).toContain("btn-danger");
+  });
+
+  it("gives Which exports its own full-width row", async () => {
+    await render({ enabled: true, folder: "D:/Exports", folder_missing: false, mappings: [saved(5, "Card")], pending: [] });
+    const fieldsets = [...document.querySelectorAll("[data-folder-mapping='5'] fieldset")];
+    expect(fieldsets.find((f) => f.querySelector("legend")!.textContent === "Which exports")!.classList.contains("folder-settings-which")).toBe(true);
+  });
+
+  it("explains the newest imported export in plain words and offers to pick older exports up again", async () => {
+    const { call } = await render({ enabled: true, folder: "D:/Exports", folder_missing: false, mappings: [saved(5, "Card", "2099-01-01")], pending: [] });
+    expect(document.body.textContent).toContain("The newest export imported so far is dated Jan 1, 2099. Older exports are skipped so files you've been through aren't picked up again.");
+    expect(button("[data-folder-clear-watermark='5']").textContent).toBe("Pick up older exports again");
+    await act(async () => button("[data-folder-clear-watermark='5']").click());
+    expect(call).toHaveBeenCalledWith("clear_folder_import_watermark", { id: 5 });
+    expect(document.body.textContent).toContain("Done. Exports skipped as older are picked up again, except ones already imported or dismissed.");
+  });
+
+  it("lists every file Check the folder finds, including ones no name matches, and explains an empty folder", async () => {
+    let matches: unknown[] = [{ file_name: "Random.csv", account_name: null, outcome: "no_match", reason: "Doesn't start with any of your export names, so it won't be picked up. Rename the file, or add its name above." }];
+    const call = vi.fn(async (command: string) => {
+      if (command === "get_folder_imports") return { enabled: true, folder: "D:/Exports", folder_missing: false, mappings: [saved(5, "Card")], pending: [], seen_activity_id: 0 };
+      if (command === "test_folder_import_names") return matches;
+      return undefined;
+    });
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () => root.render(<FolderImportsSettings accounts={[account]} call={call as never} />));
+    cleanup = () => {
+      act(() => root.unmount());
+      container.remove();
+    };
+    await act(async () => button("[data-folder-check-names]").click());
+    expect(document.querySelector("[data-folder-matches]")!.textContent).toContain("Random.csv: Doesn't start with any of your export names, so it won't be picked up. Rename the file, or add its name above.");
+    matches = [];
+    await act(async () => button("[data-folder-check-names]").click());
+    expect(document.body.textContent).toContain("There are no CSV or Excel files in this folder yet.");
   });
 });

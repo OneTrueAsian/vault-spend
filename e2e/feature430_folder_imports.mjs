@@ -102,7 +102,7 @@ try {
   const toggle = await browser.$("[data-folder-imports-toggle] input");
   assert.equal(await toggle.isSelected(), false, "folder imports start off");
   await click("[data-folder-choose]");
-  await waitUntilOrDiagnose(browser, async () => (await text("[data-folder-imports-settings]"))?.includes("Watching "), {
+  await waitUntilOrDiagnose(browser, async () => (await text("[data-folder-imports-settings]"))?.includes("Folder chosen: "), {
     timeoutMsg: "choosing the folder through the picker should keep it",
   });
   await invoke("save_folder_import_mapping", {

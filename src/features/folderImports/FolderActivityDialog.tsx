@@ -39,6 +39,8 @@ const OUTCOME_LABEL: Record<string, string> = {
   queue_full: "Waiting for room",
   folder_problem: "Folder problem",
   folder_ok: "Folder found again",
+  already_pending: "Already waiting",
+  future_date: "Date in the future",
 };
 
 /** Folder activity, opened from the Transactions toolbar: exports waiting for review (Review or
@@ -66,6 +68,16 @@ export function FolderActivityDialog({
   // A file still waiting is already listed above; its "queued" entry would only repeat it.
   const pendingIds = new Set(pending.map((b) => b.id));
   const recent = state.activity.filter((entry) => !(entry.outcome === "queued" && entry.batch_id !== null && pendingIds.has(entry.batch_id)));
+
+  // Only a file's newest entry offers Review again; older rows stay as history. Counted over every
+  // entry, so a hidden "queued" entry or a newer one without the button still hides older buttons.
+  const newestEntryIds = new Set<number>();
+  const namesSeen = new Set<string>();
+  for (const entry of state.activity) {
+    if (namesSeen.has(entry.file_name)) continue;
+    namesSeen.add(entry.file_name);
+    newestEntryIds.add(entry.id);
+  }
 
   async function dismiss(batch: FolderBatch) {
     setWorking(true);
@@ -156,7 +168,7 @@ export function FolderActivityDialog({
 
         <h3 className="folder-activity-heading">Recent files</h3>
         {recent.length === 0 ? (
-          <p className="modal-message-secondary">No files have been looked at yet.</p>
+          <p className="modal-message-secondary">No files have been looked at yet. Only files whose names start with one of your export names are picked up.</p>
         ) : (
           <ul className="folder-activity-list" data-folder-activity-list>
             {recent.map((entry) => {
@@ -175,7 +187,7 @@ export function FolderActivityDialog({
                     </span>
                   )}
                 </div>
-                {entry.can_review_again && (
+                {entry.can_review_again && newestEntryIds.has(entry.id) && (
                   <div className="folder-activity-actions">
                     <button
                       type="button"

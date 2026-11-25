@@ -122,6 +122,20 @@ fieldset.folder-settings-field {
   grid-column: 1 / -1;
 }
 
+/* "Which exports" has four lines of text, so it gets the full row instead of a ~200px column. */
+.folder-settings-which {
+  grid-column: 1 / -1;
+}
+
+.folder-settings-examples {
+  margin: 4px 0 8px;
+  padding-left: 20px;
+}
+
+.folder-settings-examples code {
+  overflow-wrap: anywhere;
+}
+
 .folder-settings-watermark button {
   margin-top: 4px;
 }
