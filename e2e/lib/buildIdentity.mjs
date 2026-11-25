@@ -18,10 +18,20 @@ const BUILD_TOOLS = new Set(["tools/mobile-offline-build.ts", "tools/mobile-icon
 // Test-only files (owner decision, 20 Oct 2026): a test edit cannot change the application, so it must not rebuild or invalidate it. Only files that are never compiled into
 // the app qualify. buildIdentity.test.mjs proves it: no production module under src/ imports one, and the Rust test modules are declared #[cfg(test)].
 const TS_TEST_ONLY = /^src\/(?:.*\.test\.(?:ts|tsx)|testSupport\/.*|(?:.*\/)?[^/]*TestUtils\.ts)$/;
-const RUST_TEST_ONLY = /^core\/src\/(?:.*\/)?(?:tests\.rs|[^/]*_tests\.rs|tests\/.*)$/;
-export function isTestOnlyFile(file) {
+const APP_TEST_MODULES = new Set([
+  "src-tauri/src/backups/tests.rs",
+  "src-tauri/src/commands/files/tests.rs",
+  "src-tauri/src/commands/folder_imports/tests.rs",
+]);
+export function isRustTestOnlyFile(file) {
   const f = norm(file);
-  return TS_TEST_ONLY.test(f) || RUST_TEST_ONLY.test(f);
+  return /^core\/src\/(?:.*\/)?(?:tests\.rs|[^/]*_tests\.rs|tests\/.*)$/.test(f)
+    || /^core\/tests\/(?:comparisons\/[\w]+|learning_loop|mobile_snapshot_contract|protection_roundtrip|sqlcipher_platform_check)\.rs$/.test(f)
+    || APP_TEST_MODULES.has(f);
+}
+
+export function isTestOnlyFile(file) {
+  return TS_TEST_ONLY.test(norm(file)) || isRustTestOnlyFile(file);
 }
 
 /** Files whose content can change the executable (or the frontend bundle built into it). Everything else (tests, tests of the runner, docs, workflows) cannot. */

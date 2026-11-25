@@ -32,6 +32,17 @@ describe("building", () => {
     expect(again.action).toBe("reused"); expect(builds).toBe(1);
     expect(again.artifact.status).toBe("fresh");
   });
+  it("reuses the executable after audited native test edits and rebuilds after a production edit", async () => {
+    inputs["src-tauri/src/backups/tests.rs"] = "original";
+    inputs["core/tests/comparisons/store_tests.rs"] = "original";
+    await buildArtifact(options());
+    inputs["src-tauri/src/backups/tests.rs"] = "edited";
+    inputs["core/tests/comparisons/store_tests.rs"] = "edited";
+    expect((await buildArtifact(options())).action).toBe("reused");
+    inputs["src-tauri/src/backups.rs"] = "production change";
+    expect((await buildArtifact(options())).action).toBe("built");
+    expect(builds).toBe(2);
+  });
   it.each([["a source edit", i => { i["src/main.tsx"] = "edited"; }], ["a new untracked source file", i => { i["src/new.ts"] = "n"; }], ["a deleted lockfile", i => { delete i["Cargo.lock"]; }]])(
     "rebuilds after %s", async (_name, change) => {
       await buildArtifact(options()); change(inputs);

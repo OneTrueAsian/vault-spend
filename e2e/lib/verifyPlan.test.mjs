@@ -9,6 +9,41 @@ const selection = (over = {}) => ({ broad: false, specs: ["smoke.mjs", "feature3
 const ids = plan => plan.steps.map(s => s.id);
 const okExec = (calls = []) => async step => { calls.push(step.id); return { code: 0, reused: step.id === "build" ? true : undefined }; };
 
+describe("planning targeted development checks", () => {
+  const targeted = (file, over = {}) => planVerification({
+    mode: "targeted",
+    selection: selection({ specs: [], entries: [{ path: file, status: "M", verdict: "no-desktop" }], ...over }),
+    allSpecs: specs,
+  });
+  it("runs the changed frontend test and type check with no desktop build or full Vitest", () => {
+    const file = "src/shared/ui/PageTabs.test.tsx";
+    const plan = targeted(file, { entries: [{ path: file, status: "M", verdict: "no-desktop", unitTargets: [file] }] });
+    expect(ids(plan)).toEqual(["tsc", "vitest-focused"]);
+    expect(plan.steps.at(-1).command).toContain(file);
+    expect(plan.requiresApproval).toBe(false);
+  });
+  it("uses the comparisons integration target under exclusive access", () => {
+    const plan = targeted("core/tests/comparisons/store_tests.rs", { nativeChecks: ["cargo-fmt", "cargo-test-comparisons"] });
+    expect(ids(plan)).toEqual(["cargo-fmt", "cargo-test-comparisons"]);
+    expect(plan.steps.at(-1).command.join(" ")).toMatch(/with-access.*cargo test -p budget_core --test comparisons/);
+  });
+  it("fails a Rust test filter that succeeded without exercising a case", async () => {
+    const plan = targeted("src-tauri/src/backups/tests.rs", { nativeChecks: ["cargo-test-backups"] });
+    const empty = await runPlan({ plan, exec: async () => ({ code: 0, rustTestsPassed: false }) });
+    const passed = await runPlan({ plan, exec: async () => ({ code: 0, rustTestsPassed: true }) });
+    expect(empty.failed[0].error).toMatch(/no passing tests/);
+    expect(passed.code).toBe(0);
+  });
+  it("requires approval when unknown production code selects the full desktop catalog", () => {
+    const plan = targeted("src/unknown.ts", { broad: true, specs });
+    expect(plan.requiresApproval).toBe(true);
+    expect(ids(plan)).toContain("desktop");
+  });
+  it("lists no execution for an empty comparison", () => {
+    expect(ids(targeted(undefined, { entries: [] }))).toEqual([]);
+  });
+});
+
 describe("planning the fast path", () => {
   it("always includes tsc, lint and the FULL unit suite, never a reduced one", () => {
     const plan = planVerification({ mode: "fast", selection: selection(), allSpecs: specs });

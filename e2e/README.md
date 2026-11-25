@@ -184,7 +184,7 @@ executable built some other way (for example the hosted release gate's direct `t
 Each run writes `target\e2e-last-run.json` with before/after input manifests, per-spec output, the executable's SHA-256, the build key, what was selected and executed, retries and
 timeouts. Build, desktop and `with-access` holders are crash-protected: an unexpected exit or interrupted desktop run leaves the lock held because descendants may still be using the executable. Before manually removing such a lock, reconcile the recorded owner and its owned descendants; a dead parent PID alone is insufficient. Never stop another agent's processes. Legacy unprotected abandoned locks retain automatic recovery; live holders are always waited for or refused. This is cooperative repository access, not an OS policy intercepting arbitrary raw Cargo or manually launched applications.
 
-## Choosing what to run: `select:specs`, `verify:fast`, `verify:full`, `--schedule`
+## Choosing what to run: `select:specs`, `verify:targeted`, `verify:fast`, `verify:full`, `--schedule`
 
 The build identity includes mobile entry files, reviewed Vite build tools, ignored local dotenv files, Cargo-home and inherited ancestor configuration (including ignored repository Cargo config), and relevant build environment settings (contents and values are hashed, never printed). Relative production imports outside reviewed roots fail closed; installed packages, including relative imports into `node_modules`, rely on lockfile identity just like bare imports. This does not audit installation tampering or universally discover arbitrary build-script inputs. The debug wrapper refuses unsupported Cargo target/output environment overrides rather than recording an old executable at the wrong location. Test/harness edits affect validation identity without forcing an application rebuild.
 
@@ -192,7 +192,7 @@ The retirement screen matrix loads Axe once per document when its exact owned ve
 
 ### Validation budget and evidence reuse
 
-Follow `AGENTS.md`'s validation scope rules. During development use targeted RED/GREEN tests, then validate the stable batch once. A unit-test-only edit needs affected tests, the inexpensive full unit suite and applicable lint/types; a documentation-only edit needs relevant document checks. Neither automatically requires an app rebuild, a full desktop run or profiling. Documents embedded by production code remain application inputs.
+Follow `AGENTS.md`'s validation scope rules. During development use targeted RED/GREEN tests, then validate the stable batch once. A unit-test-only edit needs affected tests and applicable lint or type checks. A documentation-only edit needs relevant document checks. Documents embedded by production code remain application inputs.
 
 Before an expensive run, record four things: the change since the last valid run, the requirement (file and line or explicit owner instruction), why the previous evidence cannot cover it, and estimated minutes. After a passing final regression, another full run requires a concrete behavioral or infrastructure impact explanation. A changed fingerprint alone is insufficient. Keep application, test/harness/fixture and documentation identities separate; label reused evidence and preserve all failures.
 
@@ -203,21 +203,18 @@ Inspect the verification plan before execution. Do not use the existing cache's 
 ```
 npm run select:specs                  # which desktop specs the current changes can affect (vs HEAD), why, and what else is still required
 npm run select:specs -- --since=main  # judge the changes against another git ref
+npm run verify:targeted -- --since=<validated-ref> --plan
+npm run verify:targeted -- --since=<validated-ref>
 npm run verify:fast                   # tsc + lint + the FULL unit suite + only the Rust checks and desktop specs this change reaches
 npm run verify:full                   # everything: unit, Rust, build, smoke and the whole desktop suite
 node e2e/run-all.mjs --schedule=classified   # exclusive specs run completely alone, after the parallel-safe pool drains
 ```
 
-**Neither verify command is milestone or release acceptance.** Their report says so and keeps four lists apart: executed, reused (the
-build), skipped (with the reason) and outstanding. Mutation checks, performance and memory measurements and the hosted release gate are
-separate gates.
+The targeted mode resolves the supplied ref to a commit and prints the plan before execution. Use the last validated commit to include later commits and working-tree changes. Use `--since=HEAD` when reviewing uncommitted edits. Its desktop estimate uses recorded shard weights and excludes build and setup time. It stops before starting commands when it selects a full suite, a broad Rust check, or a desktop selection estimated at five minutes or more. Use `--allow-long` after the owner approves the displayed scope.
 
-*Selection* (`e2e/affected-map.json`, `e2e/lib/affected.mjs`) is conservative. A file narrows the selection only through an explicit
-rule; shared UI infrastructure, the invocation wrapper, persistence, build configuration, the harness and the runner select every
-spec, and so does any file the map does not know (new, deleted and renamed files included, judged by both paths). A native Ask the
-Vault file selects the Ask the Vault specs and also lists the Rust and TypeScript contract checks, because import analysis cannot see
-across that boundary. Today only the Ask the Vault area is mapped, so most other changes select the whole suite; add an area to the map
-only after reading what its specs exercise.
+Milestone and release acceptance use their own gates. Verification reports show executed checks, reused builds, skipped checks, and checks still due. Copy the original `target/e2e-last-run.json` to the implementation evidence folder before the next desktop run replaces it. Keep the original command, inputs and run conditions with any result carried forward, and report it as reused evidence.
+
+*Selection* (`e2e/affected-map.json`, `e2e/lib/affected.mjs`) checks audited unit test inputs first, then the reviewed desktop rules. Shared UI infrastructure, the invocation wrapper, persistence, build configuration, the harness, the runner, and unknown files select every spec. The selector considers both paths of a rename and the old path of a deletion. Cross-language fixtures can select both Rust and Vitest checks. Narrow a production rule after reviewing its consumers and the specs that cover them.
 
 *Classification* (`e2e/spec-classification.json`, generated by `node e2e/classify-specs.mjs`; `--check` verifies it is current): a spec
 whose source or imported helpers touch OS foreground, focus-sensitive menus, the pointer, the keyboard, window state or the clipboard is
@@ -276,7 +273,7 @@ change, run the unit tests first, then smoke and the affected E2E specs against
 the current compiled app:
 
 ```
-npm test
+npm test -- <test-path>
 npm run e2e:smoke
 npm run e2e -- --spec=75,77
 npm run e2e -- --spec=budget_rollover,month_review
