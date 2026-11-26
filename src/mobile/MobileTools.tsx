@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { ChartNoAxesCombined, FlaskConical, Landmark } from "lucide-react";
 import type { Accumulation, MobileSnapshotV1 } from "./mobileSnapshotTypes";
 import { MenuSelect } from "../shared/ui/MenuSelect";
-import { Card, Line, MobileMonthField } from "./MobileShared";
+import { Card, Line, MobileMetric, MobileMonthField } from "./MobileShared";
 import { projectGoal } from "../shared/lib/projections";
 import { combineProjections, monthsUntil, summarizeAccumulation, validatePlanForm, type AccountSummary } from "../shared/lib/accumulation";
 import { goalPlan } from "../shared/lib/goalPlan";
@@ -26,7 +27,24 @@ export function MobileTools({ snapshot: s, hidden }: {
     hidden: boolean;
 }) {
     const [tool, setTool] = useState("savings");
-    return <><p>What-if scenarios stay in this view and are discarded when you switch profiles or receive a new snapshot. They never change your desktop data.</p><MenuSelect ariaLabel="Calculator" value={tool} onChange={setTool} options={[{ value: "savings", label: "Savings & investment growth" }, { value: "accumulation", label: "Account accumulation & withdrawals" }, { value: "combined", label: "Combined accumulation" }, { value: "debt", label: "Debt payoff" }, { value: "forecast", label: "Cash flow forecast" }, { value: "goals", label: "Goals & savings plans" }, { value: "loan", label: "Loan payment" }]}/>{tool === "savings" ? <Savings hidden={hidden}/> : tool === "loan" ? <Loan hidden={hidden}/> : tool === "debt" ? <Debt snapshot={s} hidden={hidden}/> : tool === "forecast" ? <CashForecast snapshot={s} hidden={hidden}/> : tool === "goals" ? <Goals snapshot={s} hidden={hidden}/> : tool === "accumulation" ? <>{s.calculators.accumulation.map(a => <AccountPlan key={a.accountId} snapshot={s} data={a} hidden={hidden}/>)}{s.calculators.accumulation.length === 0 && <p>No accumulation accounts saved.</p>}</> : <Combined snapshot={s} hidden={hidden}/>}<Card title="Saved recurring totals"><Line label="Monthly income" value={s.calculators.recurring.monthlyIncome} hidden={hidden}/><Line label="Monthly expense" value={s.calculators.recurring.monthlyExpense} hidden={hidden}/><Line label="Annual income" value={s.calculators.recurring.annualIncome} hidden={hidden}/><Line label="Annual expense" value={s.calculators.recurring.annualExpense} hidden={hidden}/><p>Saved recurring totals may include canceled items. Forecasts use the active dated schedule.</p></Card></>;
+    return <>
+        <Card title="Try a what-if" icon={<FlaskConical size={19} aria-hidden="true"/>} className="mobile-tools-picker">
+            <p>Try different numbers. Scenarios stay on this screen and reset when you switch profiles or refresh the snapshot.</p>
+            <MenuSelect ariaLabel="Calculator" value={tool} onChange={setTool} options={[{ value: "savings", label: "Savings & investment growth" }, { value: "accumulation", label: "Account accumulation & withdrawals" }, { value: "combined", label: "Combined accumulation" }, { value: "debt", label: "Debt payoff" }, { value: "forecast", label: "Cash flow forecast" }, { value: "goals", label: "Goals & savings plans" }, { value: "loan", label: "Loan payment" }]}/>
+        </Card>
+        {tool === "savings" ? <Savings hidden={hidden}/> : tool === "loan" ? <Loan hidden={hidden}/> : tool === "debt" ? <Debt snapshot={s} hidden={hidden}/> : tool === "forecast" ? <CashForecast snapshot={s} hidden={hidden}/> : tool === "goals" ? <Goals snapshot={s} hidden={hidden}/> : tool === "accumulation" ? <>
+            {s.calculators.accumulation.map(a => <AccountPlan key={a.accountId} snapshot={s} data={a} hidden={hidden}/>)}
+            {s.calculators.accumulation.length === 0 && <p>No accumulation accounts saved.</p>}
+        </> : <Combined snapshot={s} hidden={hidden}/>}
+        <details className="mobile-more-reports">
+            <summary>Saved recurring totals</summary>
+            <Line label="Monthly income" value={s.calculators.recurring.monthlyIncome} hidden={hidden}/>
+            <Line label="Monthly expense" value={s.calculators.recurring.monthlyExpense} hidden={hidden}/>
+            <Line label="Annual income" value={s.calculators.recurring.annualIncome} hidden={hidden}/>
+            <Line label="Annual expense" value={s.calculators.recurring.annualExpense} hidden={hidden}/>
+            <p>Saved recurring totals may include canceled items. Forecasts use the active dated schedule.</p>
+        </details>
+    </>;
 }
 function Savings({ hidden }: {
     hidden: boolean;
@@ -42,7 +60,14 @@ function Savings({ hidden }: {
     catch (e) {
         error = e;
     }
-    return <Card title="Savings & investment growth">{!hidden && <div className="mobile-form"><Field label="Starting balance" value={start} onChange={setStart}/><Field label="Monthly contribution" value={monthly} onChange={setMonthly}/><Field label="Annual return (%)" value={rate} onChange={setRate}/><Field label="Years" value={years} onChange={setYears}/></div>}{error ? <Failure error={error}/> : <><Line label="Projected balance" value={points[points.length - 1]?.balance ?? null} hidden={hidden}/><details><summary>Yearly projection</summary>{points.map(p => <Line key={p.year} label={`Year ${p.year}`} value={p.balance} hidden={hidden}/>)}</details></>}<p>Monthly compounding with contributions at month end. Returns are assumptions, before fees and taxes.</p></Card>;
+    return <Card title="Savings & investment growth" icon={<ChartNoAxesCombined size={19} aria-hidden="true"/>}>
+        {!hidden && <div className="mobile-form"><Field label="Starting balance" value={start} onChange={setStart}/><Field label="Monthly contribution" value={monthly} onChange={setMonthly}/><Field label="Annual return (%)" value={rate} onChange={setRate}/><Field label="Years" value={years} onChange={setYears}/></div>}
+        {error ? <Failure error={error}/> : <>
+            <div className="mobile-result"><MobileMetric label="Projected balance" value={points.at(-1)?.balance ?? null} hidden={hidden}/></div>
+            <details><summary>Yearly projection</summary>{points.map(p => <Line key={p.year} label={`Year ${p.year}`} value={p.balance} hidden={hidden}/>)}</details>
+        </>}
+        <p className="mobile-muted">Monthly compounding with contributions at month end. Returns are assumptions, before fees and taxes.</p>
+    </Card>;
 }
 function Loan({ hidden }: {
     hidden: boolean;
@@ -55,7 +80,15 @@ function Loan({ hidden }: {
     catch (e) {
         error = e;
     }
-    return <Card title="Loan payment">{!hidden && <div className="mobile-form"><Field label="Principal" value={principal} onChange={setPrincipal}/><Field label="APR (%)" value={rate} onChange={setRate}/><Field label="Term (whole years)" value={years} onChange={setYears}/></div>}{error ? <Failure error={error}/> : result && <><Line label="Monthly payment" value={result.monthly} hidden={hidden}/><Line label="Total interest" value={result.interest} hidden={hidden}/><Line label="Total paid" value={result.total} hidden={hidden}/></>}<p>Fixed-rate monthly amortization. Fees, taxes and insurance are excluded. Display rounds to cents; actual lender rounding can vary.</p></Card>;
+    return <Card title="Loan payment" icon={<Landmark size={19} aria-hidden="true"/>}>
+        {!hidden && <div className="mobile-form"><Field label="Principal" value={principal} onChange={setPrincipal}/><Field label="APR (%)" value={rate} onChange={setRate}/><Field label="Term (whole years)" value={years} onChange={setYears}/></div>}
+        {error ? <Failure error={error}/> : result && <>
+            <div className="mobile-result"><MobileMetric label="Monthly payment" value={result.monthly} hidden={hidden}/></div>
+            <Line label="Total interest" value={result.interest} hidden={hidden}/>
+            <Line label="Total paid" value={result.total} hidden={hidden}/>
+        </>}
+        <p className="mobile-muted">Fixed payments. Fees, taxes and insurance are excluded. Actual lender rounding can vary.</p>
+    </Card>;
 }
 function Debt({ snapshot: s, hidden }: {
     snapshot: MobileSnapshotV1;

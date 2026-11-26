@@ -16,9 +16,35 @@ describe("read-only mobile viewer", () => {
     const snapshot = parseMobileSnapshot(JSON.stringify(fixture));
     beforeEach(() => { localStorage.clear(); container = document.createElement("div"); document.body.append(container); root = createRoot(container); });
     afterEach(() => { act(() => root.unmount()); container.remove(); });
-    const click = (label: string) => act(() => { const button = [...container.querySelectorAll("button")].find(b => b.textContent === label || b.getAttribute("aria-label") === label); if (!button)
+    const click = (label: string) => act(() => { const button = [...container.querySelectorAll("button")].find(b => b.textContent?.trim() === label || b.getAttribute("aria-label") === label); if (!button)
         throw new Error(label); button.click(); });
     const render = () => act(() => root.render(<MobileViewer snapshots={[snapshot, { ...snapshot, profile: { ...snapshot.profile, id: "second", name: "Second" }, accounts: [], budgets: [] }]}/>));
+    it("keeps Overview to three accounts and remembers selections per profile", () => {
+        const second = { ...snapshot, profile: { ...snapshot.profile, id: "second", name: "Second" } };
+        const show = () => act(() => root.render(<MobileViewer snapshots={[snapshot, second]}/>));
+        const names = () => [...container.querySelectorAll(".mobile-account-preview .mobile-account-name strong")].map(el => el.textContent);
+        show();
+        const initial = names();
+        expect(initial).toHaveLength(3);
+        expect(container.querySelector(".mobile-account-preview")?.textContent).not.toContain("Loan");
+        const picker = container.querySelector<HTMLDetailsElement>(".mobile-account-picker")!;
+        act(() => { picker.open = true; picker.dispatchEvent(new Event("toggle")); });
+        const choices = [...picker.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
+        const choice = (name: string) => choices.find(input => input.labels?.[0].textContent?.trim().startsWith(name))!;
+        expect(choice("Loan").disabled).toBe(true);
+        act(() => choice("Checking").click());
+        act(() => choice("Loan").click());
+        expect(names()).toEqual(["Savings", "Credit", "Loan"]);
+        act(() => { root.unmount(); });
+        root = createRoot(container);
+        show();
+        expect(names()).toEqual(["Savings", "Credit", "Loan"]);
+        click(`Profile: ${snapshot.profile.name}`);
+        click("Second");
+        expect(names()).toEqual(initial);
+        click("See all accounts");
+        expect(container.textContent).toContain("Investment");
+    });
     it("renders every account and category, and resets page state when changing profiles", () => {
         render();
         click("Accounts");
@@ -31,6 +57,57 @@ describe("read-only mobile viewer", () => {
         click("Second");
         expect(container.querySelector("h1")?.textContent).toBe("Your money at a glance");
         expect(container.textContent).not.toContain(snapshot.accounts[0]?.name);
+    });
+    it("shows the credit card amount owed as its balance and keeps available credit distinct", () => {
+        render();
+        expect(container.textContent).toContain("Credit card balance");
+        expect(container.textContent).toContain("$400.00");
+        expect(container.textContent).not.toContain("Ledger balance");
+        click("Accounts");
+        const card = [...container.querySelectorAll("details")].find(el => el.querySelector("summary")?.textContent?.includes("Credit card balance"));
+        expect(card?.querySelector("summary")?.textContent).toContain("$400.00");
+        expect(card?.querySelector("summary")?.textContent).not.toContain("$4,600.00");
+        expect(card?.textContent).toContain("Available credit$4,600.00");
+        expect(card?.textContent).toContain("Credit limit$5,000.00");
+        click("Hide amounts");
+        expect(container.innerHTML).not.toMatch(/\$[\d,]+\.\d{2}/);
+    });
+    it("shows recorded income on Overview and keeps planned income in Budget", () => {
+        const s = structuredClone(snapshot);
+        const budget = s.budgets.find(item => item.month === s.asOfDate.slice(0, 7))!;
+        budget.actualIncome = "1200";
+        budget.lines.find(line => line.group === "income")!.effectiveBudget = "2400";
+        act(() => root.render(<MobileViewer snapshots={[s]}/>));
+        expect(container.textContent).toContain("Income received this month$1,200.00");
+        expect(container.querySelector(".mobile-overview-metrics")?.textContent).not.toContain("$2,400.00");
+        click("Budget");
+        expect(container.textContent).toContain("Planned income$2,400.00");
+    });
+    it("explains saved prices without exposing internal reason codes", () => {
+        const s = structuredClone(snapshot);
+        s.sections.investments.reason = "saved_prices_without_per_position_timestamps";
+        act(() => root.render(<MobileViewer snapshots={[s]}/>));
+        click("Accounts");
+        expect(container.textContent).toContain("Prices from your saved snapshot");
+        expect(container.textContent).toContain("Price update times aren’t available");
+        expect(container.textContent).not.toContain("saved_prices_without_per_position_timestamps");
+    });
+    it("puts the budget overview first and retains plan detail without using gross spending as category actuals", () => {
+        const s = structuredClone(snapshot);
+        const budget = s.budgets.find(item => item.month === "2026-10")!;
+        const expense = budget.lines.find(line => line.group !== "income")!;
+        expense.actual = "100.00";
+        expense.remaining = "500.00";
+        budget.actualSpending = "225.00";
+        budget.unbudgetedSpending = "75.00";
+        act(() => root.render(<MobileViewer snapshots={[s]}/>));
+        click("Budget");
+        expect(container.textContent).toContain("Left in the spending plan");
+        expect(container.textContent).toContain("Category spending$100.00");
+        expect(container.textContent).toContain("Spending recorded$225.00");
+        expect(container.textContent).toContain("Unbudgeted spending$75.00");
+        expect(container.textContent).toContain("Budget details");
+        expect(container.textContent).not.toContain("Status: none");
     });
     it("redacts values from chart accessibility labels and month details", () => {
         render();
@@ -151,10 +228,33 @@ describe("read-only mobile viewer", () => {
         click("Hide amounts");expect(container.innerHTML).not.toMatch(/\$[\d,]+\.\d{2}/);
         expect(container.querySelector("input")).toBeNull();
     });
-    it("does not invent heatmap days when no report history was captured",()=>{
+    it("shows just three snapshot months of net worth and seven calendar days of portfolio records", () => {
+        const s = structuredClone(snapshot);
+        s.history.netWorth = ["2026-07-31", "2026-08-31", "2026-09-30", "2026-10-04"].map(date => ({ ...snapshot.history.netWorth[0], date }));
+        s.history.portfolio = ["2026-09-27", "2026-09-28", "2026-10-01", "2026-10-04"].map(date => ({ ...snapshot.history.portfolio[0], date }));
+        act(() => root.render(<MobileViewer snapshots={[s]}/>));
+        click("Reports");
+        const report = (title: string) => [...container.querySelectorAll("section")].find(el => el.querySelector(":scope > h2")?.textContent === title)!;
+        expect([...report("Net worth history").querySelectorAll("time")].map(el => el.dateTime)).toEqual(["2026-10-04", "2026-09-30", "2026-08-31"]);
+        expect([...report("Portfolio history").querySelectorAll("time")].map(el => el.dateTime)).toEqual(["2026-10-04", "2026-10-01", "2026-09-28"]);
+        expect(report("Net worth history").querySelector("[aria-label='Net worth by saved date']")).not.toBeNull();
+        expect(report("Portfolio history").querySelector("[aria-label='Portfolio value by saved date']")).not.toBeNull();
+        click("Hide amounts");
+        expect(report("Net worth history").querySelector("svg[role='img']")).toBeNull();
+        expect(report("Portfolio history").querySelector("svg[role='img']")).toBeNull();
+        expect(container.innerHTML).not.toMatch(/\$[\d,]+\.\d{2}/);
+        click("Report range: 12 months");
+        click("Last month");
+        expect(report("Net worth history").querySelectorAll("time")).toHaveLength(3);
+        expect(report("Portfolio history").querySelectorAll("time")).toHaveLength(3);
+        expect(container.textContent).not.toMatch(/heatmap/i);
+    });
+    it("shows empty history messages when no recent points were recorded",()=>{
         const s=parseMobileSnapshot(JSON.stringify(emptyFixture));
+        s.history.portfolio = [{ date: "2026-08-01", value: "100" }];
         act(()=>root.render(<MobileViewer snapshots={[s]}/>));click("Reports");
         expect(container.textContent).toContain("No months available");
-        expect(container.querySelectorAll(".mobile-heatmap button")).toHaveLength(0);
+        expect(container.textContent).toContain("No net worth history saved in the last three months.");
+        expect(container.textContent).toContain("No portfolio values saved in the last seven days.");
     });
 });

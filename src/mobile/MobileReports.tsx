@@ -1,12 +1,13 @@
 import { useState } from "react";
 import type { ComparisonResult, MobileSnapshotV1, MonthTotals } from "./mobileSnapshotTypes";
 import { MenuSelect } from "../shared/ui/MenuSelect";
-import { Amount, Card, Line, Percent } from "./MobileShared";
+import { formatDisplayDate } from "../shared/lib/format";
+import { Amount, Card, Line, MobileMetric, Percent } from "./MobileShared";
+import { LineChart } from "../shared/ui/charts";
 import { addMoney, aggregateBreakdown, monthLabel, selectedMonths, subtract, averageMoney, units, money as moneyLabel } from "./mobileViewModel";
 import { buildSankeyData, layoutSankey, sankeyRibbonPath, spreadLabelPositions } from "../shared/lib/sankey";
 import { donutSlices } from "./mobileCharts";
-import { buildHeatmapWeeks, heatmapBucket, heatmapScaleMax } from "../shared/ui/heatmap";
-import { monthEndDate, presetRange, type RangePreset } from "../shared/lib/reportRange";
+import { presetRange, type RangePreset } from "../shared/lib/reportRange";
 import { forecast } from "./mobileCalculators";
 function MonthlyChart({ months, hidden }: {
     months: MonthTotals[];
@@ -42,30 +43,71 @@ export function MobileReports({ snapshot: s, hidden, onBudget }: {
         setFrom(`${range.from.year}-${String(range.from.month).padStart(2, "0")}`);
         setTo(`${range.to.year}-${String(range.to.month).padStart(2, "0")}`);
     } };
-    const end = to === s.asOfDate.slice(0, 7) ? s.asOfDate : monthEndDate({ year: Number(to.slice(0, 4)), month: Number(to.slice(5)) });
-    const daily = s.history.daily.filter(d => d.date >= from + "-01" && d.date <= end);
-    const weeks = months.length === 0 ? [] : buildHeatmapWeeks(daily.map(d => ({ date: d.date, amount: Number(d.spending) })), from + "-01", end), max = heatmapScaleMax(daily.map(d => Number(d.spending)));
-    const [selectedDay, setSelectedDay] = useState("");
     const yearly = new Map<string, MonthTotals[]>();
     for (const m of months) {
         const k = m.month.slice(0, 4);
         yearly.set(k, [...(yearly.get(k) ?? []), m]);
     }
     const coverage = all.length > 0 && from >= all[0].month && to <= last;
-    return <><MenuSelect ariaLabel="Report range" value={period} onChange={chooseRange} options={[{ value: "3", label: "3 months" }, { value: "6", label: "6 months" }, { value: "12", label: "12 months" }, { value: "year_to_date", label: "Year to date" }, { value: "last_month", label: "Last month" }, { value: "current_month", label: "Current month" }, { value: "custom", label: "Custom range" }]}/>{period === "custom" && <div className="mobile-grid"><MenuSelect ariaLabel="From month" value={from} onChange={v => { setFrom(v); if (v > to)
+    return <>
+    <RecentBalanceReports snapshot={s} hidden={hidden}/>
+    <div className="mobile-report-range"><h2>Income and spending reports</h2><MenuSelect ariaLabel="Report range" value={period} onChange={chooseRange} options={[{ value: "3", label: "3 months" }, { value: "6", label: "6 months" }, { value: "12", label: "12 months" }, { value: "year_to_date", label: "Year to date" }, { value: "last_month", label: "Last month" }, { value: "current_month", label: "Current month" }, { value: "custom", label: "Custom range" }]}/></div>{period === "custom" && <div className="mobile-grid"><MenuSelect ariaLabel="From month" value={from} onChange={v => { setFrom(v); if (v > to)
         setTo(v); }} options={all.map(m => ({ value: m.month, label: monthLabel(m.month) }))}/><MenuSelect ariaLabel="Through month" value={to} onChange={v => { setTo(v); if (v < from)
         setFrom(v); }} options={all.map(m => ({ value: m.month, label: monthLabel(m.month) }))}/></div>}<p>{monthLabel(from)} – {monthLabel(to)} · Actuals through {s.history.actualThrough}</p>{!coverage && <p className="mobile-notice">This range is not fully covered by the saved history. Totals below use only saved months.</p>}<Card title="Income & spending">{months.length === 0 ? <p>No months available in this range.</p> : <MonthlyChart key={`${from}/${to}`} months={months.length <= 12 ? months : months.slice(-12)} hidden={hidden}/>} {months.length > 12 && <p>Chart shows the last 12 selected months; range totals include all selected months.</p>}<Line label="Total income" value={income} hidden={hidden}/><Line label="Total spending" value={spending} hidden={hidden}/><Line label="Net" value={subtract(income, spending)} hidden={hidden}/><p>Share of income left <Percent value={Number(income) > 0 ? (Number(income) - Number(spending)) / Number(income) * 100 : null} hidden={hidden}/></p><Line label="Average monthly spending" value={averageMoney(months.map(m=>m.spending))} hidden={hidden}/></Card>
     <Card title="Where it went"><CategoryDonut categories={categoryRows} hidden={hidden}/><details><summary>Income to spending flow</summary><Sankey income={income} categories={categoryRows} hidden={hidden}/></details>{categoryRows.length === 0 && <p>No category spending in this range.</p>}{categoryRows.map(([name, value]) => <details key={name}><summary><span>{name}</span><Amount value={value} hidden={hidden}/></summary><h3>Category by month</h3>{months.map(m => <Line key={m.month} label={monthLabel(m.month)} value={addMoney(s.history.categories.filter(r => r.month === m.month && r.category === name).map(r => r.spending))} hidden={hidden}/>)}</details>)}</Card>
-    <Card title="Daily spending heatmap"><MenuSelect ariaLabel="View a day" value={selectedDay} placeholder="Select a day" onChange={setSelectedDay} options={weeks.flat().filter(d=>d.inRange).map(d=>({value:d.date,label:d.date}))}/>{hidden ? <p>Amounts hidden</p> : <div className="mobile-heatmap" aria-label="Select a day to view spending">{weeks.map((week, i) => <div key={i}>{week.map(d => <button key={d.date} disabled={!d.inRange} data-bucket={heatmapBucket(d.amount, max)} aria-label={`${d.date}: ${moneyLabel(d.amount)}`} onClick={() => setSelectedDay(d.date)}>{d.date.slice(8)}</button>)}</div>)}</div>}{selectedDay >= from + "-01" && selectedDay <= end && <Line label={selectedDay} value={daily.find(d => d.date === selectedDay)?.spending ?? "0"} hidden={hidden}/>}</Card>
+    <details className="mobile-more-reports">
+    <summary>More reports</summary>
     <Card title="Year by year">{[...yearly].map(([year, rows]) => { const inc = addMoney(rows.map(r => r.income)), spend = addMoney(rows.map(r => r.spending)); return <details key={year}><summary>{year} · {rows.length} saved months</summary><Line label="Income" value={inc} hidden={hidden}/><Line label="Spending" value={spend} hidden={hidden}/><Line label="Net" value={subtract(inc, spend)} hidden={hidden}/><p>Savings rate <Percent value={Number(inc) > 0 ? Number(subtract(inc, spend)) / Number(inc) * 100 : null} hidden={hidden}/></p></details>; })}</Card>
     <Card title="Savings rate trend">{months.map(m => <div key={m.month} className="mobile-line"><span>{monthLabel(m.month)}</span><strong><Percent value={m.savingsRatePct} hidden={hidden}/></strong></div>)}</Card>
     {(["accounts", "members", "tags", "merchants"] as const).map(kind => <Card key={kind} title={kind === "merchants" ? "Top merchants" : `Spending by ${kind === "members" ? "member" : kind === "tags" ? "tag" : "account"}`}>{kind === "tags" && <p>Tag totals overlap when transactions have multiple tags and include tagged transfers.</p>}{aggregateBreakdown(s.history[kind], keys).slice(0, kind === "merchants" ? 8 : undefined).map(r => <div key={r.label}><Line label={r.label} value={r.spending} hidden={hidden}/>{kind !== "merchants" && kind !== "tags" && <Line label="Income" value={r.income} hidden={hidden}/>}</div>)}{s.history[kind].filter(r => keySet.has(r.month)).length === 0 && <p>No saved aggregates for this range.</p>}</Card>)}
-    <Card title="Net worth history">{s.history.netWorth.filter(p => p.date >= from + "-01" && p.date <= end).map(p => <details key={p.date}><summary><span>{p.date}</span><Amount value={p.netWorth} hidden={hidden}/></summary><p>{p.valuationBasis === "current_saved_values" ? "Approximation using current saved property and investment values, not historical market quotes." : "Recorded values"}</p><Line label="Cash" value={p.cash} hidden={hidden}/><Line label="Debt contribution" value={p.debtContribution} hidden={hidden}/><Line label="Investments" value={p.investments} hidden={hidden}/><Line label="Property" value={p.propertyValue} hidden={hidden}/></details>)}{s.history.netWorth.length === 0 && <p>No recorded history.</p>}</Card>
-    <Card title="Net worth by member"><p>Snapshot date {s.asOfDate}; independent of the report range.</p>{s.history.memberNetWorth.map((m, i) => <Line key={i} label={m.label} value={m.value} hidden={hidden}/>)}</Card>
-    <Card title="Portfolio history">{s.history.portfolio.filter(p => p.date >= from + "-01" && p.date <= end).map(p => <Line key={p.date} label={p.date} value={p.value} hidden={hidden}/>)}{s.history.portfolio.length === 0 && <p>No recorded portfolio history.</p>}</Card>
+    <Card title="Net worth by member"><p>As of {formatDisplayDate(s.asOfDate)}.</p>{s.history.memberNetWorth.map((m, i) => <Line key={i} label={m.label} value={m.value} hidden={hidden}/>)}</Card>
     <Card title="Cash flow and debt summary"><Line label="Cash" value={s.overview.cash} hidden={hidden}/><Line label="Debt contribution" value={s.overview.debtContribution} hidden={hidden}/>{s.sections.calculators.state === "unavailable" ? <p>{s.sections.calculators.reason}</p> : <ForecastSummary snapshot={s} hidden={hidden}/>}<p>Detailed scenarios are in Calculators.</p>{onBudget && <button className="mobile-link" onClick={onBudget}>View this month’s budget →</button>}</Card>
     <Comparisons snapshot={s} hidden={hidden}/>
+    </details>
   </>;
+}
+
+function RecentBalanceReports({ snapshot, hidden }: { snapshot: MobileSnapshotV1; hidden: boolean }) {
+    const { asOfDate, history } = snapshot;
+    const firstMonth = new Date(`${asOfDate.slice(0, 7)}-01T00:00:00Z`);
+    firstMonth.setUTCMonth(firstMonth.getUTCMonth() - 2);
+    const firstDay = new Date(`${asOfDate}T00:00:00Z`);
+    firstDay.setUTCDate(firstDay.getUTCDate() - 6);
+    const recent = <T extends { date: string }>(rows: T[], from: Date) => {
+        const start = from.toISOString().slice(0, 10);
+        return rows.filter(row => row.date >= start && row.date <= asOfDate).sort((a, b) => b.date.localeCompare(a.date));
+    };
+    const netWorth = recent(history.netWorth, firstMonth);
+    const portfolio = recent(history.portfolio, firstDay);
+    const chartDay = (date: string) => formatDisplayDate(date, new Date(`${date}T12:00:00`));
+    return <>
+        <Card title="Net worth history" className="mobile-history-card">
+            <p className="mobile-muted">Last three months through {formatDisplayDate(asOfDate)}</p>
+            {netWorth.length > 0 && <MobileMetric label="Latest net worth" value={netWorth[0].netWorth} hidden={hidden}/>}
+            {!hidden && netWorth.length > 1 && <LineChart points={[...netWorth].reverse().map(point => ({ label: chartDay(point.date), value: Number(point.netWorth) }))} height={120} caption="Net worth by saved date"/>}
+            {netWorth.length === 0 ? <p>No net worth history saved in the last three months.</p> : netWorth.map(point => <details key={point.date}>
+                <summary><span><time dateTime={point.date}>{formatDisplayDate(point.date)}</time></span><Amount value={point.netWorth} hidden={hidden}/></summary>
+                <p>{point.valuationBasis === "current_saved_values" ? "Estimated using the property and investment values saved in this snapshot." : "Recorded values"}</p>
+                <Line label="Cash" value={point.cash} hidden={hidden}/>
+                <Line label="Debt contribution" value={point.debtContribution} hidden={hidden}/>
+                <Line label="Investments" value={point.investments} hidden={hidden}/>
+                <Line label="Property" value={point.propertyValue} hidden={hidden}/>
+            </details>)}
+        </Card>
+        <Card title="Portfolio history" className="mobile-history-card">
+            <p className="mobile-muted">Last seven days through {formatDisplayDate(asOfDate)}</p>
+            {portfolio.length === 0 ? <p>No portfolio values saved in the last seven days.</p> : <>
+                <MobileMetric label="Latest saved value" value={portfolio[0].value} hidden={hidden}/>
+                {!hidden && portfolio.length > 1 && <LineChart points={[...portfolio].reverse().map(point => ({ label: chartDay(point.date), value: Number(point.value) }))} height={120} maxLabels={4} caption="Portfolio value by saved date"/>}
+                <details className="mobile-report-values">
+                    <summary>Saved values</summary>
+                    {portfolio.map(point => <div className="mobile-line" key={point.date}>
+                        <time dateTime={point.date}>{formatDisplayDate(point.date)}</time><strong><Amount value={point.value} hidden={hidden}/></strong>
+                    </div>)}
+                </details>
+            </>}
+        </Card>
+    </>;
 }
 /** "Where it went": the donut and, under it, a key naming each slice with its amount and share, since
  * a phone has no hover to reveal a slice's figures. */

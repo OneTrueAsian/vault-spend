@@ -5,10 +5,19 @@ export function Amount({ value, hidden }: {
     value: string | number | null;
     hidden: boolean;
 }) { return <span>{money(value, hidden)}</span>; }
-export function Card({ title, children }: {
+export function Card({ title, children, icon, className }: {
     title: string;
     children: ReactNode;
-}) { return <section className="mobile-card"><h2>{title}</h2>{children}</section>; }
+    icon?: ReactNode;
+    className?: string;
+}) { return <section className={className ? `mobile-card ${className}` : "mobile-card"}><h2>{icon && <span className="mobile-card-icon">{icon}</span>}{title}</h2>{children}</section>; }
+export function MobileMetric({ label, value, hidden }: {
+    label: string;
+    value: string | number | null;
+    hidden: boolean;
+}) {
+    return <div className="mobile-feature-amount"><span>{label}</span><strong><Amount value={value} hidden={hidden}/></strong></div>;
+}
 export function Line({ label, value, hidden }: {
     label: string;
     value: string | number | null;

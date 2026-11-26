@@ -1,4 +1,4 @@
-import type { MonthBreakdown, MobileSnapshotV1 } from "./mobileSnapshotTypes";
+import type { BudgetMonth, MonthBreakdown, MobileSnapshotV1 } from "./mobileSnapshotTypes";
 const SCALE = 1000000000000n;
 /** Snapshot decimals are exact through twelve places. Never sum monetary strings as doubles. */
 export function units(value: string): bigint {
@@ -47,6 +47,14 @@ export function aggregateBreakdown(rows: MonthBreakdown[], months: string[]) {
 }
 export function currentBudget(snapshot: MobileSnapshotV1) {
     return snapshot.budgets.find(b => b.month === snapshot.asOfDate.slice(0, 7));
+}
+export function budgetSpendingPlan(budget: BudgetMonth) {
+    const expenses = budget.lines.filter(line => line.group !== "income");
+    return expenses.length ? {
+        planned: addMoney(expenses.map(line => line.effectiveBudget)),
+        actual: addMoney(expenses.map(line => line.actual)),
+        remaining: addMoney(expenses.map(line => line.remaining)),
+    } : null;
 }
 export function monthLabel(month: string): string {
     return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(month + "-01T00:00:00Z"));
