@@ -35,11 +35,30 @@ function fixture(change = () => {}, { contracts = true, attempt = 1 } = {}) {
   json(path.join(dir, "manifest.json"), state.manifest);
   const out = path.join(dir, "summary.json");
   const args = ["tools/aggregate-shard-results.mjs", path.join(dir, "evidence"), path.join(dir, "manifest.json"), "6", String(attempt), out, "--checks", path.join(dir, "checks"), "--contracts", contracts ? "yes" : "no"];
-  const result = spawnSync(process.execPath, args, { encoding: "utf8", env: { ...process.env, GITHUB_RUN_ID: RUN, NEEDS_JSON: JSON.stringify(state.needs), ...state.env } });
+  const { GITHUB_STEP_SUMMARY: _surroundingJobsSummary, ...inherited } = process.env; // VS-130: never the runner's own summary file
+  const result = spawnSync(process.execPath, args, { encoding: "utf8", env: { ...inherited, GITHUB_RUN_ID: RUN, NEEDS_JSON: JSON.stringify(state.needs), ...state.env } });
   const summary = fs.existsSync(out) ? JSON.parse(fs.readFileSync(out, "utf8")) : undefined;
   fs.rmSync(dir, { recursive: true, force: true });
   return { status: result.status, text: result.stdout + result.stderr, summary };
 }
+// VS-130: on the hosted runner this file runs inside a job that has its own GITHUB_STEP_SUMMARY. The command appends its report there, so a fixture run
+// must never see that variable, or the fixture's made-up hashes and "PASSED" verdict land in the real job summary.
+test("a fixture run never writes into the surrounding job's own step summary", () => {
+  const live = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "live-summary-")), "step-summary.md");
+  const inherited = process.env.GITHUB_STEP_SUMMARY;
+  process.env.GITHUB_STEP_SUMMARY = live;
+  try { assert.equal(fixture().status, 0); } finally { if (inherited === undefined) delete process.env.GITHUB_STEP_SUMMARY; else process.env.GITHUB_STEP_SUMMARY = inherited; }
+  assert.equal(fs.existsSync(live), false, "the surrounding job's step summary was written to");
+  fs.rmSync(path.dirname(live), { recursive: true, force: true });
+});
+
+test("a step summary file given to the command on purpose still receives its report", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "own-summary-")), own = path.join(dir, "step-summary.md");
+  assert.equal(fixture(s => { s.env.GITHUB_STEP_SUMMARY = own; }).status, 0);
+  assert.match(fs.readFileSync(own, "utf8"), /Sharded desktop gate: PASSED/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 const refuses = (change, pattern, options) => { const r = fixture(change, options); assert.notEqual(r.status, 0, "must fail"); assert.match(r.text, pattern); assert.equal(r.summary?.ok, false); return r; };
 
 test("a clean gate passes and records the run id, every check record and every job result in the summary", () => {
