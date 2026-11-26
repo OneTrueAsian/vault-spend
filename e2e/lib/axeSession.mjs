@@ -37,6 +37,18 @@ export async function ensureAxe(browser, { source = SOURCE, version = VERSION, r
   }, version);
   if (!installed) throw new Error(`Axe ${version} did not load correctly in the current document`);
 }
+/** One readable line per violating node: rule, selector, contrast data (colours, ratio), element HTML and the elements axe saw behind it.
+ * Takes axe's violations (as returned through WebDriver) so a failed assertion shows the cause, not just the rule name. */
+export function describeAxeViolations(violations) {
+  return violations.flatMap(v => v.nodes.map(n => {
+    const data = n.any?.find(check => check.data?.contrastRatio !== undefined)?.data;
+    const related = n.any?.flatMap(check => check.relatedNodes ?? []).map(r => r.target.join(" ")).join(", ");
+    return [v.id, n.target.join(" "),
+      data && `fg ${data.fgColor} on bg ${data.bgColor}, ratio ${data.contrastRatio} (needs ${data.expectedContrastRatio}), ${data.fontSize} ${data.fontWeight}`,
+      related && `behind/related: ${related}`, n.html].filter(Boolean).join(" | ");
+  }));
+}
+
 /** Same maximum settle allowance as the old matrix sleep. Observe the real animation timeline and stable layout.
  * Intentional infinite progress spinners are not transitions to a stable state; the old snapshot also inspected them in motion. */
 export async function waitForVisualStability(browser) {

@@ -1,6 +1,6 @@
 import vm from "node:vm";
 import { describe, expect, it } from "vitest";
-import { ensureAxe } from "./axeSession.mjs";
+import { describeAxeViolations, ensureAxe } from "./axeSession.mjs";
 
 const version = "fixture-axe-1";
 const source = `window.axe = { version: ${JSON.stringify(version)}, run() { return Promise.resolve({ violations: [] }); } };`;
@@ -69,5 +69,24 @@ describe("Axe transport reuse, never skipped accessibility assertions", () => {
     await ensureAxe(a.browser, { source, version }); await ensureAxe(b.browser, { source, version });
     expect(a.calls.filter(c => c === "inject")).toHaveLength(1); expect(b.calls.filter(c => c === "inject")).toHaveLength(1);
     expect(a.realm().axe).not.toBe(b.realm().axe);
+  });
+});
+
+describe("Axe failure details", () => {
+  const contrast = { id: "color-contrast", nodes: [{
+    target: [".holding-import-drop > .field-hint"], html: '<p class="field-hint">Drop one CSV file here</p>',
+    any: [{ data: { fgColor: "#6b7280", bgColor: "#f0f5fb", contrastRatio: 4.1, expectedContrastRatio: "4.5:1", fontSize: "9.0pt (12px)", fontWeight: "normal" },
+      relatedNodes: [{ target: [".modal-overlay"], html: '<div class="modal-overlay">' }] }],
+  }] };
+  it("reports nothing when there are no violations", () => {
+    expect(describeAxeViolations([])).toEqual([]);
+  });
+  it("names the rule, selector, colours, ratio, element and what sits behind it", () => {
+    const [line] = describeAxeViolations([contrast]);
+    for (const part of ["color-contrast", ".holding-import-drop > .field-hint", "#6b7280", "#f0f5fb", "4.1", "4.5:1", "Drop one CSV file here", ".modal-overlay"]) expect(line).toContain(part);
+  });
+  it("still names a violation that carries no contrast data", () => {
+    const [line] = describeAxeViolations([{ id: "label", nodes: [{ target: ["#a"], html: "<input>" }] }]);
+    expect(line).toContain("label"); expect(line).toContain("#a"); expect(line).toContain("<input>");
   });
 });

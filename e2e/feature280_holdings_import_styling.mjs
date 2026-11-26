@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 import { launchApp, reclaimWindowFocus } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
+import { describeAxeViolations } from "./lib/axeSession.mjs";
 const output = process.env.VS_HOLDING_SHOTS || makeTempDir("holding-import-shots-");
 fs.mkdirSync(output, { recursive: true });
 const dbDir = await seedFixture(`cur.execute("INSERT INTO accounts (name,account_type,starting_balance) VALUES ('Retirement','investment','1000')")`);
@@ -13,8 +14,8 @@ const app = await launchApp({ dbDir });
 const b = app.browser;
 async function click(text) { await (await (await b.$("[role='dialog']")).$(`button=${text}`)).click(); }
 async function axe() {
-  const violations = await b.executeAsync(done => window.axe.run(document.querySelector('[role="dialog"]'), { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] } }).then(r => done(r.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target) })))));
-  assert.deepEqual(violations, []);
+  const violations = await b.executeAsync(done => window.axe.run(document.querySelector('[role="dialog"]'), { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] } }).then(r => done(r.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => ({ target: n.target, html: n.html, any: n.any.map(c => ({ data: c.data, relatedNodes: (c.relatedNodes || []).map(r => ({ target: r.target, html: r.html })) })) })) })))));
+  assert.deepEqual(describeAxeViolations(violations), []);
 }
 async function geometry() {
   const bounds = await b.execute(() => {
