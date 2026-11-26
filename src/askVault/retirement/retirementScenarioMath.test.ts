@@ -331,6 +331,9 @@ describe("R7 bounded computation cost", () => {
       for (let i = 0; i < 9; i++) { const start = performance.now(); expect(calculateRetirementScenario(structuredClone(value)).kind).toBe(outcome); times.push(performance.now() - start); }
       times.sort((x, y) => x - y);
       median = times[4];
+      // Kept on a pass too (VS-11), so how close runs come to 50 ms can be judged from the logs. Only groups that actually run are logged.
+      // Vitest's default reporter prints this for a failing test only; run with --reporter=verbose to see it on a pass.
+      console.log(`[retirement-timing] ${name} group ${attempt + 1}: median ${median.toFixed(2)} ms, samples ${times.map((t) => t.toFixed(2)).join(" ")} ms`);
     }
     expect(median).toBeLessThan(50);
   });
