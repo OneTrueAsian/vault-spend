@@ -18,6 +18,7 @@
 
 - When the user says they are about to reboot, or says 'stop' or 'end goal', stop immediately. Write a short handoff and do not start or restart tests.
 - Never claim a review, screenshot check or verification you did not actually perform. List exactly what was checked.
+- Check your own work before sending the owner anything to test or review. Do not hand over a build, link, fix or result until you have verified it yourself. For anything the owner will run or try on a device, first confirm the build under test contains the commit being tested (compare the executable and embedded asset timestamps with the commit, and check the built output for the change). Then exercise the changed behaviour yourself. The owner should not have to find problems you could have found.
 - When finishing a planning task, say explicitly: 'The plan is complete. Nothing has been implemented yet.' Also give the file path.
 - In Jira/Atlassian contexts, ask whether 'goal' means an Atlassian Goal or an Epic before creating anything.
 - When committing, stage only the files you changed if the checkout contains unrelated changes.
