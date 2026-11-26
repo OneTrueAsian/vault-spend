@@ -4,6 +4,10 @@ Vault Spend is a free, open-source desktop budgeting app for Windows and macOS. 
 
 **[Download Vault Spend for Windows or macOS](https://github.com/OneTrueAsian/vault-spend/releases/latest)**
 
+![Vault Spend Dashboard showing net worth, cash, debt, investments, and spending insights](docs/screenshots/dashboard.png)
+
+Screenshots use fictional practice data.
+
 ## Get started
 
 1. On the release page, open **Assets**. Run the `x64-setup.exe` installer on Windows. On macOS, open the `.dmg` and drag Vault Spend into Applications. Your computer may ask you to approve the installer or first launch.
@@ -16,6 +20,14 @@ Vault Spend is a free, open-source desktop budgeting app for Windows and macOS. 
 - See your net worth, forecast cash flow, plan debt payoff, and track investments.
 - Use **Ask the Vault** to explore questions like “What if I cut Groceries by $50 a month?”
 - Keep separate profiles and create automatic daily backups.
+
+### Budget
+
+![Vault Spend Budget showing planned and actual spending by category](docs/screenshots/budget.png)
+
+### Cash Flow
+
+![Vault Spend Cash Flow showing six months of spending and a 30-day balance forecast](docs/screenshots/cash-flow.png)
 
 ## Optional phone access
 
