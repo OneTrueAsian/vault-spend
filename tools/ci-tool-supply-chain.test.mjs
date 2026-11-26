@@ -26,7 +26,22 @@ test("every step that downloads the Edge driver checks it is signed by Microsoft
   }
 });
 
-test("the signature check of every driver step refuses an unsigned file and accepts a Microsoft-signed one", { skip: !POWERSHELL && "Windows PowerShell is required" }, () => {
+// The module path Windows PowerShell 5.1 builds for itself when it is not handed one.
+const WINDOWS_POWERSHELL_MODULES = [path.join(process.env.ProgramFiles ?? "C:\\Program Files", "WindowsPowerShell", "Modules"), path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "Modules")].join(";");
+
+// A step that runs under PowerShell 7 (shell: pwsh) hands its PSModulePath to every child it starts. Windows PowerShell 5.1 then finds PowerShell 7's
+// Security module first and cannot load it, so Get-AuthenticodeSignature fails (VS-123). This stands in for that module.
+function powerShell7ModuleFolder() {
+  const module = path.join(os.tmpdir(), "ps7-modules", "Microsoft.PowerShell.Security");
+  fs.mkdirSync(module, { recursive: true });
+  fs.writeFileSync(path.join(module, "Microsoft.PowerShell.Security.psd1"), "@{ ModuleVersion = '7.0.0.0'; PowerShellVersion = '7.0'; CmdletsToExport = @('Get-AuthenticodeSignature') }");
+  return path.dirname(module);
+}
+
+test("the signature check of every driver step refuses an unsigned file and accepts a Microsoft-signed one", { skip: !POWERSHELL && "Windows PowerShell is required" }, t => {
+  const inherited = process.env.PSModulePath;
+  process.env.PSModulePath = [powerShell7ModuleFolder(), inherited].filter(Boolean).join(";");
+  t.after(() => { if (inherited === undefined) delete process.env.PSModulePath; else process.env.PSModulePath = inherited; });
   const folder = path.join(os.tmpdir(), "edge-signature-check");
   fs.mkdirSync(folder, { recursive: true });
   const unsigned = path.join(folder, "msedgedriver.exe");
@@ -35,7 +50,7 @@ test("the signature check of every driver step refuses an unsigned file and acce
   assert.ok(downloads.length >= 2);
   for (const { step, where } of downloads) {
     const check = step.run.match(CHECK), snippet = check[0];
-    const attempt = file => spawnSync(POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", `$ErrorActionPreference='Stop'; $${check[1]} = '${file}'; ${snippet}`], { encoding: "utf8" });
+    const attempt = file => spawnSync(POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", `$ErrorActionPreference='Stop'; $${check[1]} = '${file}'; ${snippet}`], { encoding: "utf8", env: { ...process.env, PSModulePath: WINDOWS_POWERSHELL_MODULES } });
     const bad = attempt(unsigned);
     assert.notEqual(bad.status, 0, where);
     assert.match(bad.stderr, /not signed by Microsoft/, where);
