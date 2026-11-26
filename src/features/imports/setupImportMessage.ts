@@ -1,7 +1,15 @@
-import type { SetupImportSummary } from "../../shared/lib/types";
+import type { SetupImportPreview, SetupImportSummary } from "../../shared/lib/types";
 
-export function emptySetupMessage(rowErrors: number): string {
-  return rowErrors > 0 ? `Nothing importable found — ${rowErrors} row${rowErrors === 1 ? "" : "s"} had errors.` : "Nothing importable found in that file — is it a filled-in setup template?";
+/** True when the file has no rows to import and none that failed either, so there is nothing to review. */
+export function setupPreviewHasNothingToShow(preview: SetupImportPreview): boolean {
+  return (
+    preview.accounts.length + preview.categories.length + preview.budgets.length + preview.buckets.length + preview.holdings.length === 0 &&
+    preview.row_problems.length === 0
+  );
+}
+
+export function emptySetupMessage(): string {
+  return "Nothing importable found in that file — is it a filled-in setup template?";
 }
 
 export function setupImportMessage(summary: SetupImportSummary): string {

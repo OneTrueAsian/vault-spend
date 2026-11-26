@@ -7,7 +7,7 @@ the full compiled suite. WebDriverIO 10 was evaluated and excluded because it re
 Node installation is not changed by the implementation session: local validation used isolated
 Node 22.20.0. Run `npm ci` under a supported runtime.
 
-Install `cargo-audit` with `cargo install cargo-audit --locked`, then run:
+Install `cargo-audit` with `cargo install cargo-audit --version 0.23.0 --locked`, then run:
 
 ```text
 node --test tools/dependency-security-policy.test.mjs
@@ -39,6 +39,12 @@ version and target, carry an owner, rationale and expiry, and can never permit a
 or a later scan after expiry. glib's unsoundness notice
 is retained as a non-reachable platform finding; any reachable use blocks the gate. This does not
 extend support or acceptance to Linux.
+
+glib 0.18.5 (RUSTSEC-2024-0429, GHSA-wrw7-89jp-8q8g, fixed in 0.20.0) comes only from Tauri's Linux GTK
+stack. On 2026-11-21 no upgrade was available: the newest tauri 2.12.7, wry 0.57.3, tao 0.37.3 and muda
+0.21.2 all still require gtk 0.18, and wry pins webkit2gtk =2.0.2 (webkit2gtk 3.0.0 is on glib 0.22). With
+the owner's approval, Dependabot alert #1 was dismissed as "vulnerable code is not actually used" on that
+date (VS-69). Revisit it if Linux support is added or a Tauri release moves to glib 0.20 or later.
 
 The direct rustls-pemfile dependency was removed. Certificate/key PEM parsing now uses
 `rustls::pki_types::pem::PemObject` with the existing certificate integrity, key-match, bootstrap and

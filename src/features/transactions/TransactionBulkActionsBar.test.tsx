@@ -57,6 +57,18 @@ function render(moveDestinations: { value: string; label: string }[], onMoveToAc
 }
 const trigger = (name: string) => document.querySelector<HTMLButtonElement>(`button[aria-label^="${name}"]`);
 
+describe("Add tag in the selection bar (VS-68)", () => {
+  it("says to type a tag only once the tag box has been used", () => {
+    render([]);
+    const addTag = [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.trim() === "Add tag")!;
+    const tagNote = () => document.querySelector("[data-bulk-tag-missing]")?.textContent ?? null;
+    expect(addTag.disabled).toBe(true);
+    expect(tagNote()).toBeNull();
+    act(() => document.querySelector<HTMLInputElement>('input[aria-label="Add tag to selected transactions"]')!.focus());
+    expect(tagNote()).toBe("Type a tag to add.");
+  });
+});
+
 describe("Move to account in the selection bar", () => {
   it("sits right after Set category to", () => {
     render([{ value: "2", label: "Savings (Savings)" }]);

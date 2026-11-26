@@ -1,6 +1,7 @@
 import { EditableCombobox } from "../../shared/ui/EditableCombobox";
 import "./Transactions.css";
 import type * as React from "react";
+import { useState } from "react";
 
 import { flipConfirmText } from "../../shared/lib/importSigns";
 
@@ -66,6 +67,8 @@ export function TransactionBulkActionsBar({
 }: TransactionBulkActionsBarProps) {
   // More than a bulk change can carry: the selection can only be moved (see `MOVE_SELECTION_CAP`).
   const moveOnly = selectedIds.size > SELECT_ALL_CAP;
+  // VS-68: the tag box shows with every selection, so its note waits until the box has been used.
+  const [tagTouched, setTagTouched] = useState(false);
   const moveSelect = (
     <MenuSelect
       ariaLabel="Move to account"
@@ -124,7 +127,7 @@ export function TransactionBulkActionsBar({
           ]}
         />
       )}
-      <span className="bulk-tag-input">
+      <span className="bulk-tag-input" onFocus={() => setTagTouched(true)}>
         <EditableCombobox
           options={allTags}
           aria-label="Add tag to selected transactions"
@@ -141,6 +144,9 @@ export function TransactionBulkActionsBar({
         <button type="button" className="modal-secondary" disabled={!bulkTagText.trim()} onClick={() => handleBulkAddTag(bulkTagText)}>
           Add tag
         </button>
+        {tagTouched && !bulkTagText.trim() && (
+          <small className="field-problem" role="status" data-bulk-tag-missing>Type a tag to add.</small>
+        )}
       </span>
       {budgetExclusionEnabled && (
         <>

@@ -87,6 +87,31 @@ describe("shared infrastructure, persistence and the harness keep broad coverage
 });
 
 describe("changes that need no desktop run", () => {
+  it.each([
+    ["src/shared/ui/PageTabs.test.tsx", []],
+    ["src-tauri/src/backups/tests.rs", ["cargo-test-backups"]],
+    ["core/tests/comparisons/store_tests.rs", ["cargo-test-comparisons"]],
+    ["src/testSupport/askVaultM6/contexts.json", ["cargo-test-store:ask_vault_m6"]],
+    ["e2e/spec-weights.json", []],
+  ])("%s selects only its reviewed validation consumers", (file, nativeTests) => {
+    const result = select(change(file));
+    expect(result.specs).toEqual([]);
+    expect(result.broad).toBe(false);
+    expect(result.nativeChecks.filter(check => check.startsWith("cargo-test"))).toEqual(nativeTests);
+  });
+
+  it("keeps coverage for a fixture imported by the mobile preview", () => {
+    const result = select(change("core/tests/fixtures/mobile_snapshot_v1.json"));
+    expect(result.specs).toEqual(specs);
+    expect(result.nativeChecks).toContain("cargo-test-workspace");
+    expect(isBuildInput(result.entries[0].path)).toBe(true);
+  });
+  it("limits the folder-import Settings component to its own unit and desktop checks", () => {
+    const result = select(change("src/features/folderImports/FolderImportsSettings.tsx"));
+    expect(result.entries[0].unitTargets).toEqual(["src/features/folderImports/FolderImportsSettings.test.tsx"]);
+    expect(result.specs).toEqual(["smoke.mjs", "feature430_folder_imports.mjs", "feature431_folder_imports_protected.mjs"]);
+    expect(select(change("src/features/folderImports/folderImportsApi.ts")).broad).toBe(true);
+  });
   it.each(["README.md", "docs/notes.md", "AGENTS.md", "src/askVault/retirement/retirementParser.test.ts", "src/AskVaultCard.test.tsx", "core/src/store/tests/ask_vault_retirement.rs", ".github/workflows/release-windows.yml"])(
     "%s selects no desktop spec and says why", file => {
       const result = select(change(file));
@@ -170,6 +195,11 @@ describe("files the app embeds from outside src/ (found by reading the source, n
 
 describe("the map itself", () => {
   it("is valid: every rule's spec selector matches at least one spec, and patterns are well formed", () => expect(validateMap(map, specs)).toEqual([]));
+  it("each reviewed Vitest path exists on the current tree", () => {
+    for (const { unitTargets = [] } of [...map.noDesktop, ...map.areas]) {
+      for (const file of unitTargets) expect(fs.existsSync(file), file).toBe(true);
+    }
+  });
   it("flags a rule whose selector matches no spec", () => {
     const bad = { ...map, areas: [...map.areas, { pattern: "src/x/**", specs: ["no_such_spec_anywhere"], reason: "test" }] };
     expect(validateMap(bad, specs).join(" ")).toMatch(/no_such_spec_anywhere/);

@@ -28,7 +28,7 @@ import { collectInputs, readToolchain } from "./lib/buildIdentity.mjs";
 import { GuardRefusal, beginGuardedRun } from "./lib/runGuard.mjs";
 import { classifySpecs, createApprovalContext, runSchedule } from "./lib/scheduler.mjs";
 import { matchesSelector } from "./lib/specSelectors.mjs";
-import { parseRetryOptions, retryFailuresInIsolation, serializeExecutedResult } from "./lib/isolatedRetry.mjs";
+import { actionRepeatsOf, parseRetryOptions, retryFailuresInIsolation, serializeExecutedResult } from "./lib/isolatedRetry.mjs";
 import { parseShard, shardSpecs } from "./lib/specShard.mjs";
 import { countKept, keptBySpec, startKeptRun } from "./lib/keepScreens.mjs";
 
@@ -284,13 +284,16 @@ if (keptRunDir) {
 // when every spec then passes, so count the reports the specs printed.
 const launchRetries = results.reduce((n, r) => n + (r.output.match(/\[harness\] launch retry/g)?.length ?? 0), 0);
 if (launchRetries > 0) console.log(`Launch retries this run: ${launchRetries} (a driver/webview stall before any page loaded; see e2e/harness.mjs)`);
+// A click or key press a spec had to do again inside a step is counted the same way (actUntil.mjs). Informational: it never changes the verdict.
+const actionRepeats = results.reduce((n, r) => n + actionRepeatsOf(r), 0);
+if (actionRepeats > 0) console.log(`Repeated actions inside specs this run: ${actionRepeats} (see [harness] action repeated lines)`);
 const timeouts = results.filter((r) => r.output.includes("[run-all] TIMED OUT")).length;
 // Identity of what these results are evidence for: the build key and executable they ran against, and whether they remain valid.
 console.log(`Artifact: ${verdict.identity.artifactStatus}, executable SHA-256 ${verdict.identity.exeSha256}, build key ${verdict.identity.buildKey?.slice(0, 16) ?? "unavailable"}, test key ${verdict.identity.testKey?.slice(0, 16) ?? "unavailable"}`);
 try {
   fs.mkdirSync(path.dirname(lastRunPath), { recursive: true });
   fs.writeFileSync(lastRunPath, JSON.stringify({
-    identity: verdict.identity, validationManifest: verdict.validationManifest, approvalBinding: approvalContext?.binding ?? createApprovalContext({ inputs: verdict.validationManifest?.before, identity: verdict.identity }).binding, sourceValid, valid: verdict.valid, problems: verdict.problems, schedule, parallelSafe: classes.parallel.length, exclusive: classes.exclusive.length, concurrency, specTimeoutMs: SPEC_TIMEOUT_MS, elapsedSeconds: Number(totalSeconds), launchRetries, timeouts,
+    identity: verdict.identity, validationManifest: verdict.validationManifest, approvalBinding: approvalContext?.binding ?? createApprovalContext({ inputs: verdict.validationManifest?.before, identity: verdict.identity }).binding, sourceValid, valid: verdict.valid, problems: verdict.problems, schedule, parallelSafe: classes.parallel.length, exclusive: classes.exclusive.length, concurrency, specTimeoutMs: SPEC_TIMEOUT_MS, elapsedSeconds: Number(totalSeconds), launchRetries, actionRepeats, timeouts,
     selected: specs, executed: results.map(serializeExecutedResult),
     ...(keptRunDir ? { keptScreens: { dir: keptRunDir, count: countKept(keptRunDir), perSpec: keptPerSpec } } : {}),
   }, null, 2) + "\n");

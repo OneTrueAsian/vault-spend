@@ -315,6 +315,9 @@ fn different_account_kinds_keep_signs_and_report_in_each_accounts_own_terms() {
     assert_eq!(balance(&store, loan), dec("5000.00"));
     let p = preview(&store, &[id], loan);
     assert!(p.warnings.iter().any(|w| w.code == "account_kind_differs"));
+    let warning = p.warnings.iter().find(|w| w.code == "account_kind_differs").unwrap();
+    assert!(warning.detail.contains("under What changes"), "{}", warning.detail);
+    assert!(!warning.detail.contains("below"), "{}", warning.detail);
     let loan_effect = p.effects.iter().find(|e| e.account_id == loan).unwrap();
     // the loan's owed amount = 5000 - (-200) = 5200: the sign stays, the account's own rule applies
     assert_eq!(

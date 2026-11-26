@@ -75,6 +75,11 @@ pub struct BillAwareForecast {
 /// baseline is left at 0 and the screens say there is not enough history yet.
 pub const MIN_HISTORY_DAYS: i64 = 14;
 
+/// How far ahead everyday spending (the recent average) is carried in a forecast. The forecast itself can reach
+/// 12 months, but past this only Recurring bills and paychecks move the line: a recent average repeated for a
+/// year is a guess, not a forecast (owner decision 22 Nov 2026, VS-45).
+pub const EVERYDAY_FORECAST_DAYS: i64 = 90;
+
 /// Adds `n` calendar months by repeated `add_one_month` — `n` is always
 /// small in practice (`debt_payoff_projection` caps its simulation at 600
 /// months), so the repeated-addition cost is negligible next to the
@@ -286,7 +291,7 @@ impl Store {
     /// brand-new account with only two weeks of data isn't diluted by 76
     /// days of assumed inactivity. With no transactions at all, the slope
     /// is 0 (flat). `days = 0` returns just today's balance as a single
-    /// point.
+    /// point. Past `EVERYDAY_FORECAST_DAYS` the line stays flat.
     pub fn cash_flow_forecast(&self, today: NaiveDate, days: i64) -> rusqlite::Result<Vec<ForecastPoint>> {
         const TRAILING_WINDOW_DAYS: i64 = 90;
 
@@ -314,9 +319,11 @@ impl Store {
         let mut balance = starting_balance;
         points.push(ForecastPoint { date: today, balance });
         let mut date = today;
-        for _ in 0..days {
+        for day in 1..=days {
             date += chrono::Duration::days(1);
-            balance += daily_net;
+            if day <= EVERYDAY_FORECAST_DAYS {
+                balance += daily_net;
+            }
             points.push(ForecastPoint { date, balance });
         }
         Ok(points)
@@ -334,7 +341,8 @@ impl Store {
     /// anything already accounted for as a recurring item (matched by
     /// merchant name, the same normalization `detect_recurring_candidates`
     /// uses), a transfer (category or linked pair), or a debt-payment
-    /// bookkeeping row is left out so it isn't counted twice. Credit-card
+    /// bookkeeping row is left out so it isn't counted twice. The baseline
+    /// stops after `EVERYDAY_FORECAST_DAYS`; recurring items carry on. Credit-card
     /// charges count as spending on the day they happen; loan and
     /// investment accounts are ignored.
     ///
@@ -405,7 +413,7 @@ impl Store {
             }
             points.push(ForecastPoint {
                 date,
-                balance: start_balance + running_events + daily_baseline * Decimal::from(day),
+                balance: start_balance + running_events + daily_baseline * Decimal::from(day.min(EVERYDAY_FORECAST_DAYS)),
             });
         }
 

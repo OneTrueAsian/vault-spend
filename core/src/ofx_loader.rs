@@ -56,6 +56,7 @@ fn parse_ofx(content: &str, invert_amounts: bool) -> LoadResult {
                         Err(message) => errors.push(RowError {
                             row_number: txn_start_line,
                             message,
+                            preview: None,
                         }),
                     }
                 }
@@ -83,6 +84,7 @@ fn unclosed_record(start_line: usize) -> RowError {
     RowError {
         row_number: start_line,
         message: "transaction never closed (no </STMTTRN>)".to_string(),
+        preview: None,
     }
 }
 
@@ -492,5 +494,18 @@ VERSION:102
             vec![("2026-08-05".to_string(), "Shop".to_string(), "-3.00".to_string())]
         );
         assert!(result.errors.is_empty());
+    }
+
+    #[test]
+    fn an_unreadable_record_has_a_plain_reason_and_no_preview() {
+        let bad_date = parse_ofx("<STMTTRN><DTPOSTED>soon<TRNAMT>-1.00<NAME>A</STMTTRN>", false);
+        assert_eq!(crate::row_problem::plain_row_reason(&bad_date.errors[0].message), "The date soon isn't a real date.");
+        assert_eq!(bad_date.errors[0].preview, None);
+        let cut_off = parse_ofx("<STMTTRN><DTPOSTED>20260805<TRNAMT>-3.00<NAME>Cut off", false);
+        assert_eq!(
+            crate::row_problem::plain_row_reason(&cut_off.errors[0].message),
+            "This transaction is cut off; the file may be incomplete."
+        );
+        assert_eq!(cut_off.errors[0].preview, None);
     }
 }

@@ -35,6 +35,18 @@ function changeCategory(value: string) {
   act(() => [...host.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')].find((button) => button.textContent?.trim() === value)!.click());
 }
 
+it("says what the greyed-out Review selected and Use category are waiting for (VS-68)", async () => {
+  mount([item(1, null, ["uncategorized"]), item(2, null, ["uncategorized"])]);
+  expect(host.querySelector<HTMLButtonElement>("[data-inbox-review-selected]")!.disabled).toBe(true);
+  expect(host.querySelector("[data-inbox-review-missing]")?.textContent).toBe(" Tick the transactions to review first.");
+  await click('[data-inbox-row="1"] [data-inbox-select]');
+  expect(host.querySelector("[data-inbox-review-missing]")).toBeNull();
+  // Only the row being worked on (the first, active one) names what its Use category button needs.
+  expect(host.querySelector('[data-inbox-row="1"] [data-inbox-accept]')!.hasAttribute("disabled")).toBe(true);
+  expect(host.querySelector('[data-inbox-row="1"] [data-inbox-accept-missing]')?.textContent).toBe("Choose a category first.");
+  expect(host.querySelector('[data-inbox-row="2"] [data-inbox-accept-missing]')).toBeNull();
+});
+
 it("reviews only selected rows, accepts a category and dismisses all its flags without deleting", async () => {
   const callbacks = mount([item(1, "Groceries", ["low_confidence", "large", "duplicate"]), item(2, "Dining Out", ["duplicate"])]);
   await click('[data-inbox-row="1"] [data-inbox-select]');

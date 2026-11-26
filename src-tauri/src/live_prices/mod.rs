@@ -80,13 +80,16 @@ pub fn parse_global_quote_response(body: &str) -> Result<Option<Decimal>, String
     let value: Value = serde_json::from_str(body).map_err(|_| message::unusable("Alpha Vantage"))?;
 
     if let Some(note) = value.get("Note").and_then(Value::as_str) {
-        return Err(note.to_string());
+        eprintln!("Alpha Vantage sent a note: {note}");
+        return Err(message::rate_limited("Alpha Vantage"));
     }
     if let Some(info) = value.get("Information").and_then(Value::as_str) {
-        return Err(info.to_string());
+        eprintln!("Alpha Vantage sent information: {info}");
+        return Err(message::rate_limited("Alpha Vantage"));
     }
     if let Some(err) = value.get("Error Message").and_then(Value::as_str) {
-        return Err(err.to_string());
+        eprintln!("Alpha Vantage reported an error: {err}");
+        return Err(message::unusable("Alpha Vantage"));
     }
 
     let quote = match value.get("Global Quote").and_then(Value::as_object) {
@@ -137,6 +140,18 @@ mod tests {
                 assert_eq!(other, format!("{provider} didn't send a usable price. Try again later."));
             }
         }
+        // A 200 reply carrying the provider's own error text must not echo it.
+        let finnhub_error = finnhub::parse_quote_response(200, r#"{"error":"Invalid API key"}"#).unwrap_err();
+        clean(&finnhub_error, "Finnhub");
+        assert_eq!(finnhub_error, "Finnhub didn't send a usable price. Try again later.");
+        assert!(!finnhub_error.contains("Invalid API key"));
+        for (field, text) in [("Error Message", "the parameter apikey is invalid"), ("Note", "RAW_PROVIDER_REPLY Note"), ("Information", "RAW_PROVIDER_REPLY Info")] {
+            let message = parse_global_quote_response(&format!(r#"{{"{field}":"{text}"}}"#)).unwrap_err();
+            clean(&message, "Alpha Vantage");
+            assert!(!message.contains(text), "provider text leaked: {message}");
+        }
+        let alpha_error = parse_global_quote_response(r#"{"Error Message":"the parameter apikey is invalid"}"#).unwrap_err();
+        assert_eq!(alpha_error, "Alpha Vantage didn't send a usable price. Try again later.");
         let alpha = parse_global_quote_response("not json").unwrap_err();
         clean(&alpha, "Alpha Vantage");
         assert_eq!(alpha, "Alpha Vantage didn't send a usable price. Try again later.");
@@ -171,11 +186,11 @@ mod tests {
     async fn native_quote_http_alpha_errors_and_success_preserve_request() {
         let client = crate::live_prices::quote_http_fixture::client();
         for (status, body, expected_error) in [
-            (200, r#"{"Note":"fixture rate limit"}"#, Some("fixture rate limit")),
-            (200, r#"{"Information":"fixture information"}"#, Some("fixture information")),
-            (200, r#"{"Error Message":"fixture invalid key"}"#, Some("fixture invalid key")),
+            (200, r#"{"Note":"fixture rate limit"}"#, Some("limit on price requests was reached")),
+            (200, r#"{"Information":"fixture information"}"#, Some("limit on price requests was reached")),
+            (200, r#"{"Error Message":"fixture invalid key"}"#, Some("didn't send a usable price")),
             (403, "forbidden", Some("didn't send a usable price")),
-            (429, r#"{"Note":"fixture limit"}"#, Some("fixture limit")),
+            (429, r#"{"Note":"fixture limit"}"#, Some("limit on price requests was reached")),
             (500, "not json", Some("didn't send a usable price")),
             (200, r#"{"Global Quote":{"05. price":"123.45"}}"#, None),
         ] {
@@ -232,17 +247,17 @@ mod tests {
             Case {
                 label: "rate limit Note field",
                 body: r#"{ "Note": "Thank you for using Alpha Vantage! Our standard API rate limit is 25 requests per day." }"#,
-                expected_substring: Some("25 requests per day"),
+                expected_substring: Some("limit on price requests was reached"),
             },
             Case {
                 label: "rate limit Information field",
                 body: r#"{ "Information": "Thank you for using Alpha Vantage! Our standard API rate limit is 25 requests per day." }"#,
-                expected_substring: Some("25 requests per day"),
+                expected_substring: Some("limit on price requests was reached"),
             },
             Case {
                 label: "invalid api key Error Message field",
                 body: r#"{ "Error Message": "the parameter apikey is invalid" }"#,
-                expected_substring: Some("apikey is invalid"),
+                expected_substring: Some("didn't send a usable price"),
             },
             Case {
                 label: "malformed json",

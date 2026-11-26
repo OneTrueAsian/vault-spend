@@ -34,7 +34,8 @@ describe("F1: native checks are independent of broad desktop selection", () => {
   it("still validates changed native tests when no desktop spec is selected", () => {
     const selection = select([{ status: "M", path: "core/src/store/tests/accounts.rs" }]);
     expect(selection.specs).toEqual([]);
-    expect(plan(selection).steps.map(s => s.id)).toEqual(expect.arrayContaining(native));
+    // VS-104: a store test file selects fmt plus only its own store::tests::<module> run, not the whole core/commands suites.
+    expect(plan(selection).steps.map(s => s.id).filter(id => id.startsWith("cargo"))).toEqual(["cargo-fmt", "cargo-test-store:accounts"]);
   });
   it("does not add native work for a frontend-only change", () => {
     const selection = select([{ status: "M", path: "src/AskVaultCard.tsx" }]);

@@ -4,17 +4,17 @@ import fs from "node:fs";
 import yaml from "js-yaml";
 
 for (const [filename, dependency, target] of [
-  ["release-windows.yml", "release", "windows-x86_64"],
+  ["release-windows.yml", "sharded-package", "windows-x86_64"],
   ["build-macos.yml", "build-macos", "macos-universal"],
 ]) {
   test(`${filename}: protected final-byte signing with immutable publication`, () => {
     const workflow = fs.readFileSync(new URL(`../.github/workflows/${filename}`, import.meta.url), "utf8");
-    const parsed = yaml.load(workflow);
-    assert.equal(parsed.jobs["sign-updates"].environment, "release-signing");
-    assert.deepEqual(parsed.jobs["sign-updates"].needs, dependency === "release" ? ["release", "release-baseline"] : dependency);
-    const job = workflow.split("  sign-updates:")[1];
+    const parsed = yaml.load(workflow), signing = target === "windows-x86_64" ? "sharded-sign-updates" : "sign-updates";
+    assert.equal(parsed.jobs[signing].environment, "release-signing");
+    assert.deepEqual(parsed.jobs[signing].needs, target === "windows-x86_64" ? ["sharded-package", "release-baseline"] : dependency);
+    const job = workflow.split(`  ${signing}:`)[1];
     assert.ok(job, "separate signing job exists");
-    assert.match(job, new RegExp(`needs: ${dependency === "release" ? "\\[release, release-baseline\\]" : dependency}`));
+    assert.match(job, new RegExp(`needs: ${target === "windows-x86_64" ? "\\[sharded-package, release-baseline\\]" : dependency}`));
     assert.match(job, /environment: release-signing/);
     assert.match(job, new RegExp(`ref: \\$\\{\\{ needs.${dependency}.outputs.source-sha \\}\\}`));
     assert.match(workflow, /steps.package.outputs.artifactPaths/);
@@ -33,7 +33,7 @@ for (const [filename, dependency, target] of [
     if (target === "windows-x86_64") {
       assert.match(privateScope, /update-input\/Vault\.Spend_\$\{RELEASE_TAG#v\}_x64-setup.exe/);
       assert.match(privateScope, /update-input\/Vault\.Spend_\$\{RELEASE_TAG#v\}_x64_en-US.msi/);
-      assert.match(job, /!inputs.recovery/);
+      assert.equal(parsed.jobs[signing].if, "${{ !inputs.diagnostic_only }}");
     }
   });
 }

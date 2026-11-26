@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { forecastChartPoints } from "./forecastChart";
+import { forecastChartPoints, forecastHorizons } from "./forecastChart";
+
+// VS-45: 6 and 12 months reach the same date that many months ahead, so a yearly bill due on today's date is included.
+describe("forecastHorizons", () => {
+  it("offers 30, 60 and 90 days, then the days to the same date 6 and 12 months ahead", () => {
+    expect(forecastHorizons(new Date(2026, 10, 22))).toEqual([
+      { label: "30 days", days: 30 },
+      { label: "60 days", days: 60 },
+      { label: "90 days", days: 90 },
+      { label: "6 months", days: 181 },
+      { label: "12 months", days: 365 },
+    ]);
+  });
+
+  it("counts a leap day and stops at the end of a shorter month", () => {
+    expect(forecastHorizons(new Date(2027, 5, 1)).at(-1)!.days).toBe(366);
+    expect(forecastHorizons(new Date(2026, 7, 31))[3].days).toBe(181);
+  });
+});
 
 describe("forecastChartPoints", () => {
   const days = (n: number) =>

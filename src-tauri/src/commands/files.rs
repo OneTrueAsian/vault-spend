@@ -5,6 +5,15 @@ use super::*;
 #[cfg(test)]
 mod tests;
 
+const PROFILE_KEY_FILE_FAILED: &str =
+    "The profile couldn't be moved because its key file couldn't be copied. The profile is unchanged and still where it was. Make sure the new folder can be written to, then try again.";
+const PROFILE_COPY_FAILED: &str =
+    "The profile couldn't be moved because its data couldn't be copied. The profile is unchanged and still where it was. Make sure the new folder has free space and can be written to, then try again.";
+const PROFILE_EXPORT_FAILED: &str =
+    "The profile couldn't be exported. Nothing was exported and your profile is unchanged. Make sure the folder you chose has free space, then try again.";
+const PROFILE_EXPORT_KEY_FILE_FAILED: &str =
+    "The profile couldn't be exported because its key file couldn't be copied. Nothing was exported and your profile is unchanged. Make sure the folder you chose can be written to, then try again.";
+
 /// Returns the currently-resolved data file path, for display on the
 /// Reports tab's Settings section.
 #[tauri::command]
@@ -75,13 +84,17 @@ pub fn relocate_data_file(
 }
 
 fn copy_database_for_relocation(store: &Store, old_live_path: &std::path::Path, new_db_path: &std::path::Path) -> Result<(), String> {
-    store.backup_to(new_db_path).map_err(|e| e.to_string())?;
+    if let Err(e) = store.backup_to(new_db_path) {
+        let _ = std::fs::remove_file(new_db_path);
+        return Err(crate::error_detail::with_detail(PROFILE_COPY_FAILED, format_args!("couldn't copy the profile's data: {e}")));
+    }
     if store.is_encrypted() {
         let source_key = budget_core::protection::keyfile::key_file_path_for(old_live_path);
         let destination_key = budget_core::protection::keyfile::key_file_path_for(new_db_path);
         if let Err(error) = std::fs::copy(&source_key, &destination_key) {
             let _ = std::fs::remove_file(new_db_path);
-            return Err(format!("couldn't move the profile's key file: {error}"));
+            let _ = std::fs::remove_file(&destination_key);
+            return Err(crate::error_detail::with_detail(PROFILE_KEY_FILE_FAILED, format_args!("couldn't move the profile's key file: {error}")));
         }
     }
     Ok(())
@@ -114,6 +127,11 @@ pub fn export_database(destination: String, paths: tauri::State<crate::config::A
     state.store.backup_to(&destination).map_err(|e| e.to_string())
 }
 
+/// A person sees the one plain sentence; the cause follows it for the Details button (VS-71).
+fn export_failed(e: impl std::fmt::Display) -> String {
+    crate::error_detail::with_detail(PROFILE_EXPORT_FAILED, format_args!("profile export failed: {e}"))
+}
+
 fn export_protected_package(
     destination: &std::path::Path,
     profile_name: &str,
@@ -127,24 +145,25 @@ fn export_protected_package(
     if destination.exists() {
         return Err(format!("{} already exists. Choose a new package name.", destination.display()));
     }
-    std::fs::create_dir_all(destination).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(destination).map_err(export_failed)?;
     let result = (|| {
         let database_path = destination.join(DATABASE_FILENAME);
-        store.backup_to(&database_path).map_err(|e| e.to_string())?;
+        store.backup_to(&database_path).map_err(export_failed)?;
         let source_key_path = budget_core::protection::keyfile::key_file_path_for(source_db_path);
         let destination_key_path = budget_core::protection::keyfile::key_file_path_for(&database_path);
-        std::fs::copy(&source_key_path, &destination_key_path).map_err(|e| format!("couldn't copy the profile's key file: {e}"))?;
-        let key_file = budget_core::protection::keyfile::KeyFile::read(&destination_key_path).map_err(|e| e.to_string())?;
+        std::fs::copy(&source_key_path, &destination_key_path)
+            .map_err(|e| crate::error_detail::with_detail(PROFILE_EXPORT_KEY_FILE_FAILED, format_args!("couldn't copy the profile's key file: {e}")))?;
+        let key_file = budget_core::protection::keyfile::KeyFile::read(&destination_key_path).map_err(export_failed)?;
         let manifest = PackageManifest {
             format: PACKAGE_FORMAT,
             profile_name: profile_name.to_string(),
             protection_format: key_file.format,
             app_version: env!("CARGO_PKG_VERSION").to_string(),
-            schema_user_version: store.schema_user_version().map_err(|e| e.to_string())?,
-            database_sha256: sha256_file(&database_path)?,
+            schema_user_version: store.schema_user_version().map_err(export_failed)?,
+            database_sha256: sha256_file(&database_path).map_err(export_failed)?,
             exported_at: exported_at.to_string(),
         };
-        std::fs::write(destination.join(MANIFEST_FILENAME), manifest.to_json()).map_err(|e| e.to_string())
+        std::fs::write(destination.join(MANIFEST_FILENAME), manifest.to_json()).map_err(export_failed)
     })();
     if result.is_err() {
         let _ = std::fs::remove_dir_all(destination);
@@ -253,7 +272,7 @@ pub fn set_backup_copy_dir(
     let newest = crate::backups::list_backups(&backups_dir, is_encrypted)?.into_iter().next();
     let copied_now = match newest {
         Some(b) => {
-            crate::backups::mirror_backup(&backups_dir, &b.filename, copy_dir)?;
+            crate::backups::mirror_latest_to_chosen_folder(&backups_dir, &b.filename, copy_dir)?;
             true
         }
         None => false,

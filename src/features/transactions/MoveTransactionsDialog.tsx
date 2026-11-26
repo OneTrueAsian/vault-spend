@@ -44,7 +44,9 @@ function Blockers({ blockers }: { blockers: readonly MoveBlocker[] }) {
 }
 
 function sourcesText(preview: MovePreview): string {
-  return preview.sources.map((s) => `${s.accountName} (${s.count})`).join(", ");
+  return preview.sources.length === 1
+    ? preview.sources[0].accountName
+    : preview.sources.map((s) => `${s.count} from ${s.accountName}`).join(", ");
 }
 
 /** One account's balance for a move that needs it: what the app shows now (a reference), and a box or an explicit keep. */
@@ -109,7 +111,7 @@ function Review({ preview, hiddenByFilter, balances, editing, onSetBalance }: {
     <>
       {preview.effectiveCount > 0 && (
         <p className="move-summary" data-move-summary>
-          {moveTransactionsText(preview.effectiveCount)} from {sourcesText(preview)}, dated {preview.firstDate === preview.lastDate ? formatDisplayDate(preview.firstDate!) : `${formatDisplayDate(preview.firstDate!)} to ${formatDisplayDate(preview.lastDate!)}`}, adding up to {money(preview.total)}. Amounts keep their signs; this moves the entries and is not a bank transfer.
+          {moveTransactionsText(preview.effectiveCount)} {preview.sources.length === 1 ? `from ${sourcesText(preview)}` : `(${sourcesText(preview)})`}, dated {preview.firstDate === preview.lastDate ? formatDisplayDate(preview.firstDate!) : `${formatDisplayDate(preview.firstDate!)} to ${formatDisplayDate(preview.lastDate!)}`}, adding up to {money(preview.total)}. Amounts keep their signs; this moves the entries and is not a bank transfer.
         </p>
       )}
       {preview.alreadyThereCount > 0 && (

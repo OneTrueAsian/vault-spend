@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { errorMessage } from "../../shared/lib/errorMessage";
+import { errorMessage, errorMessageWithDetail, splitErrorDetail } from "../../shared/lib/errorMessage";
+import { ErrorDetailButtons } from "../../shared/ui/ErrorDetailButtons";
 import { listen } from "@tauri-apps/api/event";
 import { ModalShell } from "../../shared/ui/Modal";
 import {
@@ -41,6 +42,10 @@ export function UpdateBanner() {
   const [latest, setLatest] = useState<{ tag: string; version: string } | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // VS-71: an update failure's technical cause sits behind Details; a new error closes it.
+  const [detailOpenFor, setDetailOpenFor] = useState<string | null>(null);
+  const { message: errorText, detail: errorDetail } = splitErrorDetail(error ?? "");
+  const detailOpen = errorDetail !== null && detailOpenFor === error;
   const [offer, setOffer] = useState<SignedUpdateOffer | null>(null);
   const [phase, setPhase] = useState<
     "notice" | "checking" | "ready" | "downloading" | "verifying" | "staged" | "cancelling" | "installing" | "opened"
@@ -70,7 +75,7 @@ export function UpdateBanner() {
     } catch (error) {
       if (live.current && request === sequence.current) {
         setPhase("notice");
-        setError(errorMessage(error));
+        setError(errorMessageWithDetail(error));
       }
     }
   }, []);
@@ -96,7 +101,7 @@ export function UpdateBanner() {
         handle.current = null;
         setOffer(null);
         setPhase("notice");
-        setError(errorMessage(error));
+        setError(errorMessageWithDetail(error));
       }
     } finally {
       downloading.current = false;
@@ -111,7 +116,7 @@ export function UpdateBanner() {
     try {
       if (id) await cancelSignedUpdate(id);
     } catch (error) {
-      if (live.current) setError(errorMessage(error));
+      if (live.current) setError(errorMessageWithDetail(error));
     } finally {
       if (live.current) {
         setOffer(null);
@@ -138,7 +143,7 @@ export function UpdateBanner() {
         setOffer(null);
         setConfirm(false);
         setPhase("notice");
-        setError(errorMessage(error));
+        setError(errorMessageWithDetail(error));
       }
     } finally {
       installing.current = false;
@@ -237,11 +242,15 @@ export function UpdateBanner() {
         {error && (
           <span className="update-banner-error" role="alert">
             {" "}
-            {error}
+            {errorText}
+            {detailOpen && <span className="status-detail" data-update-detail>{errorDetail}</span>}
           </span>
         )}
       </span>
       <span className="update-banner-actions">
+        {errorDetail !== null && (
+          <ErrorDetailButtons detail={errorDetail} open={detailOpen} onToggle={() => setDetailOpenFor(detailOpen ? null : error)} className="modal-secondary" />
+        )}
         {phase === "ready" && (
           <button type="button" onClick={() => void download()}>
             Download update

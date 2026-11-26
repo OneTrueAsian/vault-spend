@@ -41,7 +41,7 @@ on:
         required: true
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-macos-${{ inputs.tag }}
@@ -50,6 +50,8 @@ concurrency:
 jobs:
   build-macos:
     runs-on: macos-latest
+    permissions:
+      contents: write
     # An explicit bash shell runs with pipefail, so a release listing that fails partway fails the step instead of being checked as if complete.
     defaults:
       run:
@@ -69,6 +71,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: refs/tags/${{ inputs.tag }}
+          persist-credentials: false
 
       - name: Validate the tag commit and version
         env:
@@ -110,7 +113,7 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
       - name: Install RustSec scanner
-        run: cargo install cargo-audit --locked
+        run: cargo install cargo-audit --version 0.23.0 --locked
       - name: Dependency security policy tests
         run: node --test tools/dependency-security-policy.test.mjs tools/browser-download-contract.test.mjs
       - name: Verify signed updater release contracts
@@ -165,6 +168,8 @@ jobs:
     needs: build-macos
     runs-on: ubuntu-latest
     environment: release-signing
+    permissions:
+      contents: write
     defaults:
       run:
         shell: bash
@@ -172,6 +177,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.build-macos.outputs.source-sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22

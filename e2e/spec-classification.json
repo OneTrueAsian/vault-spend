@@ -353,7 +353,18 @@
     "feature417_password_nudge.mjs": "not reviewed for parallel execution; exclusive until approved",
     "feature418_mobile_trust_notice.mjs": "not reviewed for parallel execution; exclusive until approved",
     "feature419_reopen_after_commit.mjs": "not reviewed for parallel execution; exclusive until approved",
-    "feature420_ask_cut_back.mjs": "not reviewed for parallel execution; exclusive until approved",
-    "feature421_profiles_actions_narrow.mjs": "drives menus that close when the window loses focus"
+    "feature420_ask_cut_back.mjs": "lib\\askRetirement.mjs: depends on which window has OS focus; lib\\askReady.mjs: uses the shared keyboard",
+    "feature421_profiles_actions_narrow.mjs": "drives menus that close when the window loses focus",
+    "feature422_notes_partial_month_row_problems_default.mjs": "lib\\notesPartialMonthRowProblems.mjs: drives menus that close when the window loses focus; lib\\importAccount.mjs: drives menus that close when the window loses focus",
+    "feature423_notes_partial_month_row_problems_futuristic.mjs": "lib\\notesPartialMonthRowProblems.mjs: drives menus that close when the window loses focus; lib\\importAccount.mjs: drives menus that close when the window loses focus",
+    "feature424_notes_partial_month_row_problems_retro.mjs": "lib\\notesPartialMonthRowProblems.mjs: drives menus that close when the window loses focus; lib\\importAccount.mjs: drives menus that close when the window loses focus",
+    "feature425_add_transaction_no_accounts_note.mjs": "drives menus that close when the window loses focus; uses the shared keyboard; lib\\notesPartialMonthRowProblems.mjs: drives menus that close when the window loses focus; lib\\importAccount.mjs: drives menus that close when the window loses focus",
+    "feature426_greyed_out_notes_layout.mjs": "drives menus that close when the window loses focus",
+    "feature427_forecast_twelve_months.mjs": "drives menus that close when the window loses focus",
+    "feature428_watch_tiles.mjs": "drives menus that close when the window loses focus",
+    "feature429_failure_details.mjs": "drives menus that close when the window loses focus",
+    "feature430_folder_imports.mjs": "uses the shared keyboard",
+    "feature431_folder_imports_protected.mjs": "not reviewed for parallel execution; exclusive until approved",
+    "feature432_reports_drilldown_return.mjs": "depends on which window has OS focus; uses the shared keyboard"
   }
 }

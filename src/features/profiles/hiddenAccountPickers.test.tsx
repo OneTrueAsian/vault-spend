@@ -87,7 +87,7 @@ describe("import review", () => {
         path: "C:/bank.csv", invertAmounts: false, defaultAccountId: 1,
         preview: {
           rows: [{ index: 0, date: "2026-09-21", description: "SHOP", amount: "-10.00", is_duplicate: false, account_name: rowAccount, category: null, matched_category: "Groceries", suggestion: null }],
-          row_errors: 0, unmatched_categories: [], review_token: "t", choice_below: 0.5,
+          row_errors: 0, row_problems: [], unmatched_categories: [], review_token: "t", choice_below: 0.5,
         },
         ...overrides,
       },

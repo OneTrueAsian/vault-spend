@@ -6,9 +6,9 @@ import type { ReportSnapshot } from "../../shared/native/financialContracts";
 import type { Account, FamilyMember, MonthTotal, Transaction, Asset } from "../../shared/lib/types";
 import { LineChart } from "../../shared/ui/charts";
 import { formatAmount, formatDisplayDate, toLocalIsoDate } from "../../shared/lib/format";
-import { isIncomeTransaction } from "../../shared/lib/accountGroups";
 import { PinToDashboardButton } from "../../shared/ui/PinToDashboardButton";
 import { ReportPrintActions } from "./ReportPrintActions";
+import { savingsRateByMonth } from "./savingsRate";
 import type { WidgetId } from "../../shared/lib/dashboardLayout";
 import { netWorthByMember, spendingByMember } from "../../shared/lib/memberBreakdowns";
 import {
@@ -29,34 +29,17 @@ import { ScrollRegion } from "../../shared/ui/ScrollRegion";
 import { PageTabs } from "../../shared/ui/PageTabs";
 import "./ReportsTabs.css";
 import { CATEGORY_COLORS } from "../../shared/ui/categoryPalette";
+import type { ReportDrill } from "./reportReturn";
 
-/** Savings rate — (income − expenses) ÷ income — trended over every month
- * with transaction history, trailing 12. A purely client-side reduction
- * over the same `transactions`/`accounts` this page already has (income via
- * `isIncomeTransaction` — the same rule `Store::monthly_totals` uses on the
- * backend for Cash Flow's own income figure; expense is any negative
- * amount, see `tagTotals` above, except "Transfer" — money moving between
- * the household's own accounts, same exclusion the backend applies), so it
- * needed no new prop or fetch beyond `accounts`. Cash Flow's "Income vs.
- * expenses" chart shows one month's totals in dollars; this is the trend
- * those totals form over time, as a rate. */
-function SavingsRateTrendSection({ transactions, accounts }: { transactions: Transaction[]; accounts: Account[] }) {
-  const monthly = new Map<string, { income: number; expense: number }>();
-  for (const t of transactions) {
-    const month = t.date.slice(0, 7);
-    const entry = monthly.get(month) ?? { income: 0, expense: 0 };
-    const amount = parseFloat(t.amount);
-    if (isIncomeTransaction(t, accounts)) entry.income += amount;
-    else if (amount < 0 && t.category !== "Transfer") entry.expense += Math.abs(amount);
-    monthly.set(month, entry);
-  }
-  const points = Array.from(monthly.entries())
-    .sort(([a], [b]) => (a < b ? -1 : 1))
-    .slice(-12)
-    .map(([month, { income, expense }]) => ({
-      label: new Date(`${month}-01T00:00:00`).toLocaleDateString("en-US", { month: "short" }),
-      value: income > 0 ? ((income - expense) / income) * 100 : 0,
-    }));
+/** Savings rate — (income − expenses) ÷ income — trended over the months of the
+ * Reports range that have transactions (see `savingsRateByMonth`). Cash Flow's
+ * "Income vs. expenses" chart shows one month's totals in dollars; this is the
+ * trend those totals form over time, as a rate. The current month is still
+ * filling in, so it is drawn as partial and labelled "so far". */
+function SavingsRateTrendSection({ transactions, accounts, months, currentMonth }: { transactions: Transaction[]; accounts: Account[]; months: string[]; currentMonth: string }) {
+  const points = savingsRateByMonth(transactions, accounts, months, currentMonth);
+  const partial = points.length > 0 && points[points.length - 1].partial;
+  const partialMonthName = new Date(`${currentMonth}-01T00:00:00`).toLocaleDateString("en-US", { month: "long" });
 
   return (
     <div className="card" data-report-savings>
@@ -64,13 +47,16 @@ function SavingsRateTrendSection({ transactions, accounts }: { transactions: Tra
         <span className="reports-section-title">Savings rate trend</span>
       </div>
       {points.length === 0 ? (
-        <p className="empty-state">No transactions yet, so there is no savings rate to show.</p>
+        <p className="empty-state">No income or spending in this range, so there is no savings rate to show.</p>
       ) : (
         <>
           <p className="modal-message-secondary">
             (Income − expenses) ÷ income, by month — a rate can go negative in a month spending outpaced income.
           </p>
-          <LineChart points={points} height={180} formatValue={(v) => `${v.toFixed(0)}%`} caption="Savings rate by month" />
+          <LineChart points={points} height={180} formatValue={(v) => `${v.toFixed(0)}%`} caption="Savings rate by month" partialLast={partial} />
+          {partial && (
+            <p className="modal-message-secondary">{partialMonthName} isn't over yet, so its rate is only for the days so far.</p>
+          )}
         </>
       )}
     </div>
@@ -465,6 +451,9 @@ export function ReportsOverview({
   layoutWidgets,
   onPinWidget,
   initialTab = "income",
+  initialPreset,
+  onOpenTransactions,
+  focusCategory,
   renderComparisons,
 }: {
   accounts: Account[];
@@ -480,10 +469,16 @@ export function ReportsOverview({
   layoutWidgets: WidgetId[];
   onPinWidget: (id: WidgetId) => void;
   initialTab?: ReportsTab;
+  /** The range to open on (coming back from Transactions); left out, Last 6 months. */
+  initialPreset?: RangePreset;
+  /** Makes each Categories by month row open that category's transactions; left out, the rows are plain text. */
+  onOpenTransactions?: (drill: ReportDrill) => void;
+  /** The category row to put focus on once the report shows (coming back from Transactions). */
+  focusCategory?: string;
   /** The Comparisons tab's page; `active` is whether it is showing. */
   renderComparisons: (active: boolean) => ReactNode;
 }) {
-  const [preset, setPreset] = useState<RangePreset>("last_6");
+  const [preset, setPreset] = useState<RangePreset>(initialPreset ?? "last_6");
   const [tab, setTab] = useState<ReportsTab>(initialTab);
   const [printing, setPrinting] = useState(false);
   const { from, to } = presetRange(preset, new Date());
@@ -497,6 +492,14 @@ export function ReportsOverview({
   const flow = snapshot?.flow ?? null;
   const daily = (snapshot?.daily ?? []).map(d => ({ date: d.date, amount: parseFloat(d.amount) }));
   const loading = !snapshot;
+  const hubRef = useRef<HTMLDivElement>(null);
+  const focusedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusCategory || !snapshot || focusedFor.current === focusCategory) return;
+    focusedFor.current = focusCategory;
+    const row = [...(hubRef.current?.querySelectorAll<HTMLButtonElement>("button[data-report-category-open]") ?? [])].find((b) => b.dataset.reportCategoryOpen === focusCategory);
+    (row ?? hubRef.current?.querySelector<HTMLButtonElement>("[data-reports-tab='categories']"))?.focus();
+  }, [focusCategory, snapshot]);
   const refreshRange = () => loadReport(rangeKey, client => client.report(from.year, from.month, to.year, to.month));
   useEffect(() => {
     void loadReport(rangeKey, client => client.report(from.year, from.month, to.year, to.month)).catch(() => {});
@@ -594,7 +597,21 @@ export function ReportsOverview({
                 <tbody>
                   {table.rows.map((r) => (
                     <tr key={r.category} data-report-category={r.category}>
-                      <td>{r.category}</td>
+                      <td>
+                        {onOpenTransactions && !printing ? (
+                          <button
+                            type="button"
+                            className="category-link"
+                            data-report-category-open={r.category}
+                            aria-label={`See ${r.category} transactions`}
+                            onClick={() => onOpenTransactions({ view: { tab: id, preset }, category: r.category, from: monthStartDate(from), to: monthEndDate(to) })}
+                          >
+                            {r.category}
+                          </button>
+                        ) : (
+                          r.category
+                        )}
+                      </td>
                       {r.byMonth.map((v, i) => (
                         <td key={months[i]} className="amount-col">
                           {v > 0 ? formatAmount(v.toFixed(2)) : <span className="account-col">—</span>}
@@ -687,7 +704,7 @@ export function ReportsOverview({
           </>
         );
       case "savings":
-        return <SavingsRateTrendSection transactions={transactions} accounts={accounts} />;
+        return <SavingsRateTrendSection transactions={inRange} accounts={accounts} months={months} currentMonth={toLocalIsoDate().slice(0, 7)} />;
       case "years":
         return (
           <div className="card" data-report-years>
@@ -731,7 +748,7 @@ export function ReportsOverview({
   const showTab = useCallback((id: ReportsTab) => setTab(id), []);
 
   return (
-    <div className="reports-view" data-reports-hub data-report-range={rangeKey} data-printing={printing ? "" : undefined}>
+    <div ref={hubRef} className="reports-view" data-reports-hub data-report-range={rangeKey} data-printing={printing ? "" : undefined}>
       <div hidden={tab === "comparisons"} data-reports-controls>
         <div className="page-top">
           <div>

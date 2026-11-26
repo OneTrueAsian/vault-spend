@@ -271,7 +271,7 @@ export function TransactionsTable({
             )}
             {!transactionsNarrow && (
               <SortableTh column="source" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
-                Sorted by
+                Set by
               </SortableTh>
             )}
             <th className="actions-col"><span className="sr-only">Actions</span></th>
@@ -669,7 +669,7 @@ export function TransactionsTable({
                           {categoryField}
                         </label>
                         <label className="ledger-details-field">
-                          <span>Sorted by</span>
+                          <span>Set by</span>
                           {sourceField}
                         </label>
                       </div>
@@ -722,6 +722,12 @@ export function TransactionsTable({
                           <button type="button" className="modal-secondary" onClick={() => setExpandedSplitId(null)}>
                             Cancel
                           </button>
+                          {/* VS-68: what the greyed-out Save splits is waiting for. */}
+                          {Math.abs(splitRemaining(t)) >= 0.01 && (
+                            <small className="field-problem" role="status" data-split-missing>
+                              The lines must add up to the whole amount before you can save.
+                            </small>
+                          )}
                         </div>
                       </div>
                     </td>

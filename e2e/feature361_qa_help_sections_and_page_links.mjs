@@ -2,6 +2,7 @@
 // The wording's accuracy (UAT-218) and the "deliberate limits" statements (UAT-219) are reading tasks and are not claimed here (Help contains no hyperlinks to test).
 import assert from "node:assert/strict";
 import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { clickUntilShown } from "./lib/clickUntilShown.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -18,11 +19,7 @@ try {
     await nav(label);
     const help = await b.$(`button[aria-label="Help for ${label}"]`);
     await help.waitForExist({ timeout: 10000, timeoutMsg: `${label} has a ? button named "Help for ${label}"` });
-    await b.waitUntil(async () => {
-      if (await b.$(".help-view, .help-search").isExisting()) return true;
-      await help.click();
-      return false;
-    }, { timeout: 20000, interval: 1500, timeoutMsg: `Help should open from the ? on ${label}` });
+    await clickUntilShown(b, `button[aria-label="Help for ${label}"]`, ".help-view, .help-search", { timeout: 20000, timeoutMsg: `Help should open from the ? on ${label}` });
     await waitUntilOrDiagnose(b, async () => await b.execute(i => document.getElementById(`help-${i}`)?.open === true, id), { timeout: 8000, timeoutMsg: `${label}'s own section is open`, extra: () => b.execute(() => [...document.querySelectorAll("details.help-tab[open]")].map(d => d.id)) });
     const state = await b.execute(i => {
       const el = document.getElementById(`help-${i}`);

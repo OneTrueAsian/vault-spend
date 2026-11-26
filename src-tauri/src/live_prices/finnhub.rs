@@ -75,7 +75,8 @@ pub fn parse_quote_response(status: u16, body: &str) -> Result<Option<Decimal>, 
     let value: Value = serde_json::from_str(body).map_err(|_| super::message::unusable("Finnhub"))?;
 
     if let Some(err) = value.get("error").and_then(Value::as_str) {
-        return Err(err.to_string());
+        eprintln!("Finnhub reported an error: {err}");
+        return Err(super::message::unusable("Finnhub"));
     }
 
     let price_value = value.get("c").ok_or_else(|| "Finnhub's response was missing a price field".to_string())?;
@@ -128,7 +129,7 @@ mod tests {
             (429, "fixture rate limit", Some("limit on price requests was reached")),
             (500, "fixture unavailable", Some("didn't send a usable price")),
             (200, "not json", Some("didn't send a usable price")),
-            (200, r#"{"error":"fixture error"}"#, Some("fixture error")),
+            (200, r#"{"error":"fixture error"}"#, Some("didn't send a usable price")),
             (200, r#"{"c":123.45}"#, None),
         ] {
             let server = crate::live_prices::quote_http_fixture::QuoteServer::new(status, body);
@@ -166,8 +167,9 @@ mod tests {
 
         let result = parse_quote_response(200, body);
 
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Symbol not supported"));
+        let message = result.unwrap_err();
+        assert!(message.contains("didn't send a usable price"));
+        assert!(!message.contains("Symbol not supported") && !message.contains('{'), "provider text leaked: {message}");
     }
 
     #[test]

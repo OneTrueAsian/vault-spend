@@ -93,7 +93,7 @@ describe("opening the review", () => {
     act(() => owner.open([1, 2, 9], 2, { clearSelection: true }));
     await flush();
     const text = document.body.textContent ?? "";
-    expect(text).toContain("2 transactions from Checking (2)");
+    expect(text).toContain("2 transactions from Checking, dated");
     expect(text).toContain("1 selected transaction is already in Savings and will stay there.");
     expect(q('[data-move-effect="1"]')?.textContent).toContain("Balance $991.00 → $1,000.00");
     expect(q('[data-move-effect="2"]')?.textContent).toContain("Balance $500.00 → $491.00");

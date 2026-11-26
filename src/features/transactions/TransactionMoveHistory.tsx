@@ -4,10 +4,12 @@ import { errorMessage } from "../../shared/lib/errorMessage";
 import { formatDisplayDate } from "../../shared/lib/format";
 import { money, moveTransactionsText, validateMoveRecords, type MoveRecord } from "./transactionAccountMove";
 
-/** Read-only details of the latest moves in the currently open profile. */
-export function TransactionMoveHistory({ call, sessionKey }: {
+/** Read-only details of the latest moves in the currently open profile. Opened from the Transactions
+ * page's More actions menu: each new `openRequest` number opens it. */
+export function TransactionMoveHistory({ call, sessionKey, openRequest }: {
   call: <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
   sessionKey: string;
+  openRequest: number;
 }) {
   const [open, setOpen] = useState(false);
   const [records, setRecords] = useState<MoveRecord[] | null>(null);
@@ -38,9 +40,16 @@ export function TransactionMoveHistory({ call, sessionKey }: {
     }
   }
   function close() { request.current++; setOpen(false); setRecords(null); setError(null); }
+  const handled = useRef(openRequest);
+  useEffect(() => {
+    if (openRequest === handled.current) return;
+    handled.current = openRequest;
+    if (openRequest > 0) void load();
+    // load reads only refs and stable setters; a new request number is the only reason to open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openRequest]);
 
   return <>
-    <button type="button" className="modal-secondary" onClick={() => void load()} data-account-move-history>Account move history</button>
     {open && <ModalShell title="Account move history" wide onCancel={close} footer={<div className="modal-actions"><button type="button" onClick={close}>Close</button></div>}>
       {error ? <><p role="alert">{error}</p><button type="button" onClick={() => void load()}>Try again</button></>
         : records === null ? <p role="status">Loading account moves…</p>

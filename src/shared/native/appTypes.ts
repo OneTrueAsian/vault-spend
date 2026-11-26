@@ -22,6 +22,20 @@ export type PendingImport = {
    * and whether the choice is the account's remembered one or was made in this import. Null when there is no column choice. */
   columns: { inspection: ColumnInspection; source: ColumnMapSource } | null;
   preview: ImportPreview;
+  /** Set when the rows come from the saved copy of an export a watched folder found (VS-102);
+   * `path` is then empty and the export is named by its batch. */
+  folder?: FolderImportSource | null;
+};
+
+/** The saved export a folder import review reads, and the version of it that was reviewed. */
+export type FolderImportSource = {
+  batchId: number;
+  rowVersion: number;
+  fileName: string;
+  /** False when the original file has left the folder: the review uses the saved copy. */
+  sourcePresent: boolean;
+  /** The amount convention saved with the export's name in Settings (true: signs flipped). */
+  nameInvert: boolean;
 };
 
 export type Stats = {
@@ -53,7 +67,7 @@ export type PendingDialog =
   | { kind: "csvExportWarning"; resolve: (proceed: boolean) => void };
 
 /** How a transaction got its category, in words (the backend stores rule / user / classifier). */
-export const CATEGORY_SOURCE_LABELS: Record<string, string> = { rule: "Your rule", user: "You", classifier: "Suggested" };
+export const CATEGORY_SOURCE_LABELS: Record<string, string> = { rule: "Rule", user: "You", classifier: "Suggested" };
 
 export type Tab =
   | "dashboard"

@@ -53,7 +53,9 @@ try {
   // Bulk accept needs a category for every selected row that has none.
   await (await b.$('[aria-label^="Select Unknown One on"]')).click();
   assert.equal(await b.$("[data-inbox-review-selected]").isEnabled(), false, "a row with no category blocks Review selected");
-  assert.ok((await b.$(".inbox-bulk-help").getText()).includes("Choose a category for 1 selected transaction first."), await b.$(".inbox-bulk-help").getText());
+  // textContent, not getText: after the row click the bulk bar can be scrolled out of view, and getText then returns "".
+  const bulkHelp = await b.$(".inbox-bulk-help").getProperty("textContent");
+  assert.ok(bulkHelp.includes("Choose a category for 1 selected transaction first."), bulkHelp);
   await (await b.$('[aria-label^="Select Unknown One on"]')).click();
 
   // Accept the shown category for the low-confidence guess and keep the flagged pairs: three reviewed, the rest untouched.

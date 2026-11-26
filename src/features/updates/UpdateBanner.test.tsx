@@ -200,4 +200,21 @@ describe("UpdateBanner", () => {
     expect(container.textContent).toContain("Installer expired");
     expect(container.textContent).not.toContain("Open verified installer");
   });
+  it("keeps an update failure's technical cause behind Details (VS-71)", async () => {
+    signedReplies();
+    const original = tauri.invoke.getMockImplementation()!;
+    tauri.invoke.mockImplementation((command: string, args: unknown) =>
+      command === "install_signed_update"
+        ? Promise.reject("Couldn't start the verified installer.\n\u001fUpdate failed: Access is denied. (os error 5)")
+        : original(command, args),
+    );
+    await mount();
+    await click("Download update");
+    await click("Open verified installer");
+    await click("Open installer");
+    expect(container.querySelector(".update-banner-error")?.textContent?.trim()).toBe("Couldn't start the verified installer.");
+    expect(container.textContent).not.toContain("os error 5");
+    await click("Details");
+    expect(container.querySelector("[data-update-detail]")?.textContent).toBe("Update failed: Access is denied. (os error 5)");
+  });
 });

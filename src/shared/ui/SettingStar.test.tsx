@@ -183,7 +183,8 @@ describe("Settings sections carry anchors, h2 titles and stars", () => {
 
   // Anchors of the five separate section components are asserted where those components live (their own test files);
   // the one conditional card (Protection leftovers) is only on screen for a protected profile.
-  const SEPARATE_IDS = ["password-protection", "automatic-locking", "mobile-snapshots", "categorization-rules", "statement-layouts"];
+  // Rendered by components this test leaves out; each has its own test. Folder imports is passed in by the app (VS-102).
+  const SEPARATE_IDS = ["password-protection", "automatic-locking", "mobile-snapshots", "categorization-rules", "statement-layouts", "folder-imports"];
 
   it("keeps the page and the settings index in step, both ways", () => {
     const onPage = [...container.querySelectorAll<HTMLElement>("[data-setting], [data-setting-card]")].map((el) => el.dataset.setting ?? el.dataset.settingCard!);

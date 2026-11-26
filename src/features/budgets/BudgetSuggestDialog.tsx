@@ -82,6 +82,10 @@ export function BudgetSuggestDialog({
             Apply {chosen.length} {chosen.length === 1 ? "budget" : "budgets"}
           </button>
         )}
+        {/* VS-68: what the greyed-out Apply is waiting for. */}
+        {!noHistory && suggestions.lines.length > 0 && chosen.length === 0 && (
+          <small className="field-problem" role="status" data-suggest-missing>Tick at least one category to apply.</small>
+        )}
       </div>
     </ModalShell>
   );

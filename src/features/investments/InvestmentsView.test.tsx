@@ -222,3 +222,41 @@ describe("What your investments are in", () => {
     stop();
   });
 });
+
+describe("Add holding says what is missing (VS-49)", () => {
+  const form = () => host.querySelector<HTMLElement>(".labeled-field-form")!;
+  const note = () => form().querySelector("[data-holding-missing]")?.textContent ?? null;
+  const save = () => [...form().querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Save")!;
+  const symbolBox = () => form().querySelector<HTMLInputElement>('input[placeholder="e.g. AAPL"]')!;
+  const type = (input: HTMLInputElement, text: string) =>
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, text);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+  it("asks for a symbol, then lets Save through", () => {
+    show();
+    click([...host.querySelectorAll("button")].find((b) => b.textContent === "Add holding")!);
+    expect(save().disabled).toBe(true);
+    expect(note()).toBe("Enter a symbol, like AAPL.");
+    type(symbolBox(), "AAPL");
+    expect(note()).toBeNull();
+    expect(save().disabled).toBe(false);
+  });
+
+  it("asks for a goal name when a projection is saved as a goal (VS-68)", () => {
+    show();
+    openTab("growth");
+    const g = panel("growth");
+    click(g.querySelector("[data-projection-save-as-goal]"));
+    const nameBox = g.querySelector<HTMLInputElement>("[data-projection-goal-name]")!;
+    const saveGoal = g.querySelector<HTMLButtonElement>("[data-projection-goal-save]")!;
+    const goalNote = () => g.querySelector("[data-projection-goal-missing]")?.textContent ?? null;
+    type(nameBox, "");
+    expect(saveGoal.disabled).toBe(true);
+    expect(goalNote()).toBe("Enter a goal name.");
+    type(nameBox, "Retire early");
+    expect(goalNote()).toBeNull();
+    expect(saveGoal.disabled).toBe(false);
+  });
+});

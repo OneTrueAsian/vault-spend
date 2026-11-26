@@ -7,6 +7,7 @@
 //! rather than aborting the whole file, so a typo in one row never costs
 //! every other good row — in this file or any other section.
 
+use crate::csv_loader::row_preview;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use std::fmt;
@@ -18,6 +19,8 @@ pub struct RowError {
     pub section: String,
     pub row_number: usize,
     pub message: String,
+    /// The row's cells, shortened, for the review screen (not logged). None when the row could not be split into cells.
+    pub preview: Option<String>,
 }
 
 impl fmt::Display for RowError {
@@ -180,6 +183,7 @@ fn parse_section(section: &str, body: &str, first_data_row_number: usize, result
                     section: section.to_string(),
                     row_number,
                     message: e.to_string(),
+                    preview: None,
                 });
                 continue;
             }
@@ -191,6 +195,7 @@ fn parse_section(section: &str, body: &str, first_data_row_number: usize, result
                     section: section.to_string(),
                     row_number,
                     message,
+                    preview: Some(row_preview(&record)),
                 }),
             },
             "Categories" => match parse_category_row(&headers, &record) {
@@ -199,6 +204,7 @@ fn parse_section(section: &str, body: &str, first_data_row_number: usize, result
                     section: section.to_string(),
                     row_number,
                     message,
+                    preview: Some(row_preview(&record)),
                 }),
             },
             "Budgets" => match parse_budget_row(&headers, &record) {
@@ -207,6 +213,7 @@ fn parse_section(section: &str, body: &str, first_data_row_number: usize, result
                     section: section.to_string(),
                     row_number,
                     message,
+                    preview: Some(row_preview(&record)),
                 }),
             },
             "Buckets" => match parse_bucket_row(&headers, &record) {
@@ -215,6 +222,7 @@ fn parse_section(section: &str, body: &str, first_data_row_number: usize, result
                     section: section.to_string(),
                     row_number,
                     message,
+                    preview: Some(row_preview(&record)),
                 }),
             },
             "Holdings" => match parse_holding_row(&headers, &record) {
@@ -223,6 +231,7 @@ fn parse_section(section: &str, body: &str, first_data_row_number: usize, result
                     section: section.to_string(),
                     row_number,
                     message,
+                    preview: Some(row_preview(&record)),
                 }),
             },
             _ => unreachable!("section_kind only ever returns a known section"),

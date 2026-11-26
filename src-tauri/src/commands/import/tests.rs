@@ -940,3 +940,58 @@ fn a_map_using_a_blank_header_still_imports_and_saves_nothing() {
     assert_eq!(state.store.account_import_columns(account).unwrap(), None);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- unreadable rows: which ones, and why, in plain words (VS-52) ----
+
+#[test]
+fn the_preview_lists_each_unreadable_row_with_a_plain_reason_and_keeps_the_count() {
+    let csv = "Date,Description,Amount\n2026-08-01,Rent,-900.00\n2026-08-02,Gas,abc\n2026-08-03,,-5.00\n";
+    let (mut state, file, dir) = import_fixture("row-problems", csv);
+    let account = checking(&state);
+
+    let preview = preview_import_for(&mut state, file.to_str().unwrap(), false, account, None, None).unwrap();
+
+    assert_eq!(preview.row_errors, 2);
+    assert_eq!(preview.row_errors, preview.row_problems.len());
+    let json = serde_json::to_value(&preview.row_problems).unwrap();
+    assert_eq!(
+        json,
+        serde_json::json!([
+            {"row_number": 3, "preview": "2026-08-02, Gas, abc", "reason": "The amount isn't a number."},
+            {"row_number": 4, "preview": "2026-08-03, , -5.00", "reason": "This transaction has no description."},
+        ])
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn an_ofx_row_problem_has_a_plain_reason_and_no_preview() {
+    let (mut state, _csv, dir) = import_fixture("row-problems-ofx", "");
+    let file = dir.join("bank.ofx");
+    std::fs::write(&file, "<STMTTRN><DTPOSTED>soon<TRNAMT>-1.00<NAME>Secret payee</STMTTRN>").unwrap();
+    let account = checking(&state);
+
+    let preview = preview_import_for(&mut state, file.to_str().unwrap(), false, account, None, None).unwrap();
+
+    let json = serde_json::to_value(&preview.row_problems).unwrap();
+    assert_eq!(json, serde_json::json!([{"row_number": 1, "preview": null, "reason": "The date soon isn't a real date."}]));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn setup_import_problems_name_the_section_and_use_the_same_reasons() {
+    let (_state, _csv, dir) = import_fixture("row-problems-setup", "");
+    let file = dir.join("setup.csv");
+    std::fs::write(&file, "Accounts\nName,Type,Starting Balance\nSavings,savings,oops\n").unwrap();
+
+    let data = budget_core::setup_import::load_setup_csv(&file).unwrap();
+    let problems = setup_row_problems(&data.errors);
+
+    assert_eq!(problems.len(), 1);
+    let json = serde_json::to_value(&problems).unwrap();
+    assert_eq!(
+        json,
+        serde_json::json!([{"row_number": 3, "preview": "Accounts: Savings, savings, oops", "reason": "oops isn't a number for starting balance."}])
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

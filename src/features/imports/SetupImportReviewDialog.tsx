@@ -3,6 +3,7 @@ import "../transactions/Transactions.css";
 
 import { formatAmount, formatDisplayDate } from "../../shared/lib/format";
 import { ModalShell } from "../../shared/ui/Modal";
+import { RowProblemList } from "./RowProblemList";
 
 import type { SetupImportPreview } from "../../shared/lib/types";
 
@@ -36,25 +37,27 @@ export function SetupImportReviewDialog({
   onConfirm: () => void;
 }) {
   const errors = pendingSetupImport.preview.row_errors;
+  const { accounts, categories, budgets, buckets, holdings } = pendingSetupImport.preview;
+  const nothingToImport = accounts.length + categories.length + budgets.length + buckets.length + holdings.length === 0;
+  const noneTicked =
+    pendingSetupImport.includedAccounts.size +
+      pendingSetupImport.includedCategories.size +
+      pendingSetupImport.includedBudgets.size +
+      pendingSetupImport.includedBuckets.size +
+      pendingSetupImport.includedHoldings.size ===
+    0;
   const footer = (
     <div className="dup-review-actions">
       <button className="modal-secondary" onClick={onCancel} disabled={busy}>
         Cancel
       </button>
-      <button
-        onClick={confirmSetupImport}
-        disabled={
-          busy ||
-          pendingSetupImport.includedAccounts.size +
-            pendingSetupImport.includedCategories.size +
-            pendingSetupImport.includedBudgets.size +
-            pendingSetupImport.includedBuckets.size +
-            pendingSetupImport.includedHoldings.size ===
-            0
-        }
-      >
+      <button onClick={confirmSetupImport} disabled={busy || noneTicked}>
         {busy ? "Importing…" : "Import selected"}
       </button>
+      {/* VS-68: what the greyed-out Import selected is waiting for (an empty file already says so above). */}
+      {noneTicked && !nothingToImport && (
+        <small className="field-problem" role="status" data-setup-import-missing>Tick at least one row to import.</small>
+      )}
     </div>
   );
   return (
@@ -69,9 +72,12 @@ export function SetupImportReviewDialog({
     >
       <div className="import-review-dialog">
         <p className="dup-review-summary">
-          Untick anything you don't want.
-          {errors > 0 && ` ${errors} ${errors === 1 ? "row had a problem and will be skipped" : "rows had problems and will be skipped"}.`}
+          {nothingToImport
+            ? `Nothing could be imported from this file. ${errors} ${errors === 1 ? "row" : "rows"} couldn't be read.`
+            : "Untick anything you don't want."}
+          {!nothingToImport && errors > 0 && ` ${errors} ${errors === 1 ? "row had a problem and will be skipped" : "rows had problems and will be skipped"}.`}
         </p>
+        <RowProblemList problems={pendingSetupImport.preview.row_problems} />
 
         {pendingSetupImport.preview.accounts.length > 0 && (
           <>

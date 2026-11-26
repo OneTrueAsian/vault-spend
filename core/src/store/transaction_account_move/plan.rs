@@ -480,7 +480,7 @@ impl Store {
                 code: "account_kind_differs",
                 count: differing_kind,
                 detail: format!(
-                    "{} from a different kind of account than {}. Amounts keep their signs, so check the balances below.",
+                    "{} from a different kind of account than {}. Amounts keep their signs, so check the new balances under What changes.",
                     plural(differing_kind, "transaction is", "transactions are"),
                     dest.name
                 ),

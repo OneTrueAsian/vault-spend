@@ -26,7 +26,7 @@ vi.mock("../../AskVaultCard", async importOriginal => {
 import { DashboardView } from "./DashboardView";
 import * as vendor from "../../askVault/common/vendor";
 import { DEFAULT_LAYOUT, type WidgetId } from "../../shared/lib/dashboardLayout";
-import type { Account } from "../../shared/lib/types";
+import type { Account, Transaction } from "../../shared/lib/types";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -592,5 +592,90 @@ describe("Links into pages with tabs (VS-31 step 3)", () => {
     await render(p);
     await click(link("View in Investments"));
     expect(p.onOpenInvestments).toHaveBeenCalledWith();
+  });
+});
+
+// VS-46: watch tiles. This month's spending so far on one category, tag, store or saved filter, against a usual month
+// (the average of the last 3 full months), with a link to the matching transactions.
+describe("watch tiles", () => {
+  const now = new Date();
+  // A date `back` months before this month, on day `day` (day 1 is always on or before today).
+  const ymd = (back: number, day: number) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - back, day);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const tx = (id: number, date: string, amount: string, over: Partial<Transaction> = {}): Transaction => ({
+    id, transfer_counterpart_id: null, date, description: "Corner Cafe", amount, category: "Coffee", category_source: "user", confidence: null,
+    account_id: 1, account_name: "Everyday checking", applied_to_debt: null, principal_amount: null, split_count: 0, tags: ["treat"],
+    member_id: null, member_name: null, notes: null, excluded_from_budget: false, ...over,
+  });
+  const history = [tx(1, ymd(3, 1), "-30.00"), tx(2, ymd(2, 1), "-60.00"), tx(3, ymd(1, 1), "-90.00"), tx(4, ymd(0, 1), "-12.50")];
+  const tile = (id: string) => container.querySelector<HTMLElement>(`[data-widget-id="${id}"] [data-watch-tile]`)!;
+
+  it("shows this month so far against the usual month, and opens the matching transactions", async () => {
+    const p = props({ transactions: history, layoutWidgets: ["watch:tag:treat" as WidgetId], onOpenWatch: vi.fn() });
+    await render(p);
+    const t = tile("watch:tag:treat");
+    expect(t.querySelector(".stat-label")?.textContent).toBe("treat");
+    expect(t.querySelector(".stat-value")?.textContent).toBe("$12.50");
+    expect(t.textContent).toContain("Tag · spent this month so far");
+    expect(t.querySelector("[data-watch-usual]")?.textContent).toBe("Usual month: $60.00");
+    await act(async () => t.querySelector<HTMLElement>(".clickable-row")!.click());
+    expect(p.onOpenWatch).toHaveBeenCalledWith({ kind: "tag", name: "treat" });
+  });
+
+  it("counts a category like Budget, from Budget's per-category spending, and says when split lines are involved", async () => {
+    const p = props({
+      transactions: [...history, tx(5, ymd(0, 1), "-40.00", { category: null, split_count: 2 })],
+      categories: ["Coffee"],
+      spendingThisMonth: [{ category: "Coffee", amount: "20.00" }],
+      watchCategoryHistory: [[{ category: "Coffee", amount: "10.00" }], [{ category: "Coffee", amount: "20.00" }], [{ category: "Coffee", amount: "30.00" }]],
+      layoutWidgets: ["watch:category:Coffee" as WidgetId],
+    });
+    await render(p);
+    const t = tile("watch:category:Coffee");
+    expect(t.querySelector(".stat-value")?.textContent).toBe("$20.00");
+    expect(t.querySelector("[data-watch-usual]")?.textContent).toBe("Usual month: $20.00");
+    expect(t.querySelector("[data-watch-split-note]")?.textContent).toBe("Split lines count by their own category, like Budget, so the list may not add up to this.");
+  });
+
+  it("leaves a month with no transactions at all out of the usual month, rather than counting it as $0", async () => {
+    // Two months back has nothing recorded in any account (say, a missed import): only 30 and 90 are averaged.
+    const gap = history.filter((t) => t.date !== ymd(2, 1));
+    await render(props({ transactions: gap, layoutWidgets: ["watch:tag:treat" as WidgetId] }));
+    expect(tile("watch:tag:treat").querySelector("[data-watch-usual]")?.textContent).toBe("Usual month: $60.00");
+  });
+
+  it("says there is no usual month yet without a full month of history", async () => {
+    await render(props({ transactions: [tx(1, ymd(0, 1), "-5.00")], layoutWidgets: ["watch:store:corner" as WidgetId] }));
+    expect(tile("watch:store:corner").querySelector("[data-watch-usual]")?.textContent).toBe("No usual month yet. It needs a full month of history.");
+  });
+
+  it("says when a watched category, tag or saved filter no longer exists, and removes the tile on request", async () => {
+    const p = props({
+      transactions: history,
+      categories: ["Groceries"],
+      tags: ["treat"],
+      savedFilters: [],
+      savedFiltersLoaded: true,
+      layoutWidgets: ["watch:category:Coffee", "watch:tag:gone", "watch:filter:Trips", "stat_cash"] as WidgetId[],
+    });
+    await render(p);
+    expect(tile("watch:category:Coffee").textContent).toContain("This category no longer exists. It may have been renamed or deleted.");
+    expect(tile("watch:tag:gone").textContent).toContain("This tag no longer exists.");
+    expect(tile("watch:filter:Trips").textContent).toContain("This saved filter no longer exists.");
+    await act(async () => [...tile("watch:tag:gone").querySelectorAll("button")].find((b) => b.textContent === "Remove tile")!.click());
+    expect(p.onSetLayoutWidgets).toHaveBeenCalledWith(["watch:category:Coffee", "watch:filter:Trips", "stat_cash"]);
+  });
+
+  it("does not call a saved filter missing before the saved filters have loaded", async () => {
+    await render(props({ transactions: history, savedFilters: [], savedFiltersLoaded: false, layoutWidgets: ["watch:filter:Trips" as WidgetId] }));
+    expect(container.querySelector('[data-widget-id="watch:filter:Trips"]')?.textContent).not.toContain("no longer exists");
+  });
+
+  it("uses a saved filter's settings without its dates", async () => {
+    const saved = { name: "Treats", searchText: "", filterCategory: "Coffee", filterAccountIds: "all" as const, filterMemberIds: "all" as const, filterFrom: "2000-01-01", filterTo: "2000-01-31", filterTag: "all" };
+    await render(props({ transactions: history, savedFilters: [saved], savedFiltersLoaded: true, layoutWidgets: ["watch:filter:Treats" as WidgetId] }));
+    expect(tile("watch:filter:Treats").querySelector(".stat-value")?.textContent).toBe("$12.50");
   });
 });

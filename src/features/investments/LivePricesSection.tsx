@@ -56,6 +56,8 @@ export function LivePricesSection({
   onRefreshNow: () => void;
 }) {
   const [apiKeyInput, setApiKeyInput] = useState("");
+  // VS-68: the key box is always on screen while prices are off, so its note waits until the box has been used.
+  const [keyTouched, setKeyTouched] = useState(false);
   const [pickerProvider, setPickerProvider] = useState<LivePriceProviderId>(settings?.provider ?? "alpha_vantage");
 
   // Keep the picker in sync with the last-saved provider whenever the
@@ -153,11 +155,15 @@ export function LivePricesSection({
               type="password"
               value={apiKeyInput}
               onChange={(e) => setApiKeyInput(e.target.value)}
+              onFocus={() => setKeyTouched(true)}
               placeholder={LIVE_PRICE_PROVIDERS[pickerProvider].keyPlaceholder}
             />
             <button type="submit" disabled={!apiKeyInput.trim()}>
               Save
             </button>
+            {keyTouched && !apiKeyInput.trim() && (
+              <small className="field-problem" role="status" data-api-key-missing>Paste your API key.</small>
+            )}
           </form>
         </>
       )}

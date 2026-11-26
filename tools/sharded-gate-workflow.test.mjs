@@ -1,13 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import yaml from "js-yaml";
 import { GATE_JOBS, requiredChecks, checkOwner } from "../e2e/lib/gateChecks.mjs";
 
 const read = name => fs.readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), "utf8");
 const gateText = read("windows-desktop-gate-sharded.yml"), gate = yaml.load(gateText);
-const releaseText = read("release-windows.yml"), release = yaml.load(releaseText);
-const prepareText = read("prepare-signed-installers.yml"), prepare = yaml.load(prepareText);
+const release = yaml.load(read("release-windows.yml"));
 const step = (job, name) => job.steps.find(s => s.name === name);
 const hostedSteps = ["Refresh hosted WebView2 runtime", "Pin hosted Edge version", "Install desktop test drivers", "Install native Edge test driver", "Prepare medium-integrity desktop tests",
   "Desktop WebDriver smoke preflight", "Verify native Edge driver still matches Edge"];
@@ -23,21 +23,14 @@ test("the sharded gate cannot publish, sign or move a tag", () => {
   }
 });
 
-test("both callers reach it read-only, without secrets, and keep their serial path behind the flag", () => {
-  for (const [workflow, name] of [[release, "release-windows.yml"], [prepare, "prepare-signed-installers.yml"]]) {
+test("the caller reaches it read-only, without secrets", () => {
+  for (const [workflow, name] of [[release, "release-windows.yml"]]) {
     const call = workflow.jobs["sharded-gate"];
     assert.equal(call.uses, "./.github/workflows/windows-desktop-gate-sharded.yml", name);
     assert.deepEqual(call.permissions, { contents: "read" }, name);
     assert.equal(call.secrets, undefined, name);
-    assert.equal(call.if, "${{ inputs.sharded }}", name);
-    assert.equal(workflow.on.workflow_dispatch.inputs.sharded.default, false, name);
-    assert.equal(workflow.on.workflow_dispatch.inputs.sharded.type, "boolean", name);
+    assert.equal(call.if, undefined, name);
   }
-  assert.equal(release.jobs.release.if, "${{ !cancelled() && !inputs.sharded && !inputs.test_release && (inputs.diagnostic_only || needs.release-baseline.result == 'success') }}");
-  assert.equal(prepare.jobs.windows.if, "${{ !inputs.sharded }}");
-  assert.equal(prepare.jobs.macos.if, "${{ !inputs.sharded }}");
-  assert.equal(prepare.jobs["sign-updates"].if, "${{ !inputs.sharded }}");
-  assert.equal(prepare.on.workflow_call.inputs.sharded.default, false);
 });
 
 test("a sharded release-windows request must be a pinned diagnostic, a release on its own tag, or a draft test release", () => {
@@ -46,40 +39,37 @@ test("a sharded release-windows request must be a pinned diagnostic, a release o
   for (const needle of ['"$DIAGNOSTIC_ONLY" == "true"', '"$RECOVERY" == "true"', "[0-9a-f]{40}", "refs/heads/*", 'refs/tags/$RELEASE_TAG', '"$SOURCE_SHA" == "$GITHUB_SHA"', "v[0-9]+"]) assert.ok(run.includes(needle), needle);
   assert.equal(release.jobs["sharded-gate"].with.recovery, "${{ inputs.recovery }}");
   // The signing job is unreachable for diagnostics.
-  assert.equal(release.jobs["sign-updates"].if, "${{ !inputs.recovery && !inputs.diagnostic_only }}");
+  assert.equal(release.jobs["sharded-sign-updates"].if, "${{ !inputs.diagnostic_only }}");
 });
 
-test("the serial gate still runs every check, unchanged, when the flag is off", () => {
-  const names = release.jobs.release.steps.map(s => s.name).filter(Boolean);
-  for (const name of ["Frontend tests", "Lint", "Rust tests", "Build current desktop test app", "Desktop WebDriver smoke preflight", "Full desktop E2E release gate", "Build Windows installers into the draft release"]) assert.ok(names.includes(name), name);
-  assert.equal(step(release.jobs.release, "Full desktop E2E release gate").run.includes("-Shard"), false);
-  assert.equal(step(prepare.jobs.windows, "Full desktop E2E release gate").run.includes("-Shard"), false);
-  assert.equal(release.jobs.release["timeout-minutes"], 240);
-});
-
-test("every shard repeats the serial job's hosted-environment steps exactly", () => {
-  for (const name of hostedSteps) assert.deepEqual(step(gate.jobs.shard, name), step(release.jobs.release, name), name);
-  assert.deepEqual(step(gate.jobs.build, "Build current desktop test app"), step(release.jobs.release, "Build current desktop test app"));
-  // Every check the serial job runs before the desktop specs still runs, unchanged, in exactly one job of the gate.
+test("every shard sets up the hosted environment, and each pre-spec check runs in exactly one job of the gate", () => {
+  // Each hosted-environment step is pinned exactly (a hash of the whole parsed step: name, env, run). Change a step on purpose, then update its hash here.
+  const sha = s => crypto.createHash("sha256").update(JSON.stringify(s)).digest("hex").slice(0, 16);
+  const PINNED = { "Refresh hosted WebView2 runtime": "26beaa9c1011206c", "Pin hosted Edge version": "3d69f4d7c9dda518", "Install desktop test drivers": "ef80944ab269bef1", "Install native Edge test driver": "8be2b06cec049cd9",
+    "Prepare medium-integrity desktop tests": "c594386ccabd6cc5", "Desktop WebDriver smoke preflight": "7226d0fdc41908ab", "Verify native Edge driver still matches Edge": "b9cdeef72e298b2a" };
+  assert.deepEqual(Object.keys(PINNED), hostedSteps);
+  for (const name of hostedSteps) assert.equal(sha(step(gate.jobs.shard, name)), PINNED[name], name);
+  assert.deepEqual(step(gate.jobs.build, "Build current desktop test app"), { name: "Build current desktop test app", env: { CARGO_PROFILE_DEV_OPT_LEVEL: 1 }, run: "npm run build:app" });
+  // Every check before the desktop specs runs in exactly one job of the gate.
   const owner = { "Build E2E database fixture tool": "build", "Build frontend for Rust tests": "checks-rust", "Rust tests": "checks-rust", "Frontend tests": "checks-other", Lint: "checks-other",
     "Install RustSec scanner": "checks-other", "Dependency security policy tests": "checks-other", "Audit dependencies for x86_64-pc-windows-msvc": "checks-other" };
   for (const [name, job] of Object.entries(owner)) {
-    assert.deepEqual(step(gate.jobs[job], name), step(release.jobs.release, name), name);
+    assert.ok(step(gate.jobs[job], name), name);
     for (const other of ["build", "checks-rust", "checks-other"]) if (other !== job) assert.equal(step(gate.jobs[other], name), undefined, `${name} runs only in ${job}`);
   }
   const contract = step(gate.jobs["checks-other"], "Verify signed updater release contracts");
   assert.equal(contract.if, "${{ inputs.contract_tests != '' }}");
   assert.equal(contract.run, "node --test @($env:CONTRACT_TESTS -split '\\s+' | Where-Object { $_ })");
-  assert.equal(step(gate.jobs["checks-other"], "Validate pinned preparation source").if, "${{ inputs.validate_preparation }}");
-  assert.equal(step(gate.jobs["checks-other"], "Validate pinned preparation source").run, "node tools/prepare-update-artifacts.mjs validate");
+  assert.equal(gate.on.workflow_call.inputs.validate_preparation, undefined);
+  assert.equal(step(gate.jobs["checks-other"], "Validate pinned preparation source"), undefined);
   assert.deepEqual(step(gate.jobs["checks-other"], "Repair legacy test driver paths for recovery"), step(gate.jobs.build, "Repair legacy test driver paths for recovery"));
   assert.deepEqual(step(gate.jobs.build, "Repair legacy test driver paths for recovery"), step(gate.jobs.shard, "Repair legacy test driver paths for recovery"));
 });
 
-test("the full gate step differs from the serial one only by naming its shard of six", () => {
-  const serial = step(release.jobs.release, "Full desktop E2E release gate"), sharded = step(gate.jobs.shard, "Full desktop E2E release gate");
-  assert.deepEqual(sharded.env, serial.env);
-  assert.equal(sharded.run.replace(" -Shard ${{ matrix.shard }}/6", ""), serial.run);
+test("the full gate step runs one shard of six with the hosted timing settings", () => {
+  const sharded = step(gate.jobs.shard, "Full desktop E2E release gate");
+  assert.deepEqual(sharded.env, { CARGO_PROFILE_DEV_OPT_LEVEL: 1, VAULTSPEND_E2E_SPEC_TIMEOUT_MS: "180000", VAULTSPEND_E2E_TIMEOUT_SCALE: "3" });
+  assert.equal(sharded.run, "& $env:VAULTSPEND_CI_GSUDO --integrity Medium --direct --chdir $env:GITHUB_WORKSPACE pwsh -NoProfile -NonInteractive -File tools/run-hosted-desktop-tests.ps1 -Gate full -Shard ${{ matrix.shard }}/6\nexit $LASTEXITCODE\n");
   assert.ok(sharded.run.includes("-Gate full -Shard ${{ matrix.shard }}/6"));
   assert.deepEqual(gate.jobs.shard.strategy.matrix.shard, [1, 2, 3, 4, 5, 6]);
   assert.equal(gate.jobs.shard.strategy["fail-fast"], false);
@@ -188,4 +178,19 @@ test("every check job confirms the exact commit; tag cache saves stay on where s
   }
   const cache = id => gate.jobs[id].steps.find(s => s.uses === "Swatinem/rust-cache@v2").with;
   for (const id of ["build", "checks-rust"]) { assert.equal(cache(id)["cache-on-failure"], true, id); assert.equal(cache(id)["save-if"], undefined, `${id} keeps saving its cache`); }
+});
+
+test("each shard records its browser and driver versions without changing the compatibility check (VS-9)", () => {
+  const job = Object.values(gate.jobs).find(j => step(j, "Collect this shard's evidence"));
+  const appends = (name, variable) => assert.match(step(job, name).run, new RegExp(`"${variable}=\\$[^"]+" \\| Out-File -FilePath \\$env:GITHUB_ENV -Encoding utf8 -Append`), `${name} appends ${variable}`);
+  appends("Refresh hosted WebView2 runtime", "VS_WEBVIEW2_VERSION");
+  appends("Install desktop test drivers", "VS_WEBVIEW2_DRIVER_VERSION");
+  appends("Install native Edge test driver", "VS_EDGE_VERSION");
+  appends("Install native Edge test driver", "VS_EDGE_DRIVER_VERSION");
+  const collect = step(job, "Collect this shard's evidence");
+  assert.equal(collect.if, "always()");
+  for (const key of ["edge", "edgeDriver", "webView2", "webView2Driver"]) assert.match(collect.run, new RegExp(`${key} = \\$env:VS_`), key);
+  assert.match(collect.run, /browsers = \[ordered\]@\{/);
+  assert.match(collect.run, /ConvertTo-Json -Depth 3/);
+  assert.match(step(job, "Verify native Edge driver still matches Edge").run, /tools\/assert-edge-driver-match\.ps1 -Edge \$edge -Driver \$env:MSEDGEDRIVER/);
 });

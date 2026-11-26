@@ -57,10 +57,12 @@ export function RuleEditorDialog({
   }, [pattern, category]);
 
   const wouldChange = preview?.would_change ?? 0;
+  // VS-49: the first thing stopping Save rule, said beside it instead of only greying it out.
+  const missing = !pattern.trim() ? "Enter the text to look for." : !category.trim() ? "Enter a category." : null;
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!pattern.trim() || !category.trim()) return;
+    if (missing !== null) return;
     onSubmit(pattern.trim(), category.trim(), applyToExisting && wouldChange > 0);
   }
 
@@ -107,9 +109,10 @@ export function RuleEditorDialog({
           <button type="button" className="modal-secondary" onClick={onCancel}>
             Cancel
           </button>
-          <button type="submit" disabled={!pattern.trim() || !category.trim()}>
+          <button type="submit" disabled={missing !== null}>
             Save rule
           </button>
+          {missing && <small className="field-problem" role="status" data-rule-missing>{missing}</small>}
         </div>
       </form>
     </ModalShell>

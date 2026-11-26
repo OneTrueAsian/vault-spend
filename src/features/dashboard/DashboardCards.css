@@ -419,6 +419,17 @@
   overflow-wrap: anywhere;
 }
 
+/* VS-71: a failure's technical cause, shown under its plain words after Details. Selectable, for support. */
+.status-detail {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.85;
+  user-select: text;
+}
+
 .status-action {
   flex: none;
   border: 1px solid currentColor;

@@ -45,6 +45,10 @@ src/askVault/acceptance/storeTypoLaterWord.test.tsx -text whitespace=cr-at-eol
 # Preserve the approved upstream compatibility patch and its license/source bytes.
 core/vendor/office_oxide/** -text
 
+# npm installs these bytes and tools/picomatch-security.test.mjs compares them with this copy, so a CRLF checkout always failed it
+# (VS-70, e2e/lib/picomatchVendorEol.test.mjs).
+tools/vendor/picomatch/** -text
+
 # Exact-byte frozen inputs may retain CRLF; CR is a line ending, not trailing source whitespace.
 src/askVault/**/*.test.* whitespace=cr-at-eol
 src/testSupport/askVaultM6/** whitespace=cr-at-eol

@@ -75,11 +75,11 @@ describe("ImportNeedsChoice", () => {
     expect(text).toContain("12.50");
   });
 
-  it("says how many rows it lists, in the right number", () => {
+  it("has a heading with no number, so it can't disagree with the tab or footer counts", () => {
     show([row(1), row(2)]);
-    expect(container.querySelector("h3")?.textContent).toBe("Pick a category for 2 rows");
+    expect(container.querySelector("h3")?.textContent).toBe("Pick a category for each row");
     show([row(1)], new Map([[1, null]]));
-    expect(container.querySelector("h3")?.textContent).toBe("Pick a category for 1 row");
+    expect(container.querySelector("h3")?.textContent).toBe("Pick a category for each row");
   });
 
   it("preselects nothing", () => {

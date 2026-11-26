@@ -5,7 +5,7 @@ import { type StatusKind } from "../../shared/native/appTypes";
 import { type SetupImportPreview, type SetupImportSummary } from "../../shared/lib/types";
 import { buildSetupTemplate } from "./setupTemplate";
 import { errorMessage } from "../../shared/lib/errorMessage";
-import { emptySetupMessage, setupImportMessage } from "./setupImportMessage";
+import { emptySetupMessage, setupImportMessage, setupPreviewHasNothingToShow } from "./setupImportMessage";
 
 export function useSetupImportActions({ invoke, setStatus, setPendingSetupImport, pendingSetupImport, setBusy, refresh, refreshBuckets, refreshHoldings }: {
   invoke: <T>(command: string, args?: Record<string, unknown> | undefined) => Promise<T>;
@@ -36,17 +36,9 @@ export function useSetupImportActions({ invoke, setStatus, setPendingSetupImport
     if (!path || Array.isArray(path)) return;
     try {
       const preview = await invoke<SetupImportPreview>("preview_setup_import", { path });
-      const total =
-        preview.accounts.length +
-        preview.categories.length +
-        preview.budgets.length +
-        preview.buckets.length +
-        preview.holdings.length;
-      if (total === 0) {
-        setStatus(
-          emptySetupMessage(preview.row_errors),
-          preview.row_errors > 0 ? "error" : "info",
-        );
+      // A file whose rows all failed still opens the review, so the reasons can be read.
+      if (setupPreviewHasNothingToShow(preview)) {
+        setStatus(emptySetupMessage(), "info");
         return;
       }
       // Duplicates start unchecked, same convention as the transaction

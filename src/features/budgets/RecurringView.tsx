@@ -170,10 +170,17 @@ function NewRecurringForm({
   const [accountId, setAccountId] = useState("");
   const [memberId, setMemberId] = useState("");
   const [open, setOpen] = useState(false);
+  const [dateUsable, setDateUsable] = useState(true);
+  // VS-68: the first thing stopping Save, said beside it (the same wording as the edit row, VS-49).
+  const missing = !merchant.trim()
+    ? "Enter a name."
+    : !amount.trim()
+      ? "Enter an amount."
+      : amountTextProblem(amount) ?? (anchorDate === "" || !dateUsable ? "Enter the whole next due date." : null);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!merchant.trim() || !amount.trim() || !anchorDate) return;
+    if (missing !== null) return;
     onCreate(
       merchant.trim(),
       null,
@@ -207,6 +214,7 @@ function NewRecurringForm({
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
         placeholder="Amount (negative = bill)"
+        aria-invalid={amountTextProblem(amount) !== null}
       />
       <MenuSelect
         ariaLabel="Cadence"
@@ -215,7 +223,7 @@ function NewRecurringForm({
         options={CADENCE_OPTIONS.map((c) => ({ value: c, label: cadenceLabel(c) }))}
         fill
       />
-      <DateField value={anchorDate} onChange={setAnchorDate} ariaLabel="Next due date" placeholder="Next due date" title="Next due date" required />
+      <DateField value={anchorDate} onChange={setAnchorDate} onValidityChange={setDateUsable} ariaLabel="Next due date" placeholder="Next due date" title="Next due date" required />
       <MenuSelect
         ariaLabel="Linked account"
         value={accountId}
@@ -238,12 +246,13 @@ function NewRecurringForm({
           fill
         />
       )}
-      <button type="submit" disabled={!merchant.trim() || !amount.trim() || !anchorDate}>
+      <button type="submit" disabled={missing !== null}>
         Save
       </button>
       <button type="button" className="modal-secondary" onClick={() => setOpen(false)}>
         Cancel
       </button>
+      {missing && <small className="field-problem" role="status" data-recurring-add-missing>{missing}</small>}
     </form>
   );
 }

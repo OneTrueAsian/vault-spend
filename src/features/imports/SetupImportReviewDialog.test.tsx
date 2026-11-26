@@ -19,6 +19,7 @@ function pending(rowErrors = 0): PendingSetupImport {
       buckets: [],
       holdings: [],
       row_errors: rowErrors,
+      row_problems: Array.from({ length: rowErrors }, (_, i) => ({ row_number: i + 3, preview: `Accounts: Row ${i + 1}, oops`, reason: "This row couldn't be read." })),
     },
     includedAccounts: new Set([0]),
     includedCategories: new Set(),
@@ -55,6 +56,28 @@ describe("SetupImportReviewDialog", () => {
   const dialog = () => document.querySelector<HTMLElement>("[role='dialog']")!;
   const button = (label: string) => [...dialog().querySelectorAll("button")].find((b) => b.textContent === label)!;
 
+  it("lists each problem row with its reason and the first five of seven, with Show all for the rest", () => {
+    show(pending(2));
+    const items = () => Array.from(dialog().querySelectorAll(".import-row-problems li")).map((li) => li.textContent);
+    expect(dialog().textContent).toContain("2 rows had problems and will be skipped.");
+    expect(items()).toEqual(["Row 3: This row couldn't be read.Accounts: Row 1, oops", "Row 4: This row couldn't be read.Accounts: Row 2, oops"]);
+    show(pending(7));
+    expect(items()).toHaveLength(5);
+    act(() => button("Show all 7").click());
+    expect(items()).toHaveLength(7);
+  });
+
+  it("opens even when every row failed: lists the reasons, says nothing can be imported, and keeps Import off", () => {
+    const p = pending(2);
+    p.preview.accounts = [];
+    p.includedAccounts = new Set();
+    show(p);
+    expect(dialog().textContent).toContain("Nothing could be imported from this file. 2 rows couldn't be read.");
+    expect(dialog().textContent).not.toContain("Untick anything");
+    expect(dialog().querySelectorAll(".import-row-problems li")).toHaveLength(2);
+    expect(button("Import selected").disabled).toBe(true);
+  });
+
   it("opens as a dialog with a plain intro and the rows to bring in", () => {
     show(pending());
     expect(dialog().querySelector(".modal-title")?.textContent).toBe("Import setup data");
@@ -86,6 +109,22 @@ describe("SetupImportReviewDialog", () => {
     p.includedAccounts = new Set();
     show(p);
     expect(button("Import selected").disabled).toBe(true);
+  });
+
+  it("says to tick a row while Import selected is off, and not when an empty file already says why (VS-68)", () => {
+    const note = () => document.querySelector("[data-setup-import-missing]")?.textContent ?? null;
+    show(pending());
+    expect(note()).toBeNull();
+    const p = pending();
+    p.includedAccounts = new Set();
+    show(p);
+    expect(note()).toBe("Tick at least one row to import.");
+    const empty = pending(4);
+    empty.preview.accounts = [];
+    empty.includedAccounts = new Set();
+    show(empty);
+    expect(button("Import selected").disabled).toBe(true);
+    expect(note()).toBeNull();
   });
 
   it("cancels on Escape but not on a click outside, and not while importing", () => {

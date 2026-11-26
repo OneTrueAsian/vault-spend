@@ -50,6 +50,7 @@ fn parse_qif(content: &str, invert_amounts: bool) -> LoadResult {
                     Err(message) => errors.push(RowError {
                         row_number: record_start_line,
                         message,
+                        preview: None,
                     }),
                 }
             }
@@ -78,6 +79,7 @@ fn parse_qif(content: &str, invert_amounts: bool) -> LoadResult {
             Err(message) => errors.push(RowError {
                 row_number: record_start_line,
                 message,
+                preview: None,
             }),
         }
     }
@@ -231,5 +233,17 @@ PPayroll Deposit
         assert_eq!(result.errors.len(), 1);
         assert_eq!(result.errors[0].row_number, 6);
         assert_eq!(result.errors[0].message, "missing date (D) line");
+    }
+
+    #[test]
+    fn an_unreadable_record_has_a_plain_reason_and_no_preview() {
+        let qif = "D08/05/2026\nT-10.00\n^\nD13/45/2026\nT-5.00\nPShop\n^\n";
+
+        let result = parse_qif(qif, false);
+
+        assert_eq!(result.errors.len(), 2);
+        assert_eq!(crate::row_problem::plain_row_reason(&result.errors[0].message), "This transaction has no description.");
+        assert_eq!(crate::row_problem::plain_row_reason(&result.errors[1].message), "The date 13/45/2026 isn't a real date.");
+        assert!(result.errors.iter().all(|e| e.preview.is_none()));
     }
 }

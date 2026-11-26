@@ -759,3 +759,96 @@ describe("v9 group cards", () => {
     expect(container.querySelectorAll('.cat-row-bar')).toHaveLength(3);
   });
 });
+
+describe("Add budget line says what is missing (VS-49)", () => {
+  const form = () => container.querySelector<HTMLFormElement>(".bucket-new-form")!;
+  const note = () => form().querySelector("[data-budget-line-missing]")?.textContent ?? null;
+  const amountBox = () => form().querySelector<HTMLInputElement>('input[placeholder="Monthly amount"]')!;
+  const save = () => [...form().querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Save")!;
+  const open = async (p: Props) => {
+    await render(p);
+    act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Add budget line")!.click());
+  };
+
+  it("names the amount, then the comma, and saves once it is usable", async () => {
+    const p = props();
+    await open(p);
+    expect(save().disabled).toBe(true);
+    expect(note()).toBe("Enter a monthly amount.");
+    act(() => setInputValue(amountBox(), "1,250.40"));
+    expect(note()).toBe("Leave out the comma: 1250.40");
+    expect(amountBox().getAttribute("aria-invalid")).toBe("true");
+    expect(save().disabled).toBe(true);
+    act(() => form().requestSubmit());
+    expect(p.onSetBudget).not.toHaveBeenCalled();
+    act(() => form().querySelector<HTMLButtonElement>(".menu-select-toggle")!.click());
+    act(() => document.querySelector<HTMLButtonElement>('.menu-select-panel [data-value="Groceries"]')!.click());
+    act(() => setInputValue(amountBox(), "1250.40"));
+    expect(note()).toBeNull();
+    expect(amountBox().getAttribute("aria-invalid")).not.toBe("true");
+    expect(save().disabled).toBe(false);
+    act(() => save().click());
+    expect(p.onSetBudget).toHaveBeenCalled();
+  });
+});
+
+describe("Add budget line is easy to find and fill (VS-103 F-05)", () => {
+  const form = () => container.querySelector<HTMLFormElement>(".bucket-new-form")!;
+  const note = () => form().querySelector("[data-budget-line-missing]")?.textContent ?? null;
+  const hint = () => form().querySelector("[data-budget-group-hint]")?.textContent ?? null;
+  const amountBox = () => form().querySelector<HTMLInputElement>('input[placeholder="Monthly amount"]')!;
+  const save = () => [...form().querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Save")!;
+  const open = async () => {
+    await render(props());
+    act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Add budget line")!.click());
+  };
+  const visibleLabels = () => [...form().querySelectorAll(".bucket-new-field > span")].map((s) => s.textContent);
+
+  afterEach(() => {
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  });
+
+  it("shows visible labels for the three fields", async () => {
+    await open();
+    expect(visibleLabels()).toEqual(["Category", "Budget group", "Monthly amount"]);
+  });
+
+  it("starts with no category chosen and says so", async () => {
+    await open();
+    const trigger = form().querySelector<HTMLButtonElement>(".menu-select-toggle")!;
+    expect(trigger.textContent).toContain("Choose a category");
+    expect(trigger.getAttribute("data-value")).toBe("");
+    act(() => setInputValue(amountBox(), "50"));
+    expect(note()).toBe("Choose a category.");
+    expect(save().disabled).toBe(true);
+  });
+
+  it("still asks for the amount first when both are missing", async () => {
+    await open();
+    expect(note()).toBe("Enter a monthly amount.");
+  });
+
+  it("explains the selected budget group", async () => {
+    await open();
+    expect(hint()).toBe("Changes from month to month, like groceries or eating out.");
+    const groupTrigger = form().querySelectorAll<HTMLButtonElement>(".menu-select-toggle")[1];
+    const pick = (value: string) => {
+      act(() => groupTrigger.click());
+      act(() => document.querySelector<HTMLButtonElement>(`.menu-select-panel [data-value="${value}"]`)!.click());
+    };
+    pick("income");
+    expect(hint()).toBe("Money coming in, like your pay.");
+    pick("fixed");
+    expect(hint()).toBe("About the same every month, like rent or a phone bill.");
+    pick("nonmonthly");
+    expect(hint()).toBe("Bills that come less often than monthly, like car insurance. Set aside a share each month.");
+  });
+
+  it("scrolls the form into view and focuses the Category button on open", async () => {
+    const scrollIntoView = vi.fn();
+    (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView = scrollIntoView;
+    await open();
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(document.activeElement).toBe(form().querySelector(".menu-select-toggle"));
+  });
+});

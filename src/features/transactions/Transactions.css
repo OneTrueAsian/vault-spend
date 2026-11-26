@@ -322,7 +322,7 @@
   color: inherit;
   text-align: inherit;
   transition: none;
-  /* A two-word header ("Sorted by") wraps in a narrow column instead of running into the next one. */
+  /* A two-word header ("Set by") wraps in a narrow column instead of running into the next one. */
   white-space: normal;
 }
 
@@ -2304,6 +2304,28 @@ table.ledger.recurring-table .actions-col {
   font-weight: 500;
 }
 
+/* The rows an import couldn't read: the reason first, then a look at the row in the muted mono face. */
+.import-row-problems {
+  margin: 0;
+  padding: 10px 12px 10px 28px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 13.5px;
+}
+
+.import-row-problems li + li {
+  margin-top: 6px;
+}
+
+.import-row-problem-preview {
+  display: block;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
 /* The import review's "categories in this file aren't in your list" panel: one row per
    unfamiliar category, each with its own choice, so nothing is added to the list unasked. */
 .import-category-reconcile {
@@ -2494,6 +2516,22 @@ table.ledger.recurring-table .actions-col {
   gap: 12px;
   margin: 0 0 10px;
   font-size: 13px;
+}
+
+/* A folder export's review: where it came from and which way its amounts are read (VS-102). */
+.import-review-folder {
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.import-review-folder > span {
+  flex: 1 1 260px;
+}
+
+.import-review-remember {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 

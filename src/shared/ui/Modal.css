@@ -479,6 +479,20 @@ table.ledger.category-transactions-table {
   margin-top: 4px;
 }
 
+/* VS-49: what the greyed-out main button is waiting for, on its own line above the buttons, so it reads as a
+   sentence in every dialog width and style and the buttons keep their one-line size, side by side. */
+.modal-actions:has(> .field-problem) {
+  flex-wrap: wrap;
+}
+
+.modal-actions > .field-problem {
+  order: -1;
+  flex: 1 0 100%;
+  min-width: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
 .category-create-form {
   display: flex;
   gap: 8px;

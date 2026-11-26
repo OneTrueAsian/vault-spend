@@ -22,6 +22,8 @@ mod profiles;
 pub use self::profiles::*;
 mod import;
 pub use self::import::*;
+mod folder_imports;
+pub use self::folder_imports::*;
 mod transaction_snapshot;
 pub use self::transaction_snapshot::*;
 mod financial_snapshot;
@@ -64,7 +66,7 @@ fn current_db_path(paths: &crate::config::AppPaths) -> std::path::PathBuf {
 }
 
 /// The registry id of the profile this session has open (`"default"` before any profile was created).
-fn active_profile_id(paths: &crate::config::AppPaths) -> String {
+pub(crate) fn active_profile_id(paths: &crate::config::AppPaths) -> String {
     crate::profiles::profile_id_for(&paths.config_path, &current_db_path(paths))
 }
 

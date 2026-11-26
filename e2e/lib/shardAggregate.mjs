@@ -10,9 +10,23 @@ const sorted = list => [...list].sort();
  * expected: every spec the unsharded runner discovers. prepared: the transfer manifest. runAttempt: this workflow run's attempt number.
  * shards: [{ index, meta: { index, total, runAttempt, outcome }, record }] where record is the shard's target/e2e-last-run.json (or undefined when missing).
  */
+const BROWSER_FIELDS = [["edge", "Edge"], ["edgeDriver", "Edge driver"], ["webView2", "WebView2"], ["webView2Driver", "WebView2 driver"]];
+
+// Informational only (VS-9): which browser and driver versions each shard ran. A difference or a missing value is shown, never a problem.
+function compareBrowserVersions(summaries) {
+  const missing = summaries.filter(s => !s.browsers).map(s => s.shard);
+  const differences = [];
+  for (const [field] of BROWSER_FIELDS) {
+    const byValue = new Map();
+    for (const s of summaries) { const value = s.browsers?.[field]; if (value != null) byValue.set(value, [...(byValue.get(value) ?? []), s.shard]); }
+    if (byValue.size > 1) differences.push({ field, values: [...byValue].map(([value, shards]) => ({ value, shards })) });
+  }
+  return { match: differences.length === 0, differences, missing };
+}
+
 export function aggregateShardResults({ expected, total, prepared, runAttempt, shards, retryBudget = GATE_RETRY_BUDGET }) {
   const problems = [];
-  const failures = [], retries = [], summaries = [];
+  const failures = [], retries = [], summaries = [], repeats = [];
   const seen = new Map();
   const expectedSet = new Set(expected);
   if (new Set(expected).size !== expected.length || expected.length === 0) problems.push("The expected spec list is empty or has duplicates.");
@@ -42,9 +56,10 @@ export function aggregateShardResults({ expected, total, prepared, runAttempt, s
     for (const entry of executed) {
       if (entry.code === 0) passed++;
       else failures.push({ shard: index, name: entry.name, code: entry.code, attempts: entry.attempts?.length ?? 1 });
+      if (entry.actionRepeats > 0) repeats.push({ shard: index, name: entry.name, count: entry.actionRepeats });
       if (Array.isArray(entry.attempts) && entry.attempts.length > 1) retries.push({ shard: index, name: entry.name, firstExit: entry.attempts[0].code, finalExit: entry.code, passedOnRetry: entry.code === 0 });
     }
-    summaries.push({ shard: index, specs: selected.length, passed, failed: executed.length - passed, seconds: record.elapsedSeconds ?? null });
+    summaries.push({ shard: index, specs: selected.length, passed, failed: executed.length - passed, seconds: record.elapsedSeconds ?? null, browsers: meta?.browsers ?? null });
   }
   for (const name of expected) if (!seen.has(name)) problems.push(`${name} ran in no shard.`);
   const testKeys = new Set(shards.map(s => s.record?.identity?.testKey).filter(Boolean));
@@ -55,8 +70,8 @@ export function aggregateShardResults({ expected, total, prepared, runAttempt, s
   return {
     ok: problems.length === 0,
     problems,
-    totals: { expected: expected.length, ran: ranOnce, passed: summaries.reduce((n, s) => n + s.passed, 0), failed: failures.length, retried: retries.length, passedOnRetry: retries.filter(r => r.passedOnRetry).length },
-    failures, retries, shards: summaries,
+    totals: { expected: expected.length, ran: ranOnce, passed: summaries.reduce((n, s) => n + s.passed, 0), failed: failures.length, retried: retries.length, passedOnRetry: retries.filter(r => r.passedOnRetry).length, actionRepeats: repeats.reduce((n, r) => n + r.count, 0) },
+    failures, retries, repeats, shards: summaries, browserVersions: compareBrowserVersions(summaries),
   };
 }
 
@@ -67,6 +82,15 @@ export function renderSummary(result, { runAttempt, prepared } = {}) {
   if (prepared) lines.push(`Executable SHA-256 ${prepared.exeSha256}; build key ${String(prepared.buildKey).slice(0, 16)}; source ${prepared.sourceSha}; attempt ${runAttempt}.`);
   lines.push("", "| Shard | Specs | Passed | Failed | Seconds |", "|---|---|---|---|---|");
   for (const s of result.shards) lines.push(`| ${s.shard} | ${s.specs} | ${s.passed} | ${s.failed} | ${s.seconds ?? "?"} |`);
+  if (result.browserVersions) {
+    const b = result.browserVersions;
+    lines.push("", "### Browser versions", "", `| Shard | ${BROWSER_FIELDS.map(([, label]) => label).join(" | ")} |`, `|---|${BROWSER_FIELDS.map(() => "---").join("|")}|`);
+    for (const s of result.shards) lines.push(`| ${s.shard} | ${BROWSER_FIELDS.map(([field]) => s.browsers?.[field] ?? "?").join(" | ")} |`);
+    lines.push("", b.match ? "Browser versions match across shards." : `Browser versions differ across shards: ${b.differences.map(d => `${d.field}: ${d.values.map(v => `${v.value} (shards ${v.shards.join(",")})`).join("; ")}`).join("; ")}.`);
+    if (b.missing.length) lines.push(`No browser versions were recorded for shards ${b.missing.join(",")}.`);
+  }
+  // Informational (VS-8): clicks or key presses repeated inside a step. Not retries, never a problem.
+  if (result.repeats?.length) { lines.push("", "### Repeated actions inside specs (not retries)"); for (const r of result.repeats) lines.push(`- ${r.name} (shard ${r.shard}): ${r.count}`); }
   if (result.retries.length) { lines.push("", "### Retries (recorded separately from failures)"); for (const r of result.retries) lines.push(`- ${r.name} (shard ${r.shard}): first run exit ${r.firstExit}, ${r.passedOnRetry ? "passed alone on retry" : `failed again (exit ${r.finalExit})`}`); }
   if (result.failures.length) { lines.push("", "### Failures"); for (const f of result.failures) lines.push(`- ${f.name} (shard ${f.shard}): exit ${f.code}${f.attempts > 1 ? ", also failed its retry" : ""}`); }
   if (result.problems.length) { lines.push("", "### Problems"); for (const p of result.problems) lines.push(`- ${p}`); }

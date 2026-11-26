@@ -43,6 +43,11 @@ pub use self::budgets::{
 mod categories;
 pub use self::categories::{CategoryCounts, ImportCategoryChoice, ImportCategoryError, StoredCategory, UnmatchedImportCategory, import_category_key};
 mod family;
+mod folder_imports;
+pub use self::folder_imports::{
+    ActivityEntry, BatchStatus, FolderImportBatch, FolderImportError, FolderImportMapping, FolderImportMappingInput, FolderImportSettings, StageInput,
+    StageOutcome,
+};
 mod imports;
 pub use self::imports::{ImportAccount, ImportBatch, ImportBatchError, ImportBatchOutcome, ImportBatchRow, RowCategory};
 mod insights;

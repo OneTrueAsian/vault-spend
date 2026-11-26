@@ -19,6 +19,8 @@ function BackupCopySection({
   onBrowse: () => void;
 }) {
   const [draft, setDraft] = useState("");
+  // VS-68: the box is always on screen, so its note waits until the box has been used.
+  const [touched, setTouched] = useState(false);
   const feedback = useCardFeedback("backup-copy");
 
   function handleSubmit(e: FormEvent) {
@@ -65,6 +67,7 @@ function BackupCopySection({
               aria-label="Second backup folder"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              onFocus={() => setTouched(true)}
               placeholder="Folder path, e.g. D:\OneDrive\VaultSpend"
             />
             <button type="button" className="modal-secondary" onClick={() => { feedback.begin(); onBrowse(); }}>
@@ -73,6 +76,9 @@ function BackupCopySection({
             <button type="submit" disabled={!draft.trim()}>
               Start copying
             </button>
+            {touched && !draft.trim() && (
+              <small className="field-problem" role="status" data-backup-copy-missing>Enter a folder, or choose one with Browse.</small>
+            )}
           </form>
         </>
       )}

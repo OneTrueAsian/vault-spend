@@ -40,16 +40,16 @@ Tauri automation sessions start at `about:blank` (like a browser session) —
 `launchApp()` in `harness.mjs` handles navigating to the app and waiting for
 it to render, so specs don't need to.
 
-**The binary must be built via the Tauri CLI, not a bare `cargo build`.** A
-plain `cargo build`/`cargo run` produces a binary that fails to find its own
-embedded frontend assets ("asset not found: index.html") — only going
-through the CLI's build pipeline embeds them correctly:
+For local desktop tests, use the managed build:
 
 ```
-npx tauri build --debug --no-bundle
+npm run build:app
 ```
 
-Re-run this after any frontend or backend change before running a spec.
+The wrapper runs `npx tauri build --debug --no-bundle` under exclusive access
+when it needs to build a current executable. It reuses the executable when
+the recorded inputs and binary match. The Tauri build pipeline embeds the
+frontend assets that desktop tests need.
 
 ## Data safety
 
@@ -184,7 +184,7 @@ executable built some other way (for example the hosted release gate's direct `t
 Each run writes `target\e2e-last-run.json` with before/after input manifests, per-spec output, the executable's SHA-256, the build key, what was selected and executed, retries and
 timeouts. Build, desktop and `with-access` holders are crash-protected: an unexpected exit or interrupted desktop run leaves the lock held because descendants may still be using the executable. Before manually removing such a lock, reconcile the recorded owner and its owned descendants; a dead parent PID alone is insufficient. Never stop another agent's processes. Legacy unprotected abandoned locks retain automatic recovery; live holders are always waited for or refused. This is cooperative repository access, not an OS policy intercepting arbitrary raw Cargo or manually launched applications.
 
-## Choosing what to run: `select:specs`, `verify:fast`, `verify:full`, `--schedule`
+## Choosing what to run: `select:specs`, `verify:targeted`, `verify:fast`, `verify:full`, `--schedule`
 
 The build identity includes mobile entry files, reviewed Vite build tools, ignored local dotenv files, Cargo-home and inherited ancestor configuration (including ignored repository Cargo config), and relevant build environment settings (contents and values are hashed, never printed). Relative production imports outside reviewed roots fail closed; installed packages, including relative imports into `node_modules`, rely on lockfile identity just like bare imports. This does not audit installation tampering or universally discover arbitrary build-script inputs. The debug wrapper refuses unsupported Cargo target/output environment overrides rather than recording an old executable at the wrong location. Test/harness edits affect validation identity without forcing an application rebuild.
 
@@ -192,7 +192,7 @@ The retirement screen matrix loads Axe once per document when its exact owned ve
 
 ### Validation budget and evidence reuse
 
-Follow `AGENTS.md`'s validation scope rules. During development use targeted RED/GREEN tests, then validate the stable batch once. A unit-test-only edit needs affected tests, the inexpensive full unit suite and applicable lint/types; a documentation-only edit needs relevant document checks. Neither automatically requires an app rebuild, a full desktop run or profiling. Documents embedded by production code remain application inputs.
+Follow `AGENTS.md`'s validation scope rules. During development use targeted RED/GREEN tests, then validate the stable batch once. A unit-test-only edit needs affected tests and applicable lint or type checks. A documentation-only edit needs relevant document checks. Documents embedded by production code remain application inputs.
 
 Before an expensive run, record four things: the change since the last valid run, the requirement (file and line or explicit owner instruction), why the previous evidence cannot cover it, and estimated minutes. After a passing final regression, another full run requires a concrete behavioral or infrastructure impact explanation. A changed fingerprint alone is insufficient. Keep application, test/harness/fixture and documentation identities separate; label reused evidence and preserve all failures.
 
@@ -203,21 +203,18 @@ Inspect the verification plan before execution. Do not use the existing cache's 
 ```
 npm run select:specs                  # which desktop specs the current changes can affect (vs HEAD), why, and what else is still required
 npm run select:specs -- --since=main  # judge the changes against another git ref
+npm run verify:targeted -- --since=<validated-ref> --plan
+npm run verify:targeted -- --since=<validated-ref>
 npm run verify:fast                   # tsc + lint + the FULL unit suite + only the Rust checks and desktop specs this change reaches
 npm run verify:full                   # everything: unit, Rust, build, smoke and the whole desktop suite
 node e2e/run-all.mjs --schedule=classified   # exclusive specs run completely alone, after the parallel-safe pool drains
 ```
 
-**Neither verify command is milestone or release acceptance.** Their report says so and keeps four lists apart: executed, reused (the
-build), skipped (with the reason) and outstanding. Mutation checks, performance and memory measurements and the hosted release gate are
-separate gates.
+The targeted mode resolves the supplied ref to a commit and prints the plan before execution. Use the last validated commit to include later commits and working-tree changes. Use `--since=HEAD` when reviewing uncommitted edits. Its desktop estimate uses recorded shard weights and excludes build and setup time. It stops before starting commands when it selects a full suite, a broad Rust check, or a desktop selection estimated at five minutes or more. Use `--allow-long` after the owner approves the displayed scope.
 
-*Selection* (`e2e/affected-map.json`, `e2e/lib/affected.mjs`) is conservative. A file narrows the selection only through an explicit
-rule; shared UI infrastructure, the invocation wrapper, persistence, build configuration, the harness and the runner select every
-spec, and so does any file the map does not know (new, deleted and renamed files included, judged by both paths). A native Ask the
-Vault file selects the Ask the Vault specs and also lists the Rust and TypeScript contract checks, because import analysis cannot see
-across that boundary. Today only the Ask the Vault area is mapped, so most other changes select the whole suite; add an area to the map
-only after reading what its specs exercise.
+Milestone and release acceptance use their own gates. Verification reports show executed checks, reused builds, skipped checks, and checks still due. Copy the original `target/e2e-last-run.json` to the implementation evidence folder before the next desktop run replaces it. Keep the original command, inputs and run conditions with any result carried forward, and report it as reused evidence.
+
+*Selection* (`e2e/affected-map.json`, `e2e/lib/affected.mjs`) checks audited unit test inputs first, then the reviewed desktop rules. Shared UI infrastructure, the invocation wrapper, persistence, build configuration, the harness, the runner, and unknown files select every spec. The selector considers both paths of a rename and the old path of a deletion. Cross-language fixtures can select both Rust and Vitest checks. Narrow a production rule after reviewing its consumers and the specs that cover them.
 
 *Classification* (`e2e/spec-classification.json`, generated by `node e2e/classify-specs.mjs`; `--check` verifies it is current): a spec
 whose source or imported helpers touch OS foreground, focus-sensitive menus, the pointer, the keyboard, window state or the clipboard is
@@ -271,12 +268,13 @@ stays. A covered window was measured to keep full timer speed and stay
 
 ## Faster feedback during development
 
-The full suite remains the release or broad-regression check. For a focused
-change, run the unit tests first, then smoke and the affected E2E specs against
-the current compiled app:
+For a focused change, preview verification against the last validated commit.
+Run the selected unit checks and use desktop E2E when the change reaches
+behavior that needs the compiled app:
 
 ```
-npm test
+npm run verify:targeted -- --since=<validated-ref> --plan
+npm test -- <test-path>
 npm run e2e:smoke
 npm run e2e -- --spec=75,77
 npm run e2e -- --spec=budget_rollover,month_review
@@ -290,10 +288,11 @@ the selection without starting any drivers. The runner prints the five
 slowest specs after each run and records successful durations to schedule
 longer specs first on later runs.
 
-Rebuild with `npx tauri build --debug --no-bundle` after an app change before
-running E2E. Run the full `npm run e2e` before a release and after changes to
-shared UI infrastructure, persistence, or the E2E harness. This keeps routine
-feedback short without treating a targeted run as full regression coverage.
+Use `npm run build:app` before local desktop E2E to verify or build the app.
+For a stable batch with material changes to shared UI, persistence, or the
+E2E harness, propose the applicable regression coverage and estimated duration
+under `AGENTS.md`. Start a full or long run after the owner approves that
+scope. The scheduled release gate still requires its full coverage.
 
 If a spec ever *does* fail only when run concurrently (never in isolation),
 that's worth fixing properly, not a race to paper over — re-run it alone (or
@@ -402,7 +401,7 @@ After the fresh debug Tauri CLI build, run `npm run mobile:acceptance:e2e` for n
 Guided local setup spec 173 checks the compiled desktop guide in six palette/mode combinations with Axe, and a certificate-only HTTP bootstrap bound strictly to loopback through a debug fixture guarded by VAULTSPEND_DB_DIR. Three installed browser engines check the real instruction page, certificate verification acknowledgement and 360px containment. Public PEM/profile downloads, route/method/Origin isolation and cancellation are asserted. No LAN opt-in, CA installation, browser TLS-error bypass or actual-phone acceptance. The fixture command is absent from release.
 Driver paths resolve from `CARGO_HOME/bin`, or the current user home `.cargo/bin` when unset. Install both drivers there on developer machines and CI runners. Release publishing workflows use manual dispatch only; fixes require a new tag pointing to the corrected commit.
 
-Windows-only recovery dispatches `release-windows.yml` from a workflow branch with an existing tag, `recovery=true`, and its expected `source_sha`. The runner checks out that tag, verifies its SHA and version, and repairs only a legacy hardcoded E2E driver directory. All release gates still run; application code and the tag stay unchanged. Offline workflow checks: `python tools/test_release_workflow.py`.
+Windows-only recovery is a diagnostic only: dispatch `release-windows.yml` from a workflow branch with an existing tag, `recovery=true`, `diagnostic_only=true` and its expected `source_sha` (the workflow refuses recovery without `diagnostic_only`). The runner checks out that tag, verifies its SHA and version, and repairs only a legacy hardcoded E2E driver directory. The gate runs; nothing is packaged, signed or published, and application code and the tag stay unchanged. Offline workflow checks: `python tools/test_release_workflow.py`.
 
 The Windows release workflow pins `windows-2022` and runs a compiled smoke preflight before the full desktop suite. For runner diagnostics, also set `diagnostic_only=true`: it checks out the exact `source_sha` to test an unpublished automation fix, retains the SHA/version and build/test gates, but skips installer publication, build provenance and protected signing. Diagnostics require recovery mode and a workflow branch; normal releases still check out their immutable tag. A successful diagnostic run is not a signed release or an installation acceptance pass. Changing the pinned image requires a fresh diagnostic run; a failed session preflight must never be worked around by skipping the full release gate.
 

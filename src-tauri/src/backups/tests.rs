@@ -252,6 +252,74 @@ fn restore_backup_brings_back_the_backed_up_data_not_a_later_mutation() {
     assert_eq!(transactions[0].transaction.description, "Original");
 }
 
+/// VS-102: an export waiting for review, the receipts that keep dismissed content from coming back
+/// and the folder-import settings all travel with a backup, and a restore brings back the backed-up
+/// queue, not a later one. The watched folder is a device setting and is not in the backup.
+#[test]
+fn restore_brings_back_folder_import_queue_receipts_and_settings() {
+    use budget_core::store::{BatchStatus, FolderImportMappingInput, StageInput, StageOutcome};
+    let dir = temp_dir("restore-folder-imports");
+    let live_path = dir.join("live.db");
+    let backups_dir = dir.join("backups");
+    let store = Store::open(&live_path).unwrap();
+    let account = store.get_or_create_account("Max Checking", AccountType::Checking).unwrap();
+    let mapping = store
+        .save_folder_import_mapping(&FolderImportMappingInput {
+            id: None,
+            account_id: account,
+            stem: "Bank Max Checking".to_string(),
+            extensions: vec!["csv".to_string()],
+            invert_amounts: true,
+            initial_cutoff: Some("2026-11-01".parse().unwrap()),
+        })
+        .unwrap();
+    store.set_folder_imports_enabled(true).unwrap();
+    let stage = |digest: &str, day: &str| match store
+        .stage_folder_import(&StageInput {
+            mapping_id: mapping,
+            account_id: account,
+            file_name: &format!("Bank Max Checking_{day}.csv"),
+            digest,
+            content: format!("Date,Description,Amount\n{day},Cafe {digest},4.00\n").as_bytes(),
+            export_start: day.parse().unwrap(),
+            export_end: day.parse().unwrap(),
+            now: "2026-11-22T10:00:00",
+        })
+        .unwrap()
+    {
+        StageOutcome::Queued(id) => id,
+        other => panic!("{other:?}"),
+    };
+    let waiting = stage("aaa", "2026-11-18");
+    let dismissed = stage("bbb", "2026-11-19");
+    store.dismiss_folder_import(dismissed, "2026-11-22T10:01:00").unwrap();
+    let filename = create_backup(&store, &live_path, &backups_dir, None, dt("2026-11-22 10:02:00")).unwrap();
+
+    // After the backup, the waiting export is dismissed too.
+    store.dismiss_folder_import(waiting, "2026-11-22T10:03:00").unwrap();
+
+    let restored_path = restore_backup(&store, &backups_dir, None, &filename, &live_path).unwrap();
+    let restored = Store::open(&restored_path).unwrap();
+    let pending = restored.list_folder_import_batches(true).unwrap();
+    assert_eq!(pending.iter().map(|b| b.id).collect::<Vec<_>>(), vec![waiting], "the backed-up queue comes back");
+    assert_eq!(
+        restored.folder_import_batch_content(waiting).unwrap().unwrap(),
+        b"Date,Description,Amount\n2026-11-18,Cafe aaa,4.00\n",
+        "its saved copy comes back, so it can be reviewed without the original file"
+    );
+    assert_eq!(
+        restored.folder_import_known(account, mapping, "bbb").unwrap(),
+        Some((dismissed, BatchStatus::Dismissed)),
+        "the dismissal still keeps that content from being queued again"
+    );
+    let settings = restored.folder_import_settings().unwrap();
+    assert!(settings.enabled);
+    let saved = restored.folder_import_mapping(mapping).unwrap().unwrap();
+    assert!(saved.invert_amounts);
+    assert_eq!(saved.initial_cutoff, Some("2026-11-01".parse().unwrap()));
+    assert!(restored.all_transactions().unwrap().is_empty(), "restoring a queue imports nothing");
+}
+
 #[test]
 fn encrypted_restore_uses_the_selected_backups_own_key() {
     let dir = temp_dir("restore-encrypted-old-key");
@@ -763,7 +831,7 @@ fn a_second_folder_name_collision_is_reported_and_leaves_the_other_file_alone() 
 
     assert_eq!(outcome.filename, "vaultspend-20260918-100000.db");
     assert!(outcome.copied_to.is_none());
-    assert!(outcome.copy_error.unwrap().contains("already exists"));
+    assert_eq!(crate::error_detail::plain_part(&outcome.copy_error.unwrap()), MIRROR_COPY_FAILED);
     assert_eq!(std::fs::read(&existing).unwrap(), b"someone else's file with this name");
     assert_eq!(list_backups(&backups_dir, false).unwrap().len(), 1, "the local backup is still good");
     assert!(stray_files(&copy_dir).is_empty(), "no staging debris, found {:?}", stray_files(&copy_dir));
@@ -872,6 +940,21 @@ fn restoring_a_legacy_snapshot_of_zero_bytes_is_refused_not_healed_into_an_empty
 }
 
 #[test]
+fn restoring_an_empty_backup_says_so_in_plain_words() {
+    let dir = temp_dir("restore-empty-plain");
+    let store = seeded_store(&dir);
+    let backups_dir = dir.join("backups");
+    std::fs::create_dir_all(&backups_dir).unwrap();
+    std::fs::write(backups_dir.join("vaultspend-20260101-000000.db"), b"").unwrap();
+
+    let message = restore_backup(&store, &backups_dir, None, "vaultspend-20260101-000000.db", &dir.join("live.db")).unwrap_err();
+
+    assert_eq!(message, RESTORE_EMPTY_BACKUP);
+    assert_plain(&message);
+    assert!(!message.contains("vaultspend-"), "{message}");
+}
+
+#[test]
 fn restoring_a_truncated_legacy_snapshot_is_refused() {
     assert_restore_refuses_damaged_snapshot("restore-truncated", |p| {
         let source_dir = p.parent().unwrap().parent().unwrap().join("source-for-truncation");
@@ -972,10 +1055,245 @@ fn upgrade_safety_copies_are_listed_recoverable_and_preserved_by_restore_and_ret
         if let Some(bytes) = key_bytes {
             assert_eq!(std::fs::read(keyfile::key_file_path_for(&source)).unwrap(), bytes);
         }
-        prune_to_disk(&directory, 0).unwrap();
+        prune_to_disk(&directory, 0);
         assert!(source.exists(), "ordinary retention never deletes the pre-upgrade recovery copy");
         assert!(std::fs::read_dir(&directory)
             .unwrap()
             .all(|e| !e.unwrap().file_name().to_string_lossy().starts_with(".historical-restore-")));
     }
+}
+
+fn arm_corrupt_failpoint(name: &'static str) {
+    CORRUPT_FAILPOINT.with(|c| c.set(Some(name)));
+}
+
+#[test]
+fn a_backup_that_cannot_be_verified_says_so_in_plain_words_and_keeps_nothing() {
+    let dir = temp_dir("backup-not-verified");
+    let store = seeded_store(&dir);
+    let live = dir.join("live.db");
+    let backups_dir = backups_dir_for(&live, false);
+    arm_corrupt_failpoint("backup_corrupt_staged");
+
+    let result = create_backup_full(&store, &live, &backups_dir, None, dt("2026-09-27 09:00:00"));
+
+    CORRUPT_FAILPOINT.with(|c| c.set(None));
+    let message = result.err().expect("an unverifiable backup must fail");
+    assert_eq!(crate::error_detail::plain_part(&message), BACKUP_NOT_VERIFIED);
+    for technical in ["user_version", "rows in the source", "attempts"] {
+        assert!(!crate::error_detail::plain_part(&message).contains(technical), "{message}");
+    }
+    assert_cause_follows(&message, "backup did not verify after 3 attempts");
+    assert!(list_backups(&backups_dir, false).unwrap().is_empty());
+    assert!(stray_files(&backups_dir).is_empty(), "found {:?}", stray_files(&backups_dir));
+}
+
+#[test]
+fn a_restore_that_cannot_be_verified_says_so_in_plain_words_and_changes_nothing() {
+    let dir = temp_dir("restore-not-verified");
+    let store = seeded_store(&dir);
+    let live = dir.join("live.db");
+    let backups_dir = backups_dir_for(&live, false);
+    let filename = create_backup(&store, &live, &backups_dir, None, dt("2026-09-27 09:00:00")).unwrap();
+    let live_bytes_before = std::fs::read(&live).unwrap();
+    arm_corrupt_failpoint("restore_corrupt_copy");
+
+    let result = restore_backup(&store, &backups_dir, None, &filename, &live);
+
+    CORRUPT_FAILPOINT.with(|c| c.set(None));
+    assert_eq!(crate::error_detail::plain_part(&result.err().expect("an unverifiable restore must fail")), RESTORE_NOT_VERIFIED);
+    assert_eq!(std::fs::read(&live).unwrap(), live_bytes_before, "the live database is untouched");
+    let leftovers: Vec<_> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+        .filter(|n| n.starts_with("vaultspend-restored-"))
+        .collect();
+    assert!(leftovers.is_empty(), "no restored file may be left behind: {leftovers:?}");
+}
+
+#[test]
+fn a_backup_key_file_failure_is_reported_in_plain_words() {
+    let dir = temp_dir("key-copy-plain");
+    let key = [0x78u8; 32];
+    let (store, source_path) = encrypted_store_with_key(&dir, &key);
+    let backups_dir = backups_dir_for(&source_path, true);
+    std::fs::remove_file(keyfile::key_file_path_for(&source_path)).unwrap();
+
+    let result = create_backup(&store, &source_path, &backups_dir, None, dt("2026-09-27 09:00:00"));
+
+    assert_eq!(crate::error_detail::plain_part(&result.err().unwrap()), BACKUP_KEY_FILE_FAILED);
+}
+
+#[test]
+fn a_second_copy_key_file_failure_is_reported_in_plain_words() {
+    let dir = temp_dir("mirror-key-plain");
+    let key = [0x79u8; 32];
+    let (store, source_path) = encrypted_store_with_key(&dir, &key);
+    let backups_dir = backups_dir_for(&source_path, true);
+    let filename = create_backup(&store, &source_path, &backups_dir, None, dt("2026-09-27 09:00:00")).unwrap();
+    let copy_dir = dir.join("second");
+    std::fs::create_dir_all(&copy_dir).unwrap();
+
+    // Make the staged key path impossible to write, whatever staging name is chosen.
+    std::fs::remove_file(keyfile::key_file_path_for(&backups_dir.join(&filename))).unwrap();
+    std::fs::create_dir(keyfile::key_file_path_for(&backups_dir.join(&filename))).unwrap();
+    let result = mirror_backup(&backups_dir, &filename, &copy_dir);
+
+    assert_eq!(crate::error_detail::plain_part(&result.err().unwrap()), MIRROR_COPY_FAILED);
+}
+
+/// The words a person reads are plain. Any technical cause follows them for Details, with the home folder (which
+/// names the Windows user) redacted (VS-71).
+fn assert_plain(message: &str) {
+    let plain = crate::error_detail::plain_part(message);
+    for technical in ["os error", "Os {", "code:", "\\", "No such file", "Access is denied"] {
+        assert!(!plain.contains(technical), "{message}");
+    }
+    if let (Some(detail), Ok(home)) = (crate::error_detail::detail_part(message), std::env::var(if cfg!(windows) { "USERPROFILE" } else { "HOME" })) {
+        assert!(!detail.to_lowercase().contains(&home.to_lowercase()), "the home folder is redacted: {detail}");
+    }
+}
+
+/// VS-71: the technical cause follows the plain words, so Details has something for support to read.
+fn assert_cause_follows(message: &str, cause: &str) {
+    let detail = crate::error_detail::detail_part(message).unwrap_or_else(|| panic!("the cause follows the plain words: {message:?}"));
+    assert!(detail.contains(cause), "expected {cause:?} in the detail: {detail:?}");
+}
+
+#[test]
+fn a_backup_that_cannot_be_saved_says_so_in_plain_words() {
+    let dir = temp_dir("backup-not-saved");
+    let store = seeded_store(&dir);
+    let live = dir.join("live.db");
+    let not_a_folder = dir.join("backups-are-a-file");
+    std::fs::write(&not_a_folder, b"x").unwrap();
+
+    let message = create_backup(&store, &live, &not_a_folder, None, dt("2026-09-27 09:00:00")).unwrap_err();
+
+    assert_eq!(crate::error_detail::plain_part(&message), BACKUP_NOT_SAVED);
+    assert_plain(&message);
+    assert_cause_follows(&message, "couldn't create the backups folder");
+}
+
+#[test]
+fn a_second_copy_that_cannot_be_made_says_so_in_plain_words() {
+    let dir = temp_dir("mirror-copy-plain");
+    let store = seeded_store(&dir);
+    let live = dir.join("live.db");
+    let backups_dir = backups_dir_for(&live, false);
+    let copy_dir = dir.join("second");
+    std::fs::create_dir_all(&copy_dir).unwrap();
+    create_backup(&store, &live, &backups_dir, None, dt("2026-09-27 09:00:00")).unwrap();
+
+    let message = mirror_backup(&backups_dir, "vaultspend-20260101-000000.db", &copy_dir).unwrap_err();
+
+    assert_eq!(crate::error_detail::plain_part(&message), MIRROR_COPY_FAILED);
+    assert_plain(&message);
+    assert_cause_follows(&message, "(os error");
+    // Points to the card where the second folder is chosen, by the names Settings shows.
+    assert!(crate::error_detail::plain_part(&message).ends_with("(Settings → Data → Automatic backups)."), "{message}");
+}
+
+#[test]
+fn a_second_folder_that_cannot_be_written_to_is_refused_in_plain_words() {
+    let dir = temp_dir("copy-dir-unwritable");
+    let backups_dir = dir.join("backups");
+    let copy_dir = dir.join("second");
+    std::fs::create_dir_all(&copy_dir).unwrap();
+    std::fs::create_dir(copy_dir.join(".vaultspend-write-test")).unwrap();
+
+    let message = check_copy_dir(&backups_dir, &copy_dir).unwrap_err();
+
+    assert_eq!(crate::error_detail::plain_part(&message), COPY_FOLDER_NOT_WRITABLE);
+    assert_plain(&message);
+}
+
+#[test]
+fn a_backup_list_that_cannot_be_read_says_so_in_plain_words() {
+    let dir = temp_dir("list-unreadable");
+    let not_a_folder = dir.join("backups-are-a-file");
+    std::fs::write(&not_a_folder, b"x").unwrap();
+
+    let message = list_backups(&not_a_folder, false).err().expect("must fail");
+
+    assert_eq!(crate::error_detail::plain_part(&message), BACKUP_LIST_FAILED);
+    assert_plain(&message);
+}
+
+#[test]
+fn a_restore_that_cannot_open_the_backup_says_so_in_plain_words() {
+    let dir = temp_dir("restore-failed");
+    let store = seeded_store(&dir);
+    let live = dir.join("live.db");
+    let backups_dir = dir.join("backups");
+    std::fs::create_dir_all(&backups_dir).unwrap();
+    std::fs::write(backups_dir.join("vaultspend-20260101-000000.db"), b"this is not a database at all, just text").unwrap();
+
+    let message = restore_backup(&store, &backups_dir, None, "vaultspend-20260101-000000.db", &live).unwrap_err();
+
+    assert_eq!(crate::error_detail::plain_part(&message), RESTORE_FAILED);
+    assert_plain(&message);
+}
+
+#[test]
+fn a_restore_whose_safety_backup_fails_says_so_and_leaves_no_restored_file() {
+    let dir = temp_dir("restore-safety-fails");
+    let store = seeded_store(&dir);
+    let live = dir.join("live.db");
+    let backups_dir = backups_dir_for(&live, false);
+    let filename = create_backup(&store, &live, &backups_dir, None, dt("2026-09-27 09:00:00")).unwrap();
+    arm_corrupt_failpoint("backup_corrupt_staged");
+
+    let result = restore_backup(&store, &backups_dir, None, &filename, &live);
+
+    CORRUPT_FAILPOINT.with(|c| c.set(None));
+    let message = result.err().expect("must fail");
+    assert_eq!(crate::error_detail::plain_part(&message), RESTORE_SAFETY_BACKUP_FAILED);
+    let leftovers: Vec<_> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+        .filter(|n| n.starts_with("vaultspend-restored-"))
+        .collect();
+    assert!(leftovers.is_empty(), "{leftovers:?}");
+}
+
+#[test]
+fn a_prune_that_cannot_read_the_folder_never_fails_a_saved_backup() {
+    let dir = temp_dir("prune-unreadable");
+    let not_a_folder = dir.join("backups-are-a-file");
+    std::fs::write(&not_a_folder, b"x").unwrap();
+
+    // Housekeeping only: it reports to stderr and returns, so the caller's saved backup stands.
+    let () = prune_to_disk(&not_a_folder, DEFAULT_KEEP);
+
+    assert!(not_a_folder.exists());
+}
+
+#[test]
+fn a_second_copy_folder_that_is_gone_is_reported_with_the_one_plain_message() {
+    let dir = temp_dir("mirror-folder-gone");
+    let store = seeded_store(&dir);
+    let backups_dir = dir.join("backups");
+    let missing = dir.join("not-there");
+
+    let outcome = create_backup_full(&store, &dir.join("live.db"), &backups_dir, Some(&missing), dt("2026-09-18 10:00:00")).unwrap();
+
+    assert!(outcome.copied_to.is_none());
+    assert_eq!(crate::error_detail::plain_part(&outcome.copy_error.unwrap()), MIRROR_COPY_FAILED);
+}
+
+#[test]
+fn choosing_a_second_folder_that_cannot_receive_the_latest_backup_says_so_in_plain_words() {
+    let dir = temp_dir("choose-folder-copy-fails");
+    let store = seeded_store(&dir);
+    let live = dir.join("live.db");
+    let backups_dir = backups_dir_for(&live, false);
+    let copy_dir = dir.join("second");
+    std::fs::create_dir_all(&copy_dir).unwrap();
+    create_backup(&store, &live, &backups_dir, None, dt("2026-09-27 09:00:00")).unwrap();
+
+    let message = mirror_latest_to_chosen_folder(&backups_dir, "vaultspend-20260101-000000.db", &copy_dir).unwrap_err();
+
+    assert_eq!(crate::error_detail::plain_part(&message), CHOSEN_FOLDER_COPY_FAILED);
+    assert_plain(&message);
 }

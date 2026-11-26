@@ -8,7 +8,7 @@
 //
 // Run with: node e2e/feature144_comparisons_navigation.mjs
 import assert from "node:assert/strict";
-import { launchApp, reclaimWindowFocus, openSettingsGroup } from "./harness.mjs";
+import { launchApp, reclaimWindowFocus, openSettingsGroup, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { nav, openReportsTab, setInput } from "./lib/comparisons.mjs";
 
@@ -56,7 +56,8 @@ try {
   assert.equal(await (await browser.$("[data-reports-tab='income']")).getAttribute("tabindex"), "-1");
   assert.equal(await (await browser.$("[data-reports-tab='comparisons']")).getAttribute("tabindex"), "0");
   assert.equal(await browser.execute(() => document.activeElement?.getAttribute("data-reports-tab")), "comparisons", "focus follows the selection");
-  assert.equal(await (await browser.$("[data-reports-controls]")).isDisplayed(), false, "the report's range, summary and output buttons are hidden, not shown above Comparisons");
+  // The tab strip selects first and the page's own tab state follows in the next render, so wait for the controls to hide.
+  await waitUntilOrDiagnose(browser, async () => !(await (await browser.$("[data-reports-controls]")).isDisplayed()), { timeout: 5000, timeoutMsg: "the report's range, summary and output buttons are hidden, not shown above Comparisons" });
   await browser.keys("Home");
   await browser.waitUntil(async () => (await (await browser.$("[data-reports-tab='income']")).getAttribute("aria-selected")) === "true", { timeout: 5000 });
   await browser.keys("End");

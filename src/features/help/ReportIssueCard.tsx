@@ -57,6 +57,10 @@ export function ReportIssueCard() {
         Tell us what went wrong or what could be better. The button opens a short form in your web browser, and the form asks for your email
         address. Nothing from your budget, accounts or files is sent unless you type it into the form yourself.
       </p>
+      <p>
+        If a backup, restore or update failed, choose <strong>Details</strong> on its message, then <strong>Copy details</strong>, and paste
+        them into the form. They describe the problem, not your data.
+      </p>
       <div className="report-issue-actions">
         <button type="button" aria-disabled={busy || undefined} onClick={() => void open()}>
           Report a bug or issue

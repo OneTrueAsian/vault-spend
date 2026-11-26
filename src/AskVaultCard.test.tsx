@@ -440,6 +440,26 @@ const click = async (label: string) => {
   await settle();
 };
 
+describe("the Ask the Vault card's question box (VS-68)", () => {
+  it("asks for a question only once the box has been used", async () => {
+    mount(fake(async () => snapshot()));
+    await settle();
+    const input = container.querySelector<HTMLInputElement>(".ledger-qa-card input")!;
+    const askButton = [...container.querySelectorAll<HTMLButtonElement>(".ledger-qa-card form button")].find((b) => b.textContent?.trim() === "Ask")!;
+    const note = () => container.querySelector("[data-question-missing]")?.textContent ?? null;
+    expect(askButton.disabled).toBe(true);
+    expect(note()).toBeNull();
+    act(() => input.focus());
+    expect(note()).toBe("Type a question, or pick an example.");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "net worth");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(note()).toBeNull();
+    expect(askButton.disabled).toBe(false);
+  });
+});
+
 describe("the Ask the Vault card", () => {
   const membersContext = { ...context, familyMembers: [{ id: 1, name: "Sam" }, { id: 2, name: "Robin" }] };
   const memberReply = (): AskVaultSnapshotV2 => ({

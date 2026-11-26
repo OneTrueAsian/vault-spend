@@ -9,8 +9,19 @@ export const NOT_ENOUGH_HISTORY =
 const TREND_HINT =
   "Projects your cash balance (checking/savings) forward as a smooth trend, based on your actual net cash flow (income minus spending) over roughly the last 90 days. Add your bills and paycheck to Recurring for a forecast that shows each one landing on its due date.";
 
+/** How far ahead everyday spending is carried; matches the backend's `EVERYDAY_FORECAST_DAYS` (VS-45). */
+const EVERYDAY_FORECAST_DAYS = 90;
+
 /** The explanatory sentence under the Cash Flow forecast chart. */
 export function forecastHint(forecast: BillAwareForecast | null): string {
+  const base = baseHint(forecast);
+  if (!forecast?.enough_history || forecast.points.length - 1 <= EVERYDAY_FORECAST_DAYS) return base;
+  return forecast.uses_recurring
+    ? `${base} After 90 days, only your Recurring bills and paychecks move the line, because everyday spending can't be guessed that far ahead.`
+    : `${base} After 90 days the line stays flat, because a recent trend can't be carried that far ahead.`;
+}
+
+function baseHint(forecast: BillAwareForecast | null): string {
   const recurringHint = (f: BillAwareForecast) =>
     `Every bill and paycheck on your Recurring list lands on the day it's due. Everyday spending carries on at your recent average (${formatAmount(
       Math.abs(parseFloat(f.daily_baseline)).toFixed(2),

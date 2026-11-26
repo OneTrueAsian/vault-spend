@@ -4,8 +4,12 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { acquireAccess } from "./exclusiveAccess.mjs";
+
+// Each test starts a real "node e2e/with-access.mjs" child that is bounded at 30 s, which vitest's 5 s default never let apply under load.
+// 60 s lets the child's own limit end a hang; every assertion is unchanged.
+vi.setConfig({ testTimeout: 60000 });
 
 let dir, lockDir;
 const withAccess = (args, env = {}) => spawnSync(process.execPath, ["e2e/with-access.mjs", ...args], { cwd: path.resolve("."), env: { ...process.env, VAULTSPEND_ACCESS_DIR: lockDir, ...env }, encoding: "utf8", timeout: 30000 });

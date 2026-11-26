@@ -1,0 +1,169 @@
+/* Watched-folder imports (VS-102): the Folder activity dialog, the notice above the ledger and the
+   Settings card. Theme tokens only, so every style and light/dark mode follow. */
+
+.folder-activity-heading {
+  margin: 14px 0 6px;
+  font-size: 14px;
+}
+
+.folder-activity-heading:first-of-type {
+  margin-top: 4px;
+}
+
+.folder-activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.folder-activity-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.folder-activity-item:first-child {
+  border-top: none;
+}
+
+.folder-activity-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.folder-activity-file {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.folder-activity-meta {
+  color: var(--text-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.folder-activity-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.folder-activity-message {
+  margin: 0 0 8px;
+}
+
+.folder-activity-footnote {
+  margin-top: 10px;
+}
+
+/* The one-line notice above the ledger: exports waiting, or files skipped. */
+.folder-import-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-soft-text);
+}
+
+.folder-import-notice > span {
+  flex: 1 1 240px;
+}
+
+/* Settings → Data → Folder imports */
+.folder-settings-mapping {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px 14px;
+  padding: 12px;
+  margin: 0 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.folder-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+fieldset.folder-settings-field {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.folder-settings-field > span,
+.folder-settings-field > legend {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.folder-settings-field > legend {
+  padding: 0;
+  margin-bottom: 4px;
+}
+
+/* Banks' export names are long ("Lake Michigan Credit Union - Household (02)"): the name gets a row of its own. */
+.folder-settings-stem {
+  grid-column: 1 / -1;
+}
+
+/* "Which exports" has four lines of text, so it gets the full row instead of a ~200px column. */
+.folder-settings-which {
+  grid-column: 1 / -1;
+}
+
+.folder-settings-examples {
+  margin: 4px 0 8px;
+  padding-left: 20px;
+}
+
+.folder-settings-examples code {
+  overflow-wrap: anywhere;
+}
+
+.folder-settings-watermark button {
+  margin-top: 4px;
+}
+
+.folder-settings-field input[type="text"] {
+  min-width: 0;
+}
+
+.folder-settings-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.folder-settings-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  grid-column: 1 / -1;
+}
+
+.folder-settings-matches {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.folder-settings-matches li {
+  margin: 2px 0;
+  overflow-wrap: anywhere;
+}

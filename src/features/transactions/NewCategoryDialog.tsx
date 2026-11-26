@@ -46,6 +46,8 @@ export function NewCategoryDialog({
           <button type="submit" disabled={!name.trim()}>
             Add category
           </button>
+          {/* VS-68: what the greyed-out Add category is waiting for. */}
+          {!name.trim() && <small className="field-problem" role="status" data-new-category-missing>Enter a category name.</small>}
         </div>
       </form>
     </ModalShell>

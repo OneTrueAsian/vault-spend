@@ -1,5 +1,27 @@
 # Project instructions
 
+## Windows Shell Conventions
+
+- For multi-line git commit messages, write the message to a temp file and run `git commit -F <file>`. Do not use PowerShell here-strings, because quotes inside them break the command.
+- When editing files from PowerShell, use real newlines (`[Environment]::NewLine` or a Write/Edit tool). Never put a literal `r`n in a single-quoted string.
+- Prefer the Edit/Write tools over sed or PowerShell string replacement for file edits.
+- Always pass `--source winget` to `winget install`.
+
+## Environment & Elevation
+
+- Before any task that needs admin rights (DISM, driver installs, takeown/icacls, UAC-gated installers), check whether the shell is elevated. If it is not, tell the user up front instead of attempting the step.
+- Do not run Playwright/WebView2 automation from an elevated shell, because elevation blocks it. Check elevation first before trying driver-version theories.
+- Use 64-bit Python from python.org, not the Windows Store stub. Use the project's pinned Node version, not Node 26.
+- If rustc crashes or PDBs look corrupt (often after a machine crash), delete `target/debug` before retrying. Do not keep retrying builds.
+
+## Working Agreements
+
+- When the user says they are about to reboot, or says 'stop' or 'end goal', stop immediately. Write a short handoff and do not start or restart tests.
+- Never claim a review, screenshot check or verification you did not actually perform. List exactly what was checked.
+- When finishing a planning task, say explicitly: 'The plan is complete. Nothing has been implemented yet.' Also give the file path.
+- In Jira/Atlassian contexts, ask whether 'goal' means an Atlassian Goal or an Epic before creating anything.
+- When committing, stage only the files you changed if the checkout contains unrelated changes.
+
 ## Where to look
 
 - Testing and verification: follow `AGENTS.md`.
@@ -36,19 +58,20 @@ Touch only what you must. Clean up only your own mess. The test: every changed l
 - Match existing style, even if you'd do it differently.
 - Remove imports/variables/functions that YOUR changes made unused.
 - Don't remove pre-existing dead code unless asked; if you notice unrelated dead code, mention it.
-- Scope of "fix every issue found" (see below): issues in code your change touches or tests get fixed and reported. Unrelated problems are reported, not changed.
+- Fix and report issues that affect the requested behavior or the checks that verify it, including minor issues within that scope. Report unrelated findings separately, even when they appear in a file you touched.
 
 ## Durable owner decisions and working rules
 
 ### Testing and specs
 
-- TDD and spec traceability: map each requirement to implementation, test and status; write failing regressions first; review the source separately against the written rules. Fix every issue found, including minors, and tell the owner. Stop and ask when a spec is ambiguous.
-- Run the full suite, not just new tests, before calling anything done. E2E always through `npm run e2e` / `node e2e/run-all.mjs` (parallel), never a sequential loop. `AGENTS.md` and `e2e/README.md` are authoritative for test scope; read the README before touching the suite. Targeted passes are not full regression coverage.
+- TDD and spec traceability: map each requirement to implementation, test and status. Write failing regressions first and review the source against the written rules. Stop and ask when a spec is ambiguous.
+- Follow the validation scope in `AGENTS.md`. Use focused checks for routine changes and get owner approval before any full or long run. Report the coverage that actually ran. Read `e2e/README.md` before working on the desktop suite and use the managed E2E runner.
 - Production code goes in the repo; essential coverage must live in routine test discovery.
 
 ### Git and release
 
-- Commit, push, merge, tag and release only when told. "Push out the new build" means the full release pipeline start to finish without stopping for confirmation. Stage explicit paths, never `git add -A`. Never merge to `main` without being asked. Release notes are split into New features / Enhancements / Bug fixes.
+- Commit, push, merge, tag and release only when told. Stage explicit paths and merge to `main` only when asked. Split release notes into New features, Enhancements and Bug fixes.
+- "Push out the new build" authorizes the release workflow. Present the validation scope and estimated duration required by `AGENTS.md` before starting a full or long run. If the owner explicitly approves that presented scope in the release request, use that approval. Keep any separate release-signing approval in place. Run the `release` skill (`.claude/skills/release/SKILL.md`) as the release workflow.
 - Preserve unrelated and concurrent work; do not discard branches or stashes. Two sessions may share the checkout, so recheck status and log if HEAD moves; use an isolated worktree for concurrent release work. Do not kill the owner's installed app to unlock a build.
 - Release infra: public repo, unsigned Authenticode builds, macOS built by CI (no Mac available), signed update manifests. The updater downloads a release, verifies it against the signed manifest and starts the installer only after the user chooses to install (not notify-only).
 
@@ -73,9 +96,9 @@ Touch only what you must. Clean up only your own mess. The test: every changed l
 
 ## Verification workflow and environment
 
-- Focused change: `npm test` and `npm run lint`, then a current Tauri build, `npm run e2e:smoke` and affected specs. Shared UI, persistence or harness changes need the full `npm run e2e`.
-- Build helper binaries and Rust checks first; build the app LAST with `npx tauri build --debug --no-bundle` before desktop automation. Bare Cargo builds do not embed frontend assets and can overwrite the WebDriver executable. Rebuild after source changes; never test a stale binary.
-- Desktop E2E uses tauri-driver and Edge WebDriver with disposable `VAULTSPEND_DB_DIR` data. Runner supports `--spec` and `--list`. Focus and OS-focus specs need an unlocked, awake desktop and `--concurrency=1`; no competing desktop runs.
+- Preview ticket validation with `npm run verify:targeted -- --since=<validated-ref> --plan`. Use the last validated commit to include changes already committed. Use `--since=HEAD` for uncommitted changes only. Review the selection before execution and record the baseline and executed checks in the handoff.
+- For a checkout that predates VS-104, follow the instructions in `AGENTS.md` to bring in the targeted tooling while preserving in-progress work. When desktop checks are needed, use `npm run build:app` before running them. It verifies and reuses a current Tauri executable under exclusive access.
+- Desktop E2E uses tauri-driver and Edge WebDriver with disposable `VAULTSPEND_DB_DIR` data. The runner supports `--spec` and `--list`. Focus-sensitive specs need an unlocked, awake desktop and exclusive access. Use the classified schedule for mixed local runs so these specs run alone. Use `--concurrency=1` for isolated reruns and where the hosted gate requires it. Keep other desktop runs off the same machine during the session.
 - Node >= 22.19 required. On Windows, Git Bash PATH edits do not put Node 22 first; use a command-local Node 22 path or a PowerShell `$env:Path` prefix. Quoted multiline shell arguments are unreliable here; use a small Node runner. Use Windows-native builds rather than Git Bash's Perl/OpenSSL toolchain.
 - Preserve CRLF conventions and scoped diffs. JSX tests use react-dom/client `createRoot` + `act` (no Testing Library).
 - The e2e suite is timing-sensitive under parallel load; a single random spec timing out (passing solo) has happened in roughly 1 of 5 full runs, and the hosted gate now retries a failed spec once alone and reports it as flaky.

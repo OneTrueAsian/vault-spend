@@ -3,8 +3,8 @@ run-name: Sharded Windows gate ${{ inputs.source_sha }}
 
 # The Windows release gate split across parallel runners. Three jobs start together: `build` builds the desktop test app once, `checks-rust` runs the Rust tests and
 # `checks-other` runs the frontend tests, lint, dependency/security and contract checks. Six `shard` jobs each run a slice of the desktop specs against that one
-# executable and need ONLY `build`, so they start as soon as it succeeds. `aggregate` joins everything. It is a reusable workflow so release-windows.yml and
-# prepare-signed-installers.yml share a single implementation.
+# executable and need ONLY `build`, so they start as soon as it succeeds. `aggregate` joins everything. It is a reusable workflow so release-windows.yml uses it
+# for the sharded gate.
 #
 # One authoritative gate: aggregate fails unless build, both check jobs and every shard succeeded (their real results, from `needs`), left exactly the expected check
 # records (bound to the source commit, this run id and attempt) and passed the shard coverage rules. A failed, skipped or cancelled job cannot be hidden by a record.
@@ -25,10 +25,6 @@ on:
         default: ''
       recovery:
         description: 'Repair legacy test driver paths and skip the signed-updater contract tests, as release-windows.yml recovery does'
-        type: boolean
-        default: false
-      validate_preparation:
-        description: 'Also run tools/prepare-update-artifacts.mjs validate (preparation runs)'
         type: boolean
         default: false
       contract_tests:
@@ -199,7 +195,7 @@ jobs:
           retention-days: 14
 
   checks-other:
-    # Everything else the serial gate checks before the desktop specs: dependency and contract tests, the dependency audit, frontend tests and lint.
+    # Everything else the gate checks before the desktop specs: dependency and contract tests, the dependency audit, frontend tests and lint.
     runs-on: windows-2022
     timeout-minutes: 120
     defaults:
@@ -221,11 +217,6 @@ jobs:
       - name: Injected test fault - fail the other checks
         if: ${{ inputs.fault == 'other-checks' }}
         run: throw 'Injected test fault - the other checks fail on purpose'
-      - name: Validate pinned preparation source
-        if: ${{ inputs.validate_preparation }}
-        env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
-        run: node tools/prepare-update-artifacts.mjs validate
       - name: Repair legacy test driver paths for recovery
         if: ${{ inputs.recovery }}
         run: |
@@ -252,7 +243,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Install RustSec scanner
-        run: cargo install cargo-audit --locked
+        run: cargo install cargo-audit --version 0.23.0 --locked
       - name: Dependency security policy tests
         run: node --test tools/dependency-security-policy.test.mjs tools/browser-download-contract.test.mjs
       - name: Verify signed updater release contracts
@@ -362,6 +353,7 @@ jobs:
           if (-not $runtime) { throw 'WebView2 runtime missing after installation' }
           if ([version]$runtime.Name -le [version]'131.0.2903.86') { throw 'Hosted WebView2 refresh retained the stale runtime from the failed diagnostic' }
           Write-Host "Hosted WebView2 runtime: $($runtime.Name)"
+          "VS_WEBVIEW2_VERSION=$($runtime.Name)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Pin hosted Edge version
         run: |
           # The WebView2 refresh above wakes Edge's updater, which moved Edge from 152 to 155 during a
@@ -391,6 +383,11 @@ jobs:
           Invoke-WebRequest "https://msedgedriver.microsoft.com/$($runtime.Name)/edgedriver_win64.zip" -OutFile $zip
           $cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $env:USERPROFILE '.cargo' }
           Expand-Archive $zip -DestinationPath (Join-Path $cargoHome 'bin') -Force
+          $exe = Join-Path (Join-Path $cargoHome 'bin') 'msedgedriver.exe'
+          $sig = Get-AuthenticodeSignature $exe; if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { throw "msedgedriver.exe is not signed by Microsoft" }
+          $tauriDriver = (& $exe --version)
+          if ($LASTEXITCODE -ne 0) { throw 'msedgedriver.exe --version failed' }
+          "VS_WEBVIEW2_DRIVER_VERSION=$tauriDriver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Install native Edge test driver
         run: |
           # WebView2 and Edge have independent versions on hosted images. Keep Tauri's
@@ -404,9 +401,12 @@ jobs:
           Invoke-WebRequest "https://msedgedriver.microsoft.com/$version/edgedriver_win64.zip" -OutFile $zip
           Expand-Archive $zip -DestinationPath $directory -Force
           $driver = Join-Path $directory 'msedgedriver.exe'
+          $sig = Get-AuthenticodeSignature $driver; if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { throw "msedgedriver.exe is not signed by Microsoft" }
           $reported = & $driver --version
           if ($LASTEXITCODE -ne 0 -or $reported -notmatch [regex]::Escape($version)) { throw 'Native Edge driver version mismatch' }
           Write-Host "Native Edge $version; $reported"
+          "VS_EDGE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "VS_EDGE_DRIVER_VERSION=$reported" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "MSEDGEDRIVER=$driver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - uses: actions/download-artifact@v4
         with:
@@ -455,7 +455,7 @@ jobs:
           # Protection specs measured 15-60 s here against about 10 s locally; the default 60 s hang
           # ceiling is for developer machines. A genuine hang is still killed, just later.
           VAULTSPEND_E2E_SPEC_TIMEOUT_MS: '180000'
-          # The serial gate stretches every wait 3x on the cold hosted runner (1.3.2 fix); a shard runs the same specs on the same runner.
+          # Stretch every wait 3x on the cold hosted runner (1.3.2 fix).
           VAULTSPEND_E2E_TIMEOUT_SCALE: '3'
         run: |
           & $env:VAULTSPEND_CI_GSUDO --integrity Medium --direct --chdir $env:GITHUB_WORKSPACE pwsh -NoProfile -NonInteractive -File tools/run-hosted-desktop-tests.ps1 -Gate full -Shard ${{ matrix.shard }}/6
@@ -469,7 +469,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force shard-evidence | Out-Null
           if (Test-Path target/e2e-last-run.json) { Copy-Item target/e2e-last-run.json shard-evidence/e2e-last-run.json }
-          [ordered]@{ index = [int]$env:SHARD; total = 6; runAttempt = [int]$env:RUN_ATTEMPT; outcome = $env:GATE_OUTCOME } | ConvertTo-Json | Set-Content -Encoding utf8 shard-evidence/shard-meta.json
+          [ordered]@{ index = [int]$env:SHARD; total = 6; runAttempt = [int]$env:RUN_ATTEMPT; outcome = $env:GATE_OUTCOME; browsers = [ordered]@{ edge = $env:VS_EDGE_VERSION; edgeDriver = $env:VS_EDGE_DRIVER_VERSION; webView2 = $env:VS_WEBVIEW2_VERSION; webView2Driver = $env:VS_WEBVIEW2_DRIVER_VERSION } } | ConvertTo-Json -Depth 3 | Set-Content -Encoding utf8 shard-evidence/shard-meta.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -479,7 +479,7 @@ jobs:
           retention-days: 14
 
   aggregate:
-    # Joins the shards, the check records and the real result of every job into the one verdict the serial gate gave. Runs even when a job failed, so the
+    # Joins the shards, the check records and the real result of every job into the one verdict. Runs even when a job failed, so the
     # failures are reported together; it fails unless build, checks-rust, checks-other and every shard succeeded AND left exactly the expected records.
     needs: [build, checks-rust, checks-other, shard]
     if: ${{ !cancelled() }}

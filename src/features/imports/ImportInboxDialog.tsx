@@ -175,6 +175,8 @@ export function ImportInboxDialog({
         <button type="button" data-inbox-review-selected disabled={!selectedItems.length || missingCategories > 0}
           onClick={() => void run(reviewSelected)}>{working ? "Reviewing…" : `Review selected (${selectedItems.length})`}</button>
         <p className="inbox-bulk-help">Accepts the shown categories and keeps flagged transactions, clearing their review flags.
+          {/* VS-68: what the greyed-out Review selected is waiting for. */}
+          {!selectedItems.length && <span data-inbox-review-missing> Tick the transactions to review first.</span>}
           {missingCategories > 0 && ` Choose a category for ${missingCategories} selected transaction${missingCategories === 1 ? "" : "s"} first.`}</p>
       </div>}
       <div className="inbox-list" tabIndex={0} onKeyDown={handleKeyDown} data-inbox-list>
@@ -231,6 +233,10 @@ export function ImportInboxDialog({
                       <button type="button" disabled={!(choices.get(t.id) ?? "")} onClick={() => void run(() => accept(item))} data-inbox-accept>
                         Use {choices.get(t.id) || "category"}
                       </button>
+                      {/* VS-68: on the row being worked on, what the greyed-out button is waiting for. */}
+                      {index === active && !(choices.get(t.id) ?? "") && (
+                        <small className="field-problem" role="status" data-inbox-accept-missing>Choose a category first.</small>
+                      )}
                     </>
                   )}
                   {item.reasons.some((r) => r.kind === "duplicate") && (

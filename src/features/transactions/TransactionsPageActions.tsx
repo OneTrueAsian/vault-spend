@@ -16,9 +16,13 @@ interface TransactionsPageActionsProps {
   openManageFamilyMembers: () => void;
   handleRecategorize: () => Promise<void>;
   handleExportTransactionsCsv: () => Promise<void>;
+  /** Opens the read-only history of moves between accounts (from the More actions menu). */
+  openAccountMoveHistory: () => void;
+  /** Folder activity (VS-102), shown once folder imports are set up: opens the activity dialog. */
+  folderActivity?: { pendingCount: number; onOpen: () => void } | null;
 }
 
-/** The Transactions page's own buttons, beside its title: Import, Add, Manage categories, and the ⋯ menu. Import and Add each ask
+/** The Transactions page's own buttons, beside its title: Import, Folder activity (once folder imports are set up), Add, Manage categories, and the ⋯ menu. Import and Add each ask
  * which account they are for, so nothing here stands for an account. */
 export function TransactionsPageActions({
   busy,
@@ -35,12 +39,25 @@ export function TransactionsPageActions({
   openManageFamilyMembers,
   handleRecategorize,
   handleExportTransactionsCsv,
+  openAccountMoveHistory,
+  folderActivity = null,
 }: TransactionsPageActionsProps) {
   return (
     <div className="import-controls">
       <button onClick={handleImport} disabled={busy || importReview.pendingImport !== null || !dataLoaded}>
         {busy ? "Importing…" : "Import transactions"}
       </button>
+      {folderActivity && (
+        <button
+          type="button"
+          className="modal-secondary"
+          onClick={folderActivity.onOpen}
+          disabled={busy || importReview.pendingImport !== null || !dataLoaded}
+          data-folder-activity-open
+        >
+          {folderActivity.pendingCount > 0 ? `Folder activity (${folderActivity.pendingCount})` : "Folder activity"}
+        </button>
+      )}
       <button
         className="modal-secondary"
         onClick={() => setNewTransactionOpen(true)}
@@ -102,6 +119,18 @@ export function TransactionsPageActions({
               }}
             >
               Export CSV
+            </button>
+            <div className="more-menu-divider"></div>
+            <button
+              type="button"
+              className="more-menu-item"
+              onClick={() => {
+                setMoreMenuOpen(false);
+                openAccountMoveHistory();
+              }}
+              data-account-move-history
+            >
+              Account move history
             </button>
           </div>
         )}

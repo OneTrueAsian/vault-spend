@@ -51,7 +51,7 @@ export function ImportNeedsChoice({
     <section className="import-needs-choice" aria-labelledby="import-needs-choice-title" data-import-needs-choice>
       <div className="import-category-reconcile-head">
         <h3 id="import-needs-choice-title" className="import-needs-choice-title">
-          Pick a category for {rows.length} {rows.length === 1 ? "row" : "rows"}
+          Pick a category for each row
         </h3>
         <button type="button" className="modal-secondary" onClick={onLeaveRest} disabled={disabled || remaining === 0}>
           Leave the rest uncategorized

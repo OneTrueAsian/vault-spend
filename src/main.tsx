@@ -4,6 +4,7 @@ import App from "./app/App";
 import { LegalNoticeGate } from "./features/help/LegalNoticeGate";
 import { StartupGate } from "./app/StartupGate";
 import "./themes/default.css";
+import "./features/dashboard/DashboardLayout.css";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

@@ -1,5 +1,7 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { createElement } from "react";
+import { createElement, act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { BarChart, LineChart, SeriesChart, axisGutter, fmtMoneyShort, monthAxisLabel, timeTicks, type SeriesChartSeries } from "./charts";
 
@@ -127,5 +129,60 @@ describe("fmtMoneyShort", () => {
     expect(fmtMoneyShort(999_960)).toBe("$1M");
     expect(fmtMoneyShort(999.6)).toBe("$1k");
     expect(fmtMoneyShort(-999_999)).toBe("-$1M");
+  });
+});
+
+describe("LineChart partialLast", () => {
+  const points = [10, 20, 15].map((value, i) => ({ label: `M${i}`, value }));
+  const html = (extra: object) => renderToStaticMarkup(createElement(LineChart, { points, ...extra }));
+
+  it("draws the last segment dashed and the last point hollow", () => {
+    const markup = html({ partialLast: true });
+    expect(markup.match(/data-partial-segment/g)).toHaveLength(1);
+    expect(markup.match(/data-partial-point/g)).toHaveLength(1);
+    expect(markup).toMatch(/data-partial-segment[^>]*stroke-dasharray="4 4"|stroke-dasharray="4 4"[^>]*data-partial-segment/);
+  });
+
+  it("a single point is hollow, with no dashed segment", () => {
+    const markup = renderToStaticMarkup(createElement(LineChart, { points: [{ label: "Nov so far", value: 40 }], partialLast: true }));
+    expect(markup.match(/data-partial-point/g)).toHaveLength(1);
+    expect(markup).not.toContain("data-partial-segment");
+  });
+
+  it("draws neither without the prop", () => {
+    const markup = html({});
+    expect(markup).not.toContain("data-partial-segment");
+    expect(markup).not.toContain("data-partial-point");
+  });
+});
+
+describe("LineChart hover marker with partialLast", () => {
+  const points = [10, 20, 15].map((value, i) => ({ label: `M${i}`, value }));
+  const hoverMarker = (partialLast: boolean, index: number, pts = points) => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    act(() => root.render(createElement(LineChart, { points: pts, partialLast })));
+    const bands = [...host.querySelectorAll("rect")].filter((r) => r.getAttribute("fill") === "transparent");
+    act(() => { bands[index].dispatchEvent(new MouseEvent("mouseover", { bubbles: true })); });
+    const marker = host.querySelector("circle[r='5']");
+    const fill = marker?.getAttribute("fill");
+    act(() => root.unmount());
+    host.remove();
+    return fill;
+  };
+
+  it("is hollow on the last point", () => {
+    expect(hoverMarker(true, 2)).toBe("var(--surface)");
+  });
+
+  it("is hollow on a single point", () => {
+    expect(hoverMarker(true, 0, [{ label: "Nov so far", value: 40 }])).toBe("var(--surface)");
+  });
+
+  it("stays filled on other points and without the prop", () => {
+    expect(hoverMarker(true, 1)).toBe("var(--accent)");
+    expect(hoverMarker(false, 2)).toBe("var(--accent)");
   });
 });

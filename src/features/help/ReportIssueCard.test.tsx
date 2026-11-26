@@ -62,6 +62,8 @@ describe("Report a bug or issue", () => {
     expect(open!.type).toBe("button");
     const text = container.textContent ?? "";
     expect(text).toContain("web browser");
+    // VS-71: where to find a failure's technical cause for the form.
+    expect(text).toContain("If a backup, restore or update failed, choose Details on its message, then Copy details, and paste them into the form.");
     expect(text).toMatch(/email address/i);
     expect(text).toMatch(/nothing from your budget/i);
     expect(container.querySelector("iframe, webview, a[href]")).toBeNull();

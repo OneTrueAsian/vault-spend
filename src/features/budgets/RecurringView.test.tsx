@@ -180,6 +180,37 @@ describe("RecurringView edit row date", () => {
   });
 });
 
+describe("RecurringView add form says what is missing (VS-68)", () => {
+  const typeInto = (input: HTMLInputElement, text: string) =>
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, text);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+  it("names the first thing missing, the same way as the edit row, until Save can go", () => {
+    const props = render();
+    act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Add recurring")!.click());
+    const form = container.querySelector<HTMLFormElement>("form.bucket-new-form")!;
+    const note = () => form.querySelector("[data-recurring-add-missing]")?.textContent ?? null;
+    const save = () => [...form.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Save")!;
+    const amount = form.querySelector<HTMLInputElement>('input[placeholder="Amount (negative = bill)"]')!;
+    expect(save().disabled).toBe(true);
+    expect(note()).toBe("Enter a name.");
+    expect(amount.getAttribute("aria-invalid")).not.toBe("true");
+    typeInto(form.querySelector<HTMLInputElement>('input[placeholder=\'e.g. "Netflix"\']')!, "Netflix");
+    expect(note()).toBe("Enter an amount.");
+    typeInto(amount, "-1,200");
+    expect(note()).toBe("Leave out the comma: -1200");
+    expect(amount.getAttribute("aria-invalid")).toBe("true");
+    typeInto(amount, "-15.49");
+    expect(note()).toBe("Enter the whole next due date.");
+    typeInto(form.querySelector<HTMLInputElement>("input.date-field-input")!, "12/01/2026");
+    expect(note()).toBeNull();
+    act(() => save().click());
+    expect(props.onCreate).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("RecurringView calendar projection", () => {
   it("keeps a monthly item on its original day after a short month", () => {
     const item = { anchor_date: "2026-01-31", cadence: "monthly" };

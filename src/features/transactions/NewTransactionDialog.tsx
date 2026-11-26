@@ -239,6 +239,9 @@ export function NewTransactionDialog({
           <button type="submit" disabled={accounts.length === 0}>
             Add transaction
           </button>
+          {accounts.length === 0 && (
+            <small className="field-problem" role="status" data-transaction-missing>Add an account first, on the Accounts page.</small>
+          )}
         </div>
       </form>
     </ModalShell>

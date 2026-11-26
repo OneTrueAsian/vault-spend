@@ -49,6 +49,7 @@ profile) and a line here, with its test.
 | Household | By person, budget by person | H | Alex and Jordan, plus Shared rows |
 | Household | Empty state | F | No people |
 | Reports | Every tab, print and PDF | H | 15 months |
+| Reports → Transactions and back | Categories by month row opens its transactions; Back restores range and tab | H | categorized spending in the last 12 months, plus one Uncategorized spending row |
 | Reports | Comparisons with others your age | H + UI | 12+ completed months exist; the age setup is entered in the app |
 | Settings | Feature toggles | H, F | H has the opt-in features on; F has every default |
 | Settings | Profiles, switching | H, S, F | Three profiles in the registry |

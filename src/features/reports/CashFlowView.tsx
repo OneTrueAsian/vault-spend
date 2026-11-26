@@ -5,7 +5,7 @@ import { lowestPoint } from "./lowestPoint";
 import { BarChart, DonutChart, LineChart, fmtMoneyShort } from "../../shared/ui/charts";
 import { formatAmount, formatDisplayDate } from "../../shared/lib/format";
 import { forecastHint } from "./forecastNotes";
-import { forecastChartPoints } from "./forecastChart";
+import { forecastChartPoints, forecastHorizons } from "./forecastChart";
 import { DebtPayoffPlannerSection } from "./DebtPayoffPlanner";
 import { PinToDashboardButton } from "../../shared/ui/PinToDashboardButton";
 import type { WidgetId } from "../../shared/lib/dashboardLayout";
@@ -20,8 +20,6 @@ import { useFinancialRead } from "../../shared/hooks/useFinancialRead";
 import { FinancialReadState } from "../../shared/native/FinancialReadState";
 import type { ReportSnapshot } from "../../shared/native/financialContracts";
 import { groupOf, owedAmount } from "../../shared/lib/accountGroups";
-
-const FORECAST_DAY_OPTIONS = [30, 60, 90];
 
 export type CashFlowTab = "forecast" | "by-month" | "one-month" | "last-year" | "debt";
 
@@ -193,6 +191,9 @@ export function CashFlowView({
   initialTab?: CashFlowTab;
 }) {
   const [selectedSpendCategory, setSelectedSpendCategory] = useState<string | null>(null);
+  // Coming up's "Show all" holds for the forecast length it was clicked on; picking another length starts at 10 again.
+  const [showAllEventsFor, setShowAllEventsFor] = useState<number | null>(null);
+  const showAllEvents = showAllEventsFor === forecastDays;
   useEffect(() => setSelectedSpendCategory(null), [topCategoriesData]);
 
   if (!cashFlow) {
@@ -470,13 +471,13 @@ export function CashFlowView({
           <div className="card-head">
             <span className="reports-section-title">Forecast</span>
             <div className="tabs" style={{ marginBottom: 0 }}>
-              {FORECAST_DAY_OPTIONS.map((d) => (
+              {forecastHorizons(new Date()).map(({ label, days }) => (
                 <button
-                  key={d}
-                  className={forecastDays === d ? "tab-btn tab-btn-active" : "tab-btn"}
-                  onClick={() => onSetForecastDays(d)}
+                  key={label}
+                  className={forecastDays === days ? "tab-btn tab-btn-active" : "tab-btn"}
+                  onClick={() => onSetForecastDays(days)}
                 >
-                  {d} days
+                  {label}
                 </button>
               ))}
             </div>
@@ -484,7 +485,7 @@ export function CashFlowView({
           {forecastData ? (
             <>
             <LineChart
-              // Only about every 8th of the 30-90 daily points is labelled (see forecastChartPoints).
+              // Only about 8 of the 30-366 daily points are labelled (see forecastChartPoints).
               points={forecastChartPoints(forecastData.points)}
               height={200}
               caption="Projected balance by day"
@@ -501,7 +502,7 @@ export function CashFlowView({
               <div className="forecast-events">
                 <span className="reports-section-title">Coming up</span>
                 <ul>
-                  {forecastData.events.slice(0, 10).map((ev, i) => (
+                  {(showAllEvents ? forecastData.events : forecastData.events.slice(0, 10)).map((ev, i) => (
                     <li key={`${ev.date}-${ev.label}-${i}`}>
                       <span className="forecast-event-date">{formatDisplayDate(ev.date)}</span>
                       <span className="forecast-event-label">{ev.label}</span>
@@ -511,6 +512,12 @@ export function CashFlowView({
                     </li>
                   ))}
                 </ul>
+                {/* A long forecast has many bills; the rest are one click away, so a yearly one is not hidden (VS-45). */}
+                {!showAllEvents && forecastData.events.length > 10 && (
+                  <button type="button" className="recent-see-all" data-forecast-show-all onClick={() => setShowAllEventsFor(forecastDays)}>
+                    Show all {forecastData.events.length}
+                  </button>
+                )}
               </div>
             )}
             </>

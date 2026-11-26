@@ -84,12 +84,12 @@ try {
   if (details.length !== 2) throw new Error("each suggested pair must offer transaction details");
   for (const detail of details) await (await detail.$("summary")).click();
   let detailText = "";
-  for (const detail of details) detailText += `${await detail.getText()}\n`;
+  for (const detail of details) detailText += `${await (await detail.$(".transfer-review-transactions")).getText()}\n`;
   for (const description of ["Move to savings", "Deposit from checking", "Sent to brother", "Brother paid me back"]) {
     if (!detailText.includes(description)) throw new Error(`missing transaction detail: ${description}`);
   }
   for (const detail of details) {
-    const text = await detail.getText();
+    const text = await (await detail.$(".transfer-review-transactions")).getText();
     if (!text.includes("Money out") || !text.includes("Money in") || !text.includes("Category:")) {
       throw new Error(`incomplete transaction details: ${text}`);
     }

@@ -84,6 +84,7 @@ export function AmountEditor({
               ariaLabel={`${label}: date measured`}
               value={date}
               disabled={value === null}
+              title={value === null ? "Enter the amount first." : undefined}
               required
               ariaDescribedBy={dateTipId}
               onChange={(iso) => commit(text, iso, note)}
@@ -99,7 +100,8 @@ export function AmountEditor({
               type="text"
               value={note}
               disabled={value === null}
-              placeholder="Where this came from (optional)"
+              // VS-68: why the date and note are greyed out (they open as soon as the amount beside them is typed).
+              placeholder={value === null ? "Enter the amount first" : "Where this came from (optional)"}
               aria-describedby={noteTipId}
               onChange={(e) => commit(text, date, e.target.value)}
             />

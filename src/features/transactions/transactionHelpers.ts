@@ -48,7 +48,7 @@ export function describeDeleteImpact(amount: string, account: Account | undefine
 }
 
 /** How many columns the Transactions table has, for full-width rows (`colSpan`): select, date,
- * description, amount and actions always; account, category and "Sorted by" when not narrow; and the
+ * description, amount and actions always; account, category and "Set by" when not narrow; and the
  * member column only when it shows (wide, and two or more family members). */
 export function transactionColumnCount(narrow: boolean, showMemberCol: boolean): number {
   if (narrow) return 5;

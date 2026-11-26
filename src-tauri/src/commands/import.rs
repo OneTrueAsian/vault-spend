@@ -1,7 +1,42 @@
 //! Commands: importing files (preview, settle, commit), the sign question, and the setup-data template.
 
 use super::*;
-use budget_core::csv_loader::{self, ColumnGuess, ColumnMap, LoadResult};
+use budget_core::csv_loader::{self, ColumnGuess, ColumnMap, CsvInspection, LoadResult};
+
+/// Where an import's rows come from: a file the person picked, or the saved copy of an export a
+/// watched folder found (VS-102). Both go through the same loaders, checks and commit.
+pub(crate) enum ImportSource<'a> {
+    Path(&'a str),
+    Saved { file_name: &'a str, bytes: &'a [u8] },
+}
+
+impl ImportSource<'_> {
+    fn name(&self) -> &str {
+        match self {
+            ImportSource::Path(path) => path,
+            ImportSource::Saved { file_name, .. } => file_name,
+        }
+    }
+
+    /// The rows, read the same way for preview and commit. A saved export always goes to its
+    /// mapping's account, so any Account column it has is not used to pick another one.
+    fn load(&self, invert_amounts: bool, map: Option<&ColumnMap>) -> Result<LoadResult, String> {
+        match self {
+            ImportSource::Path(path) => importer::load_transactions(path, invert_amounts, map).map_err(|e| e.to_string()),
+            ImportSource::Saved { file_name, bytes } => {
+                let mut loaded = importer::load_transactions_from_bytes(file_name, bytes, invert_amounts, map).map_err(|e| e.to_string())?;
+                if loaded.transactions.len() + loaded.errors.len() > budget_core::folder_import::MAX_FILE_ROWS {
+                    return Err(format!(
+                        "This export has more than {} rows, so it isn't imported. Export a shorter date range from your bank.",
+                        budget_core::folder_import::MAX_FILE_ROWS
+                    ));
+                }
+                loaded.account_names = vec![None; loaded.transactions.len()];
+                Ok(loaded)
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests;
@@ -17,6 +52,41 @@ pub struct ImportSummary {
     pub auto_linked: usize,
 }
 
+/// One row the loader could not read, in words for the review screen. The preview is only sent
+/// to the screen (never logged or stored).
+#[derive(Serialize, Debug)]
+pub struct RowProblemDto {
+    pub row_number: usize,
+    pub preview: Option<String>,
+    pub reason: String,
+}
+
+fn row_problems(errors: &[csv_loader::RowError]) -> Vec<RowProblemDto> {
+    errors
+        .iter()
+        .map(|e| RowProblemDto {
+            row_number: e.row_number,
+            preview: e.preview.clone(),
+            reason: budget_core::row_problem::plain_row_reason(&e.message),
+        })
+        .collect()
+}
+
+/// A setup-data row's section goes in front of its cells, since its line number alone doesn't say which list it is in.
+fn setup_row_problems(errors: &[budget_core::setup_import::RowError]) -> Vec<RowProblemDto> {
+    errors
+        .iter()
+        .map(|e| RowProblemDto {
+            row_number: e.row_number,
+            preview: Some(match &e.preview {
+                Some(cells) => format!("{}: {cells}", e.section),
+                None => e.section.clone(),
+            }),
+            reason: budget_core::row_problem::plain_row_reason(&e.message),
+        })
+        .collect()
+}
+
 /// One parsed CSV row awaiting the user's review — every row is shown, not
 /// just duplicates, so the user can pick which to include and which
 /// account each belongs to before anything is written.
@@ -27,6 +97,8 @@ pub struct ImportRow {
     pub description: String,
     pub amount: String,
     pub is_duplicate: bool,
+    /// The bank marked this row as still pending (a "pending" column). It starts unchecked.
+    pub source_pending: bool,
     /// The row's own Account column, when the source file has one. A matching existing account
     /// is preselected; an unfamiliar name uses the selected default account. The user can pick
     /// another existing account on the review screen. Transaction imports never create accounts.
@@ -45,6 +117,8 @@ pub struct ImportRow {
 pub struct ImportPreview {
     pub rows: Vec<ImportRow>,
     pub row_errors: usize,
+    /// Each unreadable row (`row_errors` of them), for the review screen to list.
+    pub row_problems: Vec<RowProblemDto>,
     /// Category names the file uses that the person doesn't have. Nothing is created for
     /// these unless the review screen sends back a `Create` choice for them.
     pub unmatched_categories: Vec<UnmatchedCategoryDto>,
@@ -132,7 +206,7 @@ pub struct ImportSignCounts {
 /// that one (it was edited or swapped after the choice), so positions are never applied to a different layout.
 fn check_chosen_headers(path: &str, loaded: &LoadResult, column_map: Option<&ColumnMap>, chosen_from: Option<&[String]>) -> Result<(), String> {
     match (column_map, chosen_from) {
-        (Some(_), Some(chosen)) if is_csv_path(path) && loaded.headers != chosen => Err("This file changed. Start the import again.".to_string()),
+        (Some(_), Some(chosen)) if importer::has_columns(path) && loaded.headers != chosen => Err("This file changed. Start the import again.".to_string()),
         _ => Ok(()),
     }
 }
@@ -178,18 +252,15 @@ pub fn inspect_import_columns(path: String, account_id: i64, state: tauri::State
     inspect_import_columns_for(&state, &path, account_id)
 }
 
-/// Whether the importer reads this file as a CSV: anything that isn't `ofx`/`qfx`/`qif`, as in `importer::load_transactions`.
-fn is_csv_path(path: &str) -> bool {
-    let extension = std::path::Path::new(path)
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_ascii_lowercase();
-    !matches!(extension.as_str(), "ofx" | "qfx" | "qif")
+fn inspect_import_columns_for(state: &AppState, path: &str, account_id: i64) -> Result<ColumnInspectionDto, String> {
+    let inspection = importer::inspect_columns(path).map_err(|e| e.to_string())?;
+    column_inspection_dto(state, inspection, account_id)
 }
 
-fn inspect_import_columns_for(state: &AppState, path: &str, account_id: i64) -> Result<ColumnInspectionDto, String> {
-    if !is_csv_path(path) {
+/// The column-matching answer for a file's header row: nothing to match (OFX/QFX/QIF, or every
+/// column found by name), the account's remembered choice, or the person's pick needed.
+pub(crate) fn column_inspection_dto(state: &AppState, inspection: Option<CsvInspection>, account_id: i64) -> Result<ColumnInspectionDto, String> {
+    let Some(inspection) = inspection else {
         return Ok(ColumnInspectionDto {
             status: "ok".to_string(),
             headers: Vec::new(),
@@ -204,8 +275,7 @@ fn inspect_import_columns_for(state: &AppState, path: &str, account_id: i64) -> 
             },
             map: None,
         });
-    }
-    let inspection = csv_loader::inspect_csv(path).map_err(|e| e.to_string())?;
+    };
     let mut guess = inspection.guess;
     let (status, map) = if inspection.missing.is_empty() {
         ("ok", None)
@@ -283,9 +353,22 @@ fn preview_import_for(
     column_map: Option<&ColumnMap>,
     column_headers: Option<&[String]>,
 ) -> Result<ImportPreview, String> {
-    let loaded = importer::load_transactions(path, invert_amounts, column_map).map_err(|e| e.to_string())?;
-    check_chosen_headers(path, &loaded, column_map, column_headers)?;
+    preview_source(state, &ImportSource::Path(path), invert_amounts, account_id, column_map, column_headers)
+}
+
+/// The import preview for either source. A pure read: nothing is created or remembered.
+pub(crate) fn preview_source(
+    state: &mut AppState,
+    source: &ImportSource,
+    invert_amounts: bool,
+    account_id: i64,
+    column_map: Option<&ColumnMap>,
+    column_headers: Option<&[String]>,
+) -> Result<ImportPreview, String> {
+    let loaded = source.load(invert_amounts, column_map)?;
+    check_chosen_headers(source.name(), &loaded, column_map, column_headers)?;
     let row_errors = loaded.errors.len();
+    let row_problems = row_problems(&loaded.errors);
 
     let mut resolved_accounts = Vec::with_capacity(loaded.transactions.len());
     for index in 0..loaded.transactions.len() {
@@ -328,6 +411,7 @@ fn preview_import_for(
             description: tx.description.clone(),
             amount: tx.amount.to_string(),
             is_duplicate: *is_duplicate,
+            source_pending: loaded.source_pending.get(index).copied().unwrap_or(false),
             account_name: loaded.account_names.get(index).cloned().flatten(),
             category: tx.category.as_deref().map(str::trim).filter(|c| !c.is_empty()).map(str::to_string),
             matched_category: facts.matched_category,
@@ -350,6 +434,7 @@ fn preview_import_for(
     Ok(ImportPreview {
         rows,
         row_errors,
+        row_problems,
         unmatched_categories,
         review_token,
         choice_below: import_resolution::IMPORT_CHOICE_BELOW,
@@ -427,11 +512,25 @@ pub struct CommitImportRequest {
 }
 
 fn commit_import_for(state: &mut AppState, req: CommitImportRequest) -> Result<ImportSummary, String> {
+    let path = req.path.clone();
+    commit_source(state, &ImportSource::Path(&path), None, req)
+}
+
+/// A saved folder export being committed: its batch id and the version that was reviewed.
+pub(crate) struct StagedCommit {
+    pub batch_id: i64,
+    pub row_version: i64,
+}
+
+/// `commit_import` for either source (`req.path` is not used; the source says where the rows
+/// are). A saved export is written, finished and receipted in one transaction, and its account's
+/// remembered sign answer is left alone: the folder mapping owns its own amount convention.
+pub(crate) fn commit_source(state: &mut AppState, source: &ImportSource, staged: Option<StagedCommit>, req: CommitImportRequest) -> Result<ImportSummary, String> {
     use budget_core::import_resolution::Automatic;
     use budget_core::store::{ImportAccount, ImportBatch, ImportBatchRow, RowCategory};
 
-    let loaded = importer::load_transactions(&req.path, req.invert_amounts, req.column_map.as_ref()).map_err(|e| e.to_string())?;
-    check_chosen_headers(&req.path, &loaded, req.column_map.as_ref(), req.column_headers.as_deref())?;
+    let loaded = source.load(req.invert_amounts, req.column_map.as_ref())?;
+    check_chosen_headers(source.name(), &loaded, req.column_map.as_ref(), req.column_headers.as_deref())?;
     if import_resolution::review_token(&loaded) != req.review_token {
         return Err("This file changed. Review it again before importing.".to_string());
     }
@@ -516,14 +615,14 @@ fn commit_import_for(state: &mut AppState, req: CommitImportRequest) -> Result<I
     }
 
     let mut batch = ImportBatch {
-        sign_preference: Some((req.default_account_id, req.invert_amounts)),
+        sign_preference: if staged.is_some() { None } else { Some((req.default_account_id, req.invert_amounts)) },
         ..ImportBatch::default()
     };
     // Remember the person's column choice for the account, by header name. A choice that can't be
     // named (a blank header) is simply not remembered; the import still goes ahead.
     // Only a CSV has columns, and only a choice the names reproduce exactly (a repeated header would
     // otherwise find a different column next time) is remembered.
-    if let Some(map) = req.column_map.as_ref().filter(|_| is_csv_path(&req.path)) {
+    if let Some(map) = req.column_map.as_ref().filter(|_| importer::has_columns(source.name())) {
         // Named from the same read that loaded the rows, so it can't describe a different file.
         let headers = &loaded.headers;
         if let Some(names) = map.names(headers).filter(|names| names.resolve(headers).as_ref() == Some(map)) {
@@ -584,7 +683,16 @@ fn commit_import_for(state: &mut AppState, req: CommitImportRequest) -> Result<I
         }
     }
 
-    let outcome = state.store.commit_import_batch(&batch).map_err(|e| e.to_string())?;
+    let outcome = match staged {
+        Some(staged) => {
+            let now = chrono::Local::now().naive_local().format("%Y-%m-%dT%H:%M:%S").to_string();
+            state
+                .store
+                .commit_staged_import(&batch, staged.batch_id, staged.row_version, &now)
+                .map_err(|e| e.to_string())?
+        }
+        None => state.store.commit_import_batch(&batch).map_err(|e| e.to_string())?,
+    };
     state.import_review = None;
     // The stored rules already have them; the in-memory ones learn only now that the import is saved.
     for (description, category) in &outcome.taught {
@@ -679,6 +787,7 @@ pub struct SetupImportPreviewDto {
     pub buckets: Vec<SetupBucketRowDto>,
     pub holdings: Vec<SetupHoldingRowDto>,
     pub row_errors: usize,
+    pub row_problems: Vec<RowProblemDto>,
 }
 
 #[derive(Serialize)]
@@ -790,6 +899,7 @@ pub fn preview_setup_import(path: String, state: tauri::State<AppStateHandle>) -
         buckets,
         holdings,
         row_errors: data.errors.len(),
+        row_problems: setup_row_problems(&data.errors),
     })
 }
 

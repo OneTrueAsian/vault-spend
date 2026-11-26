@@ -387,6 +387,7 @@ mod tests {
             tags: vec![Vec::new(); n],
             notes: vec![None; n],
             headers: Vec::new(),
+            source_pending: vec![false; n],
         }
     }
 

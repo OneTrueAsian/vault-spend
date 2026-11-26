@@ -1,4 +1,4 @@
-"""Execute the recovery workflow's real PowerShell checks with disposable fixtures."""
+"""Execute the release workflows' real PowerShell checks with disposable fixtures. The hosted gate steps live in windows-desktop-gate-sharded.yml."""
 import os
 from pathlib import Path
 import subprocess
@@ -6,11 +6,12 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+GATE = ROOT / '.github/workflows/windows-desktop-gate-sharded.yml'
 POWERSHELL = Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
 
 
 def workflow_step(name):
-    text = (ROOT / '.github/workflows/release-windows.yml').read_text()
+    text = GATE.read_text()
     section = text.split(f'      - name: {name}\n', 1)[1]
     block = section.split('        run: |\n', 1)[1]
     lines = []
@@ -25,63 +26,39 @@ class RecoveryWorkflowTests(unittest.TestCase):
     def test_diagnostic_runs_cannot_publish_installers(self):
         source = (ROOT / '.github/workflows/release-windows.yml').read_text()
         self.assertTrue('diagnostic_only:' in source, 'missing non-publishing diagnostic input')
-        self.assertTrue('ref: ${{ inputs.diagnostic_only && inputs.source_sha || inputs.tag }}' in source, 'diagnostics must test their pinned source, normal releases their immutable tag')
-        packaging = source.split('\n  release:\n', 1)[1].split('      - name: Build Windows installers into the draft release\n', 1)[1].split('      - name:', 1)[0]
-        self.assertIn('if: ${{ !inputs.diagnostic_only }}', packaging)
-        signing = source.split('  sign-updates:\n', 1)[1]
-        self.assertTrue('if: ${{ !inputs.recovery && !inputs.diagnostic_only }}' in signing, 'diagnostics must not enter protected signing')
-        self.assertLess(source.index('      - name: Desktop WebDriver smoke preflight'), source.index('      - name: Full desktop E2E release gate'))
+        self.assertNotIn('\n  release:\n', source, 'the serial release job is gone')
+        for job in ('sharded-package', 'sharded-sign-updates'):
+            section = source.split(f'  {job}:\n', 1)[1].split('    runs-on:', 1)[0]
+            self.assertIn('if: ${{ !inputs.diagnostic_only }}', section, f'{job} must not run for diagnostics')
+        self.assertLess(GATE.read_text().index('      - name: Desktop WebDriver smoke preflight'), GATE.read_text().index('      - name: Full desktop E2E release gate'))
 
-    def test_sharded_diagnostic_is_opt_in_and_leaves_the_serial_release_path_alone(self):
+    def test_the_sharded_gate_is_the_only_route_and_cannot_package_or_publish(self):
         source = (ROOT / '.github/workflows/release-windows.yml').read_text()
-        flag = source.split('      sharded:\n', 1)[1].split('\n\npermissions:', 1)[0]
-        self.assertIn('type: boolean', flag)
-        self.assertIn('default: false', flag)
-        release_job = source.split('\n  release:\n', 1)[1]
-        self.assertIn("    if: ${{ !cancelled() && !inputs.sharded && !inputs.test_release && (inputs.diagnostic_only || needs.release-baseline.result == 'success') }}\n", release_job.split('    runs-on:', 1)[0], 'the serial release job runs unless a sharded flag is set')
+        self.assertNotIn('      sharded:\n', source)
+        self.assertNotIn('inputs.sharded', source)
         sharded = source.split('  sharded-gate:\n', 1)[1].split('\n  sharded-package:\n', 1)[0]
         self.assertIn('uses: ./.github/workflows/windows-desktop-gate-sharded.yml', sharded)
         self.assertIn('contents: read', sharded)
         self.assertNotIn('secrets', sharded)
-        # Nothing the sharded path calls is able to package or publish.
-        called = (ROOT / '.github/workflows/windows-desktop-gate-sharded.yml').read_text()
+        # Nothing the gate calls is able to package or publish.
+        called = GATE.read_text()
         for forbidden in ('tauri-action', 'gh release', 'secrets.', 'contents: write', 'git push'):
             self.assertNotIn(forbidden, called)
 
-    def test_serial_release_refuses_the_reserved_draft_test_tags(self):
-        # v1.3.90 to v1.3.99 exist only for the draft test release; a plain dispatch on one must never publish or become the latest release.
-        step = workflow_step('Validate release tag and version')
-        def run(tag, ref):
-            with tempfile.TemporaryDirectory(prefix='reserved-tag-') as folder:
-                script = Path(folder) / 'step.ps1'
-                script.write_text("$ErrorActionPreference = 'Stop'\n" + step + "\n", encoding='utf-8')
-                env = dict(os.environ, RELEASE_TAG=tag, RECOVERY='false', DIAGNOSTIC_ONLY='false', SOURCE_SHA='', GITHUB_REF=ref)
-                return subprocess.run([str(POWERSHELL), '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', str(script)], env=env, capture_output=True, text=True, timeout=30, cwd=folder)
-        for tag in ('v1.3.90', 'v1.3.95', 'v1.3.99'):
-            result = run(tag, 'refs/tags/' + tag)
-            self.assertNotEqual(result.returncode, 0, tag)
-            self.assertIn('Reserved test tag', result.stderr, tag)
-        for tag in ('v1.3.2', 'v1.3.3', 'v1.3.9', 'v1.3.100'):
-            result = run(tag, 'refs/heads/not-a-tag')
-            self.assertNotIn('Reserved test tag', result.stderr, tag)
-
     def test_windows_gate_jobs_have_headroom_and_keep_their_step_timeouts(self):
-        # The serial hosted gate took 80 of the 145 minutes the v1.3.2 job used, against a 150 minute limit. The limit is raised
-        # as a temporary safeguard; it removes no check, and a stuck step is still ended by its own timeout.
+        # The build job keeps its 240 minute limit as a safeguard; it removes no check, and a stuck step is still ended by its own timeout.
         import re
-        for name in ('release-windows.yml', 'prepare-signed-installers.yml'):
-            source = (ROOT / '.github/workflows' / name).read_text()
-            # The serial gate job only: the draft test release's own packaging job has a shorter, separate limit.
-            job_limit = re.search(r'(?m)^    timeout-minutes: (\d+)\s*$', source.split('\n  release:\n', 1)[1] if name == 'release-windows.yml' else source)
-            self.assertIsNotNone(job_limit, name)
-            self.assertEqual(int(job_limit.group(1)), 240, name)
-            refresh = source.split('      - name: Refresh hosted WebView2 runtime\n', 1)[1].split('      - name:', 1)[0]
-            self.assertIn('timeout-minutes: 10', refresh, name)
+        source = GATE.read_text()
+        job_limit = re.search(r'(?m)^    timeout-minutes: (\d+)\s*$', source.split('\n  build:\n', 1)[1])
+        self.assertIsNotNone(job_limit)
+        self.assertEqual(int(job_limit.group(1)), 240)
+        refresh = source.split('      - name: Refresh hosted WebView2 runtime\n', 1)[1].split('      - name:', 1)[0]
+        self.assertIn('timeout-minutes: 10', refresh)
 
     def test_hosted_runner_gate_limits_concurrent_app_launches(self):
         # The hosted desktop has one OS foreground window. Concurrency 3 still failed focus checks
         # and protection flows (171/202); isolate these real UI checks rather than skip assertions.
-        source = (ROOT / '.github/workflows/release-windows.yml').read_text()
+        source = GATE.read_text()
         gate = source.split('      - name: Full desktop E2E release gate\n', 1)[1].split('      - name:', 1)[0]
         self.assertIn('--integrity Medium', gate)
         self.assertIn('-Gate full', gate)
@@ -137,7 +114,7 @@ class RecoveryWorkflowTests(unittest.TestCase):
         self.assertEqual(json.loads(commands), ['run', 'e2e:smoke'])
 
     def test_native_browser_driver_is_separate_from_webview_driver(self):
-        source = (ROOT / '.github/workflows/release-windows.yml').read_text()
+        source = GATE.read_text()
         setup = source.split('      - name: Install native Edge test driver\n', 1)[1].split('      - name:', 1)[0]
         self.assertIn('VersionInfo.ProductVersion', setup)
         self.assertIn('MSEDGEDRIVER=', setup)
@@ -147,7 +124,7 @@ class RecoveryWorkflowTests(unittest.TestCase):
     def test_hosted_edge_updates_are_pinned_before_the_driver_is_matched(self):
         # Run 38339761633: Edge moved from 152 to 155 during the 50 minute gate, after its driver was
         # installed, so the mobile spec could not start a session.
-        source = (ROOT / '.github/workflows/release-windows.yml').read_text()
+        source = GATE.read_text()
         pin = source.split('      - name: Pin hosted Edge version\n', 1)[1].split('      - name:', 1)[0]
         self.assertIn('UpdateDefault', pin)
         self.assertIn('{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}', pin)
@@ -156,7 +133,7 @@ class RecoveryWorkflowTests(unittest.TestCase):
         self.assertLess(source.index('      - name: Pin hosted Edge version'), source.index('      - name: Install native Edge test driver'))
 
     def test_edge_driver_match_is_rechecked_before_the_full_gate(self):
-        source = (ROOT / '.github/workflows/release-windows.yml').read_text()
+        source = GATE.read_text()
         self.assertLess(source.index('      - name: Verify native Edge driver still matches Edge'), source.index('      - name: Full desktop E2E release gate'))
         gate = source.split('      - name: Full desktop E2E release gate\n', 1)[1].split('      - name:', 1)[0]
         self.assertIn("VAULTSPEND_E2E_SPEC_TIMEOUT_MS: '180000'", gate)
@@ -185,7 +162,7 @@ class RecoveryWorkflowTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
 
     def test_hosted_runtime_is_verified_before_install_and_driver_matching(self):
-        source = (ROOT / '.github/workflows/release-windows.yml').read_text()
+        source = GATE.read_text()
         setup = workflow_step('Refresh hosted WebView2 runtime')
         self.assertLess(setup.index('Get-AuthenticodeSignature'), setup.index('Start-Process'))
         self.assertIn("$signature.Status -ne 'Valid'", setup)
@@ -230,17 +207,17 @@ class RecoveryWorkflowTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(source, repaired)
 
-    def test_recovery_refuses_a_changed_tag_commit(self):
+    def test_gate_refuses_a_changed_tag_commit(self):
         with tempfile.TemporaryDirectory(prefix='release-recovery-pin-') as folder:
             root = Path(folder)
             script = root / 'validate.ps1'
-            script.write_text("$ErrorActionPreference = 'Stop'\nfunction git { '" + 'b' * 40 + "' }\n" + workflow_step('Validate release tag and version'), encoding='utf-8')
-            env = dict(os.environ, RELEASE_TAG='v1.3.0', RECOVERY='true', SOURCE_SHA='a' * 40, GITHUB_REF='refs/heads/main')
+            script.write_text("$ErrorActionPreference = 'Stop'\nfunction git { '" + 'b' * 40 + "' }\n" + workflow_step('Validate source and version'), encoding='utf-8')
+            env = dict(os.environ, RELEASE_TAG='v1.3.0', SOURCE_SHA='a' * 40)
             result = subprocess.run([str(POWERSHELL), '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', str(script)], cwd=root, env=env, capture_output=True, text=True, timeout=15)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn('Release tag changed', result.stderr)
+            self.assertIn('differs from the requested commit', result.stderr)
 
-    def test_branch_recovery_accepts_matching_source_and_version(self):
+    def test_gate_accepts_matching_source_and_version(self):
         with tempfile.TemporaryDirectory(prefix='release-recovery-version-') as folder:
             root = Path(folder)
             (root / 'src-tauri').mkdir()
@@ -248,8 +225,8 @@ class RecoveryWorkflowTests(unittest.TestCase):
                 (root / file).write_text('{"version":"1.3.0"}')
             (root / 'src-tauri/Cargo.toml').write_text('[package]\nversion = "1.3.0"\n')
             script = root / 'validate.ps1'
-            script.write_text("$ErrorActionPreference = 'Stop'\nfunction git { '" + 'a' * 40 + "' }\n" + workflow_step('Validate release tag and version'), encoding='utf-8')
-            env = dict(os.environ, RELEASE_TAG='v1.3.0', RECOVERY='true', SOURCE_SHA='a' * 40, GITHUB_REF='refs/heads/main')
+            script.write_text("$ErrorActionPreference = 'Stop'\nfunction git { '" + 'a' * 40 + "' }\n" + workflow_step('Validate source and version'), encoding='utf-8')
+            env = dict(os.environ, RELEASE_TAG='v1.3.0', SOURCE_SHA='a' * 40)
             command = [str(POWERSHELL), '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', str(script)]
             result = subprocess.run(command, cwd=root, env=env, capture_output=True, text=True, timeout=15)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -257,24 +234,6 @@ class RecoveryWorkflowTests(unittest.TestCase):
             result = subprocess.run(command, cwd=root, env=env, capture_output=True, text=True, timeout=15)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('Version mismatch', result.stderr)
-
-    def test_normal_mode_still_requires_tag_dispatch(self):
-        with tempfile.TemporaryDirectory(prefix='release-normal-ref-') as folder:
-            script = Path(folder) / 'validate.ps1'
-            script.write_text("$ErrorActionPreference = 'Stop'\n" + workflow_step('Validate release tag and version'), encoding='utf-8')
-            env = dict(os.environ, RELEASE_TAG='v1.3.0', RECOVERY='false', GITHUB_REF='refs/heads/main')
-            result = subprocess.run([str(POWERSHELL), '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', str(script)], cwd=folder, env=env, capture_output=True, text=True, timeout=15)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn('Dispatch must use the release tag', result.stderr)
-
-    def test_diagnostics_require_explicit_pinned_recovery(self):
-        with tempfile.TemporaryDirectory(prefix='release-diagnostic-ref-') as folder:
-            script = Path(folder) / 'validate.ps1'
-            script.write_text("$ErrorActionPreference = 'Stop'\n" + workflow_step('Validate release tag and version'), encoding='utf-8')
-            env = dict(os.environ, RELEASE_TAG='v1.3.2', RECOVERY='false', DIAGNOSTIC_ONLY='true', GITHUB_REF='refs/tags/v1.3.2')
-            result = subprocess.run([str(POWERSHELL), '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', str(script)], cwd=folder, env=env, capture_output=True, text=True, timeout=15)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn('Diagnostics require recovery mode', result.stderr)
 
 
 if __name__ == '__main__':

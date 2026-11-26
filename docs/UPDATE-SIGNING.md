@@ -14,68 +14,31 @@ owner approval for the prepared release before publishing it. The Windows releas
 its files to that same draft and never publishes (see "macOS joins the Windows draft" below). The owner publishes the finished draft by hand.
 Use the Windows non-publishing diagnostic mode for pipeline validation.
 
-## Prepare installers without publishing
+## The 1.3.1 preparation path is removed
 
-Dispatch the existing `build-macos-check.yml` on `release-1.3.1` with
-`prepare_signed=true` and the exact current commit as `source_sha`. It calls
-`prepare-signed-installers.yml` from the same commit, allowing preparation without
-adding a new dispatch workflow to `main`. The ordinary macOS check remains the
-default when `prepare_signed` is false. Preparation rejects a different dispatch ref, moved branch commit,
-or version mismatch. This separate workflow has only `contents: read`, creates no
-tag or release, and omits all Tauri release inputs. Windows retains the complete
-frontend, Rust, audit, smoke and full compiled desktop gates. macOS builds the
-universal DMG after its unit, Rust and dependency gates.
+`prepare-signed-installers.yml`, and the `prepare_signed` and `sign_prepared_run` inputs of `build-macos-check.yml`, no longer exist.
+`build-macos-check.yml` now only builds and tests on macOS from a manual dispatch; it has a read-only token and cannot sign or publish.
+Update signing happens only in the `release-windows.yml` and `build-macos.yml` jobs that use the protected `release-signing` environment.
 
-The protected `release-signing` environment must allow the exact preparation
-branch in addition to approved release tags. Preserve reviewer requirements and
-disabled administrator bypass; remove a temporary branch allowance after the
-preparation run finishes. Review both successful packaging jobs and their recorded
-source SHA before approving signing. Environment review authorizes signing only;
-this workflow has no publication step.
+## Windows releases are drafts (sharded gate)
 
-The signing jobs download same-run artifacts, compare installer hashes to packaging
-outputs, check out the exact common build commit, sign the final bytes, and verify
-with the embedded public key. The `signed-1.3.1-windows-x86_64` and
-`signed-1.3.1-macos-universal` Actions artifacts retain installers, manifests,
-signatures and verification provenance for 14 days. Download them to the external
-QA evidence folder for durable review and isolated installation checks. Actions
-artifacts require authenticated download; workflow logs in this public repository
-are public, so no private credentials or financial data may appear in them.
-These artifacts do not enable live update discovery until a separately approved
-release is published.
-
-The reusable caller explicitly passes the two signing secret names and the called
-workflow declares them required. The protected environment supplies their values;
-omitting that caller wiring causes GitHub to provide empty strings.
-
-If packaging passes but signing fails, dispatch `build-macos-check.yml` with
-`sign_prepared_run=<original run ID>`, `source_sha=<original build commit>`, and
-`prepare_signed=false`. This read-only recovery verifies both original packaging
-jobs, their required successful gates, the actual full Windows log, and the
-packaging digests recorded in the original signing logs. The build commit must be
-an ancestor of the current workflow commit; application or E2E changes require a
-fresh build. Only the explicitly allowed preparation workflow/tooling/docs fixes
-may differ. The protected top-level signing matrix then checks out the original
-build SHA, downloads those exact run artifacts and verifies their recorded bytes
-before signing. Signing recovery creates neither tags nor releases. Keep build
-and signing-run provenance separately in the QA receipt.
-
-## Windows releases are drafts (serial and sharded gate)
-
-`release-windows.yml` never publishes. Whatever gate it uses, it builds the installers into a **draft** release for the tag, signs
+`release-windows.yml` never publishes. It builds the installers into a **draft** release for the tag, signs
 that draft's exact bytes, and stops. The owner reviews the draft and publishes it by hand; nothing in this workflow does.
 (`build-macos.yml` adds the macOS files to this same draft and never publishes either; see "macOS joins the Windows draft" below.)
 
-**Choosing the gate.** `sharded` selects the gate and nothing else. Off (the default) is the serial gate in the `release` job. On, the
-`sharded-gate` job runs preparation, six parallel shards and an aggregate, and `sharded-package` then `sharded-sign-updates` follow.
-`test_release` is separate: it only turns on the restricted test behaviour below and needs `sharded`.
+**The gate.** There is one route. The `sharded-gate` job runs preparation, six parallel shards and an aggregate, and `sharded-package` then
+`sharded-sign-updates` follow. The old serial `release` and `sign-updates` jobs and the `sharded` input were removed (VS-42): they
+downloaded the Edge test driver in the same job that builds the installers. `test_release` only turns on the restricted test behaviour below.
+
+**Test tools.** The Edge driver downloaded by the gate is checked with `Get-AuthenticodeSignature` (valid, signed by Microsoft Corporation)
+right after it is extracted, and only the gate's test jobs download it, never a job that packages. `cargo-audit` is installed at a pinned version.
 
 **Request shapes.** `sharded-request` accepts exactly three shapes and refuses everything else before any build starts:
 
 1. A recovery diagnostic (`recovery` and `diagnostic_only`, from a workflow branch). It stops after the gate and never packages or signs.
-2. A sharded release: a normal stable tag, dispatched **on that tag**, with `source_sha` equal to the tag commit, and no recovery,
+2. A release: a normal stable tag, dispatched **on that tag**, with `source_sha` equal to the tag commit, and no recovery,
    diagnostic or fault. Reserved test tags are refused.
-3. A draft test release: `sharded` and `test_release` on a reserved test tag (v1.3.90 to v1.3.99), dispatched on that tag, with the
+3. A draft test release: `test_release` on a reserved test tag (v1.3.90 to v1.3.99), dispatched on that tag, with the
    same tag-commit rule. `fault` (`prepare` or `1` to `6`) exists only here and can only make the gate fail.
 
 **What must happen before anything is packaged or signed.**
@@ -84,13 +47,12 @@ that draft's exact bytes, and stops. The owner reviews the draft and publishes i
   newest published release must be that tag, the new tag must be newer than it (unless recovering an older tag), no reserved test
   tag may be published, and the new tag must have no release yet or only an empty draft. Its result, `previous`, is passed to every
   later check, so a release published by someone else mid-run is noticed. Nothing is hard-coded to a version.
-- The serial path: the baseline job must succeed, then the serial gate, then the same before/after draft checks around packaging.
-  Diagnostics publish nothing and skip the baseline.
-- The sharded path: preparation, all six shards and the aggregate must succeed. `sharded-package` then verifies the aggregate's
+- Diagnostics publish nothing and skip the baseline.
+- Preparation, all six shards and the aggregate must succeed. `sharded-package` then verifies the aggregate's
   summary with `tools/verify-sharded-gate-summary.mjs` (every spec ran once and passed, six shards, retries inside the gate-wide
   budget of 3, same source commit and run attempt) before it builds. A job status alone is not accepted. There is no `always()`,
   `cancelled()` or `failure()` on the packaging or signing jobs, so a failed, cancelled or skipped need stops them.
-- Both signing jobs use the protected `release-signing` environment, so the owner's review is still required.
+- The signing job uses the protected `release-signing` environment, so the owner's review is still required.
 
 **Draft policy.** `releaseDraft` is always true; `prerelease` is true only for the test route. After every step that changes the release,
 `assert-draft-release.mjs` requires exactly one release for the tag, still a draft, with `previous` still the newest published release,
@@ -100,11 +62,10 @@ so the stable updater (`releases/latest`) never sees it. A real release is not a
 files**; a draft that already holds files from an earlier attempt is refused, and signing's `gh release upload` fails on any existing
 asset. To rerun after a failed attempt, the owner deletes the unpublished draft (the tag stays; tags are never moved) and dispatches
 again on the same tag. A partially uploaded set of manifests is inspected by the owner and resumed only with matching bytes. Recovery
-(an existing older tag) builds the same kind of draft and never signs.
+is a diagnostic-only gate run on an existing tag (it needs `diagnostic_only`): it runs the test gates and never builds a draft or signs.
 
 **Test route notes.** Installation and update checks are not part of it, and Windows does not run macOS packaging; macOS can be added to the test draft by
-a separate `build-macos.yml` run (below). Delete the draft and the test tag after review. `prepare-signed-installers.yml` is not migrated: it keeps its
-serial path and a sharded diagnostic that cannot package or sign (it is also pinned to 1.3.1). Its later migration needs are in the backlog.
+a separate `build-macos.yml` run (below). Delete the draft and the test tag after review.
 
 ## macOS joins the Windows draft (`build-macos.yml`)
 

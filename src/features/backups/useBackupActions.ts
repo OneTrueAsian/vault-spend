@@ -1,6 +1,6 @@
 import { open } from "../../shared/native/nativeDialog";
 import { type StatusKind, type Tab } from "../../shared/native/appTypes";
-import { errorMessage } from "../../shared/lib/errorMessage";
+import { errorMessage, errorMessageWithDetail } from "../../shared/lib/errorMessage";
 import { getCurrentGeneration } from "../../shared/lib/profileUiState";
 
 export function useBackupActions({ invoke, refreshBackups, setStatus, onDataFileChanged }: {
@@ -14,14 +14,14 @@ export function useBackupActions({ invoke, refreshBackups, setStatus, onDataFile
       const result = await invoke<{ filename: string; copied_to: string | null; copy_error: string | null }>("create_backup_now");
       await refreshBackups();
       if (result.copy_error) {
-        setStatus(`Backup created, but the copy to your second folder failed: ${result.copy_error}`, "error");
+        setStatus(result.copy_error, "error");
       } else if (result.copied_to) {
         setStatus(`Backup created and copied to ${result.copied_to}.`, "success");
       } else {
         setStatus("Backup created.", "success");
       }
     } catch (e) {
-      setStatus(errorMessage(e));
+      setStatus(errorMessageWithDetail(e));
     }
   }
 
@@ -31,7 +31,7 @@ export function useBackupActions({ invoke, refreshBackups, setStatus, onDataFile
       await refreshBackups();
       setStatus(message, "success");
     } catch (e) {
-      setStatus(errorMessage(e));
+      setStatus(errorMessageWithDetail(e));
     }
   }
 
@@ -50,7 +50,7 @@ export function useBackupActions({ invoke, refreshBackups, setStatus, onDataFile
       await invoke("restore_backup", { filename, password: password ?? null, expectedGeneration });
       onDataFileChanged(`Restored ${filename} — your prior data was backed up first.`);
     } catch (e) {
-      setStatus(errorMessage(e));
+      setStatus(errorMessageWithDetail(e));
       if (password !== undefined) throw e;
     }
   }

@@ -18,8 +18,11 @@ import {
   loadDashboardLayout,
   matchingLayoutPreset,
   parseWidgetId,
+  renameCategoryWatch,
+  renameCategoryWatchInPresets,
   saveCustomLayoutPresets,
   saveDashboardLayout,
+  watchWidgetId,
   type WidgetId,
 } from "./dashboardLayout";
 
@@ -285,6 +288,58 @@ describe("parameterized widget ids", () => {
     await saveDashboardLayout(["stat_cash", accountWidgetId(7), bucketWidgetId(3), investmentWidgetId("Brokerage")]);
 
     expect(await loadDashboardLayout()).toEqual(["stat_cash", "account:7", "bucket:3", "investment:Brokerage"]);
+  });
+
+  it("keeps watch tiles (VS-46) through a save and load, and drops a malformed one", async () => {
+    let stored: string | null = null;
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === "get_current_generation") return 1;
+      if (cmd === "set_profile_ui_state") {
+        stored = (args as { value: string }).value;
+        return undefined;
+      }
+      if (cmd === "get_profile_ui_state") return stored;
+      return undefined;
+    });
+    const watches = [watchWidgetId("category", "Coffee"), watchWidgetId("tag", "treat"), watchWidgetId("store", "amazon"), watchWidgetId("filter", "Trips: 2026")];
+
+    await saveDashboardLayout(["stat_cash", ...watches, "watch:budget:x" as WidgetId, "watch:tag:" as WidgetId]);
+
+    expect(await loadDashboardLayout()).toEqual(["stat_cash", ...watches]);
+  });
+
+  it("moves a category watch in the user's own saved layouts too, saving only when one changed", async () => {
+    let stored: string | null = JSON.stringify([
+      { name: "Mine", widgets: ["stat_cash", watchWidgetId("category", "Coffee")] },
+      { name: "Other", widgets: ["stat_cash"] },
+    ]);
+    const saves: string[] = [];
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === "get_current_generation") return 1;
+      if (cmd === "set_profile_ui_state") {
+        stored = (args as { value: string }).value;
+        saves.push(stored);
+        return undefined;
+      }
+      if (cmd === "get_profile_ui_state") return stored;
+      return undefined;
+    });
+
+    await renameCategoryWatchInPresets("Coffee", "Cafes");
+    expect(await loadCustomLayoutPresets()).toEqual([
+      { name: "Mine", widgets: ["stat_cash", "watch:category:Cafes"] },
+      { name: "Other", widgets: ["stat_cash"] },
+    ]);
+    await renameCategoryWatchInPresets("Tea", "Herbal tea");
+    expect(saves).toHaveLength(1);
+  });
+
+  it("moves a category watch to the category's new name, and drops it when that name is already watched", () => {
+    const coffee = watchWidgetId("category", "Coffee"), cafes = watchWidgetId("category", "Cafes");
+    expect(renameCategoryWatch(["stat_cash", coffee], "Coffee", "Cafes")).toEqual(["stat_cash", cafes]);
+    expect(renameCategoryWatch([coffee, cafes], "Coffee", "Cafes")).toEqual([cafes]);
+    const untouched: WidgetId[] = ["stat_cash", watchWidgetId("tag", "Coffee")];
+    expect(renameCategoryWatch(untouched, "Coffee", "Cafes")).toBe(untouched);
   });
 });
 

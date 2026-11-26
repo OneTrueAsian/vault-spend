@@ -28,6 +28,8 @@ npm run build:app                     # build after Rust tests; embeds frontend 
 
 Start with the [architecture and invariants guide](../Architecture.md) for code ownership and lifecycle contracts. See `AGENTS.md` for which checks to run for which kind of change, and `e2e/README.md` before touching the end-to-end suite. A release build is `npx tauri build`.
 
+For routine changes, preview the affected checks with `npm run verify:targeted -- --since=<validated-ref> --plan`. Remove `--plan` to execute that selection. The command requires an explicit baseline so committed changes are included when the validated ref precedes them.
+
 ## Testing notes
 
 - **Windows shell.** Run cargo and `npx tauri build` from PowerShell (or another shell where Strawberry Perl comes first on `PATH`). Git Bash resolves `perl` to Git's own copy, which breaks the OpenSSL build.

@@ -164,6 +164,7 @@ describe("carryOverReview", () => {
       row(3, { account_name: "Card" }),
     ],
     row_errors: 0,
+    row_problems: [],
     unmatched_categories: [{ name: "Merchandise", count: 1, remembered_category: null }],
     review_token: "same",
     choice_below: BELOW,
@@ -214,6 +215,24 @@ describe("carryOverReview", () => {
     const sure = preview({ rows: [row(0, { category: "Merchandise" }), row(1, { suggestion: rule("Dining") }), row(2, { is_duplicate: true }), row(3)] });
     const next = carryOverReview(before, sure, categories, accounts);
     expect(next.rowChoices.has(1)).toBe(false);
+  });
+
+  it("keeps every choice when the same rows are read with their signs flipped, re-defaulting only rows whose duplicate status changed", () => {
+    const flipped = preview({
+      review_token: "flipped",
+      rows: [row(0, { category: "Merchandise" }), row(1, { is_duplicate: true }), row(2), row(3, { account_name: "Card" })],
+    });
+    const mapped = {
+      ...before,
+      panel: { Merchandise: { action: "map_to", category: "Shopping" } } as Record<string, CategoryChoice>,
+      rowChoices: new Map<number, string | null>([[3, "Dining"]]),
+    };
+    const next = carryOverReview(mapped, flipped, categories, accounts, { sameRows: true });
+    expect(next.panel).toEqual({ Merchandise: { action: "map_to", category: "Shopping" } });
+    expect(next.rowChoices.get(3)).toBe("Dining");
+    expect([...next.accountOverrides.entries()]).toEqual([[3, 2]]);
+    // Row 1 now matches a transaction already in the account, so it starts unticked; row 2 no longer does, so it starts ticked.
+    expect([...next.included].sort()).toEqual([0, 2, 3]);
   });
 
   it("starts the rows over when the file itself changed, keeping file category choices by name", () => {

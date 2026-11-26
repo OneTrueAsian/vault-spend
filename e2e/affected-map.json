@@ -1,5 +1,5 @@
 {
-  "note": "Reviewed map from changed files to desktop specs, used by e2e/select-specs.mjs and verify:fast. Order of evaluation: broad, noDesktop, desktop specs and helpers (by name and import graph), areas, then unknown (broad). A file is narrowed only by a rule here. Add an area only after reading what its specs exercise; keep native and shared files broad unless a rule says otherwise. Baseline: the git ref passed as --since (default HEAD).",
+  "note": "Reviewed map from changed files to desktop specs. Audited unit test sources are handled first. The rules then check broad, noDesktop, desktop specs and helpers, areas and unknown paths. Add an area only after reading what its specs exercise.",
   "baseline": "HEAD",
   "broad": [
     { "pattern": "src/main.tsx", "reason": "Application entry point: every screen depends on it." },
@@ -63,14 +63,14 @@
   "noDesktop": [
     { "pattern": "**/*.md", "reason": "Documentation is not part of the application or its tests." },
     { "pattern": "docs/**", "reason": "Documentation is not part of the application or its tests." },
-    { "pattern": "src/**/*.test.ts", "reason": "Unit test file: not part of the application bundle; covered by the full unit suite.", "requires": [] },
-    { "pattern": "src/**/*.test.tsx", "reason": "Unit test file: not part of the application bundle; covered by the full unit suite.", "requires": [] },
-    { "pattern": "e2e/lib/*.test.mjs", "reason": "Unit test of a desktop-test helper: runs in the unit suite, starts no app." },
     { "pattern": "e2e/.e2e-durations.json", "reason": "Recorded timings used only to order specs." },
-    { "pattern": "core/src/store/tests/**", "reason": "Rust test code is not part of the application; it runs under cargo test.", "requires": ["cargo test -p budget_core -- --test-threads=1 (run through npm run access)"] },
+    { "pattern": "e2e/spec-weights.json", "reason": "Hosted shard timing weights change how specs are assigned. Check the disjoint and complete shard selection.", "unitTargets": ["e2e/lib/specShard.test.mjs", "e2e/lib/shardAggregate.test.mjs"] },
+    { "pattern": "e2e/lib/verifyPlan.mjs", "reason": "Verification planning and reporting use stand-in commands in the planner tests.", "unitTargets": ["e2e/lib/verifyPlan.test.mjs"] },
+    { "pattern": "src/testSupport/askVaultM6/**", "reason": "Ask the Vault corpus and parity fixtures are consumed by Vitest and the core Rust acceptance tests.", "unitTargets": ["src/askVault"], "nativeChecks": ["cargo-test-store:ask_vault_m6"] },
     { "pattern": ".github/workflows/**", "reason": "Hosted workflow definition: not exercised by local desktop specs.", "requires": ["Review the hosted workflow change against the hosted release gate; it cannot be proven locally"] }
   ],
   "areas": [
+    { "pattern": "src/features/folderImports/FolderImportsSettings.tsx", "specs": ["feature430_", "feature431_"], "unitTargets": ["src/features/folderImports/FolderImportsSettings.test.tsx"], "reason": "The Settings card is mounted in the Data section. Folder import desktop specs cover normal and protected profiles." },
     { "pattern": "src/features/imports/ImportReviewDialog.*", "specs": ["feature413_", "feature162_", "feature164_", "feature316_", "feature317_", "feature384_", "feature387_", "feature315_", "feature345_", "feature150_"], "reason": "Import review tabs, remembered categories, row choices, accounts and column replacement (VS-35)." },
     { "pattern": "src/shared/lib/importResolution.ts", "specs": ["feature413_", "feature162_", "feature164_", "feature315_", "feature345_", "feature384_", "feature387_"], "reason": "Import review category resolution and remembered-choice defaults (VS-35)." },
     { "pattern": "src/shared/ui/ImportCategoryReconcile.*", "specs": ["feature413_", "feature162_", "feature387_"], "reason": "Bank category choices and row-count disclosure (VS-35)." },

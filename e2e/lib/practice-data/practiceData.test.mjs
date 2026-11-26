@@ -47,6 +47,15 @@ describe.skipIf(!canBuild)("main practice household", () => {
     }
   });
 
+  it("has categorized and uncategorized spending in the last 12 months, for the Reports drill-down (VS-98)", () => {
+    const since = monthsBack(TODAY, 11);
+    const spending = "CAST(amount AS REAL) < 0 AND category <> 'Transfer'";
+    const [[categorized]] = query(db, `SELECT COUNT(*) FROM transactions WHERE ${spending} AND category IS NOT NULL AND date >= '${since}'`);
+    const [[uncategorized]] = query(db, `SELECT COUNT(*) FROM transactions WHERE CAST(amount AS REAL) < 0 AND category IS NULL AND date >= '${since}'`);
+    expect(categorized).toBeGreaterThan(0);
+    expect(uncategorized).toBeGreaterThan(0);
+  });
+
   it("has unique account names and exactly one Car Loan", () => {
     const names = query(db, "SELECT name FROM accounts").map(([n]) => n);
     expect(new Set(names).size).toBe(names.length);
@@ -187,7 +196,7 @@ describe.skipIf(!canBuild)("practice data covers every feature (COVERAGE.md)", (
     expect(count("SELECT 1 FROM transactions WHERE description LIKE 'Holiday Fund%'")).toBe(3);
   });
 
-  it("Transactions: some rows were sorted by a rule (Sorted by: Your rule)", () => {
+  it("Transactions: some rows were sorted by a rule (Set by: Rule)", () => {
     expect(count(`SELECT 1 FROM transactions WHERE category_source = 'rule' AND description = 'Shell Oil' AND date LIKE '${thisMonth}%'`)).toBeGreaterThanOrEqual(1);
   });
 

@@ -44,7 +44,15 @@ describe("test-only files are not application build inputs (owner decision 20 Oc
 });
 
 describe("test and harness identity is tracked separately", () => {
-  const harness = () => ({ "src/a.test.ts": "1", "e2e/run-all.mjs": "2", "e2e/lib/harness.mjs": "3", "core/src/store/tests/accounts.rs": "4" });
+  const harness = () => ({
+    "src/a.test.ts": "1",
+    "e2e/run-all.mjs": "2",
+    "e2e/lib/harness.mjs": "3",
+    "core/src/store/tests/accounts.rs": "4",
+    "core/tests/comparisons/store_tests.rs": "5",
+    "src-tauri/src/backups/tests.rs": "6",
+    "e2e/spec-weights.json": "7",
+  });
   it("covers test files, the desktop harness and the runner, and not application sources or documents", () => {
     for (const p of Object.keys(harness())) expect(isHarnessInput(p), p).toBe(true);
     for (const p of ["src/main.tsx", "core/src/store.rs", "README.md", "docs/x.md", "e2e/.e2e-durations.json", "target/debug/vaultspend.exe"]) expect(isHarnessInput(p), p).toBe(false);
@@ -62,6 +70,19 @@ describe("the exclusion only removes files the application really does not compi
   const repo = fileURLToPath(new URL("../../", import.meta.url));
   const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => e.isDirectory() ? (["node_modules", "target"].includes(e.name) ? [] : walk(path.join(dir, e.name))) : [path.join(dir, e.name)]);
   const rel = file => path.relative(repo, file).replaceAll("\\", "/");
+  it.each(["backups", "commands/files", "commands/folder_imports"])("only excludes the cfg(test) module under src-tauri/src/%s", owner => {
+    const file = `src-tauri/src/${owner}/tests.rs`;
+    const declaration = fs.readFileSync(path.join(repo, `src-tauri/src/${owner}.rs`), "utf8");
+    expect(declaration).toMatch(/^#\[cfg\(test\)\]\s+mod tests;/m);
+    expect(isBuildInput(file)).toBe(false);
+    expect(isBuildInput(`src-tauri/src/${owner}.rs`)).toBe(true);
+  });
+  it("keeps the mobile preview's shared test fixture in the build key", () => {
+    const fixture = "core/tests/fixtures/mobile_snapshot_v1.json";
+    expect(fs.readFileSync(path.join(repo, "src/mobile/mobilePreviewFixtures.ts"), "utf8")).toContain(fixture);
+    expect(isTestOnlyFile(fixture)).toBe(false);
+    expect(isBuildInput(fixture)).toBe(true);
+  });
   it("no production module under src/ imports a test-only file (so none is compiled into the app)", () => {
     const everything = walk(path.join(repo, "src")).map(rel), sources = everything.filter(f => /\.(ts|tsx)$/.test(f));
     const testOnly = everything.filter(isTestOnlyFile), production = sources.filter(f => !isTestOnlyFile(f));

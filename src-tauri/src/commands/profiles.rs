@@ -409,6 +409,8 @@ pub fn delete_profile(
         result = crate::profiles::delete_profile(&paths.config_path, &current_db_path(&paths), currently_open, &id);
         if result.is_ok() {
             settings.remove_profile_reminders(&id);
+            // A later profile that reuses this id must not start watching the deleted one's folder.
+            settings.folder_import_dirs.remove(&id);
         }
     })?;
     result

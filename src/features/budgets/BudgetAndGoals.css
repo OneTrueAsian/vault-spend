@@ -1166,6 +1166,19 @@
   gap: 8px;
 }
 
+/* A visible label above a control in the Add budget line form (VS-103). */
+.bucket-new-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bucket-new-field > span {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
 /* An empty Goals page (BucketsView.tsx), as in the UI mockup: one centred card with a target icon,
    what a goal is for, "Create a goal", and three starting points as small cards. The new-goal form
    opens inside the same card, so it drops its own card chrome there rather than nesting a card in a card. */
@@ -1379,6 +1392,12 @@
   min-width: 100px;
 }
 
+/* A wrong value shows red here too: the field rule above (0,2,1) and the theme field rules would otherwise
+   outrank the shared [aria-invalid] rule (VS-49). */
+:is(.bucket-new-form, .bucket-contribution-form) input[aria-invalid="true"]:not([type="checkbox"]) {
+  border-color: var(--negative);
+}
+
 .bucket-new-form button,
 .bucket-contribution-form button {
   padding: 0.4em 0.8em;
@@ -1394,6 +1413,10 @@
   gap: 12px;
   flex-wrap: wrap;
   align-items: flex-end;
+}
+
+.labeled-field-form > .field-problem {
+  flex-basis: 100%;
 }
 
 .labeled-field {

@@ -120,6 +120,8 @@ export function AskVaultCard({
   const [question, setQuestion] = useState("");
   const [showExamples, setShowExamples] = useState(false);
   const [exampleFilled, setExampleFilled] = useState(false);
+  // VS-68: the question box is always on screen, so its note waits until the box has been used.
+  const [questionTouched, setQuestionTouched] = useState(false);
   const tipsId = useId();
   const [allRowsOpen, setAllRowsOpen] = useState(false);
   const [placeholderExample] = useState(() => TRANSACTION_QA_EXAMPLES[Math.floor(Math.random() * TRANSACTION_QA_EXAMPLES.length)]);
@@ -249,10 +251,13 @@ export function AskVaultCard({
       )}
       <p className="sr-only" role="status" data-example-status>{exampleFilled ? "Example filled in. Press Ask to run it." : ""}</p>
       <form className="category-create-form" onSubmit={submit} aria-busy={!ready}>
-        <input ref={questionInput} value={question} onChange={(e) => changeQuestion(e.target.value)} placeholder={`e.g. "${placeholderExample}"`} aria-label="Your question" />
+        <input ref={questionInput} value={question} onChange={(e) => changeQuestion(e.target.value)} onFocus={() => setQuestionTouched(true)} placeholder={`e.g. "${placeholderExample}"`} aria-label="Your question" />
         <button type="submit" disabled={!ready || !question.trim()}>
           Ask
         </button>
+        {ready && questionTouched && !question.trim() && (
+          <small className="field-problem" role="status" data-question-missing>Type a question, or pick an example.</small>
+        )}
       </form>
       {!ready && <p className="ledger-qa-hint" role="status">Getting ready to answer…</p>}
       <div className="ledger-qa-result" aria-live="polite">

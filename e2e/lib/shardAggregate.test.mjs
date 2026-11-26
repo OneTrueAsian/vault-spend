@@ -81,3 +81,73 @@ describe("sharded gate aggregation", () => {
     expect(text).toContain("FAILED");
   });
 });
+
+describe("browser versions (VS-9)", () => {
+  const versions = (edge = "156.0.4314.42") => ({ edge, edgeDriver: "156.0.4314.42", webView2: "150.0.1.1", webView2Driver: "150.0.1.1" });
+  const withBrowsers = (s, browsers) => ({ ...s, meta: { ...s.meta, browsers } });
+  it("reports a match and still passes when every shard has the same versions", () => {
+    const r = run([withBrowsers(first(), versions()), withBrowsers(second(), versions())]);
+    expect(r.ok).toBe(true);
+    expect(r.browserVersions.match).toBe(true);
+    expect(renderSummary(r, { runAttempt: 1, prepared })).toContain("Browser versions match across shards.");
+  });
+  it("lists the differing versions with their shards but never fails the gate", () => {
+    const base = run([first(), second()]);
+    const r = run([withBrowsers(first(), versions()), withBrowsers(second(), versions("156.0.4314.58"))]);
+    expect(r.ok).toBe(true);
+    expect(r.problems).toEqual(base.problems);
+    expect(r.browserVersions.match).toBe(false);
+    expect(r.browserVersions.differences).toEqual([{ field: "edge", values: [{ value: "156.0.4314.42", shards: [1] }, { value: "156.0.4314.58", shards: [2] }] }]);
+    expect(renderSummary(r, { runAttempt: 1, prepared })).toContain("Browser versions differ across shards: edge: 156.0.4314.42 (shards 1); 156.0.4314.58 (shards 2)");
+  });
+  it("treats an old artifact without browsers as missing, not as a problem", () => {
+    const base = run([first(), second()]);
+    const r = run([withBrowsers(first(), versions()), second()]);
+    expect(r.ok).toBe(base.ok);
+    expect(r.problems).toEqual(base.problems);
+    expect(r.browserVersions.missing).toEqual([2]);
+    expect(renderSummary(r, { runAttempt: 1, prepared })).toContain("| 2 | ? | ? | ? | ? |");
+  });
+  it("carries each shard's recorded versions on its summary", () => {
+    const r = run([withBrowsers(first(), versions()), withBrowsers(second(), versions("156.0.4314.58"))]);
+    expect(r.shards[0].browsers).toEqual(versions());
+    expect(r.shards[1].browsers).toEqual(versions("156.0.4314.58"));
+  });
+});
+
+describe("repeated actions inside specs (VS-8)", () => {
+  const repeating = (name, actionRepeats) => ({ ...entry(name), actionRepeats });
+  const shardWith = counts => {
+    const s = first();
+    return { ...s, record: { ...s.record, executed: s.record.selected.map(n => (counts[n] ? repeating(n, counts[n]) : entry(n))) } };
+  };
+  it("totals the repeats, lists them per spec and shows them in their own section", () => {
+    const r = run([shardWith({ "smoke.mjs": 2, "feature2.mjs": 1 }), second()]);
+    expect(r.totals.actionRepeats).toBe(3);
+    expect(r.repeats).toEqual([{ shard: 1, name: "smoke.mjs", count: 2 }, { shard: 1, name: "feature2.mjs", count: 1 }]);
+    const text = renderSummary(r, { runAttempt: 1, prepared });
+    expect(text).toContain("### Repeated actions inside specs (not retries)");
+    expect(text).toContain("- smoke.mjs (shard 1): 2");
+  });
+  it("reports none and leaves the section out when no spec repeated an action", () => {
+    const r = run([first(), second()]);
+    expect(r.totals.actionRepeats).toBe(0);
+    expect(r.repeats).toEqual([]);
+    expect(renderSummary(r, { runAttempt: 1, prepared })).not.toContain("Repeated actions inside specs");
+  });
+  it("never changes ok or the problems, even with 50 repeats", () => {
+    const base = run([first(), second()]);
+    const r = run([shardWith({ "smoke.mjs": 50 }), second()]);
+    expect(r.totals.actionRepeats).toBe(50);
+    expect(r.ok).toBe(true);
+    expect(r.problems).toEqual(base.problems);
+  });
+  it("judges the retry budget only on whole-spec retries, not on repeats", () => {
+    const noRetries = run([shardWith({ "smoke.mjs": 9, "feature1.mjs": 9, "feature2.mjs": 9 }), second()], { retryBudget: 0 });
+    expect(noRetries.retries).toEqual([]);
+    expect(noRetries.ok).toBe(true);
+    const oneRetry = run([shard(1, expected.slice(0, 3), {}, [retried("smoke.mjs"), entry("feature1.mjs"), entry("feature2.mjs")]), second()], { retryBudget: 1 });
+    expect(oneRetry.retries).toHaveLength(1);
+    expect(oneRetry.problems).toEqual([]);
+  });
+});

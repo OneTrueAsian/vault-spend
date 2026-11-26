@@ -110,9 +110,12 @@ import {
   DEFAULT_LAYOUT,
   loadDashboardLayout,
   parseWidgetId,
+  renameCategoryWatch,
+  renameCategoryWatchInPresets,
   saveDashboardLayout,
   type WidgetId,
 } from "../shared/lib/dashboardLayout";
+import { watchLedgerFilter, watchMonths } from "../features/dashboard/watchlist";
 import { ProfileSwitcher } from "../features/profiles/ProfileSwitcher";
 import { MobilePairingPrompt } from "../mobile/MobilePairingPrompt";
 import { lockCurrentProfile, unlockProfile } from "../shared/lib/protection";
@@ -126,6 +129,10 @@ import { AccountDetailView } from "../features/transactions/AccountDetailView";
 
 import { ImportReviewDialog } from "../features/imports/ImportReviewDialog";
 import { useImportReview } from "../features/imports/useImportReview";
+import { useFolderImports } from "../features/folderImports/useFolderImports";
+import { FolderActivityDialog } from "../features/folderImports/FolderActivityDialog";
+import { FolderImportsSettings } from "../features/folderImports/FolderImportsSettings";
+import type { FolderBatch } from "../features/folderImports/folderImportsApi";
 import { LEDGER_STEPS, transactionsShownLabel, rowsToShowFor, showMoreLabel } from "../features/transactions/transactionPaging";
 import { SELECT_ALL_CAP } from "../features/transactions/transactionSelection";
 
@@ -218,7 +225,7 @@ import type {
   YoyCashFlow,
 } from "../shared/lib/types";
 import { MenuSelect } from "../shared/ui/MenuSelect";
-import { errorMessage } from "../shared/lib/errorMessage";
+import { errorMessage, errorMessageWithDetail } from "../shared/lib/errorMessage";
 import { sumMoney } from "../shared/lib/money";
 import { holdingCount } from "../features/investments/holdingImport";
 import { StatusBanner } from "./StatusBanner";
@@ -245,6 +252,8 @@ import {
 import type { SettingsGroupId } from "../shared/lib/settingsIndex";
 import type { CashFlowTab } from "../features/reports/CashFlowView";
 import type { ReportsTab } from "../features/reports/ReportsOverview";
+import { drillLedgerFilter, drillStillShown, type ReportDrill } from "../features/reports/reportReturn";
+import { ReportReturnBar } from "../features/reports/ReportReturnBar";
 import type { InvestmentsTab } from "../features/investments/InvestmentsView";
 
 const EMPTY_TRANSACTIONS: Transaction[] = [];
@@ -285,6 +294,26 @@ function App({
       if (activeTab === "investments" && cur.investments) keep.investments = cur.investments;
       return Object.keys(cur).every((k) => k in keep) ? cur : keep;
     });
+  }, [activeTab]);
+  /** Opens Transactions on one category, some accounts and a date range. Replaces the ledger's live filters; saved filters are untouched. */
+  const openLedgerFiltered = ({ category, accountIds, from, to }: { category: string; accountIds: number[]; from: string; to: string }) => {
+    setSearchText("");
+    setFilterCategory(category);
+    setFilterAccountIds(accountIds.length > 0 ? new Set(accountIds) : "all");
+    setFilterMemberIds("all");
+    setFilterFrom(from);
+    setFilterTo(to);
+    setFilterTag("all");
+    setSelectedIds(new Set());
+    setActiveTab("ledger");
+  };
+  /** The Reports row the ledger was opened from (VS-98), for the way back. Session-only: App unmounts on lock, profile switch and data-file change. */
+  const [reportDrill, setReportDrill] = useState<ReportDrill | null>(null);
+  /** Set by "Back to Reports" so Reports opens on the tab, range and row it was left on; cleared once Reports is left. */
+  const [reportRestore, setReportRestore] = useState<ReportDrill | null>(null);
+  useEffect(() => {
+    if (activeTab !== "ledger") setReportDrill(null);
+    if (activeTab !== "reports") setReportRestore(null);
   }, [activeTab]);
   /** Asks Settings to open a group; "manage profiles" in the sidebar uses it. A new nonce asks again. */
   const [settingsJump, setSettingsJump] = useState<{ group: SettingsGroupId; nonce: number } | undefined>(undefined);
@@ -416,6 +445,7 @@ function App({
     filterTag,
     setFilterTag,
     savedFilters,
+    savedFiltersLoaded,
     savingFilter,
     setSavingFilter,
     newFilterName,
@@ -648,7 +678,7 @@ function App({
       const newPath = await invoke<string>("relocate_data_file", { newDir: dir });
       onDataFileChanged(`Data file moved to ${newPath} — your old file was left in place, untouched.`);
     } catch (e) {
-      setStatus(errorMessage(e));
+      setStatus(errorMessageWithDetail(e));
     }
   }
 
@@ -667,7 +697,7 @@ function App({
       await invoke("export_database", { destination: path });
       setStatus(`Exported a copy to ${path}.`, "success");
     } catch (e) {
-      setStatus(errorMessage(e));
+      setStatus(errorMessageWithDetail(e));
     }
   }
 
@@ -835,6 +865,8 @@ function App({
     includedHoldings: Set<number>;
   } | null>(null);
   const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false);
+  // Each More actions › Account move history click asks the history to open (a new number).
+  const [moveHistoryRequest, setMoveHistoryRequest] = useState(0);
   const [manageFamilyMembersOpen, setManageFamilyMembersOpen] = useState(false);
 
   const [pendingExistingDbPath, setPendingExistingDbPath] = useState<string | null>(null);
@@ -1363,7 +1395,7 @@ function App({
 
   // The Dashboard's "Safe to spend" needs a horizon long enough to reach the
   // next paycheck (monthly pay is up to ~35 days out) — its own fetch, since
-  // the Cash Flow tab's forecast window is whatever 30/60/90 the user picked.
+  // the Cash Flow tab's forecast window is whatever length the user picked.
   const [safeToSpendForecast, setSafeToSpendForecast] = useState<BillAwareForecast | null>(null);
   useEffect(() => {
     if (!appSettingsLoaded || !appSettings.safe_to_spend_enabled || activeTab !== "dashboard" || !layoutWidgets.includes("safe_to_spend")) return;
@@ -1409,6 +1441,24 @@ function App({
   const netWorthHistory=dashboardSnapshot?.netWorth??[];
   const accountContributionDeltas=dashboardSnapshot?.contributions??[];
   const spendingThisMonth=dashboardSnapshot?.spending??[];
+  // VS-46: a category watch's usual month comes from Budget's per-category spending for the 3 full months before
+  // this one, fetched only while one is on the Dashboard.
+  const [watchCategoryHistory, setWatchCategoryHistory] = useState<CategoryAmount[][] | null>(null);
+  const watchesACategory = layoutWidgets.some((id) => id.startsWith("watch:category:"));
+  useEffect(() => {
+    if (activeTab !== "dashboard" || !watchesACategory) return;
+    let cancelled = false;
+    Promise.all(
+      watchMonths(new Date()).previous.map((m) => invoke<CategoryAmount[]>("category_spending_for_month", { year: m.year, month: m.month })),
+    )
+      .then((months) => {
+        if (!cancelled) setWatchCategoryHistory(months);
+      })
+      .catch((e) => setStatus(errorMessage(e)));
+    return () => {
+      cancelled = true;
+    };
+  }, [invoke, activeTab, watchesACategory, dependentRevision]);
   const dashboardBudgetAlerts=dashboardSnapshot?.alerts??[];
   const dashboardInsights=dashboardSnapshot?.insights??[];
   const avgMonthlySpend = activeTab === "buckets" ? planningSnapshot?.averageSpend ?? "0" : dashboardSnapshot?.averageSpend ?? "0";
@@ -1639,6 +1689,9 @@ function App({
   // works through.
   const [inboxRequest, setInboxRequest] = useState<Set<number> | null>(null);
   const [inbox, setInbox] = useState<InboxItem[] | null>(null);
+  // Watched-folder imports (VS-102): the queue of exports waiting for review and Folder activity.
+  const folderImports = useFolderImports({ active: dataLoaded });
+  const [folderActivityOpen, setFolderActivityOpen] = useState(false);
   const importReview = useImportReview({
     call: callTransaction,
     accounts,
@@ -1647,6 +1700,7 @@ function App({
     setStatus,
     refresh: async () => { await refresh(); },
     onImported: (ids) => setInboxRequest(new Set(ids)),
+    onFolderChanged: () => void folderImports.refresh(),
   });
   const inboxCount = useMemo(() => buildInbox({ transactions, flags: anomalyFlags, scopeIds: null }).length, [transactions, anomalyFlags]);
   useEffect(() => {
@@ -1756,7 +1810,7 @@ function App({
     }
     entries.push(
       { id: "action:add", kind: "action", label: "Add transaction", keywords: "new create expense income" },
-      { id: "action:import", kind: "action", label: "Import transactions", keywords: "csv ofx qfx qif file bank statement" },
+      { id: "action:import", kind: "action", label: "Import transactions", keywords: "csv excel xlsx ofx qfx qif file bank statement" },
       { id: "action:privacy", kind: "action", label: privacyPrefs.hidden ? "Show amounts" : "Hide amounts", keywords: "privacy mask hide blur" },
       { id: "action:review", kind: "action", label: "Review last month", keywords: "month end close out check-in" },
       { id: "action:backup", kind: "action", label: "Back up now", keywords: "backup save copy data" },
@@ -1945,7 +1999,7 @@ function App({
 
     const path = await open({
       multiple: false,
-      filters: [{ name: "Transactions", extensions: ["csv", "ofx", "qfx", "qif"] }],
+      filters: [{ name: "Transactions", extensions: ["csv", "xlsx", "ofx", "qfx", "qif"] }],
     });
     if (!path || Array.isArray(path)) return;
 
@@ -1978,6 +2032,37 @@ function App({
     await importReview.begin(path, invertAmounts, accountId, columnMap, columns);
   }
 
+  function openFolderActivity() {
+    void folderImports.markActivitySeen();
+    void folderImports.refresh();
+    setFolderActivityOpen(true);
+  }
+
+  /** Opens a folder export's transaction review straight away (Review, or Review again): its account and amount
+   * convention come from its export name; unrecognised columns are matched first, as for a picked file. */
+  async function openFolderReview(batch: FolderBatch) {
+    setFolderActivityOpen(false);
+    const account = accounts.find((a) => a.id === batch.account_id);
+    let inspection: ColumnInspection;
+    try {
+      inspection = await invoke<ColumnInspection>("inspect_folder_import_columns", { batchId: batch.id });
+    } catch (e) {
+      setStatus(errorMessage(e), "error");
+      return;
+    }
+    let columnMap: ColumnMap | null = null;
+    let columns: { inspection: ColumnInspection; source: ColumnMapSource } | null = null;
+    if (needsMapping(inspection)) {
+      columnMap = await askColumnMap(inspection, account?.name);
+      if (!columnMap) return; // nothing read, nothing saved; the export stays waiting
+      columns = { inspection, source: "chosen" };
+    } else if (inspection.map) {
+      columnMap = inspection.map;
+      columns = { inspection, source: "saved" };
+    }
+    await importReview.beginFolder(batch.id, batch.invert_amounts, batch.account_id, columnMap, columns);
+  }
+
   /** "Change columns" on the import review: pick other columns for the same file, then read it again. */
   async function handleChangeImportColumns() {
     const inspection = importReview.columnsToChange();
@@ -2003,7 +2088,15 @@ function App({
 
   const { handleCreateFamilyMember, handleRenameFamilyMember, handleDeleteFamilyMember } = useFamilyMemberActions({ invoke, refresh, setStatus });
 
-  const { handleCreateCategory, handleSetCategoryIcon, handleRenameCategory, handleDeleteCategory } = useCategoryActions({ invoke, refresh, setStatus, refreshBudgetMonthActuals, budgetYear, budgetMonthNum });
+  const { handleCreateCategory, handleSetCategoryIcon, handleRenameCategory, handleDeleteCategory } = useCategoryActions({
+    invoke, refresh, setStatus, refreshBudgetMonthActuals, budgetYear, budgetMonthNum,
+    // VS-46: a watch on the category keeps watching it under its new name, in saved layouts too.
+    onRenamed: (oldName, newName) => {
+      const next = renameCategoryWatch(layoutWidgets, oldName, newName);
+      if (next !== layoutWidgets) setLayoutWidgets(next);
+      void renameCategoryWatchInPresets(oldName, newName);
+    },
+  });
 
   const { handleDownloadSetupTemplate, handleImportSetupData, toggleSetupIncluded, confirmSetupImport } = useSetupImportActions({ invoke, setStatus, setPendingSetupImport, pendingSetupImport, setBusy, refresh, refreshBuckets, refreshHoldings });
 
@@ -2251,14 +2344,21 @@ function App({
                   setFilterCategory(UNCATEGORIZED_FILTER);
                   setActiveTab("ledger");
                 }}
-                onOpenLedgerFiltered={({ category, accountIds, from, to }) => {
-                  setSearchText("");
-                  setFilterCategory(category);
-                  setFilterAccountIds(accountIds.length > 0 ? new Set(accountIds) : "all");
-                  setFilterMemberIds("all");
-                  setFilterFrom(from);
-                  setFilterTo(to);
-                  setFilterTag("all");
+                onOpenLedgerFiltered={openLedgerFiltered}
+                tags={transactionData.snapshot ? allTags : undefined}
+                savedFilters={savedFilters}
+                savedFiltersLoaded={savedFiltersLoaded}
+                watchCategoryHistory={watchCategoryHistory}
+                onOpenWatch={(target) => {
+                  const values = watchLedgerFilter(target, savedFilters, new Date());
+                  if (!values) return;
+                  setSearchText(values.searchText);
+                  setFilterCategory(values.filterCategory);
+                  setFilterAccountIds(values.filterAccountIds === "all" ? "all" : new Set(values.filterAccountIds));
+                  setFilterMemberIds(values.filterMemberIds === "all" ? "all" : new Set(values.filterMemberIds));
+                  setFilterFrom(values.filterFrom);
+                  setFilterTo(values.filterTo);
+                  setFilterTag(values.filterTag);
                   setSelectedIds(new Set());
                   setActiveTab("ledger");
                 }}
@@ -2295,6 +2395,8 @@ function App({
                 <TransactionsPageActions
                   busy={busy}
                   importReview={importReview}
+                  folderActivity={folderImports.configured ? { pendingCount: folderImports.pendingCount, onOpen: openFolderActivity } : null}
+                  openAccountMoveHistory={() => setMoveHistoryRequest((n) => n + 1)}
                   dataLoaded={dataLoaded}
                   handleImport={handleImport}
                   setNewTransactionOpen={setNewTransactionOpen}
@@ -2312,9 +2414,68 @@ function App({
             </div>
           )}
 
+          {activeTab === "ledger" && reportDrill && (
+            <ReportReturnBar
+              category={drillLedgerFilter(reportDrill).category}
+              from={reportDrill.from}
+              to={reportDrill.to}
+              showing={drillStillShown(reportDrill, { searchText, filterCategory, filterAccountIds, filterMemberIds, filterFrom, filterTo, filterTag })}
+              onBack={() => {
+                setReportRestore(reportDrill);
+                setReportDrill(null);
+                setActiveTab("reports");
+              }}
+            />
+          )}
+
+          {activeTab === "ledger" && !importReview.pendingImport && folderImports.pendingCount > 0 && (
+            <div className="folder-import-notice" role="status" data-folder-pending-notice>
+              <span>
+                {folderImports.pendingCount === 1
+                  ? `A new bank export is waiting for review: ${folderImports.data?.pending[0]?.file_name ?? ""}`
+                  : `${folderImports.pendingCount} new bank exports are waiting for review.`}
+              </span>
+              <button
+                type="button"
+                disabled={busy}
+                data-folder-notice-review
+                onClick={() => {
+                  const only = folderImports.data?.pending[0];
+                  if (folderImports.pendingCount === 1 && only) void openFolderReview(only);
+                  else openFolderActivity();
+                }}
+              >
+                {folderImports.pendingCount === 1 ? "Review" : "Review exports"}
+              </button>
+            </div>
+          )}
+          {activeTab === "ledger" && !importReview.pendingImport && folderImports.pendingCount === 0 && folderImports.skippedSinceSeen > 0 && (
+            <div className="folder-import-notice" role="status" data-folder-skipped-notice>
+              <span>
+                {folderImports.skippedSinceSeen === 1 ? "A file in your folder wasn't queued." : `${folderImports.skippedSinceSeen} files in your folder weren't queued.`}
+              </span>
+              <button type="button" className="modal-secondary" onClick={openFolderActivity} data-folder-notice-activity>
+                See why
+              </button>
+            </div>
+          )}
+
           {/* Pop-ups over whichever tab started them, so they are in front of the person wherever
               they had scrolled (the setup-data one is started from Settings). */}
           <ImportReviewDialog review={importReview} accounts={accounts} categoryOptions={categoryOptions} busy={busy} onChangeColumns={handleChangeImportColumns} />
+          {folderActivityOpen && (
+            <FolderActivityDialog
+              state={folderImports}
+              busy={busy}
+              onReview={(batch) => void openFolderReview(batch)}
+              onManage={() => {
+                setFolderActivityOpen(false);
+                setSettingsJump({ group: "data", nonce: Date.now() });
+                setActiveTab("settings");
+              }}
+              onClose={() => setFolderActivityOpen(false)}
+            />
+          )}
           {pendingSetupImport && (
             <SetupImportReviewDialog
               pending={pendingSetupImport}
@@ -2395,7 +2556,7 @@ function App({
               </button>
             </p>
           )}
-          {activeTab === "ledger" && <TransactionMoveHistory call={transactionData.call} sessionKey={`${transactionData.snapshot?.context.generation}:${transactionData.snapshot?.context.sessionRevision}`} />}
+          {activeTab === "ledger" && <TransactionMoveHistory call={transactionData.call} sessionKey={`${transactionData.snapshot?.context.generation}:${transactionData.snapshot?.context.sessionRevision}`} openRequest={moveHistoryRequest} />}
           {activeTab === "ledger" && selectedIds.size > 0 && (
             <TransactionBulkActionsBar
               selectedIds={selectedIds}
@@ -2441,7 +2602,7 @@ function App({
                         { value: "amount", label: "Amount" },
                         { value: "account", label: "Account" },
                         { value: "category", label: "Category" },
-                        { value: "source", label: "Sorted by" },
+                        { value: "source", label: "Category set by" },
                       ]}
                     />
                   </label>
@@ -2803,7 +2964,13 @@ function App({
           {activeTab === "reports" && !pendingSetupImport && (
             <Suspense fallback={null}>
               <ReportsView
-                initialTab={pageStartTab.reports}
+                initialTab={reportRestore?.view.tab ?? pageStartTab.reports}
+                initialPreset={reportRestore?.view.preset}
+                focusCategory={reportRestore?.category}
+                onOpenTransactions={(drill) => {
+                  setReportDrill(drill);
+                  openLedgerFiltered(drillLedgerFilter(drill));
+                }}
                 onOpenHelp={openHelpFor}
                 accounts={accounts}
                 transactions={transactions}
@@ -2824,6 +2991,7 @@ function App({
             <Suspense fallback={null}>
               <SettingsView
                 jumpRequest={settingsJump}
+                folderImportsCard={<FolderImportsSettings accounts={accounts} onChanged={() => void folderImports.refresh()} />}
                 onOpenHelp={openHelpFor}
                 appVersion={appVersion}
                 dataFileLocation={dataFileLocation}
@@ -2978,6 +3146,9 @@ function App({
               buckets={buckets}
               holdings={holdings}
               safeToSpendEnabled={appSettingsLoaded && appSettings.safe_to_spend_enabled}
+              categories={usedCategories}
+              tags={allTags}
+              savedFilters={savedFilters}
               onAdd={(id) => addWidgetToDashboard(id, false)}
               onCancel={() => setAddWidgetModalOpen(false)}
             />

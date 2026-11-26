@@ -39,7 +39,16 @@ const daysShown = () =>
 
 try {
   for (const b of await browser.$$("nav button")) if ((await b.getText()).trim() === "Recurring") await b.click();
-  for (const b of await browser.$$(".view-toggle button")) if ((await b.getText()).trim() === "Calendar") await b.click();
+  // The page draws its view toggle a moment after the click; under a busy parallel run it may not be there yet.
+  const calendarToggle = async () => {
+    for (const b of await browser.$$(".view-toggle button")) if ((await b.getText()).trim() === "Calendar") return b;
+    return null;
+  };
+  await waitUntilOrDiagnose(browser, async () => (await calendarToggle()) !== null, {
+    timeout: 15000,
+    timeoutMsg: "the Recurring page should show its Calendar view toggle",
+  });
+  await (await calendarToggle()).click();
   await (await browser.$(".cal-grid")).waitForExist({ timeout: 15000 });
 
   // Page forward one month at a time for just over four years, so a leap February is always included.

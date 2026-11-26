@@ -1,5 +1,5 @@
-// Guards for the sharded release path (real releases and the draft test release). The workflow YAML is evaluated, not just pattern-matched: a small evaluator runs the real `if:` expressions
-// and `needs:` graph of release-windows.yml, windows-desktop-gate-sharded.yml and prepare-signed-installers.yml against every input and job-result
+// Guards for the release path (real releases and the draft test release); the sharded gate is the only route. The workflow YAML is evaluated, not just pattern-matched: a small evaluator runs the real `if:` expressions
+// and `needs:` graph of release-windows.yml and windows-desktop-gate-sharded.yml against every input and job-result
 // combination, and the real request-validation script is executed under bash. The model follows GitHub's documented rules: a job without a status
 // function in its `if` gets an implicit success(), which is false when any needed job did not succeed (a skipped need included).
 import { test } from "node:test";
@@ -9,7 +9,7 @@ import { spawnSync } from "node:child_process";
 import yaml from "js-yaml";
 
 const read = name => fs.readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), "utf8");
-const release = yaml.load(read("release-windows.yml")), gate = yaml.load(read("windows-desktop-gate-sharded.yml")), prepare = yaml.load(read("prepare-signed-installers.yml"));
+const release = yaml.load(read("release-windows.yml")), gate = yaml.load(read("windows-desktop-gate-sharded.yml"));
 const macos = yaml.load(read("build-macos.yml"));
 const BASH = ["C:/Program Files/Git/bin/bash.exe", "/usr/bin/bash", "/bin/bash"].find(p => fs.existsSync(p));
 
@@ -86,8 +86,8 @@ function callGate(callerInputs, fail) {
   const all = Object.values(inner);
   return all.includes("cancelled") ? "cancelled" : all.includes("failure") ? "failure" : all.every(r => r === "skipped") ? "skipped" : "success";
 }
-const dispatch = (over = {}) => ({ tag: "v1.3.90", recovery: false, source_sha: "a".repeat(40), diagnostic_only: false, sharded: true, test_release: true, fault: "", ...over });
-const DOWNSTREAM = ["sharded-package", "sharded-sign-updates", "release", "sign-updates"];
+const dispatch = (over = {}) => ({ tag: "v1.3.90", recovery: false, source_sha: "a".repeat(40), diagnostic_only: false, test_release: true, fault: "", ...over });
+const DOWNSTREAM = ["sharded-package", "sharded-sign-updates"];
 const GATE_JOBS_WITH_CHECKS = ["build", "checks-rust", "checks-other"];
 
 test("the evaluator itself follows GitHub's rules", () => {
@@ -103,9 +103,9 @@ const production = (over = {}) => dispatch({ test_release: false, tag: "v1.3.3",
 const diagnostic = (over = {}) => dispatch({ test_release: false, diagnostic_only: true, recovery: true, tag: "v1.3.2", ...over });
 const ROUTES = [["draft test release", dispatch], ["sharded production release", production]];
 
-test("a clean gate runs packaging then signing on both sharded routes, and nothing serial", () => {
+test("a clean gate runs packaging then signing on both routes", () => {
   for (const [name, make] of ROUTES) {
-    assert.deepEqual(simulate(release, make()), { "sharded-request": "success", "release-baseline": "success", "sharded-gate": "success", "sharded-package": "success", "sharded-sign-updates": "success", release: "skipped", "sign-updates": "skipped" }, name);
+    assert.deepEqual(simulate(release, make()), { "sharded-request": "success", "release-baseline": "success", "sharded-gate": "success", "sharded-package": "success", "sharded-sign-updates": "success" }, name);
   }
 });
 
@@ -133,37 +133,27 @@ test("any failed, cancelled, skipped or fault-injected part of the gate, or a fa
   }
 });
 
-test("a sharded request without the sharded gate, and sharded diagnostics, can never package or sign", () => {
-  const noShard = simulate(release, dispatch({ sharded: false }), { "sharded-request": "failure" });
-  for (const j of ["sharded-gate", ...DOWNSTREAM]) assert.equal(noShard[j], "skipped", j);
+test("a refused request never reaches the gate, and diagnostics can never package or sign", () => {
+  const refused = simulate(release, dispatch(), { "sharded-request": "failure" });
+  for (const j of ["sharded-gate", ...DOWNSTREAM]) assert.equal(refused[j], "skipped", j);
   const diag = simulate(release, diagnostic());
-  for (const j of ["release-baseline", "sharded-package", "sharded-sign-updates", "release", "sign-updates"]) assert.equal(diag[j], "skipped", j);
+  for (const j of ["release-baseline", "sharded-package", "sharded-sign-updates"]) assert.equal(diag[j], "skipped", j);
   assert.equal(diag["sharded-gate"], "success");
 });
 
-test("the serial fallback: baseline first, then the serial gate and signing; diagnostics need no baseline; no baseline, no release", () => {
-  const serial = over => production({ sharded: false, ...over });
-  let r = simulate(release, serial());
-  assert.deepEqual(r, { "sharded-request": "skipped", "release-baseline": "success", "sharded-gate": "skipped", "sharded-package": "skipped", "sharded-sign-updates": "skipped", release: "success", "sign-updates": "success" });
-  for (const bad of ["failure", "cancelled"]) {
-    r = simulate(release, serial(), { "release-baseline": bad });
-    assert.equal(r.release, "skipped", bad); assert.equal(r["sign-updates"], "skipped", bad);
-  }
-  r = simulate(release, serial(), { release: "failure" }); assert.equal(r["sign-updates"], "skipped");
-  r = simulate(release, serial({ diagnostic_only: true, recovery: true }));
-  assert.deepEqual([r["release-baseline"], r.release, r["sign-updates"]], ["skipped", "success", "skipped"]);
-  r = simulate(release, serial({ recovery: true }), {}); assert.deepEqual([r["release-baseline"], r.release, r["sign-updates"]], ["success", "success", "skipped"], "recovery builds a draft but never signs");
-  assert.equal(release.on.workflow_dispatch.inputs.test_release.default, false);
-  assert.equal(release.on.workflow_dispatch.inputs.test_release.type, "boolean");
-  assert.equal(release.on.workflow_dispatch.inputs.sharded.default, false);
-  assert.equal(release.on.workflow_dispatch.inputs.fault.default, "");
-  assert.equal(release.jobs["sign-updates"].if, "${{ !inputs.recovery && !inputs.diagnostic_only }}");
-  assert.deepEqual(release.jobs["sign-updates"].needs, ["release", "release-baseline"]);
-  assert.equal(release.jobs.release["timeout-minutes"], 240);
+test("the dispatch inputs: no sharded switch, a boolean test_release that is off by default, an empty fault", () => {
+  const inputs = release.on.workflow_dispatch.inputs;
+  assert.equal(inputs.sharded, undefined);
+  assert.equal(inputs.test_release.default, false);
+  assert.equal(inputs.test_release.type, "boolean");
+  assert.equal(inputs.fault.default, "");
+  assert.equal(release.jobs["sharded-gate"].if, undefined, "the gate always runs for an accepted request");
+  assert.equal(release.jobs["sharded-package"].if, "${{ !inputs.diagnostic_only }}");
+  assert.equal(release.jobs["sharded-sign-updates"].if, "${{ !inputs.diagnostic_only }}");
 });
 
 test("the packaging and signing jobs never use a status function that would let them run after a failure", () => {
-  for (const id of ["sharded-package", "sharded-sign-updates", "sign-updates"]) {
+  for (const id of ["sharded-package", "sharded-sign-updates"]) {
     assert.doesNotMatch(String(release.jobs[id].if), /always|cancelled|failure|success/, id);
     for (const s of release.jobs[id].steps) assert.doesNotMatch(String(s.if ?? ""), /always|cancelled|failure/, `${id}: ${s.name}`);
   }
@@ -189,6 +179,15 @@ test("the baseline job reads the newest published release once, before anything 
   assert.doesNotMatch(JSON.stringify(release.jobs), /assert-draft-release\.mjs "\$RELEASE_TAG" v1\./);
 });
 
+test("the baseline job stays read-only, so its comment says it cannot see drafts and the packaging job's check is the one that refuses a stale draft (VS-72)", () => {
+  assert.equal(release.jobs["release-baseline"].permissions.contents, "read");
+  const text = read("release-windows.yml"), start = text.indexOf("\n  release-baseline:"), end = text.indexOf("\n  sharded-gate:");
+  const comment = text.slice(start, end).split(/\r?\n/).filter(l => /^\s{4}#/.test(l)).join(" ");
+  assert.match(comment, /read-only token cannot see draft releases/);
+  assert.match(comment, /sharded-package/);
+  assert.match(comment, /VS-72/);
+});
+
 test("the sharded packaging job verifies the gate evidence first, builds a draft, and rechecks it after every release change", () => {
   const steps = release.jobs["sharded-package"].steps, names = steps.map(s => s.name ?? s.uses);
   const verify = names.indexOf("Verify the gate evidence before building anything"), before = names.indexOf("Confirm the tag has no release yet or only an empty draft");
@@ -208,7 +207,7 @@ test("the sharded packaging job verifies the gate evidence first, builds a draft
   assert.match(steps[before].run, ASSERT("before")); assert.match(steps[after].run, ASSERT("after"));
   for (const i of [before, after]) { assert.equal(steps[i].env.MODE, MODE); assert.equal(steps[i].env.PREVIOUS, PREVIOUS); }
   assert.equal(release.jobs["sharded-package"].permissions.contents, "write");
-  assert.equal(steps.find(s => s.id === "provenance").run, release.jobs.release.steps.find(s => s.id === "provenance").run, "provenance is recorded exactly as the serial job records it");
+  assert.equal(steps.find(s => s.id === "provenance").run, "node tools/update-build-provenance.mjs windows-x86_64 $env:RELEASE_TAG.Substring(1)");
   assert.doesNotMatch(JSON.stringify(steps), /--clobber/);
 });
 
@@ -227,12 +226,11 @@ test("the packaging job's request check holds each route to its own tags", { ski
   assert.match(attempt("v1.3.3", false, "refs/heads/main"), /release tag as its ref/);
 });
 
-test("the signing jobs sign the same way, upload without overwriting, never publish, and recheck the draft before and after", () => {
-  const prod = release.jobs["sign-updates"].steps, sharded = release.jobs["sharded-sign-updates"].steps;
-  for (const [id, steps, digests] of [["sign-updates", prod, "release"], ["sharded-sign-updates", sharded, "sharded-package"]]) {
-    const sign = steps.find(s => s.name === "Sign exact final Windows bytes"), reference = prod.find(s => s.name === "Sign exact final Windows bytes");
-    assert.equal(sign.run, reference.run, id);
-    assert.deepEqual(Object.keys(sign.env), Object.keys(reference.env), id);
+test("the signing job signs the final bytes, uploads without overwriting, never publishes, and rechecks the draft before and after", () => {
+  const sharded = release.jobs["sharded-sign-updates"].steps;
+  for (const [id, steps, digests] of [["sharded-sign-updates", sharded, "sharded-package"]]) {
+    const sign = steps.find(s => s.name === "Sign exact final Windows bytes");
+    assert.match(sign.run, /^node tools\/update-signing\.mjs sign windows-x86_64 /, id);
     assert.equal(sign.env.VAULTSPEND_UPDATE_EXPECTED_DIGESTS, `\${{ needs.${digests}.outputs.installer-digests }}`, id);
     const secretSteps = steps.filter(s => JSON.stringify(s).includes("secrets.UPDATE_SIGNING"));
     assert.deepEqual(secretSteps.map(s => s.name), ["Sign exact final Windows bytes"], id);
@@ -247,23 +245,7 @@ test("the signing jobs sign the same way, upload without overwriting, never publ
     assert.equal(steps.at(-1).env.MODE === undefined, false, id);
   }
   assert.match(sharded.find(s => s.name === "Download the draft's Windows installers").run, ASSERT("after"));
-  assert.match(prod.find(s => s.name === "Download final Windows release artifacts").run, ASSERT("after"));
   assert.equal(sharded.find(s => s.uses === "actions/checkout@v4").with.ref, "${{ needs.sharded-package.outputs.source-sha }}");
-});
-
-test("the serial release creates a draft too, with the same checks before and after packaging", () => {
-  const steps = release.jobs.release.steps, names = steps.map(s => s.name ?? s.uses);
-  const before = names.indexOf("Confirm the tag has no release yet or only an empty draft"), build = names.indexOf("Build Windows installers into the draft release"), after = names.indexOf("Confirm the release is still one draft");
-  assert.ok(before > names.indexOf("Full desktop E2E release gate") && before < build && build < after);
-  assert.equal(steps[build].with.releaseDraft, true);
-  assert.equal(steps[build].with.prerelease, false);
-  for (const i of [before, after]) {
-    assert.equal(steps[i].env.MODE, "production"); assert.equal(steps[i].env.PREVIOUS, PREVIOUS);
-    assert.match(steps[i].run, /assert-draft-release\.mjs "\$RELEASE_TAG" --mode "\$MODE" --stage (before|after) --previous "\$PREVIOUS" "\$\{older\[@\]\}"/);
-    assert.equal(steps[i].if, "${{ !inputs.diagnostic_only }}");
-    assert.equal(steps[i].env.ALLOW_OLDER, "${{ inputs.recovery }}");
-  }
-  assert.doesNotMatch(JSON.stringify(release), /releaseDraft":false|--clobber/);
 });
 
 test("the request script, run for real, accepts only the three intended shapes", { skip: !BASH && "bash is required" }, () => {
@@ -281,7 +263,7 @@ test("the request script, run for real, accepts only the three intended shapes",
   assert.equal(attempt(dispatch({ fault: "other-checks" })), true);
   assert.equal(attempt(dispatch({ fault: "6" })), true);
   for (const [name, over, github] of [
-    ["not sharded", { sharded: false }], ["diagnostic", { diagnostic_only: true }], ["recovery", { recovery: true }],
+    ["diagnostic", { diagnostic_only: true }], ["recovery", { recovery: true }],
     ["stable tag", { tag: "v1.3.2" }], ["next real tag", { tag: "v1.3.3" }], ["band edge", { tag: "v1.3.100" }], ["other minor", { tag: "v1.4.90" }],
     ["branch ref", {}, { GITHUB_REF: "refs/heads/test-release" }], ["other tag ref", {}, { GITHUB_REF: "refs/tags/v1.3.91" }],
     ["source differs from the tag commit", {}, { GITHUB_SHA: "b".repeat(40) }], ["short sha", { source_sha: "abc" }, { GITHUB_SHA: "abc" }], ["bad fault", { fault: "7" }], ["bad fault word", { fault: "all" }], ["near-miss fault", { fault: "rust" }],
@@ -306,12 +288,6 @@ test("the request script, run for real, accepts only the three intended shapes",
   assert.equal(diag({}, { GITHUB_REF: "refs/tags/v1.3.2" }), false, "diagnostics still need a workflow branch");
 });
 
-test("the serial path refuses the reserved test band", { skip: !BASH && "bash is required" }, () => {
-  const validate = release.jobs.release.steps.find(s => s.name === "Validate release tag and version").run;
-  assert.match(validate, /\^v1\\\.3\\\.9\\d\$/);
-  assert.ok(validate.indexOf("Reserved test tag") < validate.indexOf("Diagnostics require recovery"));
-});
-
 test("macOS no longer refuses the reserved test band outright (VS-20): it joins a test draft prerelease and nothing else, as tools/build-macos-workflow.test.mjs proves", () => {
   const steps = macos.jobs["build-macos"].steps;
   assert.equal(steps[0].name, "Validate the release tag");
@@ -321,13 +297,10 @@ test("macOS no longer refuses the reserved test band outright (VS-20): it joins 
   assert.ok(steps.indexOf(check) < steps.findIndex(s => /^tauri-apps\/tauri-action@/.test(s.uses ?? "")), "the release check runs before the packaging step");
 });
 
-test("the same required contract tests run in the serial gate and in the sharded gate, and the fault comes only from the caller", () => {
-  const call = release.jobs["sharded-gate"], required = ["tools/update-signing.test.mjs", "tools/update-signing-workflow.test.mjs", "tools/verify-sharded-gate-summary.test.mjs", "tools/assert-draft-release.test.mjs", "tools/sharded-gate-workflow.test.mjs", "tools/release-windows-workflow.test.mjs", "tools/aggregate-shard-results.test.mjs", "tools/write-check-records.test.mjs"];
+test("the sharded gate runs the required contract tests, and the fault comes only from the caller", () => {
+  const call = release.jobs["sharded-gate"], required = ["tools/update-signing.test.mjs", "tools/update-signing-workflow.test.mjs", "tools/verify-sharded-gate-summary.test.mjs", "tools/assert-draft-release.test.mjs", "tools/sharded-gate-workflow.test.mjs", "tools/release-windows-workflow.test.mjs", "tools/aggregate-shard-results.test.mjs", "tools/write-check-records.test.mjs", "tools/least-privilege-workflow.test.mjs", "tools/ci-tool-supply-chain.test.mjs"];
   for (const testRelease of [true, false]) assert.deepEqual(evaluate(call.with.contract_tests, { inputs: { test_release: testRelease, recovery: false } }).split(" "), required, `sharded gate, test_release=${testRelease}`);
   assert.equal(evaluate(call.with.contract_tests, { inputs: { test_release: false, recovery: true } }), "", "recovery diagnostics keep running no contract tests, as before");
-  const serial = release.jobs.release.steps.find(s => s.name === "Verify signed updater release contracts");
-  assert.equal(serial.if, "${{ !inputs.recovery }}");
-  assert.deepEqual(serial.run.replace("node --test ", "").split(" "), required, "the serial gate runs the identical list");
   for (const file of required) assert.ok(fs.existsSync(new URL(`../${file}`, import.meta.url)), `${file} exists`);
   assert.equal(call.with.fault, "${{ inputs.fault }}");
   assert.equal(call.with.recovery, "${{ inputs.recovery }}");
@@ -337,15 +310,4 @@ test("the same required contract tests run in the serial gate and in the sharded
   assert.ok(gate.jobs["checks-other"].steps.some(s => s.name === "Injected test fault - fail the other checks"));
   assert.ok(gate.jobs.shard.steps.some(s => s.name === "Injected test fault - fail this shard"));
   assert.deepEqual(gate.permissions, { contents: "read" });
-});
-
-test("prepare-signed-installers.yml is not migrated: its sharded run stays a diagnostic with no packaging, and its serial path is the only one that signs", () => {
-  assert.equal(prepare.on.workflow_dispatch.inputs.sharded_gate, undefined);
-  assert.equal(prepare.on.workflow_call.inputs.sharded_gate, undefined);
-  assert.equal(prepare.jobs["windows-package"], undefined);
-  assert.equal(prepare.jobs["sharded-gate"].if, "${{ inputs.sharded }}");
-  assert.equal(prepare.jobs.windows.if, "${{ !inputs.sharded }}");
-  assert.equal(prepare.jobs["sign-updates"].if, "${{ !inputs.sharded }}");
-  assert.deepEqual(prepare.jobs["sign-updates"].needs, ["windows", "macos"]);
-  assert.deepEqual(prepare.permissions, { contents: "read" });
 });
