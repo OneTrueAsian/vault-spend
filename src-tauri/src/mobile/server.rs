@@ -73,15 +73,28 @@ fn identity(store: &dyn SecretStore, config: &MobileConfig, now: i64) -> Result<
     }
     Ok(bundle)
 }
+/// Puts physical LAN adapters ahead of virtual ones (WSL, Hyper-V, VMs, containers, VPNs). A phone can only reach a physical
+/// adapter, and the setup wizard pre-selects the first entry, so the order decides the default. Nothing is removed.
+fn is_virtual_network(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    ["vethernet", "wsl", "hyper-v", "virtual", "vmware", "vmnet", "vbox"].iter().any(|part| name.contains(part))
+        || ["docker", "veth", "virbr", "br-", "tailscale", "utun", "tun", "tap"].iter().any(|prefix| name.starts_with(prefix))
+}
+pub fn prefer_physical_networks(mut found: Vec<(String, Ipv4Addr)>) -> Vec<(String, Ipv4Addr)> {
+    found.sort_by_key(|(name, _)| is_virtual_network(name)); // stable: order among physical adapters is kept
+    found
+}
 pub fn interfaces() -> Vec<(String, Ipv4Addr)> {
-    if_addrs::get_if_addrs()
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|i| match i.ip() {
-            std::net::IpAddr::V4(ip) if ip.is_private() && !i.is_loopback() => Some((i.name, ip)),
-            _ => None,
-        })
-        .collect()
+    prefer_physical_networks(
+        if_addrs::get_if_addrs()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|i| match i.ip() {
+                std::net::IpAddr::V4(ip) if ip.is_private() && !i.is_loopback() => Some((i.name, ip)),
+                _ => None,
+            })
+            .collect(),
+    )
 }
 #[derive(Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]

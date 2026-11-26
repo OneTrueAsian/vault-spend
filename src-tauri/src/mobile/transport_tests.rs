@@ -550,3 +550,22 @@ fn a_root_near_expiry_is_pending_at_launch_and_replaced_by_a_user_start() {
     assert!(!restarted(&service, &store, &devices).status().trust_replaced);
     std::fs::remove_dir_all(directory).unwrap();
 }
+#[test]
+fn physical_lan_networks_are_listed_before_virtual_adapters() {
+    let net = |name: &str, ip: &str| (name.to_string(), ip.parse::<Ipv4Addr>().unwrap());
+    let names = |found| prefer_physical_networks(found).into_iter().map(|(name, _)| name).collect::<Vec<_>>();
+    // The 26 Nov 2026 failure: Windows listed the WSL adapter first, so the wizard pre-selected an address no phone can reach.
+    assert_eq!(
+        names(vec![net("vEthernet (WSL)", "172.21.64.1"), net("vEthernet (Default Switch)", "172.18.80.1"), net("Ethernet", "192.168.1.103"), net("Wi-Fi", "192.168.1.78")]),
+        ["Ethernet", "Wi-Fi", "vEthernet (WSL)", "vEthernet (Default Switch)"]
+    );
+    assert_eq!(
+        names(vec![net("docker0", "172.17.0.1"), net("br-1a2b3c", "172.18.0.1"), net("virbr0", "192.168.122.1"), net("tailscale0", "10.8.0.2"), net("utun3", "10.9.0.2"), net("en0", "192.168.1.5")]),
+        ["en0", "docker0", "br-1a2b3c", "virbr0", "tailscale0", "utun3"]
+    );
+    assert_eq!(names(vec![net("VMware Network Adapter VMnet8", "192.168.5.1"), net("VirtualBox Host-Only Network", "192.168.56.1"), net("Ethernet 2", "10.0.0.7")]), ["Ethernet 2", "VMware Network Adapter VMnet8", "VirtualBox Host-Only Network"]);
+    // Order among physical adapters is kept, and nothing is dropped when only virtual adapters exist.
+    assert_eq!(names(vec![net("Wi-Fi", "192.168.1.78"), net("Ethernet", "192.168.1.103")]), ["Wi-Fi", "Ethernet"]);
+    assert_eq!(names(vec![net("vEthernet (WSL)", "172.21.64.1")]), ["vEthernet (WSL)"]);
+    assert!(prefer_physical_networks(Vec::new()).is_empty());
+}
