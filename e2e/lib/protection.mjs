@@ -102,7 +102,13 @@ export async function enableProtectionThroughUI(browser, password) {
   await (await browser.$("button=Continue")).click();
   const recoveryEl = await browser.$(".modal-panel .path-box");
   await recoveryEl.waitForExist({ timeout: PROTECTION_FINISH_MS });
-  const recoveryDisplay = (await recoveryEl.getText()).trim();
+  // Like the group numbers below, the code reads "" while its step is still fading in, and an empty read here
+  // makes the answers undefined (setValue then throws), so wait for the code to be there.
+  let recoveryDisplay = "";
+  await browser.waitUntil(async () => (recoveryDisplay = (await recoveryEl.getText()).trim()) !== "", {
+    timeout: 5000,
+    timeoutMsg: "the recovery code should be shown",
+  });
   await (await browser.$("button=I've saved it")).click();
   const label0 = await browser.$("label[for='protection-setup-answer-0']");
   await label0.waitForExist({ timeout: 5000 });

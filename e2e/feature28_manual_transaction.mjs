@@ -44,16 +44,18 @@ try {
   // submitting — same pattern feature23_family_members.mjs uses for a
   // React-controlled <select>, since selecting and immediately clicking
   // Submit can race the onChange committing to state.
-  const selects = await dialogPanel.$$(".menu-select-toggle");
+  // The dialog fades in over 160 ms (more under load), and WebDriver's getText returns "" for a control that is
+  // not yet visible, so a single read can find no toggle that says "Auto-categorize"; wait for it instead.
   let categoryField = null;
-  for (const sel of selects) {
-    const text = await sel.getText();
-    if (text.includes("Auto-categorize")) {
-      categoryField = sel;
-      break;
+  await waitUntilOrDiagnose(app.browser, async () => {
+    for (const sel of await dialogPanel.$$(".menu-select-toggle")) {
+      if ((await sel.getText()).includes("Auto-categorize")) {
+        categoryField = sel;
+        return true;
+      }
     }
-  }
-  if (!categoryField) throw new Error("expected to find the Category select in the Add transaction dialog");
+    return false;
+  }, { timeoutMsg: "expected to find the Category select in the Add transaction dialog" });
   await chooseMenuOption(categoryField, { label: "Dining Out" });
   await app.browser.waitUntil(async () => (await menuSelectValue(categoryField)) === "Dining Out", {
     timeout: 5000,
