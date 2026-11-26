@@ -604,7 +604,7 @@ export function ReportsOverview({
                             className="category-link"
                             data-report-category-open={r.category}
                             aria-label={`See ${r.category} transactions`}
-                            onClick={() => onOpenTransactions({ view: { tab, preset }, category: r.category, from: monthStartDate(from), to: monthEndDate(to) })}
+                            onClick={() => onOpenTransactions({ view: { tab: id, preset }, category: r.category, from: monthStartDate(from), to: monthEndDate(to) })}
                           >
                             {r.category}
                           </button>

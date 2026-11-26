@@ -404,6 +404,25 @@ describe("report context (VS-98)", () => {
     expect(onOpenTransactions).toHaveBeenCalledWith({ view: { tab: "categories", preset: "last_6" }, category: "Groceries", from: "2026-06-01", to: "2026-11-30" });
   });
 
+  it("records Categories by month as the report's tab even when a row is clicked straight after the tab", async () => {
+    // The page keeps its own copy of the shown tab, updated one render after the tab strip. A row opened that quickly
+    // must still come back to Categories by month, not to the tab the page was on before.
+    const onOpenTransactions = vi.fn();
+    show({ initialTab: "income", onOpenTransactions });
+    // Outside act, so React commits the tab click without yet running the effect that copies the tab into the page.
+    const actEnvironment = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = false;
+    try {
+      container.querySelector<HTMLButtonElement>("[data-reports-tab='categories']")!.click();
+      await Promise.resolve();
+      categoryButton("Groceries")!.click();
+    } finally {
+      actEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+    }
+    expect(onOpenTransactions).toHaveBeenCalledTimes(1);
+    expect(onOpenTransactions.mock.calls[0][0].view.tab).toBe("categories");
+  });
+
   it("leaves the category as plain text when nothing can open transactions", () => {
     show({ initialTab: "categories" });
     expect(container.querySelector("button[data-report-category-open]")).toBeNull();
