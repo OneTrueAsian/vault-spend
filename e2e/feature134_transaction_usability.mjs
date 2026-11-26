@@ -140,7 +140,12 @@ try {
     assert.ok(rows.length > 1, `expected several suggested pairs in the fixture, found ${rows.length}`);
     for (const row of rows.slice(1)) await (await row.$("input[type=checkbox]")).click();
     const dismissSelected = await dialog.$("[data-dismiss-selected]");
-    assert.match(await dismissSelected.getText(), /Dismiss 1 selected/, "only the first pair should be selected");
+    // Waited for, not read once: right after the last untick the driver can report the button as not
+    // displayed and give back "" for a moment, though the page already says "Dismiss 1 selected".
+    await browser.waitUntil(async () => /Dismiss 1 selected/.test(await dismissSelected.getText()), {
+      timeout: 5000,
+      timeoutMsg: "only the first pair should be selected",
+    });
     await dismissSelected.click();
     await browser.waitUntil(
       async () => (await dialog.$$(".transfer-review-row")).length === rows.length - 1,
