@@ -1,5 +1,27 @@
 # Project instructions
 
+## Windows Shell Conventions
+
+- For multi-line git commit messages, write the message to a temp file and run `git commit -F <file>`. Do not use PowerShell here-strings, because quotes inside them break the command.
+- When editing files from PowerShell, use real newlines (`[Environment]::NewLine` or a Write/Edit tool). Never put a literal `r`n in a single-quoted string.
+- Prefer the Edit/Write tools over sed or PowerShell string replacement for file edits.
+- Always pass `--source winget` to `winget install`.
+
+## Environment & Elevation
+
+- Before any task that needs admin rights (DISM, driver installs, takeown/icacls, UAC-gated installers), check whether the shell is elevated. If it is not, tell the user up front instead of attempting the step.
+- Do not run Playwright/WebView2 automation from an elevated shell, because elevation blocks it. Check elevation first before trying driver-version theories.
+- Use 64-bit Python from python.org, not the Windows Store stub. Use the project's pinned Node version, not Node 26.
+- If rustc crashes or PDBs look corrupt (often after a machine crash), delete `target/debug` before retrying. Do not keep retrying builds.
+
+## Working Agreements
+
+- When the user says they are about to reboot, or says 'stop' or 'end goal', stop immediately. Write a short handoff and do not start or restart tests.
+- Never claim a review, screenshot check or verification you did not actually perform. List exactly what was checked.
+- When finishing a planning task, say explicitly: 'The plan is complete. Nothing has been implemented yet.' Also give the file path.
+- In Jira/Atlassian contexts, ask whether 'goal' means an Atlassian Goal or an Epic before creating anything.
+- When committing, stage only the files you changed if the checkout contains unrelated changes.
+
 ## Where to look
 
 - Testing and verification: follow `AGENTS.md`.
