@@ -11,7 +11,9 @@ import { launchApp, waitUntilOrDiagnose, chooseStyle, openSettingsGroup, dismiss
 import { makeTempDir } from "./lib/tempDir.mjs";
 
 const NOT_WRITABLE = "Vault Spend can't save files in that folder. Choose a folder you can write to.";
-const folder = makeTempDir("vaultspend-vs71-folder-");
+// The hosted runner's temp folder comes back in short 8.3 spelling (C:\Users\RUNNER~1\...), but the home folder is spelled in full,
+// so the folder is resolved to its full path before the app is given it (VS-124).
+const folder = fs.realpathSync.native(makeTempDir("vaultspend-vs71-folder-"));
 fs.mkdirSync(path.join(folder, ".vaultspend-write-test"));
 assert.ok(folder.toLowerCase().startsWith(os.homedir().toLowerCase()), `the test folder is under the home folder, so redaction is exercised: ${folder}`);
 
