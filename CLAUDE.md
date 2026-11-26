@@ -71,7 +71,7 @@ Touch only what you must. Clean up only your own mess. The test: every changed l
 ### Git and release
 
 - Commit, push, merge, tag and release only when told. Stage explicit paths and merge to `main` only when asked. Split release notes into New features, Enhancements and Bug fixes.
-- "Push out the new build" authorizes the release workflow. Present the validation scope and estimated duration required by `AGENTS.md` before starting a full or long run. If the owner explicitly approves that presented scope in the release request, use that approval. Keep any separate release-signing approval in place.
+- "Push out the new build" authorizes the release workflow. Present the validation scope and estimated duration required by `AGENTS.md` before starting a full or long run. If the owner explicitly approves that presented scope in the release request, use that approval. Keep any separate release-signing approval in place. Run the `release` skill (`.claude/skills/release/SKILL.md`) as the release workflow.
 - Preserve unrelated and concurrent work; do not discard branches or stashes. Two sessions may share the checkout, so recheck status and log if HEAD moves; use an isolated worktree for concurrent release work. Do not kill the owner's installed app to unlock a build.
 - Release infra: public repo, unsigned Authenticode builds, macOS built by CI (no Mac available), signed update manifests. The updater downloads a release, verifies it against the signed manifest and starts the installer only after the user chooses to install (not notify-only).
 
