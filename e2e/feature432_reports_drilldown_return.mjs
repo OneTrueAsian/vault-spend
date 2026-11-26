@@ -61,7 +61,7 @@ try {
   await waitUntilOrDiagnose(b, async () => (await b.$("[data-report-return]")).isDisplayed(), { timeoutMsg: "Transactions shows the opened-from-Reports banner" });
   const bannerText = await (await b.$("[data-report-return]")).getText();
   assert.ok(bannerText.includes(displayDate(FROM)) && bannerText.includes(displayDate(TO)) && bannerText.includes("Groceries"), `the banner names the category and both dates: ${bannerText}`);
-  await (await b.$("button*=More filters")).click();
+  await (await b.$("button*=filter")).click();
   await (await b.$('input[aria-label="From date"]')).waitForExist({ timeout: 5000 });
   assert.equal(await readDateValue(b, 'input[aria-label="From date"]'), FROM, "the From date is the range's first day");
   assert.equal(await readDateValue(b, 'input[aria-label="To date"]'), TO, "the To date is the range's last day");
