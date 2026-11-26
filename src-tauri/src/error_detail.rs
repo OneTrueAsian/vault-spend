@@ -39,8 +39,13 @@ fn home_folder() -> Option<String> {
 }
 
 fn redact(text: &str, home: Option<&str>) -> String {
+    redact_spellings(text, &home.map(home_spellings).unwrap_or_default())
+}
+
+/// `redact` with every spelling of the home folder to hide, each in either slash style and any case.
+fn redact_spellings(text: &str, spellings: &[String]) -> String {
     let mut out = without_url_queries(&text.split_whitespace().collect::<Vec<_>>().join(" "));
-    if let Some(home) = home {
+    for home in spellings {
         for form in [home.replace('/', "\\"), home.replace('\\', "/")] {
             out = replace_ignoring_case(&out, &form, "%USERPROFILE%");
         }
@@ -49,6 +54,36 @@ fn redact(text: &str, home: Option<&str>) -> String {
         out = out.chars().take(MAX_DETAIL_CHARS).collect::<String>() + "…";
     }
     out
+}
+
+/// Every spelling of the home folder that must be hidden: the one the system reports, and its Windows short (8.3) spelling.
+fn home_spellings(home: &str) -> Vec<String> {
+    std::iter::once(home.to_string()).chain(short_spelling(home)).collect()
+}
+
+/// The Windows short (8.3) spelling of `path`, for example `C:\Users\RUNNER~1`, when the folder has one that differs from `path`.
+/// A path typed in that spelling reaches an error detail without the long user name in it, so the long form alone would not match.
+#[cfg(windows)]
+fn short_spelling(path: &str) -> Option<String> {
+    use windows::{core::PCWSTR, Win32::Storage::FileSystem::GetShortPathNameW};
+    let wide: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
+    // SAFETY: `wide` is a NUL-terminated UTF-16 string that outlives both calls, and the buffer is sized by the first call.
+    let needed = unsafe { GetShortPathNameW(PCWSTR(wide.as_ptr()), None) };
+    if needed == 0 {
+        return None;
+    }
+    let mut buffer = vec![0u16; needed as usize];
+    let written = unsafe { GetShortPathNameW(PCWSTR(wide.as_ptr()), Some(&mut buffer)) } as usize;
+    if written == 0 || written >= buffer.len() {
+        return None;
+    }
+    let short = String::from_utf16(&buffer[..written]).ok()?;
+    (!short.eq_ignore_ascii_case(path)).then_some(short)
+}
+
+#[cfg(not(windows))]
+fn short_spelling(_path: &str) -> Option<String> {
+    None
 }
 
 /// Every `http://` or `https://` address with its `?query` (and `#fragment`) cut to `?…`.
@@ -123,6 +158,44 @@ mod tests {
         );
         assert_eq!(redact("failed at C:/Users/Jamie/backups", home), "failed at %USERPROFILE%/backups");
         assert_eq!(redact(r"D:\Data\x.db", home), r"D:\Data\x.db", "a folder outside home stays as it is");
+    }
+
+    #[test]
+    fn the_short_8_3_spelling_of_the_home_folder_is_redacted_too() {
+        // VS-133: the hosted runner's temp folder is spelled C:\Users\RUNNER~1 while the user's home is C:\Users\runneradmin.
+        let spellings = [r"C:\Users\runneradmin".to_string(), r"C:\Users\RUNNER~1".to_string()];
+        assert_eq!(
+            redact_spellings(r"couldn't write C:\Users\RUNNER~1\AppData\Local\Temp\x.db: denied", &spellings),
+            r"couldn't write %USERPROFILE%\AppData\Local\Temp\x.db: denied"
+        );
+        assert_eq!(
+            redact_spellings("failed at c:/users/runner~1/backups and C:/Users/runneradmin/more", &spellings),
+            "failed at %USERPROFILE%/backups and %USERPROFILE%/more"
+        );
+        assert_eq!(redact_spellings(r"D:\Data\x.db", &spellings), r"D:\Data\x.db", "a folder outside home stays as it is");
+    }
+
+    #[test]
+    fn no_spellings_redacts_no_folder() {
+        assert_eq!(redact_spellings(r"C:\Users\Jamie\x.db", &[]), r"C:\Users\Jamie\x.db");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn the_system_supplies_the_short_spelling_when_the_folder_has_one() {
+        assert_eq!(short_spelling(r"C:\this\folder\does\not\exist"), None, "a missing folder has no short spelling");
+        let long = std::env::temp_dir().join("vs133_a_long_folder_name_without_a_short_form_of_its_own");
+        std::fs::create_dir_all(&long).unwrap();
+        let long_text = long.to_string_lossy().to_string();
+        match short_spelling(&long_text) {
+            Some(short) => {
+                assert!(short.contains('~') && short.len() < long_text.len(), "{short} should be the 8.3 form of {long_text}");
+                let all = home_spellings(&long_text);
+                assert_eq!(redact_spellings(&format!(r"couldn't write {short}\x.db"), &all), r"couldn't write %USERPROFILE%\x.db");
+            }
+            None => assert!(!long_text.contains('~'), "8.3 names are switched off for this volume, so there is no short spelling to find"),
+        }
+        std::fs::remove_dir_all(&long).unwrap();
     }
 
     #[test]

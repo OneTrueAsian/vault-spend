@@ -53,4 +53,4 @@ rusqlite = { version = "0.42", features = ["backup", "bundled-sqlcipher-vendored
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"
-windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_Memory", "Win32_System_RemoteDesktop", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Memory", "Win32_System_RemoteDesktop", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
