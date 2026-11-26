@@ -30,7 +30,7 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
       "Folder imports: save your bank's exports into one folder and Vault Spend picks them up for you to review in Transactions. Nothing is added until you approve it. Set it up in Settings → Data → Folder imports, where you choose the folder and tell Vault Spend which account each export name belongs to.",
     ],
     Enhancements: [
-      "The Cash Flow forecast now reaches 6 or 12 months ahead, so yearly bills like insurance or taxes show up before they're due. Everyday spending is estimated for the first 90 days only. After that, only the bills and paychecks on your Recurring list move the line, and the note under the chart says so.",
+      "The Cash Flow forecast now reaches 6 or 12 months ahead, so yearly bills like insurance or taxes show up before they're due. Everyday spending is estimated for the first 90 days only. After that, only the bills and paychecks on your Recurring list move the line, and the note under the chart says so. Coming up lists the next 10 bills and paychecks, and Show all lists the rest, so a yearly bill on a long forecast is no longer left off.",
       "Help now explains what to do when Windows says \"An Application Control policy has blocked this file\" while installing Vault Spend. That message comes from Smart App Control, which blocks the installer and, unlike the \"Windows protected your PC\" warning, has no Run anyway option.",
       "When a button is greyed out, Vault Spend now says what's still missing beside it, in every form: budgets, goals, rules, holdings, transactions, recurring items, imports, splits, reconciling and more. Boxes that are always on screen, like a name or folder box in Settings, say it once you click into them.",
       "When some rows of an import can't be read, the review now lists each one with the reason, so you can fix the file.",
@@ -45,6 +45,7 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
       "Reports → Savings rate now covers the months you picked at the top of the page, and the current month is marked \"so far\" instead of looking like a sudden drop.",
       "Folder imports: changing which account an export name belongs to no longer puts files you already imported, or dismissed, back in the waiting list, where approving them again would have added the same money twice.",
       "A watched file dated in the future is now reported as a date problem instead of \"Name not recognised\".",
+      "The Dashboard now has the same layout in every style. Futuristic and Retro used to stack To do, Insights, Safe to spend and Runway full width, while Default showed them side by side.",
     ],
   },
   "1.3.4": {
