@@ -5,10 +5,10 @@ import { describe, expect, it } from "vitest";
 // Execute the actual demo's build orchestration with process/file boundaries replaced; never launch or seed a demo.
 const source = fs.readFileSync("e2e/demo.mjs", "utf8");
 const buildSection = source.slice(source.indexOf("function run("), source.indexOf("// A demo already running"));
-function execute(fail = false) {
+function execute(fail = false, flags = ["--build"], exeExists = false) {
   const calls = [];
-  const context = { args: new Set(["--build"]), exe: "fixture.exe", initDb: "fixture-init.exe", repoRoot: "fixture-root",
-    fs: { existsSync: () => false }, console: { log() {}, error() {} },
+  const context = { args: new Set(flags), exe: "fixture.exe", initDb: "fixture-init.exe", repoRoot: "fixture-root",
+    fs: { existsSync: () => exeExists }, console: { log() {}, error() {} },
     spawnSync: (cmd, args) => { calls.push([cmd, ...args]); return { status: fail ? 9 : 0 }; },
     process: { exit: code => { throw new Error(`fixture exit ${code}`); } } };
   let error;
@@ -23,6 +23,12 @@ describe("repository demo build paths cooperate with exclusive access", () => {
       ["npm", "run", "build:app", "--", "--force"],
       ["node", "e2e/with-access.mjs", "demo-init-db", "--", "cargo", "build", "-p", "budget_core", "--bin", "init_db"],
     ]);
+  });
+  it("checks the app build is current on every launch, even when the executable already exists", () => {
+    const { calls, error } = execute(false, [], true);
+    expect(error).toBeUndefined();
+    expect(calls[0]).toEqual(["npm", "run", "build:app"]); // reuses a current exe without compiling; rebuilds a stale one
+    expect(calls.flat()).not.toContain("--force");
   });
   it("does not continue to another target operation when the protected build fails", () => {
     const { calls, error } = execute(true);

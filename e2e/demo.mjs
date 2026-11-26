@@ -7,13 +7,12 @@
 //   npm run demo                # rebuild the practice data, launch the app
 //   npm run demo -- --keep      # relaunch on the existing practice data (keeps your changes)
 //   npm run demo -- --seed      # rebuild the practice data only, do not launch
-//   npm run demo -- --build     # (re)build the app first
+//   npm run demo -- --build     # force a full rebuild of the app first
 //
-// Needs: python (for seeding — already required by the e2e suite) and a built
-// app (`npx tauri build --debug --no-bundle`; this script builds it if missing).
+// Needs: python (for seeding — already required by the e2e suite). The app is built, or its current build
+// reused, on every launch.
 
 import { spawnSync } from "node:child_process";
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runPracticeLauncher } from "./lib/practice-data/launcher.mjs";
@@ -21,7 +20,6 @@ import { runPracticeLauncher } from "./lib/practice-data/launcher.mjs";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 process.chdir(repoRoot); // seed.mjs resolves target/debug/init_db.exe relative to cwd
 
-const exe = path.join(repoRoot, "target", "debug", "vaultspend.exe");
 const args = new Set(process.argv.slice(2));
 
 function run(cmd, cmdArgs) {
@@ -32,8 +30,10 @@ function run(cmd, cmdArgs) {
   }
 }
 
-if (args.has("--build") || !fs.existsSync(exe)) {
-  console.log("Building the app (this takes a minute or two)...");
+// Always: build:app reuses the current exe without compiling when every build input matches, and rebuilds a stale one
+// (an exe that merely exists can predate the commit, and the mobile viewer is embedded in it).
+{
+  console.log("Checking the app build is current (a minute or two if it has to rebuild)...");
   run("npm", ["run", "build:app", ...(args.has("--build") ? ["--", "--force"] : [])]);
 }
 // Always, so an older helper without --protect (the Locked practice profile) is brought up to date; cheap when current.
