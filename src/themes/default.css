@@ -424,65 +424,6 @@
 :root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .account-group-head { box-sizing:border-box; min-height:48px; background:var(--default-blue); align-items:center; padding-top:9px; padding-bottom:9px; }
 
 
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) > .reports-view { gap:12px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .card { margin-bottom:0; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-stat-row { margin-bottom:0; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-stat-row .stat-hero { padding:14px; gap:4px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-stat-row .mini-ico { width:28px;height:28px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-stat-row .stat-spark { height:28px;margin-top:4px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-toolbar { margin:0; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .todo-row { padding-top:8px;padding-bottom:8px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .safe-amount { padding:8px 10px;font-size:26px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .safe-to-spend-card > .modal-message-secondary { margin-top:6px;margin-bottom:6px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .safe-buffer { margin-top:4px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .recent-transaction { padding:7px 6px;row-gap:3px;column-gap:8px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .recent-transaction-info { gap:1px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-goal-list { gap:7px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-goal { padding:4px;gap:8px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-goal-body { gap:4px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-goal-icon { width:28px;height:28px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) [data-widget-id="budget_bills"] [data-dashboard-budget-group] { padding:6px 8px;margin-bottom:8px !important; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) [data-widget-id="budget_bills"] .suggested-row { padding:8px;gap:8px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-spending .dashboard-spending-sub { margin-bottom:6px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-spending-big { margin-top:8px; }
-@container (min-width:440px) {
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-spending .category-bars { display:table;width:100%; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-spending .category-bars tbody { display:table-row-group; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-spending .category-bars tr { display:table-row; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-spending .category-bars :is(th,td) { display:table-cell;padding-top:7px !important;padding-bottom:7px !important;vertical-align:middle; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-spending .category-bars-name { width:28%; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-spending .category-bars-bar { width:30%; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-spending .category-bars-amount { padding-left:8px !important; }
-}
-@media (min-width:1200px) {
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) > .reports-view:has(.safe-to-spend-card):has(> [data-widget-id="safe_to_spend"] + [data-widget-id="runway"]) { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px;align-items:start; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) > .reports-view:has(.safe-to-spend-card):has(> [data-widget-id="safe_to_spend"] + [data-widget-id="runway"]) > * { grid-column:1 / -1;min-width:0; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) > .reports-view:has(.safe-to-spend-card):has(> [data-widget-id="safe_to_spend"] + [data-widget-id="runway"]) > [data-widget-id="safe_to_spend"] { grid-column:1; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) > .reports-view:has(.safe-to-spend-card):has(> [data-widget-id="safe_to_spend"] + [data-widget-id="runway"]) > [data-widget-id="runway"] { grid-column:2; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) [data-widget-id="needs_a_look"] { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;align-items:start; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) [data-widget-id="needs_a_look"] > * { grid-column:1 / -1; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) [data-widget-id="needs_a_look"] > .card:has(.todo-list) { grid-column:1;grid-row:1; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) [data-widget-id="needs_a_look"] > .card:has(.insights-list) { grid-column:2;grid-row:1; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) [data-widget-id="needs_a_look"] .budget-alert-banner { margin:0; }
-}
-
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) > .reports-view > .ledger-qa-card { padding:20px; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) > .reports-view > .ledger-qa-card > .card-head { margin-bottom:14px; }
-@container (min-width:440px) {
- :root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-spending .category-bars-name { width:34%; }
- :root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-spending .category-bars-bar { width:26%; }
-}
-
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) :is(.todo-text,.todo-detail) { min-width:0; white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:normal; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .todo-chevron { flex-shrink:0; }
+/* Dashboard layout and spacing moved to features/dashboard/DashboardLayout.css (VS-122); it applies to every theme. */
 :root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .budget-alert-banner:not(.budget-alert-banner-done):is(:hover,:active) { background:var(--warning-soft); color:var(--warning); border-color:var(--warning); }
-
-@media (min-width:1200px) {
- :root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) [data-widget-id="trend_spending"] > .grid-2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
-}
-
 :root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) .dashboard-widget-customizing { border:0;padding:0;outline:1.5px dashed var(--border-strong);outline-offset:3px; }
-@media(min-width:1200px) {
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) [data-widget-id="needs_a_look"].dashboard-widget-customizing > .dashboard-widget-controls { grid-row:1; }
-:root[data-palette="transparent"]:is([data-theme="light"],[data-theme="dark"]) .page:has(> .reports-view > .dashboard-toolbar) [data-widget-id="needs_a_look"].dashboard-widget-customizing > .card { grid-row:2; }
-}
