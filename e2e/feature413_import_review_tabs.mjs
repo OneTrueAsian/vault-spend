@@ -87,7 +87,7 @@ try {
       await openReview();
       assert.equal(await active(),"bank","first asked category opens Bank categories");
       assert.deepEqual(await b.execute(()=>[...document.querySelectorAll('[role="tab"]')].map(t=>t.textContent)),["Bank categories (1)","Needs a category (24)","Transactions (25)"]);
-      assert.match(await b.$('.import-review-remembered').getText(),/Using your choices from last time for 1 bank category/);
+      await waitUntilOrDiagnose(b,()=>b.$('.import-review-remembered').isDisplayed(),{timeoutMsg:"remembered note is displayed once the dialog fade-in ends"}); assert.match(await b.$('.import-review-remembered').getText(),/Using your choices from last time for 1 bank category/);
       assert.equal(await b.$('[data-import-category-name="MERCHANDISE"]').isExisting(),false,"remembered name is not listed");
       await withFocusRetry(b,async()=>{
         await (await tab("bank")).click(); await b.keys("ArrowRight"); assert.equal(await active(),"needs");
