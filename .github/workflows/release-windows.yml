@@ -100,6 +100,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # A real release goes out with its notes on the release page, taken from the same changelog entry the app's What's New shows (VS-135).
+      # Refusing a version with no entry here fails within the first minute; the packaging job builds the notes again and refuses too.
+      - name: Require this version's release notes
+        if: ${{ !inputs.test_release }}
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: node tools/release-notes.mjs "${RELEASE_TAG#v}" --check
       - name: Read and check the newest published release
         id: baseline
         env:
@@ -123,7 +130,7 @@ jobs:
       source_sha: ${{ inputs.source_sha }}
       tag: ${{ inputs.tag }}
       recovery: ${{ inputs.recovery }}
-      contract_tests: ${{ !inputs.recovery && 'tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs tools/verify-sharded-gate-summary.test.mjs tools/assert-draft-release.test.mjs tools/sharded-gate-workflow.test.mjs tools/release-windows-workflow.test.mjs tools/aggregate-shard-results.test.mjs tools/write-check-records.test.mjs tools/least-privilege-workflow.test.mjs tools/ci-tool-supply-chain.test.mjs' || '' }}
+      contract_tests: ${{ !inputs.recovery && 'tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs tools/verify-sharded-gate-summary.test.mjs tools/assert-draft-release.test.mjs tools/sharded-gate-workflow.test.mjs tools/release-windows-workflow.test.mjs tools/aggregate-shard-results.test.mjs tools/write-check-records.test.mjs tools/least-privilege-workflow.test.mjs tools/ci-tool-supply-chain.test.mjs tools/release-notes.test.mjs' || '' }}
       fault: ${{ inputs.fault }}
 
   sharded-package:
@@ -195,6 +202,12 @@ jobs:
           MODE: ${{ inputs.test_release && 'test' || 'production' }}
           PREVIOUS: ${{ needs.release-baseline.outputs.previous }}
         run: gh api --paginate repos/OneTrueAsian/vault-spend/releases --jq '.[] | {id,tag_name,draft,prerelease,assets:[.assets[].name]}' | node tools/assert-draft-release.mjs "$RELEASE_TAG" --mode "$MODE" --stage before --previous "$PREVIOUS"
+      - name: Write the release notes for the page
+        id: notes
+        if: ${{ !inputs.test_release }}
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: node tools/release-notes.mjs "$($env:RELEASE_TAG.Substring(1))" --github-output notes
       - name: Build Windows installers into the draft release
         id: package
         uses: tauri-apps/tauri-action@v0
@@ -203,7 +216,7 @@ jobs:
         with:
           tagName: ${{ inputs.tag }}
           releaseName: ${{ inputs.test_release && format('Vault Spend TEST {0} (draft, do not publish)', inputs.tag) || format('Vault Spend {0}', inputs.tag) }}
-          releaseBody: ${{ inputs.test_release && 'Test build that proves the sharded Windows gate. Windows only. Not for users; delete this draft after review.' || '' }}
+          releaseBody: ${{ inputs.test_release && 'Test build that proves the sharded Windows gate. Windows only. Not for users; delete this draft after review.' || steps.notes.outputs.notes }}
           releaseDraft: true
           prerelease: ${{ inputs.test_release }}
           args: --bundles nsis,msi

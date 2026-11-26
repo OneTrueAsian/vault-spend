@@ -211,6 +211,33 @@ test("the sharded packaging job verifies the gate evidence first, builds a draft
   assert.doesNotMatch(JSON.stringify(steps), /--clobber/);
 });
 
+test("a real release cannot start without its release notes: the baseline job checks the changelog entry first, within the first minute (VS-135)", () => {
+  const job = release.jobs["release-baseline"], names = job.steps.map(s => s.name ?? s.uses);
+  const step = job.steps.find(s => s.name === "Require this version's release notes");
+  assert.ok(step, "the step exists");
+  assert.ok(names.indexOf("actions/setup-node@v4") < names.indexOf(step.name), "node is set up first");
+  assert.ok(names.indexOf(step.name) < names.indexOf("Read and check the newest published release"), "before anything else is read");
+  assert.equal(step.if, "${{ !inputs.test_release }}", "a reserved test tag has no changelog entry and is not held to one");
+  assert.equal(step.env.RELEASE_TAG, "${{ inputs.tag }}");
+  assert.equal(step.run, 'node tools/release-notes.mjs "${RELEASE_TAG#v}" --check');
+});
+
+test("the packaging job puts the changelog notes on the draft's page, and a test release keeps its own text (VS-135)", () => {
+  const steps = release.jobs["sharded-package"].steps, names = steps.map(s => s.name ?? s.uses);
+  const notes = steps.find(s => s.id === "notes");
+  assert.ok(notes, "the notes step exists");
+  const at = steps.indexOf(notes), build = names.indexOf("Build Windows installers into the draft release");
+  assert.ok(names.indexOf("Confirm the tag has no release yet or only an empty draft") < at && at < build, "built after the draft check and before the draft is made");
+  assert.equal(notes.if, "${{ !inputs.test_release }}");
+  assert.equal(notes.env.RELEASE_TAG, "${{ inputs.tag }}");
+  assert.equal(notes.run, 'node tools/release-notes.mjs "$($env:RELEASE_TAG.Substring(1))" --github-output notes');
+  const body = steps[build].with.releaseBody, testText = "Test build that proves the sharded Windows gate. Windows only. Not for users; delete this draft after review.";
+  const outputs = { notes: { outputs: { notes: "THE NOTES" } } };
+  assert.equal(evaluate(body, { inputs: { test_release: true }, steps: outputs }), testText);
+  assert.equal(evaluate(body, { inputs: { test_release: false }, steps: outputs }), "THE NOTES", "a real release's page body is the notes");
+  assert.doesNotMatch(body, /\|\|\s*''\s*\}\}\s*$/, "a real release never falls back to an empty body");
+});
+
 const PWSH = ["pwsh", "C:/Program Files/PowerShell/7/pwsh.exe"].find(p => spawnSync(p, ["-NoProfile", "-Command", "exit 0"]).status === 0);
 test("the packaging job's request check holds each route to its own tags", { skip: !PWSH && "pwsh is required" }, () => {
   const step = release.jobs["sharded-package"].steps.find(s => s.name === "Validate the release request");
@@ -298,7 +325,7 @@ test("macOS no longer refuses the reserved test band outright (VS-20): it joins 
 });
 
 test("the sharded gate runs the required contract tests, and the fault comes only from the caller", () => {
-  const call = release.jobs["sharded-gate"], required = ["tools/update-signing.test.mjs", "tools/update-signing-workflow.test.mjs", "tools/verify-sharded-gate-summary.test.mjs", "tools/assert-draft-release.test.mjs", "tools/sharded-gate-workflow.test.mjs", "tools/release-windows-workflow.test.mjs", "tools/aggregate-shard-results.test.mjs", "tools/write-check-records.test.mjs", "tools/least-privilege-workflow.test.mjs", "tools/ci-tool-supply-chain.test.mjs"];
+  const call = release.jobs["sharded-gate"], required = ["tools/update-signing.test.mjs", "tools/update-signing-workflow.test.mjs", "tools/verify-sharded-gate-summary.test.mjs", "tools/assert-draft-release.test.mjs", "tools/sharded-gate-workflow.test.mjs", "tools/release-windows-workflow.test.mjs", "tools/aggregate-shard-results.test.mjs", "tools/write-check-records.test.mjs", "tools/least-privilege-workflow.test.mjs", "tools/ci-tool-supply-chain.test.mjs", "tools/release-notes.test.mjs"];
   for (const testRelease of [true, false]) assert.deepEqual(evaluate(call.with.contract_tests, { inputs: { test_release: testRelease, recovery: false } }).split(" "), required, `sharded gate, test_release=${testRelease}`);
   assert.equal(evaluate(call.with.contract_tests, { inputs: { test_release: false, recovery: true } }), "", "recovery diagnostics keep running no contract tests, as before");
   for (const file of required) assert.ok(fs.existsSync(new URL(`../${file}`, import.meta.url)), `${file} exists`);
