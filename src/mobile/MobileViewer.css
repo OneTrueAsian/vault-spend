@@ -96,7 +96,7 @@ body:has(.mobile-viewer) {
 .mobile-account-tile > summary:hover { background: var(--surface-hover, var(--surface-2)); }
 .mobile-viewer .mobile-account-tile > summary::before, .mobile-viewer .mobile-account-tile > summary::after { display: none; }
 .mobile-viewer .mobile-account-tile > summary > span { float: none; max-width: none; }
-.mobile-account-summary .mobile-account-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: var(--mobile-tint); color: var(--text); }
+.mobile-viewer .mobile-account-summary .mobile-account-icon { display: grid; place-items: center; max-width: none; width: 36px; height: 36px; border-radius: 11px; background: var(--mobile-tint); color: var(--text); }
 .mobile-account-icon[data-kind="savings"] { background: color-mix(in srgb, var(--positive) 18%, var(--surface)); }
 .mobile-account-icon:is([data-kind="credit"], [data-kind="loan"]) { background: color-mix(in srgb, var(--cat-2, var(--accent)) 21%, var(--surface)); }
 .mobile-account-icon[data-kind="investment"] { background: color-mix(in srgb, var(--cat-4, var(--accent)) 20%, var(--surface)); }
@@ -173,7 +173,7 @@ body:has(.mobile-viewer) {
 .mobile-viewer fieldset { border: 1px solid var(--border); border-radius: 10px; margin: 15px 0; padding: 12px; }
 .mobile-nav {
   position: fixed; bottom: max(6px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(calc(100% - 12px), 526px);
-  display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+  display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); background: linear-gradient(var(--surface), var(--surface)), var(--bg); border: 1px solid var(--border); border-radius: 18px;
   padding: 4px; box-shadow: 0 10px 30px color-mix(in srgb, #081d31 21%, transparent); z-index: 10;
 }
 .mobile-viewer .mobile-nav button { background: transparent; border: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; font-size: 10px; color: var(--text); }
