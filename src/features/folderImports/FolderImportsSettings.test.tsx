@@ -62,6 +62,8 @@ describe("FolderImportsSettings", () => {
     await act(async () => option.click());
   };
   const button = (selector: string) => document.querySelector<HTMLButtonElement>(selector)!;
+  /** Opens a saved name's row (its fields are hidden until then). */
+  const openRow = async (id: number) => act(async () => button(`[data-folder-toggle='${id}']`).click());
 
   it("starts off, and can't be turned on until a folder and an export name exist", async () => {
     await render({ enabled: false, folder: null, folder_missing: false, mappings: [], pending: [] });
@@ -100,8 +102,10 @@ describe("FolderImportsSettings", () => {
       mappings: [{ id: 7, account_id: 9, account_name: null, account_usable: false, stem: "Bank", extensions: ["csv"], invert_amounts: false, initial_cutoff: "2026-11-01", watermark: "2026-11-18" }],
       pending: [],
     });
-    expect(document.body.textContent).toContain("deleted or hidden");
+    // The problem shows on the collapsed line, before the row is opened.
+    expect(document.querySelector("[data-folder-mapping='7']")!.textContent).toContain("deleted or hidden");
     expect(document.body.textContent).toContain("can't be found right now");
+    await openRow(7);
     expect(document.body.textContent).toContain("The newest export imported so far");
   });
 
@@ -134,10 +138,12 @@ describe("FolderImportsSettings", () => {
       pending: [],
     });
     // A menu's label also reads out its choice ("<name>: <choice>").
-    const labels = [...document.querySelectorAll("[aria-label]")].map((e) => e.getAttribute("aria-label")!.split(":")[0]);
-    expect(labels).toContain("Account for Bank Max Checking exports");
-    expect(labels).toContain("Account for Card exports");
-    expect(labels).toContain("How amounts read in Card exports");
+    const labelsNow = () => [...document.querySelectorAll("[aria-label]")].map((e) => e.getAttribute("aria-label")!.split(":")[0]);
+    await openRow(7);
+    expect(labelsNow()).toContain("Account for Bank Max Checking exports");
+    await openRow(8);
+    expect(labelsNow()).toContain("Account for Card exports");
+    expect(labelsNow()).toContain("How amounts read in Card exports");
     const legends = [...document.querySelectorAll("[data-folder-mapping='8'] fieldset legend")].map((l) => l.textContent);
     expect(legends).toEqual(["File types", "Which exports"]);
     expect(document.querySelector("[data-folder-mapping='8'] [role='alert']")!.className).toContain("import-review-notice");
@@ -183,16 +189,20 @@ describe("FolderImportsSettings", () => {
 
   it("keeps unsaved names and edits when something else in the card is saved", async () => {
     await render({ enabled: false, folder: "D:/Exports", folder_missing: false, mappings: [saved(5, "Card"), saved(6, "Savings")], pending: [] });
+    await openRow(5);
     await typeInto(document.querySelector<HTMLInputElement>("[data-folder-mapping='5'] [data-folder-stem]")!, "Card edited");
     await act(async () => button("[data-folder-add-mapping]").click());
     await typeInto(document.querySelector<HTMLInputElement>("[data-folder-mapping='new'] [data-folder-stem]")!, "Half typed");
+    await openRow(6);
     await act(async () => button("[data-folder-mapping='6'] [data-folder-save-mapping]").click());
+    await openRow(5);
     expect(document.querySelector<HTMLInputElement>("[data-folder-mapping='5'] [data-folder-stem]")!.value).toBe("Card edited");
     expect(document.querySelector<HTMLInputElement>("[data-folder-mapping='new'] [data-folder-stem]")!.value).toBe("Half typed");
   });
 
   it("asks before removing an export name or stopping using the folder", async () => {
     const { call } = await render({ enabled: true, folder: "D:/Exports", folder_missing: false, mappings: [saved(5, "Card")], pending: [] });
+    await openRow(5);
     await act(async () => button("[data-folder-remove-mapping='5']").click());
     expect(call).not.toHaveBeenCalledWith("delete_folder_import_mapping", expect.anything());
     await act(async () => button("[data-folder-confirm-remove-mapping='5']").click());
@@ -205,6 +215,7 @@ describe("FolderImportsSettings", () => {
 
   it("can start an export name over from its start date", async () => {
     const { call } = await render({ enabled: true, folder: "D:/Exports", folder_missing: false, mappings: [saved(5, "Card", "2099-01-01")], pending: [] });
+    await openRow(5);
     expect(document.body.textContent).toContain("The newest export imported so far");
     await act(async () => button("[data-folder-clear-watermark='5']").click());
     expect(call).toHaveBeenCalledWith("clear_folder_import_watermark", { id: 5 });
@@ -227,9 +238,64 @@ describe("FolderImportsSettings", () => {
     expect(document.body.textContent).toContain("Watching D:\\Exports.");
   });
 
+  it("shows each saved name as one summary line and opens its fields on request", async () => {
+    await render({
+      enabled: true,
+      folder: "D:/Exports",
+      folder_missing: false,
+      mappings: [{ ...saved(5, "Card"), invert_amounts: true, extensions: ["csv", "xlsx"], initial_cutoff: "2026-11-19" }],
+      pending: [],
+    });
+    const row = document.querySelector("[data-folder-mapping='5']")!;
+    for (const part of ["Card", "Max Checking", "Flipped signs", "CSV, Excel", "From Nov 19, 2026"]) expect(row.textContent).toContain(part);
+    expect(row.querySelector("[data-folder-stem]")).toBeNull();
+    expect(button("[data-folder-toggle='5']").getAttribute("aria-expanded")).toBe("false");
+    await openRow(5);
+    expect(button("[data-folder-toggle='5']").getAttribute("aria-expanded")).toBe("true");
+    expect(row.querySelector("[data-folder-stem]")).not.toBeNull();
+  });
+
+  it("keeps one saved name open at a time", async () => {
+    await render({ enabled: true, folder: "D:/Exports", folder_missing: false, mappings: [saved(5, "Card"), saved(6, "Savings")], pending: [] });
+    await openRow(5);
+    await openRow(6);
+    expect(document.querySelector("[data-folder-mapping='5'] [data-folder-stem]")).toBeNull();
+    expect(document.querySelector("[data-folder-mapping='6'] [data-folder-stem]")).not.toBeNull();
+  });
+
+  it("says unsaved edits on the collapsed line and keeps them", async () => {
+    await render({ enabled: true, folder: "D:/Exports", folder_missing: false, mappings: [saved(5, "Card"), saved(6, "Savings")], pending: [] });
+    await openRow(5);
+    await typeInto(document.querySelector<HTMLInputElement>("[data-folder-mapping='5'] [data-folder-stem]")!, "Card edited");
+    await openRow(6);
+    expect(document.querySelector("[data-folder-mapping='5']")!.textContent).toContain("Unsaved changes");
+    expect(document.querySelector("[data-folder-mapping='5']")!.textContent).toContain("Card edited");
+    await openRow(5);
+    expect(document.querySelector<HTMLInputElement>("[data-folder-mapping='5'] [data-folder-stem]")!.value).toBe("Card edited");
+  });
+
+  it("closes a name after it is saved, and leaves a new name open until then", async () => {
+    await render({ enabled: true, folder: "D:/Exports", folder_missing: false, mappings: [saved(5, "Card")], pending: [] });
+    await openRow(5);
+    await act(async () => button("[data-folder-mapping='5'] [data-folder-save-mapping]").click());
+    expect(document.querySelector("[data-folder-mapping='5'] [data-folder-stem]")).toBeNull();
+    await act(async () => button("[data-folder-add-mapping]").click());
+    expect(document.querySelector("[data-folder-mapping='new'] [data-folder-stem]")).not.toBeNull();
+    expect(document.querySelector("[data-folder-toggle='new']")).toBeNull();
+  });
+
+  it("explains the Amounts choice once, not on every name", async () => {
+    await render({ enabled: true, folder: "D:/Exports", folder_missing: false, mappings: [saved(5, "Card"), saved(6, "Savings")], pending: [] });
+    await openRow(5);
+    await act(async () => button("[data-folder-add-mapping]").click());
+    const text = document.querySelector("[data-folder-imports-settings]")!.textContent!;
+    expect(text.split("Most checking and savings exports").length - 1).toBe(1);
+  });
+
   it("explains export names with examples, the amounts choice and the week-back start, and confirms removals in red", async () => {
     await render({ enabled: true, folder: "D:/Exports", folder_missing: false, mappings: [saved(5, "Card")], pending: [] });
-    const examples = [...document.querySelectorAll(".folder-settings-examples li code")].map((c) => c.textContent);
+    await openRow(5);
+    const examples =[...document.querySelectorAll(".folder-settings-examples li code")].map((c) => c.textContent);
     expect(examples).toEqual([
       "Bank Max Checking_2026-11-18.csv",
       "Bank Max Checking_2026-11-11_to_2026-11-18.csv",
@@ -253,12 +319,14 @@ describe("FolderImportsSettings", () => {
 
   it("gives Which exports its own full-width row", async () => {
     await render({ enabled: true, folder: "D:/Exports", folder_missing: false, mappings: [saved(5, "Card")], pending: [] });
-    const fieldsets = [...document.querySelectorAll("[data-folder-mapping='5'] fieldset")];
+    await openRow(5);
+    const fieldsets =[...document.querySelectorAll("[data-folder-mapping='5'] fieldset")];
     expect(fieldsets.find((f) => f.querySelector("legend")!.textContent === "Which exports")!.classList.contains("folder-settings-which")).toBe(true);
   });
 
   it("explains the newest imported export in plain words and offers to pick older exports up again", async () => {
     const { call } = await render({ enabled: true, folder: "D:/Exports", folder_missing: false, mappings: [saved(5, "Card", "2099-01-01")], pending: [] });
+    await openRow(5);
     expect(document.body.textContent).toContain("The newest export imported so far is dated Jan 1, 2099. Older exports are skipped so files you've been through aren't picked up again.");
     expect(button("[data-folder-clear-watermark='5']").textContent).toBe("Pick up older exports again");
     await act(async () => button("[data-folder-clear-watermark='5']").click());

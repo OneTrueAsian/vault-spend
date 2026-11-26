@@ -129,6 +129,96 @@ describe("FolderActivityDialog", () => {
     expect(future).not.toContain("Name not recognised");
   });
 
+  const entry = (id: number, file: string, outcome: string, canReview = false): FolderActivity => ({
+    id,
+    at: "2026-11-22T10:00:00",
+    file_name: file,
+    account_name: "Max Checking",
+    outcome,
+    reason: outcome === "older" ? "Older export — not queued (dated before Nov 19, 2026)" : "Imported 3 transactions",
+    batch_id: null,
+    can_review_again: canReview,
+    copy_cleared: false,
+  });
+  const withStem = (s: FolderImportsState) => {
+    s.data = {
+      ...s.data!,
+      mappings: [{ id: 1, account_id: 2, account_name: "Max Checking", account_usable: true, stem: "Bank Max Checking", extensions: ["csv"], invert_amounts: false, initial_cutoff: null, watermark: null }],
+    };
+    return s;
+  };
+
+  it("leads a waiting export with its account and dates, with the file name underneath", () => {
+    render(state(vi.fn()));
+    const row = document.querySelector("[data-folder-pending='5']")!;
+    expect(row.querySelector(".folder-activity-file")!.textContent).toBe("Max Checking · Nov 11 to Nov 18");
+    expect(row.textContent).toContain("Bank Max Checking_2026-11-18.csv");
+    expect(row.textContent).toContain("saved copy kept");
+  });
+
+  it("leads a recent file with its account and the rest of the name when an export name matches", () => {
+    const s = withStem(state(vi.fn()));
+    s.activity = [entry(90, "Bank Max Checking_2026-10-01.csv", "imported"), entry(89, "Other bank 2026-10-01.csv", "imported")];
+    render(s);
+    const rows = [...document.querySelectorAll("[data-folder-activity-entry]")];
+    expect(rows[0].querySelector(".folder-activity-file")!.textContent).toBe("Max Checking · 2026-10-01.csv");
+    expect(rows[0].querySelector(".folder-activity-file")!.getAttribute("title")).toBe("Bank Max Checking_2026-10-01.csv");
+    expect(rows[1].querySelector(".folder-activity-file")!.textContent).toBe("Other bank 2026-10-01.csv");
+  });
+
+  it("collapses three or more handled files in a row into one line that can be shown", async () => {
+    const s = state(vi.fn());
+    s.activity = [90, 89, 88, 87, 86].map((id) => entry(id, `Bank_${id}.csv`, "older", true));
+    render(s);
+    expect(document.querySelectorAll("[data-folder-activity-entry='older']").length).toBe(0);
+    const group = document.querySelector("[data-folder-handled-group]")!;
+    expect(group.textContent).toContain("5 files already dealt with");
+    const toggle = group.querySelector<HTMLButtonElement>("[data-folder-handled-toggle]")!;
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    await act(async () => toggle.click());
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(document.querySelectorAll("[data-folder-activity-entry='older']").length).toBe(5);
+    expect(q("[data-folder-review-again='90']")).not.toBeNull();
+  });
+
+  it("leaves one or two handled files as ordinary rows", () => {
+    const s = state(vi.fn());
+    s.activity = [entry(90, "A.csv", "older", true), entry(89, "B.csv", "older", true)];
+    render(s);
+    expect(document.querySelector("[data-folder-handled-group]")).toBeNull();
+    expect(document.querySelectorAll("[data-folder-activity-entry='older']").length).toBe(2);
+  });
+
+  it("folds dismissed, imported and queued history into one line with a tally, but keeps problems visible", () => {
+    const s = state(vi.fn());
+    s.activity = [
+      entry(95, "A.csv", "dismissed", true),
+      entry(94, "B.csv", "dismissed", true),
+      entry(93, "C.csv", "imported"),
+      entry(92, "D.csv", "queued"),
+      entry(91, "E.csv", "unreadable"),
+      entry(90, "F.csv", "dismissed", true),
+    ];
+    render(s);
+    expect(document.querySelector("[data-folder-handled-group]")!.textContent).toContain("4 files already dealt with");
+    expect(document.querySelector("[data-folder-handled-group]")!.textContent).toContain("2 dismissed · 1 imported · 1 queued");
+    // The problem and the single entry after it are ordinary rows.
+    expect(document.querySelector("[data-folder-activity-entry='unreadable']")).not.toBeNull();
+    expect(document.querySelector("[data-folder-activity-entry='dismissed']")).not.toBeNull();
+    expect(document.querySelectorAll("[data-folder-activity-entry]").length).toBe(2);
+  });
+
+  it("shows the newest 10 rows and the rest on request", async () => {
+    const s = state(vi.fn());
+    s.activity = Array.from({ length: 14 }, (_, i) => entry(100 - i, `File ${i}.csv`, "unreadable"));
+    render(s);
+    expect(document.querySelectorAll("[data-folder-activity-entry]").length).toBe(10);
+    expect(document.querySelector("[data-folder-activity]")!.textContent).toContain("Showing the newest 10 of 14 recent entries");
+    await act(async () => q("[data-folder-show-more]")!.click());
+    expect(document.querySelectorAll("[data-folder-activity-entry]").length).toBe(14);
+    expect(q("[data-folder-show-more]")).toBeNull();
+  });
+
   it("explains which files are picked up when nothing has been looked at yet", () => {
     const s = state(vi.fn());
     s.activity = [];
@@ -147,6 +237,9 @@ describe("FolderActivityDialog", () => {
       { id: 69, at: "2026-11-22T09:00:00", file_name: "B.csv", account_name: "Max Checking", outcome: "older", reason: "Older export", batch_id: null, can_review_again: true, copy_cleared: false },
     ];
     render(s);
+    // Four handled files in a row are one line until shown.
+    expect(document.querySelectorAll("[data-folder-activity-entry]").length).toBe(0);
+    act(() => q("[data-folder-handled-toggle]")!.click());
     expect(document.querySelectorAll("[data-folder-activity-entry]").length).toBe(4);
     expect(q("[data-folder-review-again='72']")).not.toBeNull();
     expect(q("[data-folder-review-again='71']")).toBeNull();

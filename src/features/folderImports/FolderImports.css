@@ -50,6 +50,13 @@
   overflow-wrap: anywhere;
 }
 
+/* The file name under a waiting export's lead: one line, cut with an ellipsis (its full name is in the title). */
+.folder-activity-filename {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .folder-activity-actions {
   display: flex;
   gap: 8px;
@@ -91,6 +98,49 @@
   margin: 0 0 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
+}
+
+/* A saved name collapsed to one line: name, account, a few facts and any badges. */
+.folder-settings-summary {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* The shared button hover would fill the whole line with the accent colour and hide the muted facts. */
+.folder-settings-summary:hover {
+  background: var(--surface-hover);
+}
+
+.folder-settings-facts {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.folder-settings-badge {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-soft-text);
+  font-size: 12px;
+}
+
+.folder-settings-badge-warn {
+  background: transparent;
+  border: 1px solid var(--negative);
+  color: var(--negative);
 }
 
 .folder-settings-field {

@@ -8,7 +8,7 @@ import { MenuSelect } from "../../shared/ui/MenuSelect";
 import { DateField } from "../../shared/ui/DateField";
 import { CopyablePath } from "../../shared/ui/CopyablePath";
 import { errorMessage } from "../../shared/lib/errorMessage";
-import { formatDisplayDate } from "../../shared/lib/format";
+import { formatDisplayDate, formatFullDate } from "../../shared/lib/format";
 import { pickableAccounts } from "../../shared/lib/hiddenAccounts";
 import type { Account } from "../../shared/lib/types";
 import { folderImportsClient, type FolderImports, type FolderMapping, type FolderMatch } from "./folderImportsApi";
@@ -89,6 +89,8 @@ export function FolderImportsSettings({
   const [working, setWorking] = useState(false);
   // Which removal is waiting for "Yes": "stop" for the folder, or a draft's key.
   const [confirming, setConfirming] = useState<string | null>(null);
+  // Which saved name's fields are showing: the others are one summary line each. A new name is always open.
+  const [openKey, setOpenKey] = useState<string | null>(null);
 
   /** Reads the settings again. Names being edited or not saved yet are kept, except `justSaved`. */
   const load = useCallback(
@@ -149,6 +151,7 @@ export function FolderImportsSettings({
         invert_amounts: d.invert,
         initial_cutoff: d.includeExisting ? null : d.cutoff,
       });
+      setOpenKey(null);
       return "Saved. Exports with this name go to the account you chose.";
     }, d.key);
   }
@@ -250,11 +253,37 @@ export function FolderImportsSettings({
       <p className="modal-message-secondary">
         The date in the name only says how new the export is; each transaction keeps its own date.
       </p>
+      <p className="modal-message-secondary">
+        Most checking and savings exports show money you spend with a minus sign. Many credit card exports don't. Choose “flip the signs” for those.
+      </p>
       {drafts.map((d) => {
         const saved = d.id !== null ? data?.mappings.find((m) => m.id === d.id) : undefined;
         const which = d.stem.trim() ? `${d.stem.trim()} exports` : "these exports";
+        const open = d.id === null || openKey === d.key;
+        const accountName = accounts.find((a) => String(a.id) === d.accountId)?.name ?? saved?.account_name ?? null;
+        const types = d.csv && d.xlsx ? "CSV, Excel" : d.csv ? "CSV" : d.xlsx ? "Excel workbook" : "No file types";
+        const facts = [...(d.invert ? ["Flipped signs"] : []), types, d.includeExisting ? "All exports" : `From ${formatFullDate(d.cutoff)}`];
+        const accountGone = !!saved && !saved.account_usable;
         return (
           <div key={d.key} className="folder-settings-mapping" data-folder-mapping={d.id ?? "new"}>
+            {d.id !== null && (
+              <button
+                type="button"
+                className="folder-settings-summary"
+                aria-expanded={open}
+                onClick={() => setOpenKey(open ? null : d.key)}
+                data-folder-toggle={d.id}
+              >
+                <span aria-hidden="true">{open ? "▾" : "▸"}</span>
+                <strong>{d.stem.trim() || "Unnamed export"}</strong>
+                <span>→ {accountName ?? "No account chosen"}</span>
+                <span className="folder-settings-facts">{facts.join(" · ")}</span>
+                {d.dirty && <span className="folder-settings-badge">Unsaved changes</span>}
+                {accountGone && <span className="folder-settings-badge folder-settings-badge-warn">Account deleted or hidden</span>}
+              </button>
+            )}
+            {open && (
+              <>
             <label className="folder-settings-field folder-settings-stem">
               <span>File name starts with</span>
               <input type="text" value={d.stem} onChange={(e) => update(d.key, { stem: e.target.value })} disabled={working} data-folder-stem />
@@ -284,9 +313,6 @@ export function FolderImportsSettings({
                 disabled={working}
                 fill
               />
-              <span className="modal-message-secondary">
-                Most checking and savings exports show money you spend with a minus sign. Many credit card exports don't. Choose “flip the signs” for those.
-              </span>
             </div>
             <fieldset className="folder-settings-field">
               <legend>File types</legend>
@@ -354,6 +380,8 @@ export function FolderImportsSettings({
                 </button>
               )}
             </div>
+              </>
+            )}
           </div>
         );
       })}

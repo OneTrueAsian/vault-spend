@@ -154,7 +154,8 @@ try {
   await click("[data-folder-activity-open]");
   await waitForDialog("Folder activity", "Folder activity should open from the toolbar");
   const activity = await text("[data-folder-activity-list]");
-  assert.ok(activity.includes(olderName) && activity.includes("Older export — not queued"), `the older export is explained: ${activity}`);
+  // The row leads with the account and the rest of the name after the export name (the full name is its title).
+  assert.ok(activity.includes(`${iso(30)}.csv`) && activity.includes("Older export — not queued"), `the older export is explained: ${activity}`);
   assert.ok(!activity.includes("holiday notes"), "other files are ignored");
   await shot("03-activity");
 
@@ -207,6 +208,8 @@ try {
   });
   const olderEntry = (await invoke("list_folder_import_activity")).find((e) => e.file_name === olderName && e.outcome === "older");
   assert.ok(olderEntry?.can_review_again, "an older export can be reviewed again on purpose");
+  // Several handled files in a row are one line until shown: open any such line first.
+  await browser.execute(() => document.querySelectorAll("[data-folder-handled-toggle][aria-expanded='false']").forEach((b) => b.click()));
   await click(`[data-folder-review-again='${olderEntry.id}']`);
   await waitForDialog("Import 1 transaction into Max Checking", "Review again should open the older file's review in one click");
   assert.ok((await text("[data-folder-import-note]")).includes(olderName), "it is that file's review");
