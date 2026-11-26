@@ -15,6 +15,7 @@ import { createRequire } from "node:module";
 import { dismissStatusMessages, launchApp } from "./harness.mjs";
 import { seedDemoDatabase } from "./lib/demo-seed.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
+import { waitForAnimationsToSettle } from "./lib/axeSession.mjs";
 
 const AXE = fs.readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
 const LOOKS = [
@@ -62,6 +63,7 @@ try {
           await browser.pause(150); // Check the real hover state after its background transition.
         }
       }
+      await waitForAnimationsToSettle(browser); // axe must not sample a mid-fade colour (VS-134)
       const nodes = await browser.executeAsync(
         (rules, done) =>
           window.axe.run(document, { runOnly: rules }).then((r) =>

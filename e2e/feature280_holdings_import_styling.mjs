@@ -6,18 +6,15 @@ import { createRequire } from "node:module";
 import { launchApp, reclaimWindowFocus } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
-import { describeAxeViolations } from "./lib/axeSession.mjs";
+import { describeAxeViolations, waitForAnimationsToSettle } from "./lib/axeSession.mjs";
 const output = process.env.VS_HOLDING_SHOTS || makeTempDir("holding-import-shots-");
 fs.mkdirSync(output, { recursive: true });
 const dbDir = await seedFixture(`cur.execute("INSERT INTO accounts (name,account_type,starting_balance) VALUES ('Retirement','investment','1000')")`);
 const app = await launchApp({ dbDir });
 const b = app.browser;
 async function click(text) { await (await (await b.$("[role='dialog']")).$(`button=${text}`)).click(); }
-// Axe samples colours as they are painted, so wait for finite animations and colour transitions to finish first; otherwise a
-// check right after the dialog opens can catch a mid-fade colour (VS-125: #17283c on #7f8ea1 = 4.47, needs 4.5).
-const settled = () => b.executeAsync(done => document.fonts.ready.then(() => Promise.all(document.getAnimations().filter(a => a.effect?.getComputedTiming().iterations !== Infinity).map(a => a.finished.catch(() => {})))).then(() => requestAnimationFrame(() => done(true))));
 async function axe() {
-  await settled();
+  await waitForAnimationsToSettle(b);
   const violations = await b.executeAsync(done => window.axe.run(document.querySelector('[role="dialog"]'), { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] } }).then(r => done(r.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => ({ target: n.target, html: n.html, any: n.any.map(c => ({ data: c.data, relatedNodes: (c.relatedNodes || []).map(r => ({ target: r.target, html: r.html })) })) })) })))));
   assert.deepEqual(describeAxeViolations(violations), []);
 }
@@ -46,7 +43,7 @@ try {
   const original = await b.execute(() => ({ palette: document.documentElement.dataset.palette, theme: document.documentElement.dataset.theme }));
   for (const palette of ["transparent", "futuristic", "retro"]) for (const theme of ["light", "dark"]) {
     await b.execute((palette, theme) => { document.documentElement.dataset.palette = palette; document.documentElement.dataset.theme = theme; }, palette, theme);
-    await settled();
+    await waitForAnimationsToSettle(b);
     console.log("Checking", palette, theme);
     await geometry(); await b.saveScreenshot(path.join(output, `review-${palette}-${theme}.png`)); await axe();
   }

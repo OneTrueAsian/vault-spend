@@ -1,6 +1,6 @@
 import vm from "node:vm";
 import { describe, expect, it } from "vitest";
-import { describeAxeViolations, ensureAxe } from "./axeSession.mjs";
+import { describeAxeViolations, ensureAxe, waitForAnimationsToSettle } from "./axeSession.mjs";
 
 const version = "fixture-axe-1";
 const source = `window.axe = { version: ${JSON.stringify(version)}, run() { return Promise.resolve({ violations: [] }); } };`;
@@ -88,5 +88,28 @@ describe("Axe failure details", () => {
   it("still names a violation that carries no contrast data", () => {
     const [line] = describeAxeViolations([{ id: "label", nodes: [{ target: ["#a"], html: "<input>" }] }]);
     expect(line).toContain("label"); expect(line).toContain("#a"); expect(line).toContain("<input>");
+  });
+});
+
+describe("waitForAnimationsToSettle, so axe never samples a colour mid-fade (VS-125, VS-134)", () => {
+  const animation = (iterations, finished) => ({ effect: { getComputedTiming: () => ({ iterations }) }, finished });
+  // Runs the in-browser callback in a realm whose document reports the given animations.
+  const browserWith = animations => ({ executeAsync: script => new Promise(resolve => {
+    const realm = vm.createContext({ document: { fonts: { ready: Promise.resolve() }, getAnimations: () => animations }, requestAnimationFrame: cb => setTimeout(cb, 0), setTimeout });
+    realm.window = realm; realm.resolve = resolve;
+    vm.runInContext(`(${script.toString()})(resolve)`, realm);
+  }) });
+  const tick = () => new Promise(resolve => setTimeout(resolve, 20));
+  it("does not return until every finite animation or transition has finished", async () => {
+    let finish; const running = animation(1, new Promise(resolve => { finish = resolve; }));
+    let settled = false; const wait = waitForAnimationsToSettle(browserWith([running])).then(value => { settled = value; });
+    await tick(); expect(settled).toBe(false);
+    finish(); await wait; expect(settled).toBe(true);
+  });
+  it("does not wait for infinite animations such as progress spinners", async () => {
+    await expect(waitForAnimationsToSettle(browserWith([animation(Infinity, new Promise(() => {}))]))).resolves.toBe(true);
+  });
+  it("carries on when an animation is cancelled instead of finishing", async () => {
+    await expect(waitForAnimationsToSettle(browserWith([animation(1, Promise.reject(new Error("cancelled")))]))).resolves.toBe(true);
   });
 });

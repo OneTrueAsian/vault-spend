@@ -6,6 +6,7 @@ import { seedFixture } from "./lib/seed.mjs";
 import { invoke } from "./lib/change-password.mjs";
 import { enableProtectionThroughUI, PROTECTION_FINISH_MS } from "./lib/protection.mjs";
 import { askPreparedQuestion } from "./lib/askPreparedQuestion.mjs";
+import { waitForAnimationsToSettle } from "./lib/axeSession.mjs";
 
 // M5 acceptance in the compiled app: the Ask card takes a question about extra money into one investment account through
 // choices, a review of the saved plan, a re-read bound to the reviewed revision, and a result. It must retire itself on an
@@ -152,6 +153,7 @@ try {
         // Let colour transitions finish (a button appearing under a resting pointer is mid-hover for a moment) before measuring contrast.
         await (await b.$("body")).moveTo({ xOffset: 2, yOffset: 2 }); await b.pause(600);
         await b.execute(AXE);
+        await waitForAnimationsToSettle(b); // axe must not sample a mid-fade colour (VS-134)
         const nodes = await b.executeAsync((done) => window.axe.run({ include: [['[role="dialog"]']] }, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] } })
           .then(r => done(r.violations.flatMap(v => v.nodes.map(n => `${v.id}: ${n.target.join(" ")} — ${n.any[0]?.data?.fgColor ?? ""} on ${n.any[0]?.data?.bgColor ?? ""} at ${n.any[0]?.data?.contrastRatio ?? ""}`))))
           .catch(e => done([`axe failed: ${String(e)}`])));

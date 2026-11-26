@@ -6,6 +6,7 @@ import { chooseStyle, launchApp } from "../harness.mjs";
 import { askHelpers } from "./askRetirement.mjs";
 import { LONG_CATEGORY, assertLayoutState, seedLayoutProfile } from "./askLayoutChecks.mjs";
 import { dateInMonth } from "./dates.mjs";
+import { waitForAnimationsToSettle } from "./axeSession.mjs";
 
 // M6 Task 7 (owner direction D-7; UI-03, UI-05, UI-06; Open-Items G-3): the affected Ask the Vault cells in every visual style, light and dark, at 720, 960 and 1280 px.
 // Cells: the ordinary card's error and stale states (banner on the card, and the stale screen its link opens), the M3 review with a long unspaced category,
@@ -61,6 +62,7 @@ export async function runAskWindow(only = {}) {
     assertLayoutState(state, await readState());
     await (await b.$("body")).moveTo({ xOffset: 2, yOffset: 2 }); await b.pause(250);
     await b.execute(AXE);
+    await waitForAnimationsToSettle(b); // axe must not sample a mid-fade colour (VS-134)
     const nodes = await b.executeAsync((selector, done) => window.axe.run({ include: [[selector]] }, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] } })
       .then(r => done(r.violations.flatMap(v => v.nodes.map(n => `${v.id}: ${n.target.join(" ")} ${n.any[0]?.data?.fgColor ?? ""} on ${n.any[0]?.data?.bgColor ?? ""} at ${n.any[0]?.data?.contrastRatio ?? ""}`)))).catch(e => done([`axe failed: ${String(e)}`])), root);
     for (const n of nodes) failures.push(`${label}: ${n}`);

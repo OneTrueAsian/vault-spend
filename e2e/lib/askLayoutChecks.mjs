@@ -5,6 +5,7 @@ import { launchApp } from "../harness.mjs";
 import { askHelpers } from "./askRetirement.mjs";
 import { seedFixture } from "./seed.mjs";
 import { dateInMonth } from "./dates.mjs";
+import { waitForAnimationsToSettle } from "./axeSession.mjs";
 
 // M6 (D-S4-03, UC-03, UC-04, UC-07): narrow-layout and long-name checks for the ordinary Ask the Vault card (M1/M2), and the M3 and M4 states that no other
 // compiled check reaches. One profile, two narrow widths. Per state: no horizontal page overflow, nothing outside its container, Axe (WCAG 2 A/AA, 2.1 AA) on
@@ -93,6 +94,7 @@ export async function runAskLayoutChecks({ month, sections = ["ordinary", "m3", 
     assertLayoutState(state, await readState());
     await (await b.$("body")).moveTo({ xOffset: 2, yOffset: 2 }); await b.pause(250);
     await b.execute(AXE);
+    await waitForAnimationsToSettle(b); // axe must not sample a mid-fade colour (VS-134)
     const nodes = await b.executeAsync((selector, done) => window.axe.run({ include: [[selector]] }, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] } })
       .then(r => done(r.violations.flatMap(v => v.nodes.map(n => `${v.id}: ${n.target.join(" ")} ${n.any[0]?.data?.contrastRatio ?? ""}`)))).catch(e => done([`axe failed: ${String(e)}`])), root);
     for (const n of nodes) failures.push(`${label}: ${n}`);

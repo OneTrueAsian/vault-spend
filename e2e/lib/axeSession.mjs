@@ -49,6 +49,13 @@ export function describeAxeViolations(violations) {
   }));
 }
 
+/** Axe samples colours as they are painted, so call this first: it waits for fonts and for every finite animation and colour transition
+ * to finish. Without it a check can catch a mid-fade colour (VS-125: #17283c on #7f8ea1 = 4.47, needs 4.5). Infinite animations such as
+ * progress spinners are not waited for, and a cancelled animation does not block. Needs no dialog, so it also suits whole-page checks. */
+export function waitForAnimationsToSettle(browser) {
+  return browser.executeAsync(done => document.fonts.ready.then(() => Promise.all(document.getAnimations().filter(a => a.effect?.getComputedTiming().iterations !== Infinity).map(a => a.finished.catch(() => {})))).then(() => requestAnimationFrame(() => done(true))));
+}
+
 /** Same maximum settle allowance as the old matrix sleep. Observe the real animation timeline and stable layout.
  * Intentional infinite progress spinners are not transitions to a stable state; the old snapshot also inspected them in motion. */
 export async function waitForVisualStability(browser) {
