@@ -48,7 +48,7 @@ test("no step can run past a failure, and nothing in the workflow can publish, u
   for (const job of Object.values(workflow.jobs)) for (const step of job.steps) {
     assert.equal(step["continue-on-error"], undefined, step.name);
     // The one exception is evidence retention, which only uploads a build artifact and cannot touch a release.
-    if (step.name === "Retain dependency audit evidence") { assert.equal(step.uses, "actions/upload-artifact@v4"); continue; }
+    if (step.name === "Retain dependency audit evidence") { assert.match(step.uses, /^actions\/upload-artifact@/); continue; }
     assert.doesNotMatch(String(step.if ?? ""), /always\(\)|failure\(\)|cancelled\(\)/, `${step.name}: ${step.if}`);
   }
   assert.doesNotMatch(text, /releaseDraft:\s*false/);
@@ -72,7 +72,7 @@ test("tauri-action is pinned to the reviewed commit and given the existing relea
 test("the order inside the build job: tag, source, version, then the release check, all before anything is built or uploaded", () => {
   const at = Object.fromEntries(Object.entries(S).map(([key, name]) => [key, build.steps.findIndex(s => s.name === name)]));
   assert.equal(at.tag, 0, "the tag check is the first step");
-  const checkout = build.steps.findIndex(s => s.uses === "actions/checkout@v4");
+  const checkout = build.steps.findIndex(s => s.uses?.startsWith("actions/checkout@"));
   assert.ok(at.tag < checkout && checkout < at.source && at.source < at.preflight);
   const firstBuild = build.steps.findIndex(s => /npm ci|cargo install|audit-dependencies/.test(s.run ?? ""));
   assert.ok(at.preflight < firstBuild, "a missing Windows draft fails before the long macOS build starts");

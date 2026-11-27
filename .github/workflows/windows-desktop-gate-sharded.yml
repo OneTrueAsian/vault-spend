@@ -55,7 +55,7 @@ jobs:
         # Windows checkouts default to CRLF, and the Tauri CLI rewrites src-tauri/Cargo.toml to LF during the desktop test
         # build. The build-identity check then sees a changed input and refuses the executable.
         run: git config --global core.autocrlf false
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.source_sha }}
           persist-credentials: false
@@ -92,12 +92,12 @@ jobs:
           } elseif ($source -notmatch 'const CARGO_BIN = cargoBin\(\);') {
             throw 'Unrecognized harness driver setup; refusing an unverified repair'
           }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           shared-key: windows-release
           cache-on-failure: true
@@ -124,13 +124,13 @@ jobs:
           CARGO_PROFILE_DEV_OPT_LEVEL: 1
         # Refuses unless the executable is fresh by the same build-identity check the test jobs apply again.
         run: node tools/transfer-build.mjs stage transfer
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: desktop-test-app-${{ github.run_attempt }}
           path: transfer/
           if-no-files-found: error
           retention-days: 3
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: desktop-test-app-manifest-${{ github.run_attempt }}
           path: transfer/transfer-manifest.json
@@ -139,7 +139,7 @@ jobs:
       - name: Record the build check
         # Last steps of the job and deliberately without always(): they run only when everything above passed.
         run: node tools/write-check-records.mjs check-records desktop-build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: check-records-build-attempt-${{ github.run_attempt }}
           path: check-records/
@@ -156,7 +156,7 @@ jobs:
     steps:
       - name: Use LF line endings for checkout
         run: git config --global core.autocrlf false
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.source_sha }}
           persist-credentials: false
@@ -169,12 +169,12 @@ jobs:
       - name: Injected test fault - fail the Rust checks
         if: ${{ inputs.fault == 'rust-checks' }}
         run: throw 'Injected test fault - the Rust checks fail on purpose'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           shared-key: windows-release
           cache-on-failure: true
@@ -187,7 +187,7 @@ jobs:
       - name: Record the Rust check
         # Last steps of the job and deliberately without always(): they run only when everything above passed.
         run: node tools/write-check-records.mjs check-records rust-tests
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: check-records-checks-rust-attempt-${{ github.run_attempt }}
           path: check-records/
@@ -204,7 +204,7 @@ jobs:
     steps:
       - name: Use LF line endings for checkout
         run: git config --global core.autocrlf false
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.source_sha }}
           persist-credentials: false
@@ -231,12 +231,12 @@ jobs:
           } elseif ($source -notmatch 'const CARGO_BIN = cargoBin\(\);') {
             throw 'Unrecognized harness driver setup; refusing an unverified repair'
           }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           shared-key: windows-release
           save-if: false
@@ -257,7 +257,7 @@ jobs:
         run: node tools/audit-dependencies.mjs x86_64-pc-windows-msvc
       - name: Retain dependency audit evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dependency-audit-sharded-windows-${{ github.run_attempt }}
           path: dependency-audit/
@@ -272,7 +272,7 @@ jobs:
       - name: Record the contract tests check
         if: ${{ inputs.contract_tests != '' }}
         run: node tools/write-check-records.mjs check-records contract-tests
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: check-records-checks-other-attempt-${{ github.run_attempt }}
           path: check-records/
@@ -294,7 +294,7 @@ jobs:
     steps:
       - name: Use LF line endings for checkout
         run: git config --global core.autocrlf false
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.source_sha }}
           persist-credentials: false
@@ -321,20 +321,20 @@ jobs:
             throw 'Unrecognized harness driver setup; refusing an unverified repair'
           }
       # The same Node and Rust the build job built with, so the build key recomputed here matches without any relaxation.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ needs.build.outputs.node-version }}
           cache: npm
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
         with:
           toolchain: ${{ needs.build.outputs.rust-version }}
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           shared-key: windows-release
           save-if: false
       - name: Install dependencies
         run: npm ci
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
       - name: Install E2E browsers
@@ -408,7 +408,7 @@ jobs:
           "VS_EDGE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "VS_EDGE_DRIVER_VERSION=$reported" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "MSEDGEDRIVER=$driver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: desktop-test-app-${{ github.run_attempt }}
           path: transfer
@@ -470,7 +470,7 @@ jobs:
           New-Item -ItemType Directory -Force shard-evidence | Out-Null
           if (Test-Path target/e2e-last-run.json) { Copy-Item target/e2e-last-run.json shard-evidence/e2e-last-run.json }
           [ordered]@{ index = [int]$env:SHARD; total = 6; runAttempt = [int]$env:RUN_ATTEMPT; outcome = $env:GATE_OUTCOME; browsers = [ordered]@{ edge = $env:VS_EDGE_VERSION; edgeDriver = $env:VS_EDGE_DRIVER_VERSION; webView2 = $env:VS_WEBVIEW2_VERSION; webView2Driver = $env:VS_WEBVIEW2_DRIVER_VERSION } } | ConvertTo-Json -Depth 3 | Set-Content -Encoding utf8 shard-evidence/shard-meta.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: shard-evidence-${{ matrix.shard }}-attempt-${{ github.run_attempt }}
@@ -486,22 +486,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.source_sha }}
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: desktop-test-app-manifest-${{ github.run_attempt }}
           path: manifest
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: shard-evidence-*-attempt-${{ github.run_attempt }}
           path: evidence
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: check-records-*-attempt-${{ github.run_attempt }}
           path: checks
@@ -512,7 +512,7 @@ jobs:
           # What every job really ended with. A record can never turn a failed, cancelled or skipped job into a pass.
           NEEDS_JSON: ${{ toJSON(needs) }}
         run: node tools/aggregate-shard-results.mjs evidence manifest/transfer-manifest.json 6 "$RUN_ATTEMPT" gate-summary.json --checks checks --contracts "$CONTRACTS"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: sharded-gate-summary-${{ github.run_attempt }}
