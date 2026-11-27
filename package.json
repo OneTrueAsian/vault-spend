@@ -18,6 +18,7 @@
     "verify:fast": "node e2e/verify.mjs fast",
     "verify:full": "node e2e/verify.mjs full",
     "access": "node e2e/with-access.mjs",
+    "trim:build-cache": "node e2e/trim-build-cache.mjs",
     "demo": "node e2e/demo.mjs",
     "demo:household": "node e2e/household-demo.mjs",
     "demo:statements": "node e2e/statements-demo.mjs",

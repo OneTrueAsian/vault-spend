@@ -44,3 +44,15 @@ over the weeks (it reached 60 GB). Between sessions, not during a build or test 
 `.\tools\trim-incremental.ps1`: it clears the folder only when it is over 10 GB (`-LimitGB` changes the
 limit, `-WhatIf` shows what it would do) and refuses while cargo, rustc, tauri or the app is running.
 The next build recreates the cache.
+
+### Keeping the intermediates outside the checkout (optional)
+
+Cargo can keep its intermediate files (`deps`, `build`, `incremental`) in a separate folder while the finished programs stay in `target\debug`, where the build and test tools expect them. Set a short path in your own environment (not in a tracked file, so other checkouts and CI are unaffected):
+
+```
+setx CARGO_BUILD_BUILD_DIR E:\BuildCache\VaultSpend
+```
+
+Open a new terminal afterwards. The managed build records this setting, so changing it triggers a rebuild. The first build after setting it, and the first build after a clean-up, is slower because Cargo recreates everything. Keep the path short (see above).
+
+Clean it between sessions with `npm run trim:build-cache` (`-- --dry-run` shows what it would do). It takes the same exclusive access as builds, skips (exit 2) while one holds it, and only deletes inside a folder whose top level looks like Cargo's own. It removes incremental sessions unused for 14 days (`--max-age-days=`) and clears the whole cache when it passes 10 GB (`--limit-gb=`). It is not scheduled; run it by hand.

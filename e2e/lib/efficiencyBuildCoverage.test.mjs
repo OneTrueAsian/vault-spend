@@ -23,7 +23,7 @@ describe("F2: complete reviewed build-input roots", () => {
     const inputs = collect(); expect(inputs[".env.production.local"]).toMatch(/^[0-9a-f]{64}$/);
     expect(JSON.stringify(inputs)).not.toContain("private-value");
   });
-  it.each(["RUSTFLAGS", "CARGO_PROFILE_DEV_OPT_LEVEL", "VITE_FIXTURE_BUILD_SETTING", "TAURI_CONFIG", "CARGO_TARGET_DIR"])("includes %s without storing raw values", setting => {
+  it.each(["RUSTFLAGS", "CARGO_PROFILE_DEV_OPT_LEVEL", "VITE_FIXTURE_BUILD_SETTING", "TAURI_CONFIG", "CARGO_TARGET_DIR", "CARGO_BUILD_BUILD_DIR"])("includes %s without storing raw values", setting => {
     const before = collect({ [setting]: "first-sensitive-value" }), after = collect({ [setting]: "second-sensitive-value" });
     expect(key(after)).not.toBe(key(before)); expect(JSON.stringify(after)).not.toContain("second-sensitive-value");
   });
@@ -88,5 +88,11 @@ describe("F2: complete reviewed build-input roots", () => {
       expect(() => identity.assertBuildOutput({ repoRoot: repo, exePath: path.join(repo, "target/debug/vaultspend.exe"), environment })).toThrow(/target|output/i);
     expect(() => identity.assertBuildOutput({ repoRoot: repo, exePath: path.join(repo, "old-copy.exe"), environment: {} })).toThrow(/output/i);
     expect(() => identity.assertBuildOutput({ repoRoot: repo, exePath: path.join(repo, "target/debug/vaultspend.exe"), environment: {} })).not.toThrow();
+  });
+  it("allows an external intermediate build-dir because the finished executable stays under target/debug", () => {
+    const exePath = path.join(repo, "target/debug/vaultspend.exe");
+    expect(() => identity.assertBuildOutput({ repoRoot: repo, exePath, environment: { CARGO_BUILD_BUILD_DIR: "E:/BuildCache/VaultSpend" } })).not.toThrow();
+    write("src-tauri/.cargo/config.toml", '[build]\nbuild-dir="E:/BuildCache/VaultSpend"');
+    expect(() => identity.assertBuildOutput({ repoRoot: repo, exePath, environment: { CARGO_HOME: path.join(repo, "empty-home") } })).not.toThrow();
   });
 });
