@@ -88,8 +88,8 @@ try {
   assert.ok(reports.t.includes("The bigger picture") && reports.t.includes("Total spending") && reports.t.includes("$125.00"), "Reports show the month's spending: " + reports.t.slice(0, 300));
   console.log("REPORTS: " + reports.t.slice(0, 300).replace(/\n/g, " | "));
   const calc = await visit("Calculators");
-  assert.ok(calc.t.includes("Plan your next step") && calc.t.includes("They never change your desktop data."), calc.t.slice(0, 300));
-  const projection = () => browser.execute(() => [...document.querySelectorAll(".mobile-line")].find(el => el.textContent.includes("Projected balance"))?.textContent ?? "");
+  assert.ok(calc.t.includes("Plan your next step") && calc.t.includes("Scenarios stay on this screen"), calc.t.slice(0, 300));
+  const projection = () => browser.execute(() => [...document.querySelectorAll(".mobile-feature-amount, .mobile-line")].find(el => el.textContent.includes("Projected balance"))?.textContent ?? "");
   await browser.waitUntil(async () => (await projection()).includes("$13,000.00"), { timeout: 5000, timeoutMsg: "zero return: 1000 + 100 per month for 120 months = 13000" });
   await browser.$('//label[span[normalize-space()="Monthly contribution"]]/input').setValue("200");
   await browser.waitUntil(async () => (await projection()).includes("$25,000.00"), { timeout: 5000, timeoutMsg: "edited contribution changes output: 1000 + 200 x 120 = 25000" });
