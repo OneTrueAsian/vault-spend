@@ -95,11 +95,11 @@ test("the whole staging folder travels, so the gitignored mobile viewer build re
 });
 
 test("the shards use the Node and Rust the build used", () => {
-  const setup = gate.jobs.shard.steps.find(s => s.uses === "actions/setup-node@v4");
+  const setup = gate.jobs.shard.steps.find(s => s.uses?.startsWith("actions/setup-node@"));
   assert.equal(setup.with["node-version"], "${{ needs.build.outputs.node-version }}");
-  const rust = gate.jobs.shard.steps.find(s => s.uses === "dtolnay/rust-toolchain@master");
+  const rust = gate.jobs.shard.steps.find(s => s.uses?.startsWith("dtolnay/rust-toolchain@"));
   assert.equal(rust.with.toolchain, "${{ needs.build.outputs.rust-version }}");
-  assert.equal(gate.jobs.shard.steps.find(s => s.uses === "Swatinem/rust-cache@v2").with["save-if"], false);
+  assert.equal(gate.jobs.shard.steps.find(s => s.uses?.startsWith("Swatinem/rust-cache@")).with["save-if"], false);
 });
 
 test("the aggregate job joins all six shards of this attempt and always reports", () => {
@@ -151,7 +151,7 @@ test("each check job ends by recording exactly the checks it owns, with no statu
   const recorded = [];
   for (const id of ["build", "checks-rust", "checks-other"]) {
     const steps = gate.jobs[id].steps, last = steps.at(-1);
-    assert.match(last.uses, /^actions\/upload-artifact@v4/, id);
+    assert.match(last.uses, /^actions\/upload-artifact@/, id);
     assert.equal(last.with.name, `check-records-${id}-attempt-` + "${{ github.run_attempt }}", id);
     assert.equal(last.with.path, "check-records/"); assert.equal(last.with["if-no-files-found"], "error");
     assert.equal(last.if, undefined, `${id}: the upload runs only after a clean job`);
@@ -176,7 +176,7 @@ test("every check job confirms the exact commit; tag cache saves stay on where s
     assert.match(confirm.run, /git rev-parse HEAD/); assert.equal(confirm.env.SOURCE_SHA, "${{ inputs.source_sha }}");
     for (const s of gate.jobs[id].steps) if (s.uses?.startsWith("actions/checkout")) assert.equal(s.with.ref, "${{ inputs.source_sha }}");
   }
-  const cache = id => gate.jobs[id].steps.find(s => s.uses === "Swatinem/rust-cache@v2").with;
+  const cache = id => gate.jobs[id].steps.find(s => s.uses?.startsWith("Swatinem/rust-cache@")).with;
   for (const id of ["build", "checks-rust"]) { assert.equal(cache(id)["cache-on-failure"], true, id); assert.equal(cache(id)["save-if"], undefined, `${id} keeps saving its cache`); }
 });
 

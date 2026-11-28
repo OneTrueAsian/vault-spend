@@ -194,8 +194,8 @@ test("the sharded packaging job verifies the gate evidence first, builds a draft
   const build = names.indexOf("Build Windows installers into the draft release"), after = names.indexOf("Confirm the release is still one draft");
   assert.ok(verify > 0 && verify < before && before < build && build < after);
   assert.ok(names.indexOf("Validate the release request") < verify);
-  assert.equal(steps.find(s => s.uses === "actions/download-artifact@v4").with.name, "sharded-gate-summary-${{ github.run_attempt }}");
-  assert.ok(names.indexOf("actions/download-artifact@v4") < verify, "the summary the aggregate writes is fetched before anything else is trusted");
+  assert.equal(steps.find(s => s.uses?.startsWith("actions/download-artifact@")).with.name, "sharded-gate-summary-${{ github.run_attempt }}");
+  assert.ok(names.findIndex(n => n?.startsWith("actions/download-artifact@")) < verify, "the summary the aggregate writes is fetched before anything else is trusted");
   assert.match(steps[verify].run, /verify-sharded-gate-summary\.mjs gate-evidence\/gate-summary\.json \$env:RUN_ATTEMPT --contracts yes$/);
   assert.equal(steps[verify].env.SOURCE_SHA, "${{ inputs.source_sha }}");
   assert.equal(steps[verify].env.RUN_ATTEMPT, "${{ github.run_attempt }}");
@@ -215,7 +215,7 @@ test("a real release cannot start without its release notes: the baseline job ch
   const job = release.jobs["release-baseline"], names = job.steps.map(s => s.name ?? s.uses);
   const step = job.steps.find(s => s.name === "Require this version's release notes");
   assert.ok(step, "the step exists");
-  assert.ok(names.indexOf("actions/setup-node@v4") < names.indexOf(step.name), "node is set up first");
+  assert.ok(names.findIndex(n => n?.startsWith("actions/setup-node@")) < names.indexOf(step.name), "node is set up first");
   assert.ok(names.indexOf(step.name) < names.indexOf("Read and check the newest published release"), "before anything else is read");
   assert.equal(step.if, "${{ !inputs.test_release }}", "a reserved test tag has no changelog entry and is not held to one");
   assert.equal(step.env.RELEASE_TAG, "${{ inputs.tag }}");
@@ -272,7 +272,7 @@ test("the signing job signs the final bytes, uploads without overwriting, never 
     assert.equal(steps.at(-1).env.MODE === undefined, false, id);
   }
   assert.match(sharded.find(s => s.name === "Download the draft's Windows installers").run, ASSERT("after"));
-  assert.equal(sharded.find(s => s.uses === "actions/checkout@v4").with.ref, "${{ needs.sharded-package.outputs.source-sha }}");
+  assert.equal(sharded.find(s => s.uses?.startsWith("actions/checkout@")).with.ref, "${{ needs.sharded-package.outputs.source-sha }}");
 });
 
 test("the request script, run for real, accepts only the three intended shapes", { skip: !BASH && "bash is required" }, () => {
