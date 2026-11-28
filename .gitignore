@@ -69,3 +69,6 @@ db-backups/
 dependency-audit/
 # Local parallel-run approvals: machine-specific receipt paths and approvals tied to one exact build (see e2e/README.md, "Generating the approvals registry").
 /e2e/parallel-approvals.json
+
+# Installed Claude Code skill (not part of the app)
+/.claude/skills/impeccable/
